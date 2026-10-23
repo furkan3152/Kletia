@@ -53,6 +53,7 @@ import { assertEvmBalance } from "./evmTransfer.js";
 import { accountBytes32, cushionedMinimum } from "./lifi.js";
 import { cappedOutput, destinationCredit, type DestinationCheck } from "./relay.js";
 import type { AdapterAction, AdapterRoute, PlannedStep, PlannedStepPreview, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult } from "./types.js";
+import { crossNetworkSeconds } from "./timing.js";
 import { evmEvents, fillNotBefore, stepOwner, verifyEvmReceipts } from "./verification.js";
 
 /** Networks Across serves in the registry (each needs a pinned SpokePool). */
@@ -68,8 +69,26 @@ const QUOTE_SIGNING_MARGIN_SECONDS = 600;
 const MIN_FILL_WINDOW_SECONDS = 600;
 /** Clock skew tolerated between Across's quote timestamp and Kletia's clock. */
 const CLOCK_SKEW_SECONDS = 120;
-/** Longest exclusivity window accepted (seconds after the deposit; larger values mean another encoding). */
-const MAX_EXCLUSIVITY_SECONDS = 3_600;
+/**
+ * SpokePool.MAX_EXCLUSIVITY_PERIOD_SECONDS() on every pinned SpokePool (read back 2026-10-23): an
+ * exclusivityParameter above it is an absolute timestamp, at or below it a period added to the deposit time
+ * (design RC7, red-team D9; Across returns timestamps for Ethereum and Polygon origins).
+ */
+export const ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS = 31_536_000;
+/** Longest exclusivity window accepted (seconds a single relayer may hold the fill). */
+export const MAX_EXCLUSIVITY_SECONDS = 3_600;
+
+/**
+ * Seconds of exclusivity an exclusivityParameter gives a relayer from `now`,
+ * by the SpokePool's own rule: 0 means none; above
+ * MAX_EXCLUSIVITY_PERIOD_SECONDS it is a timestamp (the window is what is
+ * left of it); otherwise it is a period after the deposit.
+ */
+export function exclusivityWindowSeconds(parameter: number, now: number): number {
+  if (!Number.isFinite(parameter) || parameter <= 0) return 0;
+  if (parameter > ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS) return Math.max(0, parameter - now);
+  return parameter;
+}
 /** Relay fees above this share of the amount are refused. */
 const MAX_FEE_PERCENT = 10;
 const APPROVE_GAS = "70000";
@@ -160,7 +179,7 @@ export function checkAcrossQuote(action: AdapterAction, quote: AcrossQuote, now:
   if (now - quote.timestamp > ACROSS_QUOTE_TIME_BUFFER_SECONDS - QUOTE_SIGNING_MARGIN_SECONDS) reject("the quote timestamp is too old for the SpokePool");
   if (quote.fillDeadline > now + ACROSS_FILL_DEADLINE_BUFFER_SECONDS) reject("the fill deadline is beyond the SpokePool's fill deadline buffer");
   if (quote.fillDeadline < now + MIN_FILL_WINDOW_SECONDS) reject("the fill deadline is too close");
-  if (quote.exclusivityDeadline > MAX_EXCLUSIVITY_SECONDS) reject("the exclusivity window is too long");
+  if (exclusivityWindowSeconds(quote.exclusivityDeadline, now) > MAX_EXCLUSIVITY_SECONDS) reject("the exclusivity window is too long");
   if (quote.exclusivityDeadline > 0 && /^0x0{40}$/u.test(quote.exclusiveRelayer)) reject("an exclusivity window without an exclusive relayer");
 }
 
@@ -227,6 +246,7 @@ type DecodedDeposit = {
   readonly exclusiveRelayer: Hex;
   readonly quoteTimestamp: number;
   readonly fillDeadline: number;
+  readonly exclusivityParameter: number;
   readonly message: Hex;
 };
 
@@ -234,8 +254,8 @@ function decodeDeposit(data: string): DecodedDeposit | null {
   try {
     const decoded = decodeFunctionData({ abi: SPOKE_POOL_ABI, data: withoutIntegratorSuffix(data) });
     if (decoded.functionName !== "deposit") return null;
-    const [depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, , message] = decoded.args;
-    return { depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, message };
+    const [depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, exclusivityParameter, message] = decoded.args;
+    return { depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, exclusivityParameter, message };
   } catch {
     return null;
   }
@@ -261,13 +281,19 @@ function depositTransactions(action: AdapterAction, network: EvmNetworkKey, chec
       description: `Approve ${formatAmount(fromBaseUnits(action.amount, action.input.decimals))} ${action.input.symbol} for Across`,
     });
   }
+  const data = acrossDepositData(action, checked.quote);
+  // The encoded parameter is held to the SpokePool's own rule too (RC7, D9).
+  const encoded = decodeDeposit(data);
+  if (!encoded || exclusivityWindowSeconds(encoded.exclusivityParameter, nowSeconds()) > MAX_EXCLUSIVITY_SECONDS) {
+    reject("the encoded exclusivity window is too long");
+  }
   transactions.push({
     vm: "evm",
     network,
     chainId,
     from,
     to: getAddress(checked.spokePool),
-    data: acrossDepositData(action, checked.quote),
+    data,
     value: "0",
     description: title(action),
   });
@@ -414,7 +440,7 @@ export const acrossAdapter: ProtocolAdapter = {
       mode: "wallet",
       ...quoteAmounts(action, checked.quote),
       feesUsd: feesUsd(action, checked.quote),
-      estimatedSeconds: fill + 15,
+      estimatedSeconds: crossNetworkSeconds(action.network, fill),
       settlement: { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: fill },
       warnings: warnings(action, checked.quote),
       ...(checked.quote.id ? { quoteId: checked.quote.id } : {}),

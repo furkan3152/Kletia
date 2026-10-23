@@ -4,7 +4,8 @@
  * always rendered here from the code and the current facts, never echoed
  * from a client-held thread. English, no emoji, no em dashes.
  */
-import { CLARIFY_LIMITS, type AssumptionSource, type ClarifyQuestionKind, type ClarifyReason } from "@kletia/core";
+import { CLARIFY_LIMITS, type AssumptionSource, type ClarifyQuestionKind, type ClarifyReason, type ClosedClassRefusal } from "@kletia/core";
+import { PlatformError } from "../../errors.js";
 import type { Assumption, Option, OptionValue, Question } from "./types.js";
 
 /** Cuts text to `max` characters on a word boundary, ending with "…" when cut. */
@@ -115,6 +116,27 @@ export function placeholderFor(kind: ClarifyQuestionKind, symbol?: string, solan
   if (kind === "amount") return symbol ? `Amount in ${symbol}` : "Amount";
   if (kind === "address") return solana ? "Solana address or name.sns" : "0x… or name.eth";
   return undefined;
+}
+
+/**
+ * Refusals of a clause whose closed-class word no reviewed rule consumed
+ * (intent design A.2, D.3): negation, cancellation, questions, conditions and
+ * time, disjunction, limits and approximations, units. Kletia's words only;
+ * the person's text is never echoed. `details.closedClass` names the family.
+ */
+export const CLOSED_CLASS_COPY: Readonly<Record<ClosedClassRefusal, string>> = Object.freeze({
+  negation: "Kletia plans what you want done. Say the action you want, for example \"swap 1 ETH to USDC on Base\".",
+  cancellation: "There is nothing to cancel in a new message. Say what Kletia should do, for example \"swap 1 ETH to USDC on Base\".",
+  question: "That reads as a question. To plan it, say it as a command, for example \"swap 1 ETH to USDC on Base\".",
+  condition: "Kletia does not schedule or wait for conditions. Say what to do now, for example \"swap 1 ETH to USDC on Base\".",
+  disjunction: "Pick one: Kletia plans one choice at a time, for example \"bridge 100 USDC from Base to Arbitrum\".",
+  limit: "Say the exact amount, for example \"swap 100 USDC to ETH on Base\".",
+  unit: "Say the amount as a number of tokens, for example \"swap 1500 USDC to ETH on Base\".",
+});
+
+/** The refusal of an unconsumed closed-class word (fail closed; never read by a drop, never sent to a model). */
+export function closedClassRefusal(family: ClosedClassRefusal, path = "text"): PlatformError {
+  return new PlatformError("INTENT_UNSUPPORTED", CLOSED_CLASS_COPY[family], 422, [{ path, message: "Not something Kletia can plan as said." }], undefined, { closedClass: family });
 }
 
 /**

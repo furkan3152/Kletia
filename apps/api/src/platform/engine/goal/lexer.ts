@@ -19,6 +19,7 @@ import {
   ALL_BUT_PHRASES,
   BEST_VENUE_PHRASES,
   CLASS_WORDS,
+  CONNECTOR_VARIANTS,
   CONNECTORS,
   FILLER_WORDS,
   HOLDER_WORDS,
@@ -31,6 +32,7 @@ import {
   PORTION_WORDS,
   PREFERENCE_PHRASES,
   REFERENCE_WORDS,
+  TOKEN_UNIT_FRACTIONS,
   TRAILING_FILLERS,
   USD_UNITS,
   VERB_LEXICON,
@@ -52,7 +54,8 @@ export interface VenueReading {
 }
 
 export type Token =
-  | { readonly t: "AMOUNT"; readonly sel: AmountSel; readonly raw: string; readonly rewritten?: true; readonly span: Span }
+  /** `readAs`: how a rewritten amount reads back in its chip ("half a sol" -> "0.5 SOL"). */
+  | { readonly t: "AMOUNT"; readonly sel: AmountSel; readonly raw: string; readonly rewritten?: true; readonly readAs?: string; readonly span: Span }
   | { readonly t: "ASSET"; readonly symbol: string; readonly raw: string; readonly network?: NetworkKey; readonly venue?: VenueReading; readonly span: Span }
   /** An unknown symbol within one edit of listed symbols ("SLO"): ASSET_TYPO (§3.3). */
   | { readonly t: "ASSET?"; readonly raw: string; readonly candidates: readonly string[]; readonly span: Span }
@@ -188,6 +191,7 @@ const PHRASES: readonly Phrase[] = (() => {
     });
   }
   for (const phrase of CONNECTORS) if (phrase.includes(" ")) add(phrase, (_raw, span) => ({ t: "CONN", word: phrase, span }));
+  for (const [phrase, word] of Object.entries(CONNECTOR_VARIANTS)) add(phrase, (_raw, span) => ({ t: "CONN", word, span }));
   for (const phrase of REFERENCE_WORDS) add(phrase, (raw, span) => ({ t: "REF", raw, span }));
   for (const [phrase, bps] of Object.entries(PORTION_WORDS)) add(phrase, (raw, span) => ({ t: "AMOUNT", sel: { t: "portion", bps }, raw, span }));
   for (const phrase of MAX_PHRASES) add(phrase, (raw, span) => ({ t: "AMOUNT", sel: { t: "max" }, raw, span }));
@@ -207,6 +211,46 @@ const PHRASES_BY_FIRST: ReadonlyMap<string, readonly Phrase[]> = (() => {
 })();
 
 const PORTION_PHRASES: readonly (readonly string[])[] = Object.keys(PORTION_WORDS).map((phrase) => phrase.split(" ")).sort((a, b) => b.length - a.length);
+const FRACTION_PHRASES: readonly (readonly string[])[] = Object.keys(TOKEN_UNIT_FRACTIONS).map((phrase) => phrase.split(" ")).sort((a, b) => b.length - a.length);
+const UNIT_ARTICLES: ReadonlySet<string> = new Set(["a", "an"]);
+
+/** The listed spelling of a symbol typed in any case ("jitosol" -> "JitoSOL"). */
+function listedSpelling(raw: string): string {
+  const upper = raw.toUpperCase();
+  return LISTED.find((symbol) => symbol.toUpperCase() === upper) ?? upper;
+}
+
+/**
+ * "half a sol", "half an eth", "a quarter of a sol", "three quarters of an
+ * eth": a portion word, an optional "of", "a"/"an" and a token is that many
+ * token units (design A.2, red-team A4), never a share of the balance. The
+ * AMOUNT covers the words up to the article; the token after it is read as
+ * usual. A fraction with no exact decimal ("a third of a sol"), or a portion
+ * of "a dollar" / "a stablecoin", is NOISE: the clause is not read rather
+ * than guessed. Null when the words are not this shape ("half my sol",
+ * "half of it", "half the sol" stay portions).
+ */
+function tokenUnitFraction(cursor: Cursor, index: number): [Token, number] | null {
+  const words = cursor.words;
+  const lower = (at: number) => (words[at] ?? "").toLowerCase();
+  const phrase = FRACTION_PHRASES.find((entry) => index + entry.length <= words.length && words.slice(index, index + entry.length).join(" ").toLowerCase() === entry.join(" "));
+  if (!phrase) return null;
+  let at = index + phrase.length;
+  if (lower(at) === "of") at += 1;
+  if (!UNIT_ARTICLES.has(lower(at))) return null;
+  const unit = words[at + 1];
+  if (unit === undefined) return null;
+  const unitLower = unit.toLowerCase();
+  const token = knownSymbol(unit) && !ADDRESS_WORD.test(unit);
+  const money = isUsdWord(unitLower) || Object.hasOwn(CLASS_WORDS, unitLower) || USD_UNITS.has(unitLower);
+  if (!token && !money) return null;
+  const used = at + 1 - index;
+  const span = spanOf(cursor, index, at + 1);
+  const raw = words.slice(index, at + 2).join(" ").slice(0, 40);
+  const value = TOKEN_UNIT_FRACTIONS[phrase.join(" ")];
+  if (!token || value === null || value === undefined) return [{ t: "NOISE", raw, span }, used];
+  return [{ t: "AMOUNT", sel: { t: "exact", value }, raw, rewritten: true, readAs: `${value} ${listedSpelling(unit)}`, span }, used];
+}
 const CONNECTOR_SET: ReadonlySet<string> = new Set(CONNECTORS.filter((word) => !word.includes(" ")));
 const isNumberWord = (word: string) => Object.hasOwn(NUMBER_UNITS, word) || Object.hasOwn(NUMBER_TENS, word) || Object.hasOwn(NUMBER_SCALES, word);
 
@@ -316,6 +360,13 @@ export function lex(text: string): Token[] {
         index += used;
         continue;
       }
+    }
+    // Token-unit fractions before portions: "half a sol" is 0.5 SOL, not half the balance.
+    const fraction = tokenUnitFraction(cursor, index);
+    if (fraction) {
+      tokens.push(fraction[0]);
+      index += fraction[1];
+      continue;
     }
     // Portion words before numbers: "two thirds" is 6667 bps, not the number 2.
     const portion = PORTION_PHRASES.find((phrase) => index + phrase.length <= words.length && words.slice(index, index + phrase.length).join(" ").toLowerCase() === phrase.join(" "));

@@ -87,13 +87,16 @@ describe("clarify invariants", () => {
   it("every grammar example is ready with no question and the strict grammar's actions", async () => {
     for (const text of GRAMMAR_EXAMPLES) {
       let decision = await first(text);
-      // D2 is a funds check, not a gap: an example amount above the fixture balance is asked, and kept it plans as written.
-      const exceeds = decision.questions[0];
-      if (exceeds?.reason === "AMOUNT_EXCEEDS_BALANCE" && decision.questions.length === 1) {
-        assert.ok(exceeds.options.some((option) => option.id === "keep"), text);
-        const kept = await runTurn(decision.thread, { answer: { question: exceeds.id, option: "keep" } }, contextFor(corpus, { id: "t", category: "test", title: "t", wallet: "full", turns: [] } as CorpusCase));
-        assert.ok(kept.decision, `${text}: ${kept.error?.code}`);
-        decision = kept.decision;
+      // D2 and gas (C.1 rule 8) are funds checks, not gaps: an example amount above the fixture balance is asked and,
+      // kept, plans as written; a network without gas is asked and, "plan anyway", plans as written.
+      for (let round = 0; round < 3; round += 1) {
+        const check = decision.questions[0];
+        const settle = check?.reason === "AMOUNT_EXCEEDS_BALANCE" ? "keep" : check?.reason === "GAS_ON_ARRIVAL" ? "anyway" : null;
+        if (!check || !settle || decision.questions.length !== 1) break;
+        assert.ok(check.options.some((option) => option.id === settle), text);
+        const settled = await runTurn(decision.thread, { answer: { question: check.id, option: settle } }, contextFor(corpus, { id: "t", category: "test", title: "t", wallet: "full", turns: [] } as CorpusCase));
+        assert.ok(settled.decision, `${text}: ${settled.error?.code}`);
+        decision = settled.decision;
       }
       assert.equal(decision.status, "ready", `${text}: ${JSON.stringify(decision.questions.map((q) => q.reason))}`);
       assert.equal(decision.questions.length, 0, text);
@@ -159,13 +162,17 @@ describe("clarify invariants", () => {
     assert.equal(unknown.actions?.[0]?.amount, "1500");
   });
 
-  it("asks where a payment lands when two networks could fund it, and plans with a material chip when exactly one can", async () => {
+  it("asks where a payment lands (purpose, C.1 rule 4): two funded networks, one, or none known; never a chip", async () => {
     const two = await first("send 5 USDC to 0x000000000000000000000000000000000000dEaD");
     assert.equal(two.questions[0]?.reason, "TRANSFER_NETWORK");
     assert.deepEqual(two.questions[0]?.options.map((option) => option.id), ["base", "arbitrum"]);
+    assert.ok(!two.questions[0]?.options.some((option) => option.recommended), "never a suggestion");
+    // One network holds the funds: still asked (an address may exist on one network only), with that network offered.
     const one = await first("send 5 USDC to 0x000000000000000000000000000000000000dEaD", "evm_base");
-    assert.equal(one.status, "ready");
-    assert.equal(one.assumptions.find((entry) => entry.field === "actions[0].network")?.material, true);
+    assert.equal(one.status, "needs_input");
+    assert.equal(one.questions[0]?.reason, "TRANSFER_NETWORK");
+    assert.deepEqual(one.questions[0]?.options.map((option) => option.id), ["base"]);
+    assert.ok(!one.assumptions.some((entry) => entry.field === "actions[0].network"), "no network chip for a payment");
     const unknown = await first("send 5 USDC to 0x1111111111111111111111111111111111111111", "preview");
     assert.equal(unknown.questions[0]?.reason, "TRANSFER_NETWORK");
   });

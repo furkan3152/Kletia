@@ -295,6 +295,8 @@ function lowerAcquire(read: ReadGoal): WorkStep[] | null {
  * place it. Every returned step carries `goalRead` (orderOnly for D12).
  */
 export function lowerGoal(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
+  // "buy 100 USDC of ETH": a reading the solver confirms (D12) before anything is planned; never lowered past it.
+  if (read.notes.worthIdiom) return null;
   let steps: WorkStep[] | null;
   switch (read.goal.kind) {
     case "convert":

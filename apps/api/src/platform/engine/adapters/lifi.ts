@@ -53,6 +53,7 @@ import { assertEvmBalance } from "./evmTransfer.js";
 import { fetchLifiQuote, fetchLifiStatus, type LifiQuote } from "./lifiClient.js";
 import { cappedOutput, destinationCredit, type DestinationCheck } from "./relay.js";
 import type { AdapterAction, AdapterRoute, PlannedStep, PlannedStepPreview, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult } from "./types.js";
+import { crossNetworkSeconds } from "./timing.js";
 import { evmEvents, fillNotBefore, verifyEvmReceipts } from "./verification.js";
 
 /** Networks LI.FI serves in the registry (origins additionally need a pinned diamond). */
@@ -494,7 +495,7 @@ export const lifiAdapter: ProtocolAdapter = {
       mode: "wallet",
       ...amounts(action, quote, action.slippageBps),
       ...(quote.feesUsd !== null ? { feesUsd: quote.feesUsd } : {}),
-      estimatedSeconds: seconds + 15,
+      estimatedSeconds: crossNetworkSeconds(action.network, seconds),
       settlement: { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: seconds },
       warnings: warnings(quote),
       quoteId: quote.transactionId,
@@ -516,7 +517,7 @@ export const lifiAdapter: ProtocolAdapter = {
     const { quote, diamond, allowance } = await checkedQuote(action, slippageBps, "prepare", plannedTool);
     // The caller's own time limit binds every prepare, as it bound the auction.
     const maxSeconds = graph.request?.constraints?.maxSeconds;
-    if (maxSeconds !== undefined && settlementSeconds(quote) + 15 > maxSeconds) {
+    if (maxSeconds !== undefined && crossNetworkSeconds(action.network, settlementSeconds(quote)) > maxSeconds) {
       throw new PlatformError(
         "QUOTE_MOVED",
         `LI.FI now estimates ~${settlementSeconds(quote)} s to settle, beyond constraints.maxSeconds (${maxSeconds} s). Create a new intent to re-quote.`,

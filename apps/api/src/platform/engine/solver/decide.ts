@@ -200,7 +200,7 @@ export function scopeDecision(input: { readonly index: number; readonly symbol: 
     ];
     return {
       kind: "ask",
-      question: question(field(input.index, "network"), "choice", "SCOPE_AMBIGUOUS", `Your ${input.symbol} is on ${ranked.map(networkLabel).join(", ")}. Which should this use?`,
+      question: question(field(input.index, "network"), "choice", "SCOPE_AMBIGUOUS", `Your ${input.symbol} ${/[a-z]s$/u.test(input.symbol) ? "are" : "is"} on ${ranked.map(networkLabel).join(", ")}. Which should this use?`,
         "Each network is moved separately; Kletia does not pick for you.", options, false),
     };
   }
@@ -479,6 +479,26 @@ export function fundsElsewhereQuestion(input: { readonly index: number; readonly
     "Kletia moves them first; that adds a bridge.", options, false);
 }
 
+/**
+ * C.1 rule 3 (C2): the money must cross to a network the person said (or the
+ * recipient implies) from one they did not name: asked which holding pays,
+ * one option per source network that can, never a chip. A choice, not a
+ * one-click confirm, even with one source: where money comes from is purpose.
+ */
+export function crossingSourceQuestion(input: { readonly index: number; readonly symbol: string; readonly to: NetworkKey; readonly routes: readonly Route[] }): Question | null {
+  // One option per holding (asset and network), the holdings of the asset that lands first (exposure-neutral, D3),
+  // then in route order; each option pins the holding its label names, so the answer plans exactly that source.
+  const same = (route: Route) => route.source.node.symbol.toUpperCase() === route.landing.symbol.toUpperCase();
+  const ranked = [...input.routes.filter(same), ...input.routes.filter((route) => !same(route))];
+  const holdings = bestBy(ranked, (route) => `${route.source.node.network}:${route.source.node.symbol.toUpperCase()}`);
+  if (holdings.length === 0) return null;
+  const options = holdings.slice(0, 8).map((route) =>
+    option(`${route.source.node.network}:${route.source.node.symbol}`, `Use ${route.source.node.symbol} on ${networkLabel(route.source.node.network)}`, { source: route.source.node.network, asset: route.source.node.symbol },
+      route.source.amount !== null ? `You hold ${amountLabel(route.source.amount)}; a bridge moves it to ${networkLabel(input.to)}` : `A bridge moves it to ${networkLabel(input.to)}`));
+  return question(field(input.index, "network"), "choice", "FUNDS_ELSEWHERE", `Where should the ${input.symbol} for ${networkLabel(input.to)} come from?`,
+    "Kletia never moves money from a network you did not name without asking.", options, false);
+}
+
 /** D0 without funds anywhere: the refusal, with the closest sentence Kletia can plan. */
 export function noRouteError(goal: Goal): PlatformError {
   const asset = symbolOf(goal, "spend") ?? symbolOf(goal, "want") ?? "USDC";
@@ -529,6 +549,6 @@ export function confirmQuestion(input: { readonly goal: Goal; readonly notes?: G
   const llm = input.goal.confidence === "llm";
   if (!llm && !input.notes?.orderOnly) return null;
   return question(field(input.index, "kind"), "confirm", "INTERPRETATION_CONFIRM", `${input.summary}. Is that what you meant?`,
-    llm ? "This reading was proposed by a language model; Kletia plans it only when you confirm." : "Kletia read part of this from word order alone.",
+    llm ? "Model-assisted reading. Kletia plans it only when you confirm." : "Kletia read part of this from word order alone.",
     [option("confirm", "Yes, plan it", { target: "confirm" })], true);
 }

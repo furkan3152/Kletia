@@ -25,10 +25,21 @@ export const TRAILING_FILLERS: readonly string[] = [
   "for me", "please", "pls", "plz", "thanks", "thank you", "thx", "real quick", "quickly", "now", "right now", "asap", "for me please",
 ];
 
-/** Words that never change what a clause means (dropped as tokens anywhere). */
+/**
+ * Words that never change what a clause means (dropped as tokens anywhere).
+ * "over" is not one: "swap over 100 USDC" sets a limit, so an unread "over"
+ * keeps the clause unread (design A.2, red-team A2). "over to" and "over
+ * from" are connector spellings (CONNECTOR_VARIANTS).
+ */
 export const FILLER_WORDS: ReadonlySet<string> = new Set([
-  "some", "just", "kindly", "please", "pls", "actually", "real", "quick", "over", "idle", "spare", "worth", "somewhere", "something",
+  "some", "just", "kindly", "please", "pls", "actually", "real", "quick", "idle", "spare", "worth", "somewhere", "something",
 ]);
+
+/** Connector spellings read as the connector they spell ("move 25 USDC from base over to solana"); reviewed lexicon entries, not corrections. */
+export const CONNECTOR_VARIANTS: Readonly<Record<string, string>> = Object.freeze({
+  "over to": "to",
+  "over from": "from",
+});
 
 export type ObjectRole = "spend" | "want";
 
@@ -195,6 +206,19 @@ export const NUMBER_SCALES: Readonly<Record<string, number>> = Object.freeze({ h
 export const PORTION_WORDS: Readonly<Record<string, number>> = Object.freeze({
   half: 5_000, "a half": 5_000, "one half": 5_000, quarter: 2_500, "a quarter": 2_500, "one quarter": 2_500, "three quarters": 7_500,
   third: 3_333, "a third": 3_333, "one third": 3_333, "two thirds": 6_667, "a tenth": 1_000, "one tenth": 1_000,
+});
+
+/**
+ * Token-unit fractions (design A.2, red-team A4): a portion word followed by
+ * "a"/"an" (or "of a"/"of an") and a token is an amount of that token, never
+ * a share of the balance: "half a sol" is 0.5 SOL, "a quarter of an eth" is
+ * 0.25 ETH. The value is exact; a fraction with no exact decimal ("a third
+ * of a sol") is null and the clause is not read (asked again in words).
+ */
+export const TOKEN_UNIT_FRACTIONS: Readonly<Record<string, string | null>> = Object.freeze({
+  half: "0.5", "a half": "0.5", "one half": "0.5", quarter: "0.25", "a quarter": "0.25", "one quarter": "0.25", "three quarters": "0.75",
+  "a tenth": "0.1", "one tenth": "0.1",
+  third: null, "a third": null, "one third": null, "two thirds": null,
 });
 
 /** Whole-balance words ("all", "everything I have in"). */

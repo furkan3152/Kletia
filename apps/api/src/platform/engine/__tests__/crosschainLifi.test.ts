@@ -120,7 +120,7 @@ describe("LI.FI quote checks (plan and prepare)", () => {
     assert.equal(planned.expectedOutput.amount, exact);
     assert.equal(planned.minimumOutput.amount, applySlippage(exact, 5));
     assert.equal(planned.transactionCount, 2);
-    assert.equal(planned.estimatedSeconds, 20);
+    assert.equal(planned.estimatedSeconds, 9, "the fill estimate plus Base's confirmation (no signing margin, design B.2)");
     assert.equal(planned.settlement.kind, "cross-network");
     assert.match(planned.warnings[0] ?? "", /^Route: LI\.FI via Across/u);
     mock.allowance = 25_000_000n;
@@ -180,7 +180,7 @@ describe("LI.FI quote checks (plan and prepare)", () => {
     const planned = await lifiAdapter.plan(action);
     assert.equal(planned.expectedOutput.amount, "24937500");
     assert.equal(planned.minimumOutput.amount, applySlippage("24937500", 5));
-    assert.equal(planned.estimatedSeconds, 1_095);
+    assert.equal(planned.estimatedSeconds, 1_084);
     // CCTP would mint into another token account, or report another wallet.
     quoteWith(action, { tool: "polymerStandard", solanaAta: "9SHQTA66Ekh7ZgMnKWsjxXk6DwXku8przs45E8bcEe38" });
     assert.match(await errorOf(() => lifiAdapter.plan(action)), /CCTP would mint to another token account/u);

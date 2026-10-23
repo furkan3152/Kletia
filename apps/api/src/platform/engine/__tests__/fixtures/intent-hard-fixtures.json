@@ -1,0 +1,1021 @@
+{
+ "spec": "kletia.clarify-corpus/v1",
+ "about": "Fixtures of the hard intent corpus and the red-team corpus: the clarify corpus fixtures plus eight U2 wallets (lender, dust, stables, nogas, solfees, ethl2, mixed, whale) and four names (alice.eth, bob.base.eth, carol.sns; dave.eth and nobody123.sol unresolvable). No cases.",
+ "fixtures": {
+  "wallets": {
+   "full": {
+    "about": "EVM + Solana accounts; USDC on Base and Arbitrum, ETH on three EVM networks, SOL and USDC on Solana, an Aave USDC position on Base.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.05",
+      "USDC": "120.40",
+      "USDbC": "50",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.01",
+      "USDC": "30",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0.002",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "3",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0.004"
+     },
+     "solana": {
+      "SOL": "2.5",
+      "USDC": "12",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {
+     "base/aave-v3/USDC": "103.21"
+    }
+   },
+   "evm_base": {
+    "about": "EVM account only; funds on Base only.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.05",
+      "USDC": "120.40",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0"
+     }
+    },
+    "positions": {}
+   },
+   "sol_only": {
+    "about": "Solana account only.",
+    "accounts": [
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "solana": {
+      "SOL": "2.5",
+      "USDC": "12",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "two_usdc": {
+    "about": "USDC on Base (200) and Arbitrum One (150).",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.02",
+      "USDC": "200",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.02",
+      "USDC": "150",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0"
+     },
+     "solana": {
+      "SOL": "1",
+      "USDC": "0",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "low_evm": {
+    "about": "Little USDC on EVM networks, 400 USDC on Solana.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.01",
+      "USDC": "3.10",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0",
+      "USDC": "2",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0"
+     },
+     "solana": {
+      "SOL": "0.5",
+      "USDC": "400",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "lookalike": {
+    "about": "Base: 3 USDC but 150 USDbC (the legacy bridged USDC).",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.01",
+      "USDC": "3",
+      "USDbC": "150",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0"
+     },
+     "solana": {
+      "SOL": "0",
+      "USDC": "0",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "preview": {
+    "about": "Studio's preview accounts (core PREVIEW_ACCOUNT_IDS): balances are never read (unknown, not zero).",
+    "accounts": [
+     "eip155:8453:0x9B58BE768EAB41bD43C8293DDDB6bf3c0D066590",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:92x2Ef9emSPRLCDhZNBRoJmqfP65AhNYMYV4pFVsE4BK"
+    ],
+    "balances": null,
+    "positions": null
+   },
+   "wide": {
+    "about": "Round 7 protocols: EVM + Solana accounts with funds on every production network (USDT/USDT0, wstETH, cbETH, WETH on Polygon).",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "ethereum": {
+      "ETH": "3",
+      "USDC": "500",
+      "WETH": "0",
+      "USDT": "500",
+      "wstETH": "1",
+      "DAI": "0",
+      "cbBTC": "0"
+     },
+     "base": {
+      "ETH": "2",
+      "USDC": "500",
+      "WETH": "0",
+      "wstETH": "1",
+      "cbETH": "1",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0",
+      "USDbC": "0"
+     },
+     "arbitrum": {
+      "ETH": "2",
+      "USDC": "500",
+      "WETH": "0",
+      "USDT0": "500",
+      "wstETH": "0",
+      "ARB": "0",
+      "DAI": "0"
+     },
+     "optimism": {
+      "ETH": "2",
+      "USDC": "500",
+      "WETH": "0",
+      "USDT": "500",
+      "wstETH": "0",
+      "OP": "0"
+     },
+     "polygon": {
+      "POL": "20",
+      "USDC": "500",
+      "WPOL": "0",
+      "WETH": "1",
+      "USDT0": "500",
+      "wstETH": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "10",
+      "USDC": "100",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "testnet": {
+    "about": "Round 7 protocols: testnet accounts only (Arc Testnet, Arbitrum Sepolia, Solana Devnet).",
+    "accounts": [
+     "eip155:421614:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "arc": {
+      "USDC": "100",
+      "EURC": "50"
+     },
+     "arbitrum-sepolia": {
+      "ETH": "1",
+      "USDC": "100",
+      "WETH": "0"
+     },
+     "solana-devnet": {
+      "SOL": "5",
+      "USDC": "10"
+     }
+    },
+    "positions": {}
+   },
+   "lender": {
+    "about": "U2: lending positions on four venues (Aave and Morpho on Base, Compound on Arbitrum, Kamino on Solana); little cash; gas everywhere.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.02",
+      "USDC": "5",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0",
+      "wstETH": "0",
+      "cbETH": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.01",
+      "USDC": "0",
+      "WETH": "0",
+      "ARB": "0",
+      "USDT0": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "ethereum": {
+      "ETH": "0.01",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "optimism": {
+      "ETH": "0.005",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "OP": "0",
+      "wstETH": "0"
+     },
+     "polygon": {
+      "POL": "2",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0",
+      "USDT0": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "0.3",
+      "USDC": "1",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {
+     "base/aave-v3/USDC": "250",
+     "base/morpho/USDC": "80",
+     "arbitrum/compound-v3/USDC": "60",
+     "solana/kamino/USDC": "40"
+    }
+   },
+   "dust": {
+    "about": "U2: dust everywhere (sub-dollar stablecoins, tiny gas, unpriced governance and meme tokens).",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.004",
+      "USDC": "0.42",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0.8",
+      "EURC": "0.5",
+      "AERO": "1.3",
+      "wstETH": "0",
+      "cbETH": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.0003",
+      "USDC": "0.9",
+      "WETH": "0",
+      "ARB": "0.6",
+      "USDT0": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "ethereum": {
+      "ETH": "0.0001",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "optimism": {
+      "ETH": "0.0002",
+      "USDC": "0.15",
+      "WETH": "0",
+      "USDT": "0",
+      "OP": "0.3",
+      "wstETH": "0"
+     },
+     "polygon": {
+      "POL": "0.7",
+      "USDC": "0.25",
+      "WPOL": "0",
+      "WETH": "0",
+      "USDT0": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "0.03",
+      "USDC": "0.6",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0.9",
+      "BONK": "12000",
+      "WIF": "0.4",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "stables": {
+    "about": "U2: idle stablecoins on four networks (USDC, DAI, USDT0, USDT), gas on each.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.01",
+      "USDC": "300",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "50",
+      "EURC": "0",
+      "AERO": "0",
+      "wstETH": "0",
+      "cbETH": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.005",
+      "USDC": "200",
+      "WETH": "0",
+      "ARB": "0",
+      "USDT0": "100",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "optimism": {
+      "ETH": "0.003",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "40",
+      "OP": "0",
+      "wstETH": "0"
+     },
+     "polygon": {
+      "POL": "1",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0",
+      "USDT0": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "0.2",
+      "USDC": "150",
+      "USDT": "25",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "nogas": {
+    "about": "U2: USDC on Polygon and Arbitrum but no gas there; ETH and USDC on Base; a little SOL and USDC on Solana.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.02",
+      "USDC": "100",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0",
+      "wstETH": "0",
+      "cbETH": "0"
+     },
+     "arbitrum": {
+      "ETH": "0",
+      "USDC": "40",
+      "WETH": "0",
+      "ARB": "0",
+      "USDT0": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "OP": "0",
+      "wstETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "50",
+      "WPOL": "0",
+      "WETH": "0",
+      "USDT0": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "0.5",
+      "USDC": "10",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "solfees": {
+    "about": "U2: almost no SOL on Solana (0.001) but 40 USDC there; ETH and USDC on Base.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.02",
+      "USDC": "100",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0",
+      "wstETH": "0",
+      "cbETH": "0"
+     },
+     "arbitrum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "ARB": "0",
+      "USDT0": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "OP": "0",
+      "wstETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0",
+      "USDT0": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "0.001",
+      "USDC": "40",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "ethl2": {
+    "about": "U2: ETH on Base (1) and Arbitrum (0.5), nothing else but a little SOL.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "1",
+      "USDC": "0",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0",
+      "wstETH": "0",
+      "cbETH": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.5",
+      "USDC": "0",
+      "WETH": "0",
+      "ARB": "0",
+      "USDT0": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "OP": "0",
+      "wstETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0",
+      "USDT0": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "0.05",
+      "USDC": "0",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "mixed": {
+    "about": "U2: a typical user: ETH+USDC on Base, USDC on Arbitrum, SOL+USDC on Solana, POL on Polygon, WETH on Base, USDT on Optimism.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.4",
+      "USDC": "800",
+      "USDbC": "0",
+      "WETH": "0.2",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0",
+      "wstETH": "0",
+      "cbETH": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.05",
+      "USDC": "250",
+      "WETH": "0",
+      "ARB": "0",
+      "USDT0": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "ethereum": {
+      "ETH": "0.3",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "optimism": {
+      "ETH": "0.02",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "60",
+      "OP": "0",
+      "wstETH": "0"
+     },
+     "polygon": {
+      "POL": "40",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0",
+      "USDT0": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "6",
+      "USDC": "90",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "whale": {
+    "about": "U2: large balances (25k USDC and 10 ETH on Base, 300 SOL and 5k USDC on Solana, 3k USDC and 2 ETH on Arbitrum) for number-format prompts.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "10",
+      "USDC": "25000",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0",
+      "wstETH": "0",
+      "cbETH": "0"
+     },
+     "arbitrum": {
+      "ETH": "2",
+      "USDC": "3000",
+      "WETH": "0",
+      "ARB": "0",
+      "USDT0": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "ethereum": {
+      "ETH": "1",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "DAI": "0",
+      "wstETH": "0"
+     },
+     "optimism": {
+      "ETH": "0.5",
+      "USDC": "0",
+      "WETH": "0",
+      "USDT": "0",
+      "OP": "0",
+      "wstETH": "0"
+     },
+     "polygon": {
+      "POL": "100",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0",
+      "USDT0": "0",
+      "DAI": "0"
+     },
+     "solana": {
+      "SOL": "300",
+      "USDC": "5000",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   }
+  },
+  "names": {
+   "vitalik.eth": {
+    "evm": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+   },
+   "jesse.base.eth": {
+    "base": "0x2211d1D0020DAEA8039E46Cf1367962070d77DA9"
+   },
+   "toly.sns": {
+    "solana": "86xCnPeV69n6t3DnyGvkKobf9FdN2H9oiVDdaMpo2MMY"
+   },
+   "alice.eth": {
+    "evm": "0xa11ce00000000000000000000000000000000a11"
+   },
+   "bob.base.eth": {
+    "base": "0xb0b0000000000000000000000000000000000b0b"
+   },
+   "carol.sns": {
+    "solana": "68GLr8rYqhXTRgYuH5MN7BeswuPxjeEZRLMzunr9JQCt"
+   }
+  },
+  "solanaTokens": {
+   "USCD": "unverified",
+   "dollars": "unverified",
+   "stSOL": "verified"
+  },
+  "pricesUsd": {
+   "SOL": 105.3,
+   "ETH": 2500
+  },
+  "contracts": [
+   {
+    "registration": "acme-base",
+    "entry": "deposit",
+    "network": "base",
+    "vm": "evm",
+    "aliases": [
+     "acme vault",
+     "acme"
+    ],
+    "verbs": [
+     "deposit",
+     "stake"
+    ],
+    "spends": true
+   },
+   {
+    "registration": "acme-pool-base",
+    "entry": "deposit",
+    "network": "base",
+    "vm": "evm",
+    "aliases": [
+     "acme pool"
+    ],
+    "verbs": [
+     "deposit"
+    ],
+    "spends": true
+   },
+   {
+    "registration": "acme-pool-arbitrum",
+    "entry": "deposit",
+    "network": "arbitrum",
+    "vm": "evm",
+    "aliases": [
+     "acme pool"
+    ],
+    "verbs": [
+     "deposit"
+    ],
+    "spends": true
+   }
+  ],
+  "previewAccounts": [
+   "eip155:8453:0x9B58BE768EAB41bD43C8293DDDB6bf3c0D066590",
+   "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:92x2Ef9emSPRLCDhZNBRoJmqfP65AhNYMYV4pFVsE4BK"
+  ]
+ },
+ "cases": []
+}

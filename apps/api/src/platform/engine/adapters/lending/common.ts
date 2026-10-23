@@ -51,8 +51,9 @@ import {
   type YearnVaultVenue,
 } from "@kletia/core";
 import { PlatformError } from "../../../errors.js";
-import type { ResolvedAsset } from "../../assets.js";
+import { assetFromRef, type ResolvedAsset } from "../../assets.js";
 import { evmChainId, evmClient, isEvmNetwork, readAllowance, type EvmNetworkKey } from "../../chains/evm.js";
+import { readAssetUsd } from "../../routing/score.js";
 import { decodeStepRef } from "../../stepRef.js";
 import { estimateGas } from "../evmTransfer.js";
 import type { AdapterAction, AdapterRoute, PreparedPayload } from "../types.js";
@@ -626,7 +627,15 @@ export function observed(asset: Pick<AssetAmount, "asset" | "symbol" | "decimals
 
 /* ------------------------------------------------------------- metrics */
 
-/** Live rate and size of a venue, read on-chain (advisory; never used to authorise a transaction). */
+/**
+ * Live rate and size of a venue, read on-chain (advisory; never used to
+ * authorise a transaction). Seam S8 (design B.3, red-team D11): next to the
+ * current rate, `smoothedApy` is the venue's realised rate over the last 7
+ * days (index or share-price growth between two blocks), so a rate spiked
+ * for an hour cannot win an unnamed "best yield" choice; `tvlUsd` sizes the
+ * venue for the tier's TVL floor. Both are null when unreadable (an unknown
+ * rate or size is never ranked as zero).
+ */
 export interface LendingMetrics {
   readonly venue: string;
   readonly protocol: ProtocolId;
@@ -637,7 +646,12 @@ export interface LendingMetrics {
   readonly supplyApy: number | null;
   /** `rate`: the venue's current supply rate; `share-price`: realised share-price growth over `apyWindowSeconds`. */
   readonly apySource: "rate" | "share-price" | "unavailable";
-  readonly apyWindowSeconds?: number;
+  /** Window of the realised rates (`share-price` supplyApy and `smoothedApy`), in seconds; null when none was read. */
+  readonly apyWindowSeconds?: number | null;
+  /** The venue's realised supply APY over about 7 days (fraction); null when historic reads are unavailable. */
+  readonly smoothedApy: number | null;
+  /** USD value of `totalSupplied` at the score's prices; null when unpriced. */
+  readonly tvlUsd: number | null;
   /** Underlying supplied to the venue (TVL). */
   readonly totalSupplied: AssetAmount | null;
   /** Underlying that can leave the venue now (withdraw liquidity); null when the venue does not expose it. */
@@ -679,6 +693,62 @@ export function apyNote(metrics: Pick<LendingMetrics, "supplyApy" | "apySource" 
     ? `realised share-price growth over the last ${Math.round((metrics.apyWindowSeconds ?? 0) / 86_400)} days`
     : "the current on-chain supply rate";
   return [`Variable yield: about ${percent}% APY at planning (${source}); not guaranteed.`];
+}
+
+/** Window of the smoothed rates (seam S8): one week. */
+export const SMOOTHED_APY_WINDOW_SECONDS = 7 * 86_400;
+/** Nominal block times used to find the block one window ago (the elapsed time is then read from the blocks). */
+export const NOMINAL_BLOCK_SECONDS: Readonly<Record<EvmNetworkKey, number>> = Object.freeze({
+  base: 2,
+  optimism: 2,
+  polygon: 2,
+  arbitrum: 0.25,
+  ethereum: 12,
+  arc: 1,
+  "arbitrum-sepolia": 0.25,
+});
+
+export interface RealisedApy {
+  readonly apy: number;
+  /** Seconds between the two blocks read. */
+  readonly window: number;
+}
+
+/**
+ * APY realised by a monotonically growing index (Aave liquidity index,
+ * Comet supply index, an mToken exchange rate, a vault's share price)
+ * between the block about `windowSeconds` ago and the latest block; null
+ * when the RPC cannot serve the historic reads, the window is under a day,
+ * or the index did not grow sensibly.
+ */
+export async function indexGrowthApy(
+  network: EvmNetworkKey,
+  readAt: (blockNumber: bigint) => Promise<bigint>,
+  windowSeconds: number = SMOOTHED_APY_WINDOW_SECONDS,
+): Promise<RealisedApy | null> {
+  const client = evmClient(network);
+  const latest = await withTimeout(client.getBlock({ blockTag: "latest" }));
+  const back = BigInt(Math.round(windowSeconds / NOMINAL_BLOCK_SECONDS[network]));
+  if (latest.number === null || latest.number <= back) return null;
+  const pastNumber = latest.number - back;
+  const [past, now, then] = await withTimeout(Promise.all([client.getBlock({ blockNumber: pastNumber }), readAt(latest.number), readAt(pastNumber)]));
+  const elapsed = Number(latest.timestamp - past.timestamp);
+  if (elapsed < 86_400 || then <= 0n || now <= 0n || now < then) return null;
+  const apy = (Number(now) / Number(then)) ** (SECONDS_PER_YEAR / elapsed) - 1;
+  return Number.isFinite(apy) && apy >= 0 && apy < 10 ? { apy: Math.round(apy * 1e8) / 1e8, window: elapsed } : null;
+}
+
+/** USD value of an underlying amount at the score's prices (stablecoins at par, the oracle otherwise); null when unpriced. */
+export async function tvlUsdOf(amount: AssetAmount | null): Promise<number | null> {
+  if (!amount) return null;
+  try {
+    const price = await readAssetUsd(assetFromRef(amount));
+    if (price === null) return null;
+    const value = Number(fromBaseUnits(amount.amount, amount.decimals)) * price;
+    return Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Metrics read with a short budget for planning: a slow or failed read yields null, never an error. */

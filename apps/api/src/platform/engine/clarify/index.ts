@@ -23,7 +23,11 @@ import {
   validateIntentTurnRequest,
   validateThread,
   CLARIFY_LIMITS,
+  isKnownSymbol,
   isNetworkKey,
+  LOOKALIKE_FAMILIES,
+  normalizeMessage,
+  type Goal,
   type ClarifyAssumption,
   type ClarifyDraft,
   type ClarifyDraftStep,
@@ -48,7 +52,8 @@ import { TurnFacts } from "./facts.js";
 import { goalStepFrom, isGoalStep, isPlaceholder, placeholderOf, storedGoal } from "./goals.js";
 import { closestSentence, fromActionSpecs, render, toActionSpecs } from "./render.js";
 import { reduceTurn, type ReduceOutcome } from "./turn.js";
-import type { Assumption, EditOp, Option, Question, ResolvedAction, TurnContext, TurnInput, TurnKindName, WorkState, WorkStep } from "./types.js";
+import type { Assumption, EditOp, Option, Question, ResolvedAction, TurnContext, TurnInput, TurnKindName, UnreadClause, WorkState, WorkStep } from "./types.js";
+import { invariantRefusal, lookalikeRefusal, readyViolations, unlistedLookalikes } from "../solver/invariants.js";
 
 export type { ResolvedAction, TurnContext, TurnInput } from "./types.js";
 
@@ -64,7 +69,7 @@ export function newThreadId(): string {
 
 /* -------------------------------------------------- thread <-> state */
 
-const SLOT_KEYS = ["kind", "amount", "from", "to", "network", "toNetwork", "recipient", "protocol", "vault", "provider", "contract"] as const;
+const SLOT_KEYS = ["kind", "amount", "from", "to", "network", "toNetwork", "recipient", "protocol", "vault", "provider", "contract", "fundFrom"] as const;
 
 function stepToThread(input: WorkStep): ThreadStep {
   // A goal step is stored as a placeholder (no kind) plus its Goal in thread.goals.
@@ -72,11 +77,20 @@ function stepToThread(input: WorkStep): ThreadStep {
   const out: Record<string, unknown> = {};
   for (const key of SLOT_KEYS) {
     const slot = step[key];
-    if (slot) out[key] = { v: slot.v, by: slot.by, ...(slot.why && slot.by === "assumed" ? { why: slot.why } : {}) };
+    if (slot) {
+      // The grounding ledger (A.4) travels with the slot: offsets, rule and question ids only, never words.
+      out[key] = { v: slot.v, by: slot.by, ...(slot.why && slot.by === "assumed" ? { why: slot.why } : {}), ...(slot.prov ? { prov: slot.prov } : {}) };
+    }
   }
   if (step.kindCandidates && step.kindCandidates.length > 0) out.kindCandidates = [...step.kindCandidates];
   if (step.usdFrom) out.usdFrom = true;
   if (step.usdTo) out.usdTo = true;
+  // How the step was read (A.3): a confirm-class reading keeps asking until the person confirms the solved plan.
+  if (step.keep && step.keep.length > 0) out.keep = step.keep.slice(0, 4);
+  if (step.modelRead) out.modelRead = true;
+  if (step.readAs && step.readAs.length > 0) out.readAs = step.readAs.slice(0, 4);
+  if (step.questionForm) out.questionForm = true;
+  if (step.source) out.source = step.source;
   return out as ThreadStep;
 }
 
@@ -145,6 +159,9 @@ export function stateFromThread(thread: ClarifyThread): WorkState {
     corrections: thread.corrections.map((entry) => ({ ...entry })),
     turns: thread.turns.map((entry) => ({ ...entry })),
     undo: thread.undo.filter((snapshot) => !snapshot.some((step) => isPlaceholder(step))).map((snapshot) => snapshot.map((step) => stepFromThread(step, current))),
+    // A digest of another policy version never settles anything (its plan may read differently now).
+    ...(thread.confirmDigest !== undefined && current ? { confirmDigest: thread.confirmDigest } : {}),
+    ...(thread.textOrigin !== undefined ? { textOrigin: thread.textOrigin } : {}),
   };
 }
 
@@ -169,6 +186,8 @@ export function threadFromState(state: WorkState): ClarifyThread {
     // An undo snapshot with goal steps is not kept: its goals are not stored (undo then goes further back).
     undo: state.undo.filter((snapshot) => !snapshot.some(isGoalStep)).slice(-THREAD_LIMITS.undoSnapshots).map((snapshot) => snapshot.map(stepToThread)),
     ...(goals.length > 0 ? { goals } : {}),
+    ...(state.confirmDigest ? { confirmDigest: state.confirmDigest } : {}),
+    ...(state.textOrigin ? { textOrigin: state.textOrigin } : {}),
   };
   while (serialisedBytes(thread) > THREAD_LIMITS.maxBytes && (thread.undo.length > 0 || thread.turns.length > 0)) {
     thread = thread.undo.length > 0 ? { ...thread, undo: thread.undo.slice(1) } : { ...thread, turns: thread.turns.slice(1) };
@@ -192,18 +211,22 @@ export interface TurnDecision {
   /** Ready turns: the canonical sentence, or null when a step has no sentence shape (structured fallback). */
   readonly sentence?: string | null;
   readonly departure?: IntentDeparture;
+  /** Ready turns: gas top-ups the person chose on GAS_ON_ARRIVAL (constraints.gasOnArrival of the plan request). */
+  readonly gasOnArrival?: Readonly<Record<string, string>>;
+  /** The plan carries a model-assisted reading (confirmed by the person), or the open question confirms one. */
+  readonly modelReading?: true;
   /** Option sentences by question id and option id ("the sentence this choice leads to"). */
   readonly optionSentences: ReadonlyMap<string, string>;
   readonly state: WorkState;
 }
 
 /** Runs the reducer over this turn's facts, reading more until the policy asks for nothing new. */
-async function reduceWithFacts(previous: WorkState | null, input: TurnInput, ctx: TurnContext, facts: TurnFacts, id: string): Promise<ReduceOutcome> {
+async function reduceWithFacts(previous: WorkState | null, input: TurnInput, ctx: TurnContext, facts: TurnFacts, id: string, readings?: ReadonlyMap<number, readonly Goal[]>): Promise<ReduceOutcome> {
   for (let round = 0; ; round += 1) {
     let outcome: ReduceOutcome | null = null;
     let failure: unknown = null;
     try {
-      outcome = reduceTurn(previous, input, ctx, facts, () => id);
+      outcome = reduceTurn(previous, input, ctx, facts, () => id, readings);
     } catch (error) {
       failure = error;
     }
@@ -249,7 +272,22 @@ export async function decideTurn(thread: ClarifyThread | null, input: TurnInput,
   const previous = thread ? stateFromThread(thread) : null;
   const facts = new TurnFacts(ctx.accounts as IntentRequest["accounts"]);
   const id = thread?.id ?? newThreadId();
-  const outcome = await reduceWithFacts(previous, input, ctx, facts, id);
+  let outcome: ReduceOutcome;
+  try {
+    outcome = await reduceWithFacts(previous, input, ctx, facts, id);
+  } catch (error) {
+    // Seam S2: clauses no deterministic rule could read go to the model-assisted reading hook (when the HTTP layer set
+    // one: switch, eligibility and consent), outside the reducer; its readings are proposals the policy confirms.
+    const readings = await modelReadings(error, input, ctx);
+    if (readings) outcome = await reduceWithFacts(previous, input, ctx, facts, id, readings);
+    else {
+      // T3: a free-text answer that fits no option may be mapped to one option of the open question, shown as
+      // "Did you mean", never applied.
+      const mapped = thread && previous ? await mappedAnswer(error, thread, previous, input, ctx, facts, id) : null;
+      if (mapped) return mapped;
+      throw error;
+    }
+  }
   const next = threadFromState(outcome.state);
   if (outcome.status === "cancelled") {
     return { status: "cancelled", turn: "control", thread: next, questions: [], assumptions: [], optionSentences: new Map(), state: outcome.state };
@@ -257,6 +295,12 @@ export async function decideTurn(thread: ClarifyThread | null, input: TurnInput,
   const { analysis } = outcome;
   if (analysis.pending) {
     throw new PlatformError("INTENT_UNSUPPORTED", "Kletia could not read your holdings for this request right now. Try again, or name the asset, amount and network.", 422, [{ path: "text", message: "Holdings unavailable." }]);
+  }
+  // A.4.14 over the text: a typed member of a look-alike family Kletia does not list is asked, or refused.
+  if ("text" in input) {
+    const typed = unlistedLookalikes(normalizeMessage(input.text), LOOKALIKE_FAMILIES, isKnownSymbol);
+    const asked = analysis.questions[0]?.reason === "ASSET_LOOKALIKE" || analysis.questions[0]?.reason === "ASSET_TYPO";
+    if (typed[0] && !asked) throw lookalikeRefusal(typed[0]);
   }
   let assumptions = [...analysis.assumptions];
   if (outcome.status === "needs_input") {
@@ -276,10 +320,26 @@ export async function decideTurn(thread: ClarifyThread | null, input: TurnInput,
       }
     }
     facts.frozen = false;
-    return { status: "needs_input", turn: outcome.turn, thread: next, questions: analysis.questions, assumptions: chipsFirst(assumptions), optionSentences, state: outcome.state };
+    return {
+      status: "needs_input", turn: outcome.turn, thread: next, questions: analysis.questions, assumptions: chipsFirst(assumptions), optionSentences, state: outcome.state,
+      // The open question confirms a model-assisted reading: only the person may answer it (CONFIRM_AUTHORITY_REQUIRED).
+      ...(analysis.modelReading ? { modelReading: true as const } : {}),
+    };
   }
   const resolved = analysis.resolved ?? [];
   const departed = await applyDeparture(resolved, ctx, facts, constraints);
+  // The ready-time invariants again over the legs the departure added (continuity, address family, no round trip).
+  if (departed.departure?.bridged) {
+    const violations = readyViolations({
+      actions: departed.actions,
+      meta: departed.actions.map(() => ({ step: null })),
+      steps: [],
+      saidRecipients: departed.actions.flatMap((action) => (action.recipient ? [action.recipient] : [])),
+      thirdParty: () => false,
+      confirmed: true,
+    });
+    if (violations.length > 0) throw invariantRefusal(violations);
+  }
   // A departure leg the policy did not show (a payment to the recipient's network, a staking leg) gets its chip.
   if (departed.departure?.bridged && !assumptions.some((entry) => entry.field === "actions[0].network")) {
     const leg = departed.actions[0];
@@ -297,9 +357,54 @@ export async function decideTurn(thread: ClarifyThread | null, input: TurnInput,
     actions: departed.actions,
     sentence: render(departed.actions),
     ...(departed.departure ? { departure: departed.departure } : {}),
+    ...(analysis.gasOnArrival ? { gasOnArrival: analysis.gasOnArrival } : {}),
+    ...(analysis.modelReading ? { modelReading: true as const } : {}),
     optionSentences: new Map(),
     state: outcome.state,
   };
+}
+
+/** A non-serialised list of the clauses the reader could not read (seam S1), when the refusal carries one. */
+function unreadClausesOf(error: unknown): readonly UnreadClause[] | null {
+  if (!(error instanceof PlatformError) || error.code !== "INTENT_UNSUPPORTED") return null;
+  const unread = (error as PlatformError & { unreadClauses?: unknown }).unreadClauses;
+  return Array.isArray(unread) && unread.length > 0 ? (unread as UnreadClause[]) : null;
+}
+
+/** Seam S2: the hook's readings for the unread clauses of a new message, or null (the deterministic refusal stands). */
+async function modelReadings(error: unknown, input: TurnInput, ctx: TurnContext): Promise<ReadonlyMap<number, readonly Goal[]> | null> {
+  if (!ctx.reader || !("text" in input)) return null;
+  const unread = unreadClausesOf(error);
+  if (!unread) return null;
+  try {
+    const readings = await ctx.reader.readClauses(unread, null);
+    return readings.size > 0 ? readings : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * T3: an answer text that fits none of the open question's options, mapped
+ * by the hook to one option id of that question (closed set). The thread is
+ * not changed: the question comes back with "Did you mean" and the mapped
+ * option first, for the person to pick.
+ */
+async function mappedAnswer(error: unknown, thread: ClarifyThread, previous: WorkState, input: TurnInput, ctx: TurnContext, facts: TurnFacts, id: string): Promise<TurnDecision | null> {
+  if (!ctx.reader?.mapAnswer || !(error instanceof PlatformError) || error.code !== "ANSWER_INVALID" || !("answer" in input) || !input.answer.text) return null;
+  const open = await reduceWithFacts(previous, { none: true }, ctx, facts, id);
+  const q = open.analysis.questions.find((entry) => entry.id === input.answer.question);
+  if (!q) return null;
+  let mapped: string | null = null;
+  try {
+    mapped = await ctx.reader.mapAnswer(q, input.answer.text);
+  } catch {
+    mapped = null;
+  }
+  const option = q.options.find((entry) => entry.id === mapped);
+  if (!option || option.value.target === "cancel") return null;
+  const question: Question = { ...q, prompt: clip(`Did you mean: ${option.label}?`, CLARIFY_LIMITS.prompt), options: [option, ...q.options.filter((entry) => entry !== option)] };
+  return { status: "needs_input", turn: "answer", thread, questions: [question], assumptions: chipsFirst(open.analysis.assumptions), optionSentences: new Map(), state: previous };
 }
 
 /** Corrections and material chips first (§4.6), otherwise in policy order. */
@@ -404,6 +509,10 @@ export interface ClarifyTurnOptions {
   readonly journey?: boolean;
   /** The thread this turn continues: the client-held blob, or the Kletia-held thread the HTTP layer loaded. */
   readonly thread: ClarifyThread | null;
+  /** Seam S2: the model-assisted reading hook, set by the HTTP layer only when the switch, eligibility and consent allow it. */
+  readonly reader?: TurnContext["reader"];
+  /** Who answers this turn (the HTTP layer knows): the first-party desk, a wallet-bound token, or a plain API caller. */
+  readonly confirmAuthority?: TurnContext["confirmAuthority"];
 }
 
 function turnInput(request: IntentTurnRequest): TurnInput {
@@ -444,6 +553,9 @@ export async function clarifyTurn(request: IntentTurnRequest, options: ClarifyTu
     ...(turn.defaultNetwork ? { defaultNetwork: turn.defaultNetwork } : {}),
     ...(turn.sourceNetwork ? { sourceNetwork: turn.sourceNetwork } : {}),
     contracts: await contractPhrases(options.ownerKeyId),
+    ...(options.reader ? { reader: options.reader } : {}),
+    ...(options.confirmAuthority ? { confirmAuthority: options.confirmAuthority } : {}),
+    ...(turn.textOrigin ? { textOrigin: turn.textOrigin } : {}),
   };
   const decision = await decideTurn(supplied, input, ctx, turn.constraints);
   if (decision.status === "cancelled") return { status: "cancelled", turn: "control", thread: decision.thread };
@@ -460,10 +572,14 @@ export async function clarifyTurn(request: IntentTurnRequest, options: ClarifyTu
   const actions = decision.actions ?? [];
   const sentence = decision.sentence ?? null;
   const reference = turn.clientReference ? `${turn.clientReference}:r${decision.thread.rev}` : `thread:${decision.thread.id}:r${decision.thread.rev}`;
+  // A gas top-up the person chose (GAS_ON_ARRIVAL) rides on the leg that arrives there; the caller's own values win.
+  const constraints = decision.gasOnArrival
+    ? { ...(turn.constraints ?? {}), gasOnArrival: { ...decision.gasOnArrival, ...(turn.constraints?.gasOnArrival ?? {}) } }
+    : turn.constraints;
   const planRequest: IntentRequest = {
     accounts,
     ...(turn.defaultNetwork ? { defaultNetwork: turn.defaultNetwork } : {}),
-    ...(turn.constraints ? { constraints: turn.constraints } : {}),
+    ...(constraints ? { constraints } : {}),
     ...(turn.metadata ? { metadata: turn.metadata } : {}),
     clientReference: reference,
     // A step with no sentence shape (a bridge paying a third party) is planned as structured actions; the

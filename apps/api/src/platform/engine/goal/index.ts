@@ -62,6 +62,10 @@ export interface ReadClauseOptions {
   readonly index: number;
   /** The strict slot reader for one normalised piece (slots.ts parseClause). */
   readonly strict: (text: string, previousExists: boolean) => WorkStep | null;
+  /** The step before this clause (earlier clause or thread), when known. */
+  readonly previousStep?: WorkStep;
+  /** True for a step whose output goes to someone else: a piece after it is never chained to that output implicitly. */
+  readonly paysOther?: (step: WorkStep) => boolean;
 }
 
 export interface ClauseReading {
@@ -130,7 +134,9 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
       group.push(strict);
       continue;
     }
-    const read: ReadGoal | null = readFrame(tokens, { previousExists, index: goals.length });
+    const before = steps.length > 0 ? steps[steps.length - 1] : options.previousStep;
+    const chainable = !(before && options.paysOther?.(before));
+    const read: ReadGoal | null = readFrame(tokens, { previousExists, index: goals.length, ...(chainable ? {} : { chainable: false }) });
     if (!read) return null;
     goals.push(read.goal);
     const lowered = lowerGoal(read, { previousExists });

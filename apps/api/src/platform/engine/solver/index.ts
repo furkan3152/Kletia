@@ -32,7 +32,7 @@ import {
 import { PlatformError } from "../../errors.js";
 import { BRIDGE_NETWORKS, hasAccount, isUsdWord, lane, laneOf, LOOKALIKES, NETWORK_ORDER, recipientFamily, symbolsOn, transferOnly, USD_ORDER } from "../clarify/catalog.js";
 import { assumption, clip, question } from "../clarify/copy.js";
-import { cmp, isDecimal, parseDecimal, sub, formatDecimal } from "../clarify/decimal.js";
+import { cmp, isDecimal, parseDecimal, portion, sub, formatDecimal } from "../clarify/decimal.js";
 import { field } from "../clarify/edits.js";
 import type { Assumption, Option, Question, Slot, WorkStep } from "../clarify/types.js";
 import type { GoalNotes } from "../goal/frames.js";
@@ -41,6 +41,7 @@ import {
   ceilTo,
   chooseRoute,
   confirmQuestion,
+  crossingSourceQuestion,
   describeRoute,
   exceedsQuestion,
   fundsElsewhereQuestion,
@@ -534,6 +535,9 @@ function solveGoal(env: GoalEnv): Step {
   if (typo && !pins?.asset) return ask(typo);
   const recipient = recipientQuestion(goal, env.index);
   if (recipient) return ask(recipient);
+  // WP4: "send everything on base to alice.eth" is a payment of every holding there to the recipient, never a
+  // consolidation into the person's own account (one transfer per asset; the policy confirms every move).
+  if (goal.kind === "consolidate" && (goal.holder.t === "address" || goal.holder.t === "name")) return deliverAll(env, goal.holder.value);
 
   const problem = problemFor(env);
   if (!("kinds" in problem)) return ask(problem);
@@ -586,6 +590,11 @@ function solveGoal(env: GoalEnv): Step {
       if (scope.assumption) assumptions.push(scope.assumption);
     }
   }
+  // WP9: a class spent whole or in part ("all my stables on base", "half my stablecoins") is every holding of the class
+  // in scope, never the one a route search prefers; several holdings are several moves (the policy confirms them).
+  const classSpend = goal.spend.asset !== undefined && "class" in goal.spend.asset && !pins?.asset;
+  const shareSaid = goal.spend.amount?.t === "max" || goal.spend.amount?.t === "portion";
+  if (!multi && !chained && classSpend && shareSaid && new Set(sources.map((source) => source.node.id)).size > 1) multi = true;
 
   const gasPrices = new Map<NetworkKey, number | null>();
   for (const node of env.graph.nodes.values()) {
@@ -681,6 +690,15 @@ function solveGoal(env: GoalEnv): Step {
     return { kind: "ask", questions: choice.questions };
   }
   const route = choice.route;
+  // C.1 rule 3 (C2): a crossing to a network the person said (or the recipient implies), from a holding on a network
+  // they did not name, is asked; moving money they asked to move (relocate, consolidate) or a means choice is a chip.
+  const sourceNamed = goal.spend.from?.network !== undefined || pins?.source !== undefined || chained;
+  const destinationSaid = goal.want.at?.network !== undefined || (goal.kind === "deliver" && (recipientNetworks(goal, env.ctx.accounts) ?? []).length === 1);
+  if (!sourceNamed && destinationSaid && goal.kind !== "relocate" && goal.kind !== "consolidate" && route.hops.some((hop) => hop.edge.kind === "bridge")) {
+    const to = goal.want.at?.network ?? route.landing.network;
+    const asked = crossingSourceQuestion({ index: env.index, symbol: route.source.node.symbol, to, routes: routes.filter((entry) => entry.hops.some((hop) => hop.edge.kind === "bridge")) });
+    if (asked) return ask(asked);
+  }
   assumptions.push(...choice.assumptions);
 
   // The first step's amount: said, priced (D11), back-solved, or left for the policy to ask.
@@ -714,6 +732,11 @@ function solveGoal(env: GoalEnv): Step {
     ...(goal.holder.t === "address" || goal.holder.t === "name" ? { recipient: goal.holder.value } : {}),
     chained,
   });
+  // A.3 moves row: a target amount Kletia computed that moves more than half of what the source network holds (by USD)
+  // is confirmed with the move listed; unknown values count as more (fail closed).
+  if (target && amount.slot?.v.t === "exact" && steps[0]) {
+    if (movesMajority(env.snapshot, route.source.node, amount.slot.v.value)) (steps[0] as WorkStep & MovesFlag).movesMajority = true;
+  }
   assumptions.push(...gasWarnings(env, route));
 
   // D12 / D13: confirm a reading from word order or the LLM layer.
@@ -721,6 +744,58 @@ function solveGoal(env: GoalEnv): Step {
   const confirm = confirmQuestion({ goal, ...(notes ? { notes } : {}), ...(pins ? { pins } : {}), index: env.index, summary: describeRoute(route, amountSaid) });
   if (confirm) return { kind: "ask", questions: [confirm], steps, routes: [route] };
   return { kind: "ready", steps, routes: [route], assumptions };
+}
+
+/** Transient marker on an expanded step (never stored): its computed amount moves most of a network's holdings. */
+export interface MovesFlag {
+  movesMajority?: true;
+}
+
+/** True when `amount` of `node` is worth more than half of the known USD value held on its network, or a value is unknown. */
+function movesMajority(snapshot: Snapshot, node: GraphNode, amount: string): boolean {
+  const price = priceOf(snapshot, node);
+  if (price === null || !isDecimal(amount)) return true;
+  const moved = Number(amount) * price;
+  let total = 0;
+  for (const holding of snapshot.holdings) {
+    if (holding.network !== node.network || holding.status !== "known" || !holding.formatted || !isDecimal(holding.formatted) || parseDecimal(holding.formatted) <= 0n) continue;
+    const listed = holding.asset ? capabilityGraph().nodes.get(walletNodeId(holding.network, holding.asset)) : undefined;
+    const usd = holding.usd ?? (listed ? (priceOf(snapshot, listed) ?? null) : null);
+    if (usd === null) return true;
+    total += holding.usd ?? Number(holding.formatted) * usd;
+  }
+  return total <= 0 || moved > total / 2;
+}
+
+/**
+ * Deliver-all (WP4, A.6): every known, positive holding on the network the
+ * person named, paid to the recipient as one transfer each: tokens first, the
+ * gas asset last (the policy keeps its fee reserve). The policy asks for the
+ * receiving network rules and confirms every move with its amount (C10).
+ */
+function deliverAll(env: GoalEnv, recipient: string): Step {
+  const { goal, snapshot } = env;
+  const network = goal.spend.from?.network ?? goal.want.at?.network;
+  if (!network) {
+    const networks = [...new Set(snapshot.holdings.filter((holding) => holding.status === "known" && holding.formatted && isDecimal(holding.formatted) && parseDecimal(holding.formatted) > 0n).map((holding) => holding.network))];
+    return ask(question(field(env.index, "network"), "choice", "SCOPE_AMBIGUOUS", `Which network's holdings should ${recipient} receive?`, "Each network is paid separately; Kletia does not pick for you.",
+      networks.slice(0, 8).map((entry) => ({ id: entry, label: networkLabel(entry), value: { source: entry } })), true));
+  }
+  const native = CHAINS[network].nativeAsset.symbol.toUpperCase();
+  const held = snapshot.holdings
+    .filter((holding) => holding.network === network && holding.status === "known" && holding.formatted !== undefined && isDecimal(holding.formatted) && parseDecimal(holding.formatted) > 0n)
+    .sort((a, b) => Number(upper(a.symbol) === native) - Number(upper(b.symbol) === native) || a.symbol.localeCompare(b.symbol));
+  if (held.length === 0) throw noRouteError(goal);
+  const steps: WorkStep[] = held.slice(0, Math.max(1, THREAD_LIMITS.maxSteps - env.index)).map((holding) => ({
+    kind: user("transfer" as const),
+    from: user(holding.symbol),
+    amount: user({ t: "balance", bps: 10_000 } as ThreadAmount),
+    network: user(network),
+    recipient: user(recipient),
+  }));
+  const assumptions = [assumption(field(env.index, "amount"), clip(`Sends ${steps.length} holdings on ${networkLabel(network)} to ${recipient}`, 48), {}, "balance",
+    `Every token you hold on ${networkLabel(network)}, the gas token last with a little kept for network fees.`, [], true)];
+  return { kind: "ready", steps, routes: [], assumptions };
 }
 
 /** Consolidate, or a possessive scope answered "all networks": one route per source, each moving all of it. */
@@ -731,9 +806,12 @@ function solveMulti(env: GoalEnv, sources: readonly SearchSource[], spec: (list:
   const steps: WorkStep[] = [];
   const stays: string[] = [];
   const room = Math.max(0, THREAD_LIMITS.maxSteps - env.index);
+  // "half my stablecoins": the same share of each holding.
+  const bps = goal.spend.amount?.t === "portion" ? goal.spend.amount.bps : 10_000;
+  const moved = (source: SearchSource): string => (source.amount === null ? "0" : bps === 10_000 ? source.amount : formatDecimal(portion(source.amount, bps), Math.min(source.node.decimals, 18)));
   for (const source of ordered) {
     const found = searchRoutes(spec([source]));
-    const label = `${amountLabel(source.amount ?? "0")} ${source.node.symbol} on ${networkLabel(source.node.network)}`;
+    const label = `${amountLabel(moved(source))} ${source.node.symbol} on ${networkLabel(source.node.network)}`;
     if (found.length === 0) {
       stays.push(label);
       continue;
@@ -750,7 +828,12 @@ function solveMulti(env: GoalEnv, sources: readonly SearchSource[], spec: (list:
       stays.push(label);
       continue;
     }
-    const expanded = expandRoute({ goal, route: choice.route, amount: user(source.position ? { t: "position", bps: 10_000 } : { t: "balance", bps: 10_000 }) });
+    const expanded = expandRoute({
+      goal,
+      route: choice.route,
+      amount: user(source.position ? { t: "position", bps } : { t: "balance", bps }),
+      ...(goal.holder.t === "address" || goal.holder.t === "name" ? { recipient: goal.holder.value } : {}),
+    });
     // Each source's first step names its own asset and network: it is independent of the previous route.
     routes.push(choice.route);
     steps.push(...expanded);
@@ -758,7 +841,7 @@ function solveMulti(env: GoalEnv, sources: readonly SearchSource[], spec: (list:
   }
   if (routes.length === 0) throw noRouteError(goal);
   const where = goal.want.at?.network;
-  assumptions.unshift(assumption(field(env.index, "amount"), clip(`Moves ${routes.map((route) => `${amountLabel(route.source.amount ?? "0")} ${route.source.node.symbol} from ${networkLabel(route.source.node.network)}`).join(", ")}`, 48),
+  assumptions.unshift(assumption(field(env.index, "amount"), clip(`Moves ${routes.map((route) => `${amountLabel(moved(route.source))} ${route.source.node.symbol} from ${networkLabel(route.source.node.network)}`).join(", ")}`, 48),
     {}, "balance", clip(`${where ? `Everything that can reach ${networkLabel(where)}. ` : ""}${stays.length > 0 ? `Stays: ${stays.join(", ")} (no route or kept for network fees).` : "Gas tokens stay for network fees."}`, 160), [], true));
   return { kind: "ready", steps, routes, assumptions };
 }

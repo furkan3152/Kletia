@@ -90,6 +90,8 @@ import {
   withTimeout,
   WRAP_GAS,
   wrapTransaction,
+  SMOOTHED_APY_WINDOW_SECONDS,
+  tvlUsdOf,
   type LendingContext,
   type LendingMetrics,
   LENDING_PREVIEW_TTL_SECONDS,
@@ -651,6 +653,11 @@ export async function vaultMetrics<V extends VaultVenue>(family: VaultFamily<V>,
     bestEffort(() => family.apy(context), 8_000),
     bestEffort(() => family.venueExitLiquidity(context)),
   ]);
+  // Seam S8: the share price's growth over the last week; a family whose rate already is that is not read twice.
+  const smoothed = apy?.source === "share-price" && (apy.window ?? 0) >= SMOOTHED_APY_WINDOW_SECONDS - 86_400
+    ? { apy: apy.apy, window: apy.window as number }
+    : await bestEffort(() => realisedApy(venue), 8_000).then((value) => (value ? { apy: value.apy, window: value.window ?? 0 } : null));
+  const totalSupplied = underlyingAmount(context, total);
   return {
     venue: venue.id,
     protocol: venue.protocol,
@@ -659,8 +666,10 @@ export async function vaultMetrics<V extends VaultVenue>(family: VaultFamily<V>,
     asset: venue.asset,
     supplyApy: apy?.apy ?? null,
     apySource: apy ? apy.source : "unavailable",
-    ...(apy?.window !== undefined ? { apyWindowSeconds: apy.window } : {}),
-    totalSupplied: underlyingAmount(context, total),
+    apyWindowSeconds: apy?.source === "share-price" && apy.window !== undefined ? apy.window : smoothed?.window ?? null,
+    smoothedApy: smoothed?.apy ?? null,
+    tvlUsd: await tvlUsdOf(totalSupplied),
+    totalSupplied,
     exitLiquidity: exit === null ? null : underlyingAmount(context, exit),
     utilization: null,
     observedAt: new Date().toISOString(),

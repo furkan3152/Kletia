@@ -106,6 +106,10 @@
     {
       "name": "MCP",
       "description": "Model Context Protocol server for agents: read-only tools, plus keyed creation of intents and links for a human to sign."
+    },
+    {
+      "name": "Perps",
+      "description": "Perpetual futures on GMX v2, Hyperliquid and Drift v2: markets, positions, quotes with liquidation estimates, unsigned payloads for the user's wallet, and the relay of user-signed Hyperliquid actions."
     }
   ],
   "paths": {
@@ -7788,6 +7792,329 @@
         }
       }
     },
+    "/v1/perps/markets": {
+      "get": {
+        "operationId": "listPerpsMarkets",
+        "tags": [
+          "Perps"
+        ],
+        "summary": "Perps venues and their markets",
+        "description": "Venues (GMX v2, Hyperliquid, Drift v2) and their markets with mark price, funding and open interest, read live and cached 10 s. A venue that cannot be read, or whose price is older than 120 s, lists no markets (`unavailable` says why); prices are never guessed.",
+        "responses": {
+          "200": {
+            "description": "Venues and markets.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerpsMarketsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/perps/positions": {
+      "get": {
+        "operationId": "listPerpsPositions",
+        "tags": [
+          "Perps"
+        ],
+        "summary": "Open perps positions of an account",
+        "description": "EVM accounts: GMX v2 (USDC markets) and Hyperliquid; Solana accounts: Drift v2. PnL is price PnL at the mark before closing fees and unsettled funding.",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "eip155:42161:0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Positions.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerpsPositionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/perps/quote": {
+      "post": {
+        "operationId": "quotePerps",
+        "tags": [
+          "Perps"
+        ],
+        "summary": "Quote a perps order (best venue when none is named)",
+        "description": "Entry and acceptable price, estimated liquidation price, fees and one hour of funding. Without `venue`, every venue is scored by fees, a day of funding and price impact (cheapest eligible first, the others with the reason). Refusals: 422 PERPS_LEVERAGE_TOO_HIGH, PERPS_COLLATERAL_TOO_LOW, PERPS_MARKET_UNSUPPORTED, PERPS_VENUE_DISABLED; 403 PERPS_POLICY_DENIED; 503 PERPS_PRICE_UNAVAILABLE.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PerpsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The quote and the scored venues.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerpsQuoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/perps/prepare": {
+      "post": {
+        "operationId": "preparePerps",
+        "tags": [
+          "Perps"
+        ],
+        "summary": "Unsigned steps for a perps order",
+        "description": "Kletia never signs: the answer is for the user's own wallet. GMX: an exact USDC approval when needed and one ExchangeRouter multicall (sendWnt, sendTokens, createOrder) whose value is the execution fee. Hyperliquid: a Bridge2 USDC deposit when the account lacks margin, then EIP-712 L1 actions (updateLeverage, order, cancel) to sign and send back to POST /v1/perps/submit. Drift v2 is disabled. Valid 60 s. Refusals as for quote, plus 422 PERPS_POSITION_NOT_FOUND and 400 ACCOUNT_INVALID.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PerpsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The steps, in order.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerpsPrepareResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/perps/submit": {
+      "post": {
+        "operationId": "submitPerps",
+        "tags": [
+          "Perps"
+        ],
+        "summary": "Relay a Hyperliquid action the account signed",
+        "description": "Rebuilds the action from its fields, checks the nonce is recent and that the signature recovers to the account (400 PERPS_SIGNATURE_INVALID otherwise), then forwards it to Hyperliquid's /exchange. 422 PERPS_RELAY_REJECTED carries the exchange's reason.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PerpsSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The exchange accepted the action.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerpsSubmitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/v1/webhooks": {
       "post": {
         "operationId": "createWebhook",
@@ -10755,6 +11082,9 @@
           "allora",
           "chainlink",
           "pyth",
+          "gmx-v2",
+          "hyperliquid",
+          "drift-v2",
           "custom-call",
           "solana-actions"
         ]
@@ -12473,7 +12803,8 @@
               "security",
               "data",
               "token-program",
-              "custom"
+              "custom",
+              "perps"
             ]
           },
           "networks": {
@@ -19457,6 +19788,34 @@
                 "description": "Loosening changes wait this long (tightening applies at once)."
               }
             }
+          },
+          "perps": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether /v1/perps prepares and relays for this key. Agent default: false."
+              },
+              "maxLeverage": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50,
+                "description": "Leverage cap (default 20)."
+              },
+              "venues": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "gmx-v2",
+                    "hyperliquid",
+                    "drift-v2"
+                  ]
+                },
+                "uniqueItems": true
+              }
+            },
+            "additionalProperties": false
           }
         },
         "required": [
@@ -23967,6 +24326,863 @@
         },
         "required": [
           "activity"
+        ]
+      },
+      "PerpsVenue": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "signing": {
+            "type": "string",
+            "enum": [
+              "evm-transaction",
+              "solana-transaction",
+              "eip712"
+            ]
+          },
+          "collateral": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxLeverage": {
+            "type": "number"
+          },
+          "minCollateralUsd": {
+            "type": "number"
+          },
+          "minSizeUsd": {
+            "type": "number"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "False: Kletia reads the venue but prepares nothing (disabledReason says why)."
+          },
+          "disabledReason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "website": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "network",
+          "signing",
+          "collateral",
+          "maxLeverage",
+          "minCollateralUsd",
+          "minSizeUsd",
+          "enabled",
+          "disabledReason",
+          "website"
+        ]
+      },
+      "PerpsMarket": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ]
+          },
+          "symbol": {
+            "type": "string",
+            "examples": [
+              "ETH"
+            ]
+          },
+          "marketId": {
+            "type": "string",
+            "description": "GMX market token, Hyperliquid coin or Drift market index."
+          },
+          "network": {
+            "type": "string"
+          },
+          "markPrice": {
+            "type": "number"
+          },
+          "fundingRate1h": {
+            "type": "object",
+            "properties": {
+              "long": {
+                "type": "number"
+              },
+              "short": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "long",
+              "short"
+            ],
+            "description": "Funding (plus GMX borrowing) per hour as a fraction of size; positive: the side pays."
+          },
+          "openInterestUsd": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "long": {
+                    "type": "number"
+                  },
+                  "short": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "long",
+                  "short"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxLeverage": {
+            "type": "number"
+          },
+          "maintenanceMarginRate": {
+            "type": "number"
+          },
+          "takerFeeRate": {
+            "type": "number"
+          },
+          "impactPer10kUsd": {
+            "type": "number"
+          },
+          "minSizeUsd": {
+            "type": "number"
+          },
+          "minCollateralUsd": {
+            "type": "number"
+          },
+          "observedAt": {
+            "type": "integer",
+            "description": "Unix seconds of the price."
+          },
+          "open": {
+            "type": "boolean",
+            "description": "False when the market takes no new positions."
+          }
+        },
+        "required": [
+          "venue",
+          "symbol",
+          "marketId",
+          "network",
+          "markPrice",
+          "fundingRate1h",
+          "openInterestUsd",
+          "maxLeverage",
+          "maintenanceMarginRate",
+          "takerFeeRate",
+          "impactPer10kUsd",
+          "minSizeUsd",
+          "minCollateralUsd",
+          "observedAt",
+          "open"
+        ]
+      },
+      "PerpsUnavailable": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "venue",
+          "code",
+          "message"
+        ]
+      },
+      "PerpsMarketsResponse": {
+        "type": "object",
+        "properties": {
+          "venues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerpsVenue"
+            }
+          },
+          "markets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerpsMarket"
+            }
+          },
+          "unavailable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerpsUnavailable"
+            }
+          }
+        },
+        "required": [
+          "venues",
+          "markets",
+          "unavailable"
+        ]
+      },
+      "PerpsPosition": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ]
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "long",
+              "short"
+            ]
+          },
+          "sizeUsd": {
+            "type": "number"
+          },
+          "sizeBase": {
+            "type": "number"
+          },
+          "collateralUsd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entryPrice": {
+            "type": "number"
+          },
+          "markPrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leverage": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "liquidationPrice": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Estimate from the maintenance margin (Hyperliquid: the venue's own)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unrealizedPnlUsd": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Price PnL at the mark, before closing fees and unsettled funding."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "venue",
+          "symbol",
+          "marketId",
+          "network",
+          "side",
+          "sizeUsd",
+          "sizeBase",
+          "collateralUsd",
+          "entryPrice",
+          "markPrice",
+          "leverage",
+          "liquidationPrice",
+          "unrealizedPnlUsd"
+        ]
+      },
+      "PerpsPositionsResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerpsPosition"
+            }
+          },
+          "unavailable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerpsUnavailable"
+            }
+          },
+          "unsupported": {
+            "type": "integer",
+            "description": "GMX positions outside the USDC markets Kletia lists (not shown)."
+          }
+        },
+        "required": [
+          "account",
+          "positions",
+          "unavailable",
+          "unsupported"
+        ]
+      },
+      "PerpsRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "open",
+              "increase",
+              "decrease",
+              "close",
+              "cancel"
+            ],
+            "default": "open"
+          },
+          "symbol": {
+            "type": "string",
+            "examples": [
+              "ETH"
+            ]
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "long",
+              "short"
+            ]
+          },
+          "venue": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ]
+          },
+          "sizeUsd": {
+            "type": "string",
+            "pattern": "^\\d{1,9}(\\.\\d{1,6})?$",
+            "examples": [
+              "100"
+            ]
+          },
+          "collateral": {
+            "type": "object",
+            "properties": {
+              "asset": {
+                "type": "string",
+                "examples": [
+                  "USDC"
+                ]
+              },
+              "amount": {
+                "type": "string",
+                "pattern": "^\\d{1,9}(\\.\\d{1,6})?$",
+                "examples": [
+                  "100"
+                ]
+              }
+            },
+            "required": [
+              "asset",
+              "amount"
+            ]
+          },
+          "leverage": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "slippageBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 50
+          },
+          "account": {
+            "type": "string",
+            "description": "CAIP-10 account on the venue's network (prepare)."
+          },
+          "orderId": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "cancel: the Hyperliquid order id."
+          }
+        },
+        "required": [
+          "symbol",
+          "side"
+        ],
+        "additionalProperties": false
+      },
+      "PerpsQuote": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ]
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "long",
+              "short"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "open",
+              "increase",
+              "decrease",
+              "close",
+              "cancel"
+            ]
+          },
+          "sizeUsd": {
+            "type": "number"
+          },
+          "collateralUsd": {
+            "type": "number"
+          },
+          "leverage": {
+            "type": "number"
+          },
+          "markPrice": {
+            "type": "number"
+          },
+          "entryPrice": {
+            "type": "number"
+          },
+          "acceptablePrice": {
+            "type": "number",
+            "description": "Worst fill the payload accepts; the venue refuses a worse one."
+          },
+          "liquidationPrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fees": {
+            "type": "object",
+            "properties": {
+              "openUsd": {
+                "type": "number"
+              },
+              "closeUsd": {
+                "type": "number"
+              },
+              "executionUsd": {
+                "oneOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "openUsd",
+              "closeUsd",
+              "executionUsd"
+            ]
+          },
+          "funding1hUsd": {
+            "type": "number"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "venue",
+          "symbol",
+          "side",
+          "action",
+          "sizeUsd",
+          "collateralUsd",
+          "leverage",
+          "markPrice",
+          "entryPrice",
+          "acceptablePrice",
+          "liquidationPrice",
+          "fees",
+          "funding1hUsd",
+          "warnings"
+        ]
+      },
+      "PerpsVenueChoice": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ]
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "costUsd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quote": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PerpsQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "venue",
+          "eligible",
+          "reason",
+          "costUsd",
+          "quote"
+        ]
+      },
+      "PerpsQuoteResponse": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/PerpsRequest"
+          },
+          "best": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PerpsVenueChoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerpsVenueChoice"
+            }
+          }
+        },
+        "required": [
+          "request",
+          "best",
+          "choices"
+        ]
+      },
+      "PerpsStep": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "transaction",
+              "typed-data"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "transaction": {
+            "type": "object",
+            "properties": {},
+            "description": "kind transaction: an EVM or Solana transaction request for the wallet."
+          },
+          "settleSeconds": {
+            "type": "integer",
+            "description": "Seconds the venue needs after this transaction before the next step can succeed."
+          },
+          "typedData": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "object",
+                "properties": {}
+              },
+              "types": {
+                "type": "object",
+                "properties": {}
+              },
+              "primaryType": {
+                "type": "string"
+              },
+              "message": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": [
+              "domain",
+              "types",
+              "primaryType",
+              "message"
+            ]
+          },
+          "relay": {
+            "type": "object",
+            "properties": {
+              "venue": {
+                "type": "string",
+                "enum": [
+                  "gmx-v2",
+                  "hyperliquid",
+                  "drift-v2"
+                ]
+              },
+              "action": {
+                "type": "object",
+                "properties": {}
+              },
+              "nonce": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "venue",
+              "action",
+              "nonce"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "title"
+        ]
+      },
+      "PerpsPrepared": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ]
+          },
+          "network": {
+            "type": "string"
+          },
+          "account": {
+            "type": "string"
+          },
+          "quote": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PerpsQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerpsStep"
+            }
+          },
+          "expiresAt": {
+            "type": "integer"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "venue",
+          "network",
+          "account",
+          "quote",
+          "steps",
+          "expiresAt",
+          "warnings"
+        ]
+      },
+      "PerpsPrepareResponse": {
+        "type": "object",
+        "properties": {
+          "prepared": {
+            "$ref": "#/components/schemas/PerpsPrepared"
+          }
+        },
+        "required": [
+          "prepared"
+        ]
+      },
+      "PerpsSubmitRequest": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "hyperliquid"
+            ]
+          },
+          "account": {
+            "type": "string",
+            "description": "eip155:42161:0x… of the signer."
+          },
+          "action": {
+            "type": "object",
+            "properties": {},
+            "description": "relay.action of the prepared step, unchanged."
+          },
+          "nonce": {
+            "type": "integer",
+            "description": "relay.nonce of the prepared step."
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{130}$"
+          }
+        },
+        "required": [
+          "venue",
+          "account",
+          "action",
+          "nonce",
+          "signature"
+        ]
+      },
+      "PerpsSubmitResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          },
+          "response": {
+            "type": "object",
+            "properties": {},
+            "description": "The exchange's answer (order statuses)."
+          }
+        },
+        "required": [
+          "status",
+          "response"
         ]
       },
       "StepFunding": {

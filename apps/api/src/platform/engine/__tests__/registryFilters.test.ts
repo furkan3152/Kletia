@@ -77,7 +77,7 @@ describe("adapter registry order", () => {
       "jupiter", "jupiter-lend", "kamino", "lido", "lifi", "mantle-lsp", "marinade", "meteora", "moonwell", "morpho", "orca", "pancakeswap-v3", "raydium", "relay",
       "rocket-pool", "sanctum", "solana-stake", "spark-savings", "sparklend", "spl-token", "stader", "system-transfer", "uniswap-v3", "velodrome", "yearn-v3",
     ]);
-    assert.equal(PROTOCOLS.length, 51, "round 7 lists seven more ids, each with a live adapter");
+    assert.equal(PROTOCOLS.length, 54, "round 7 lists seven more ids, each with a live adapter; round 9 three perps venues (/v1/perps, no adapter)");
   });
 });
 

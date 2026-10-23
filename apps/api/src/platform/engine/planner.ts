@@ -46,6 +46,7 @@ import {
   validateIntentGraph,
   validateIntentRequest,
   YIELD_VENUES,
+  venueExecutes,
   yieldVenuesFor,
   buildPlanRecord,
   fundedFlow,
@@ -866,7 +867,7 @@ async function resolveVenue(action: NormalizedAction, input: ResolvedAsset, rout
     return { venue, warnings: [] };
   }
   const venues = YIELD_VENUES.filter((venue) =>
-    venue.network === action.network && venue.actions.includes(kind) && venueAssetMatches(venue, input) &&
+    venue.network === action.network && venueExecutes(venue, kind) && venueAssetMatches(venue, input) &&
     (!action.protocol || venue.protocol === action.protocol) && !avoid.has(venue.protocol));
   let venue: YieldVenue | undefined;
   const rankWarnings: string[] = [];

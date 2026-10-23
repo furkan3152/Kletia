@@ -204,6 +204,10 @@ export function turnResponseOf(exchange: Pick<TurnExchange, "ok" | "body">): Tur
         : null;
     case "cancelled":
       return body as unknown as TurnResponse;
+    case "handoff":
+      return isObject(body.handoff) && typeof body.handoff.surface === "string" && typeof body.handoff.summary === "string" && isObject(body.handoff.input)
+        ? (body as unknown as TurnResponse)
+        : null;
     default:
       return null;
   }

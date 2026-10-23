@@ -424,6 +424,19 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
             <ExchangePanel exchanges={studio.exchanges} />
           </div>
         ) : null}
+        {plan.status === "success" && response?.status === "handoff" ? (
+          // A perps trade, native order or automation runs in its own desk view, never as an intent here.
+          <div className="flex flex-col gap-4">
+            <div className={cx("flex flex-col items-start gap-3 p-4", INK_BORDER, SURFACE)}>
+              <p className="font-display text-lg font-bold">{response.handoff.summary}</p>
+              <p className="text-sm">This runs in the desk&apos;s {response.handoff.surface} view, where you check it and sign. Nothing was planned or signed here.</p>
+              <ButtonLink to={`/app?q=${encodeURIComponent(studio.text.trim())}`} size="sm">
+                Open in the desk
+              </ButtonLink>
+            </div>
+            <ExchangePanel exchanges={studio.exchanges} />
+          </div>
+        ) : null}
         {plan.status === "error" && plan.error && !card ? (
           <div className="flex flex-col gap-5">
             <ApiErrorPanel

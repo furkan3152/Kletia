@@ -44,6 +44,8 @@ export const REVIEWED_KEYWORDS: readonly string[] = Object.freeze([
   "validator",
   // restaking venue words
   "kelp", "rseth", "renzo", "ezeth",
+  // lending and savings words (Save, Sky, Ethena) and the Solana stake pools
+  "solend", "sdai", "susds", "ethena", "susde", "blazestake", "solblaze", "bsol", "hsol", "dsol", "bonksol",
 ]);
 
 /** Lower-case English words that are never corrected into a keyword. */
@@ -111,6 +113,8 @@ export const ENGLISH_WORDS: ReadonlySet<string> = new Set([
   "yell",
   // within one edit of the restaking venue words ("kelp"; "renzo", "rseth" and "ezeth" have none)
   "help", "keep", "kelps", "yelp",
+  // within one edit of the savings and stake pool words ("bsol", "susds", "susde"; the others have none)
+  "bowl", "suds", "suede",
 ]);
 
 /** True when `token` (any case) is an English word the corrector must leave as typed. */

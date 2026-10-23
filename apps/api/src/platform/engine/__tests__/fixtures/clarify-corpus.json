@@ -389,6 +389,42 @@
      }
     },
     "positions": {}
+   },
+   "savings": {
+    "about": "Savings stablecoins on Ethereum (USDS, DAI, USDe), Solana SOL and stablecoins, a little Base USDC.",
+    "accounts": [
+     "eip155:1:0x4f183e308f24c81c05303821AD025812fBFd807D",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+    ],
+    "balances": {
+     "ethereum": {
+      "ETH": "1",
+      "USDC": "0",
+      "USDS": "500",
+      "DAI": "500",
+      "USDe": "500",
+      "WETH": "0"
+     },
+     "solana": {
+      "SOL": "5",
+      "USDC": "300",
+      "USDT": "100",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "bSOL": "0",
+      "hSOL": "0",
+      "JUP": "0"
+     },
+     "base": {
+      "ETH": "0.05",
+      "USDC": "40",
+      "WETH": "0"
+     }
+    },
+    "positions": {
+     "solana/save/USDC": "50",
+     "ethereum/sky/USDS": "200"
+    }
    }
   },
   "names": {

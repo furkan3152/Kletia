@@ -423,6 +423,8 @@ export const DESK_COMMANDS: Readonly<Record<string, DeskView>> = Object.freeze({
   "show my orders": "orders",
   "open tools": "tools",
   "show my automations": "automations",
+  "show my perps": "perps",
+  "show my positions": "perps",
 });
 
 /** Placeholders a template leaves for the user to replace ("[EDIT MAX USDC]", "<address>"). */

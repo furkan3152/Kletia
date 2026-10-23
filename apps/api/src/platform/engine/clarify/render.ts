@@ -7,6 +7,7 @@
  * actions with the closest sentence kept as the request text.
  */
 import type { IntentActionSpec } from "@kletia/core";
+import { SOLANA_PAY_PROTOCOL, swapFilterWords } from "../grammar.js";
 import { protocolWord, stakeProvider, VAULT_PROTOCOLS } from "./catalog.js";
 import type { ResolvedAction } from "./types.js";
 
@@ -26,14 +27,17 @@ function clause(action: ResolvedAction, index: number): string | null {
   const amount = dependent ? dependentWord(action) : action.amount === "max" ? "all" : action.amount;
   const asset = dependent ? "" : ` ${action.from}`;
   switch (action.kind) {
-    case "swap":
-      return `swap ${amount}${asset} to ${action.to} on ${action.network}${action.protocol ? ` via ${protocolWord(action.protocol)}` : ""}`;
+    case "swap": {
+      const filter = swapFilterWords(action.provider);
+      const venue = filter ? ` ${filter}` : action.protocol ? ` via ${protocolWord(action.protocol)}` : "";
+      return `swap ${amount}${asset} to ${action.to} on ${action.network}${venue}`;
+    }
     case "bridge":
       if (action.recipient) return null;
       return `bridge ${amount}${asset} from ${action.network} to ${action.toNetwork}${action.to && action.to !== action.from ? ` as ${action.to}` : ""}` +
         `${action.protocol ? ` via ${protocolWord(action.protocol)}` : ""}`;
     case "transfer":
-      return `send ${amount}${asset} to ${action.recipient} on ${action.network}`;
+      return `send ${amount}${asset} to ${action.recipient} on ${action.network}${action.protocol === SOLANA_PAY_PROTOCOL ? " with solana pay" : ""}`;
     case "stake": {
       const provider = stakeProvider(action.provider);
       return `stake ${amount}${dependent ? "" : ` ${provider?.input ?? action.from}`} with ${provider?.word ?? action.provider ?? "jito"}`;
@@ -79,6 +83,7 @@ export function toActionSpecs(actions: readonly ResolvedAction[]): IntentActionS
       const provider = stakeProvider(action.provider);
       if (provider) params.provider = provider.grammarProvider;
     }
+    if (action.kind === "swap" && swapFilterWords(action.provider)) params.provider = action.provider as string;
     return {
       kind: action.kind,
       network: action.network,

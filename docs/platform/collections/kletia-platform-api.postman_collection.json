@@ -896,7 +896,7 @@
                 {
                   "key": "clarify",
                   "value": "true",
-                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, handoff 200, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
                   "disabled": true
                 }
               ]
@@ -972,7 +972,7 @@
                 {
                   "key": "clarify",
                   "value": "true",
-                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, handoff 200, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
                   "disabled": true
                 }
               ]
@@ -1048,7 +1048,7 @@
                 {
                   "key": "clarify",
                   "value": "true",
-                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, handoff 200, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
                   "disabled": true
                 }
               ]

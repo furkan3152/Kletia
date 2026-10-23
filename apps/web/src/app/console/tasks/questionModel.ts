@@ -22,6 +22,7 @@ import {
 import { clarifyView, type QuestionCard, type QuestionCardOption } from "@kletia/widget/review";
 
 import type { DeskQuestion, QuestionAnswer } from "./slots.ts";
+import { handoffLine } from "../handoff/handoffModel.ts";
 
 /** Chips shown before "Other…" (network questions show them all). */
 export const QUESTION_CHIPS = 4;
@@ -154,6 +155,7 @@ export function responseLabel(response: IntentTurnResponse): string {
     return view.questions.map((question) => question.prompt).join(" ") || "Kletia has a question.";
   }
   if (response.status === "planned") return response.sentence.slice(0, 200);
+  if (response.status === "handoff") return handoffLine(response.handoff).slice(0, 200);
   return "Cancelled.";
 }
 

@@ -11,7 +11,9 @@
  *   with this shape after a confirm the harness answered is correct; ready
  *   without one is `plans_unconfirmed`;
  * - `A:<regex>`: needs input, and the regex matches "field:REASON" of the first question;
- * - `R` or `R:<CODE>`: refused (with that error code).
+ * - `R` or `R:<CODE>`: refused (with that error code);
+ * - `H:<regex>`: handed to its surface (perps, native orders, automations), and the regex matches the
+ *   hand-off's shape (handoff/shape.ts). A hand-off no `H:` entry accepts is a wrong plan.
  * A confirm the harness answered before a plan the corpus accepts only with
  * `P:` is a needless ask (unless an `A:` entry accepts that confirm), and a
  * plan that differs from the sentence its confirm promised is a wrong plan
@@ -34,12 +36,14 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { findAssetBySymbol, type IntentActionSpec, type IntentGraph, type IntentRequest, type NetworkKey } from "@kletia/core";
-import { isPlatformError } from "../../errors.js";
+import { findAssetBySymbol, type IntentActionSpec, type IntentHandoff, type IntentGraph, type IntentRequest, type NetworkKey } from "@kletia/core";
+import { isPlatformError, type PlatformError } from "../../errors.js";
 import { compileIntentText } from "../grammar.js";
+import { handoffShape } from "../handoff/shape.js";
+import { handoffRefusal } from "../service.js";
 import { configureHoldingsReaders } from "../holdings.js";
 import { configurePriceReader, fixedPriceReader, type PriceReader } from "../prices.js";
-import { STAKE_PROVIDERS } from "../clarify/catalog.js";
+import { REGISTRY_STAKE_PROVIDERS, STAKE_PROVIDERS } from "../clarify/catalog.js";
 import type { TurnDecision } from "../clarify/index.js";
 import type { ReadingHook, ResolvedAction, TurnContext, TurnInput } from "../clarify/types.js";
 import { contextFor, CORPUS_PRICE_AT, CORPUS_PRICES, installWallet, loadCorpus, runTurn, shape, uninstallWallet, type Corpus, type CorpusCase } from "../clarify/corpusHarness.js";
@@ -149,12 +153,12 @@ export interface IntentEvalCorpus {
 export interface EvalResult {
   readonly id: string;
   readonly say: string;
-  readonly status: "ready" | "needs_input" | "cancelled" | "refused" | "crashed" | "skipped";
+  readonly status: "ready" | "needs_input" | "cancelled" | "refused" | "crashed" | "skipped" | "handoff";
   readonly error?: string;
   readonly message?: string;
   /** "field:REASON" of each question, in order. */
   readonly questions: readonly string[];
-  /** The plan shape (ready turns). */
+  /** The plan shape (ready turns), or the hand-off's shape (hand-off turns). */
   readonly plan: string | null;
   /** "field:source" of each assumption. */
   readonly assumptions: readonly string[];
@@ -179,7 +183,7 @@ export interface EvalResult {
 }
 
 export interface ParsedAccept {
-  readonly kind: "P" | "C" | "A" | "R";
+  readonly kind: "P" | "C" | "A" | "R" | "H";
   /** P, C and A: the regex; R: null. */
   readonly pattern: RegExp | null;
   /** R:<CODE>. */
@@ -195,7 +199,7 @@ export function parseAccept(accept: string): ParsedAccept {
     if (rest && !/^[A-Z][A-Z0-9_]{1,63}$/u.test(rest)) throw new Error(`accept "${accept}": R takes an error code`);
     return { kind, pattern: null, code: rest || null };
   }
-  if (kind !== "P" && kind !== "A" && kind !== "C") throw new Error(`accept "${accept}": must start with P:, C:, A: or R`);
+  if (kind !== "P" && kind !== "A" && kind !== "C" && kind !== "H") throw new Error(`accept "${accept}": must start with P:, C:, A:, H: or R`);
   if (!rest) throw new Error(`accept "${accept}": empty pattern`);
   return { kind, pattern: new RegExp(rest, "u"), code: null };
 }
@@ -213,6 +217,8 @@ function parsedAccept(accept: string): ParsedAccept {
 export function matchesAccept(accept: string, result: EvalResult): boolean {
   const parsed = parsedAccept(accept);
   switch (parsed.kind) {
+    case "H":
+      return result.status === "handoff" && result.plan !== null && (parsed.pattern as RegExp).test(result.plan);
     case "P":
     case "C":
       return result.status === "ready" && result.plan !== null && result.plan !== "" && (parsed.pattern as RegExp).test(result.plan);
@@ -248,15 +254,15 @@ export function classifyResult(prompt: IntentEvalPrompt, result: EvalResult, opt
   for (const accept of prompt.accept) {
     if (!matchesAccept(accept, result)) continue;
     const kind = parsedAccept(accept).kind;
-    klass = kind === "P" ? "plan_ok" : kind === "C" ? (result.confirmed ? "plan_ok" : "plans_unconfirmed") : kind === "A" ? "ask_ok" : "refuse_ok";
+    klass = kind === "P" || kind === "H" ? "plan_ok" : kind === "C" ? (result.confirmed ? "plan_ok" : "plans_unconfirmed") : kind === "A" ? "ask_ok" : "refuse_ok";
     // A confirm the harness answered for a plan the corpus wants without one is a needless ask,
     // unless the corpus accepts that confirm question itself.
-    if (kind === "P" && result.autoConfirmed && !acceptsQuestion(prompt, result.autoConfirmed)) klass = "asks_needlessly";
+    if ((kind === "P" || kind === "H") && result.autoConfirmed && !acceptsQuestion(prompt, result.autoConfirmed)) klass = "asks_needlessly";
     break;
   }
   if (klass === null) {
-    const wantsPlan = prompt.accept.some((accept) => accept.startsWith("P:") || accept.startsWith("C:"));
-    if (result.status === "ready") return "plans_wrongly";
+    const wantsPlan = prompt.accept.some((accept) => accept.startsWith("P:") || accept.startsWith("C:") || accept.startsWith("H:"));
+    if (result.status === "ready" || result.status === "handoff") return "plans_wrongly";
     if (result.status === "needs_input") return wantsPlan ? "asks_needlessly" : "asks_wrong_question";
     if (options.strict && result.status === "refused" && acceptsAsk(prompt)) return "refuse_ok";
     return "refuses_wrongly";
@@ -347,7 +353,7 @@ function decisionResult(prompt: IntentEvalPrompt, decision: TurnDecision, extra:
     say: prompt.say,
     status: decision.status,
     questions: decision.questions.map((question) => `${question.field}:${question.reason}`),
-    plan: decision.actions ? shape(decision.actions) : null,
+    plan: decision.handoff ? handoffShape(decision.handoff) : decision.actions ? shape(decision.actions) : null,
     assumptions: decision.assumptions.map((assumption) => `${assumption.field}:${assumption.source}`),
     ...(decision.questions.length > 0 ? { kinds: decision.questions.map((question) => question.kind) } : {}),
     ...extra,
@@ -471,6 +477,20 @@ function actionsOfSpecs(specs: readonly IntentActionSpec[]): ResolvedAction[] {
   });
 }
 
+/** Strict mode: a hand-off the strict path refuses with INTENT_HANDOFF and its typed hand-off, or null. */
+async function strictHandoffResult(prompt: IntentEvalPrompt, ctx: TurnContext, error: PlatformError): Promise<EvalResult | null> {
+  try {
+    // compileIntentText's own refusal (the planner marks it as the grammar's only when it calls the grammar itself).
+    if (error.code === "INTENT_UNSUPPORTED") await handoffRefusal({ text: prompt.say, accounts: ctx.accounts, ...(ctx.defaultNetwork ? { defaultNetwork: ctx.defaultNetwork } : {}) });
+    return null;
+  } catch (handoffError) {
+    if (!isPlatformError(handoffError)) throw handoffError;
+    const handoff = (handoffError.details as { handoff?: IntentHandoff } | undefined)?.handoff;
+    if (!handoff) return errorResult(prompt, "refused", handoffError.code, handoffError.message);
+    return { id: prompt.id, say: prompt.say, status: "handoff", questions: [], plan: handoffShape(handoff), assumptions: [] };
+  }
+}
+
 /** Strict mode: the text through the strict grammar and the planner (no questions: anything else is a refusal). */
 async function strictPrompt(fixtures: Corpus, prompt: IntentEvalPrompt): Promise<EvalResult> {
   const entry = caseOf(prompt);
@@ -481,8 +501,9 @@ async function strictPrompt(fixtures: Corpus, prompt: IntentEvalPrompt): Promise
   try {
     specs = compileIntentText(prompt.say, { accounts: ctx.accounts as never, ...(ctx.defaultNetwork ? { defaultNetwork: ctx.defaultNetwork } : {}), contracts: ctx.contracts }).actions;
   } catch (error) {
-    if (isPlatformError(error)) return errorResult(prompt, "refused", error.code, error.message);
-    throw error;
+    if (!isPlatformError(error)) throw error;
+    const handed = await strictHandoffResult(prompt, ctx, error);
+    return handed ?? errorResult(prompt, "refused", error.code, error.message);
   }
   const request = {
     text: prompt.say,
@@ -622,9 +643,14 @@ function canonicalSymbol(network: string | undefined, symbol: string): string {
   return (key && findAssetBySymbol(key, symbol)?.symbol) || symbol;
 }
 
-/** A grammar provider label ("Jito", "ether.fi", "Stader") as clarify's provider id ("jito", "etherfi", "stader"). */
-function providerIdOf(label: string): string {
-  return STAKE_PROVIDERS.find((entry) => entry.grammarProvider.toLowerCase() === label.toLowerCase())?.id
+/**
+ * A grammar provider label ("Jito", "ether.fi", "Sanctum" for hSOL) as clarify's provider id ("jito", "etherfi",
+ * "sanctum-hsol"); a swap's Jupiter venue filter ("avoid:raydium") as it is.
+ */
+function providerIdOf(label: string, symbol: string | undefined): string {
+  if (/^(?:dexes|avoid):/u.test(label)) return label;
+  const named = [...STAKE_PROVIDERS, ...REGISTRY_STAKE_PROVIDERS].filter((entry) => entry.grammarProvider.toLowerCase() === label.toLowerCase());
+  return (named.find((entry) => symbol !== undefined && entry.symbol.toUpperCase() === symbol.toUpperCase()) ?? named[0])?.id
     ?? label.toLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
 }
 
@@ -649,7 +675,7 @@ export function specShape(specs: readonly IntentActionSpec[]): string {
       const venue = typeof spec.params?.venue === "string" ? `:${spec.params.venue}` : "";
       const protocol = spec.protocol && spec.kind !== "stake" ? ` [${spec.protocol}${venue}]` : "";
       const label = spec.params?.provider;
-      const provider = typeof label === "string" ? ` {${providerIdOf(label)}}` : "";
+      const provider = typeof label === "string" ? ` {${providerIdOf(label, toSymbol)}}` : "";
       const contract = spec.contract ? ` <${spec.contract}#${spec.entry ?? ""}>` : "";
       return `${spec.kind}@${spec.network}${spec.toNetwork ? `->${spec.toNetwork}` : ""} ${amount} ${from}${to}${recipient}${protocol}${provider}${contract}`;
     })

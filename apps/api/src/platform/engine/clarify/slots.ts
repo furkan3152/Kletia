@@ -13,6 +13,12 @@ import {
   assetOrNetworkRefusal,
   BORROW_VERBS,
   borrowRefusal,
+  EXIT_GUIDES,
+  readVenueNames,
+  SENTENCE_FRAGMENTS,
+  SOLANA_PAY_PROTOCOL,
+  swapFilterProvider,
+  vaultOfVenueWord,
   BRIDGE_WORDS,
   GRAMMAR_VENUE_WORDS,
   LENDING_WORDS,
@@ -70,7 +76,9 @@ const NET = (name: string) => `(?<${name}>${NETWORK_WORDS})`;
 const ADDR = `(?:0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME}|[1-9A-HJ-NP-Za-km-z]{32,44})`;
 const MY = "(?:(?:of\\s+)?(?<my>my)\\s+)?";
 const ON = `(?:\\s+(?:on|in)\\s+${NET("net")})?`;
-const DEX = `(?:\\s+(?:via|using|through|with)\\s+(?<dex>${SWAP_VENUE_WORDS}))?`;
+const DEX = `(?:\\s+(?:via|using|through|with)\\s+(?<dex>${SWAP_VENUE_WORDS})|${SENTENCE_FRAGMENTS.SWAP_FILTER_SUFFIX})?`;
+/** "with solana pay" after a transfer. */
+const PAY = `${SENTENCE_FRAGMENTS.SOLANA_PAY_SUFFIX}?`;
 /** A swap names its network and venue in either order. */
 const SWAP_SUFFIXES = [`${ON}${DEX}`, `${DEX}${ON}`];
 
@@ -97,7 +105,10 @@ const SHAPES: readonly { shape: "usdSwap" | "earn" | "swap" | "buy" | "bridge" |
         `(?:\\s+(?:as|into|for)\\s+${SYM("b")})?(?:\\s+(?:via|using|through|with|over)\\s+(?<bridge>${BRIDGE_WORDS}))?$`,
     ),
   },
-  { shape: "transfer", regex: rx(`^(?<verb>send|transfer|pay)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?(?:\\s+to\\s+(?<rcpt>${ADDR}))?${ON}$`) },
+  ...[`${ON}${PAY}`, `${PAY}${ON}`].map((suffix) => ({
+    shape: "transfer" as const,
+    regex: rx(`^(?<verb>send|transfer|pay)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?(?:\\s+to\\s+(?<rcpt>${ADDR}))?${suffix}$`),
+  })),
   {
     shape: "transferLabel",
     regex: rx(`^(?<verb>send|transfer|pay)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?\\s+to\\s+(?<label>(?:my\\s+)?[a-z][a-z0-9-]{1,40}(?:\\s+[a-z][a-z0-9-]{1,20})?)${ON}$`),
@@ -127,7 +138,8 @@ const CONNECTOR_VOCAB = ["from", "into", "onto", "with", "using", "through", "th
 const NETWORK_VOCAB = ["base", "arbitrum", "ethereum", "optimism", "polygon", "solana", "devnet", "sepolia", "mainnet"];
 /** Single venue and provider words of the grammar ("aave", "kamino", "jito", "uniswap", ...). */
 const VENUE_VOCAB: readonly string[] = [...new Set(GRAMMAR_VENUE_WORDS.flatMap((word) => word.split(/[\s.-]+/u)).filter((word) => /^[a-z]{4,}$/u.test(word)))]
-  .filter((word) => !["vault", "vaults", "lend", "earn", "lending", "savings", "pool"].includes(word));
+  // "save" (Save finance) is an English word first: never a correction target ("safe", "same" stay as typed).
+  .filter((word) => !["vault", "vaults", "lend", "earn", "lending", "savings", "pool", "save"].includes(word));
 /**
  * Every word the keyword corrector may correct into (verbs at the start of a
  * clause; connectors, networks and venues elsewhere). The drift test pins it
@@ -329,6 +341,11 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
       case "transfer":
         out.kind = slot("transfer");
         if (g.rcpt) out.recipient = slot(g.rcpt);
+        if (g.pay) {
+          if (net && net !== "solana" && net !== "solana-devnet") throw new PlatformError("INTENT_UNSUPPORTED", `Solana Pay runs on Solana, not on ${net}.`, 422);
+          out.protocol = slot(SOLANA_PAY_PROTOCOL);
+          if (!net) out.network = slot("solana", "derived");
+        }
         break;
       case "transferLabel": {
         const label = (g.label as string).toLowerCase();
@@ -354,6 +371,14 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
         if (g.venue) {
           const protocol = lendingProtocol(g.venue);
           if (protocol) out.protocol = slot(protocol);
+          const guide = shape === "withdraw" && protocol ? EXIT_GUIDES[protocol as keyof typeof EXIT_GUIDES] : undefined;
+          if (guide) throw new PlatformError("INTENT_UNSUPPORTED", guide, 422, [{ path: "text", message: "No exit through Kletia." }], REFUSAL_EXAMPLES);
+          // "into sdai": the venue word names the vault itself.
+          const named = protocol ? vaultOfVenueWord(protocol, g.venue) : undefined;
+          if (named) out.vault = slot(named);
+        }
+        if (g.vault && out.vault && g.vault.toLowerCase() !== out.vault.v) {
+          throw new PlatformError("INTENT_UNSUPPORTED", `"${g.venue}" is the ${out.vault.v} venue; it cannot also be "${g.vault.slice(0, 32)}".`, 422);
         }
         if (g.vault) {
           // "lend 100 USDC on aave base": a network word after the venue is the network, not a vault slug.
@@ -367,6 +392,11 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
     if (g.dex && out.kind?.v === "swap") {
       const protocol = dexProtocol(g.dex);
       if (protocol) out.protocol = slot(protocol);
+    }
+    if (out.kind?.v === "swap" && (g.only || g.viaOnly || g.avoid)) {
+      // A Jupiter venue filter: the swap runs on Jupiter with the filter as its provider.
+      out.provider = slot(swapFilterProvider(g, net ?? undefined, clause) as string);
+      out.protocol = slot("jupiter");
     }
     if (g.amt && g.a && PORTION_AMOUNT.test(g.amt.trim()) && bareOf(clause, g.amt, g.a)) {
       // Portion evidence: "swap half sol" says neither "half my SOL" nor "half a SOL";
@@ -1023,7 +1053,9 @@ function unreadRefusal(unread: readonly UnreadClause[]): PlatformError {
   return error;
 }
 
-export function parseSentence(raw: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0, previousStep?: WorkStep, sentence: SentenceOptions = {}): ParsedSentence {
+export function parseSentence(said: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0, previousStep?: WorkStep, sentence: SentenceOptions = {}): ParsedSentence {
+  // The data dashboard's "Move here" sentence: the amount placeholder is dropped (asked) and a full venue name read.
+  const raw = readVenueNames(said);
   // A question is never planned as typed ("swap 0.01 ETH to USDC on base?"): it is read only as the instruction it
   // stands for, and every step is confirmed as the solved plan (questionForm); anything else is refused.
   const asked = questionForm(raw);

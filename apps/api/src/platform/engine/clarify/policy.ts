@@ -2179,7 +2179,7 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): P
         ask([question(field(index, "protocol"), "choice", "VENUE_MISSING", `Where should ${amountPhrase(step, from)} earn yield on ${networkName(network)}?`, "Each venue has its own rate and risks; rates are variable.", options, false)]);
         break;
       }
-      const venues = venuesOn(network, kind, protocol, from);
+      const venues = venuesOn(network, kind, protocol, from, vault);
       if (venues.length === 0) throw refuseUnsupported(`${protocolLabel(protocol)} does not take ${from} on ${networkName(network)}.`);
       if (vault && !venues.some((venue) => venue.slug === vault)) {
         throw refuseUnsupported(`${protocolLabel(protocol)} has no ${from} vault "${vault.slice(0, 32)}" on ${networkName(network)}.`);

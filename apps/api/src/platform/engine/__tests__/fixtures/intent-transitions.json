@@ -1672,6 +1672,78 @@
    "from": "refused",
    "to": "ready",
    "why": "\"get my sol ready for a payment of 50 usdc on solana\" is a SOL -> 50 USDC exact-output swap on Solana (rule abstract:ensure); the SOL amount is priced (chip); equals the corpus plan shape."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF008",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"when sol hits 200\" is read into a price trigger (above 200, SOL is at 151 in the fixtures) of an automation the person signs at each run; nothing is planned now and the condition is never dropped."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF008",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"when sol hits 200\" is read into a price trigger (above 200, SOL is at 151 in the fixtures) of an automation the person signs at each run; nothing is planned now and the condition is never dropped."
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "REF008",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"when sol hits 200\" is read into a price trigger (above 200, SOL is at 151 in the fixtures) of an automation the person signs at each run; nothing is planned now and the condition is never dropped."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT009",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"if sol goes above 200\" with an exact amount is a take-profit, handed to the Orders view as a Jupiter limit sell at 200 that fills at that price or better; nothing is planned or signed by the reader."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT009",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"if sol goes above 200\" with an exact amount is a take-profit, handed to the Orders view as a Jupiter limit sell at 200 that fills at that price or better; nothing is planned or signed by the reader."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT009",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"if sol goes above 200\" with an exact amount is a take-profit, handed to the Orders view as a Jupiter limit sell at 200 that fills at that price or better; nothing is planned or signed by the reader."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT011",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"every day\" is read into a daily schedule of an automation (each run waits for the person's signature); nothing is planned now and the schedule is never dropped."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT011",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"every day\" is read into a daily schedule of an automation (each run waits for the person's signature); nothing is planned now and the schedule is never dropped."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT011",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"every day\" is read into a daily schedule of an automation (each run waits for the person's signature); nothing is planned now and the schedule is never dropped."
   }
  ]
 }

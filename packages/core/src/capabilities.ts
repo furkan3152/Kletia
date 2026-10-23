@@ -34,6 +34,7 @@ import {
   PROTOCOLS,
   VENUE_CONTRACTS,
   YIELD_VENUES,
+  venueExecutes,
   protocolTier,
   type ProtocolDescriptor,
   type ProtocolId,
@@ -101,7 +102,8 @@ function buildIndex(): readonly CapabilityRow[] {
       if (!executes(protocol, kind)) continue;
       if (kind === "deposit" || kind === "withdraw") {
         for (const venue of YIELD_VENUES) {
-          if (venue.protocol === protocol.id && venue.actions.includes(kind) && protocol.networks.includes(venue.network)) {
+          // A named-only venue is no capability of the protocol: it runs only when a request names it.
+          if (venue.protocol === protocol.id && venueExecutes(venue, kind) && protocol.networks.includes(venue.network)) {
             push(protocol, venue.network, kind, venue.asset, venue.id);
           }
         }

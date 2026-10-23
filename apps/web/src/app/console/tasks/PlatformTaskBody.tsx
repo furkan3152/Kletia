@@ -73,6 +73,7 @@ import { RoutePanel } from "./RoutePanel";
 import { PlanningSkeleton } from "./PlanningSkeleton";
 import { PreviewTaskBody } from "./PreviewTaskBody";
 import { answerTarget, deskQuestionFrom, responseLabel, turnRequest, type TurnContext, type TurnInput } from "./questionModel";
+import { handoffLine } from "../handoff/handoffModel";
 import type { DeskQuestion } from "./slots";
 import { SourceChips } from "./SourceChips";
 import { TaskTicket } from "./TaskTicket";
@@ -265,6 +266,14 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         questionRef.current = null;
         setDry(null);
         patch({ status: "cancelled", question: null, thread: threadRef.current, turn });
+        return;
+      }
+      if (response.status === "handoff") {
+        // A perps trade, native order or automation: its own view opens prefilled; the person checks and signs there.
+        questionRef.current = null;
+        setDry(null);
+        patch({ status: "handoff", question: null, title: response.handoff.summary, handoff: response.handoff, thread: threadRef.current, turn });
+        getDeskStore().getState().openHandoff(response.handoff);
         return;
       }
       questionRef.current = null;
@@ -620,6 +629,18 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
             {DESK_MORE_COPY.tasks.dismiss}
           </Button>
         </div>
+      </div>
+    );
+  } else if (task.status === "handoff" && task.handoff) {
+    // Round 9: a perps trade, native order or automation; its view holds the form the person checks and signs.
+    const handoff = task.handoff;
+    body = (
+      <div className="flex flex-col items-start gap-3 border-[3px] border-control bg-surface p-4">
+        <p className="font-display text-lg font-bold">{handoff.summary}</p>
+        <p className="text-sm">{handoffLine(handoff)}</p>
+        <Button size="sm" onClick={() => getDeskStore().getState().openHandoff(handoff)}>
+          Open {handoff.surface === "perps" ? "Perps" : handoff.surface === "orders" ? "Orders" : "Automations"}
+        </Button>
       </div>
     );
   } else if (task.restored && !task.sentence && task.status === "question") {

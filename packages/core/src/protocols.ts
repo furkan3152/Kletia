@@ -1026,6 +1026,16 @@ interface YieldVenueBase {
   readonly target: string;
   /** Actions Kletia executes against this venue (empty: listed for discovery only). */
   readonly actions: readonly YieldVenueAction[];
+  /**
+   * Executed only when a request names the venue (its slug, id or full name): never a default, never ranked into a
+   * venue-less or protocol-only deposit (Kamino's JLP and Altcoins markets sit beside the Main market's reserves).
+   */
+  readonly namedOnly?: true;
+}
+
+/** True when Kletia executes `kind` at `venue`; a named-only venue only when the request named it (`named`). */
+export function venueExecutes(venue: Pick<YieldVenueBase, "actions" | "namedOnly">, kind: YieldVenueAction, named = false): boolean {
+  return venue.actions.includes(kind) && (venue.namedOnly !== true || named);
 }
 
 /** Aave V3 reserves and Aave V3 forks (SparkLend): same Pool interface, protocol tells them apart. */
@@ -1302,13 +1312,14 @@ function kaminoReserve(
   reserve: string,
   supplyVault?: string,
   market: KaminoMarket = KAMINO_MAIN,
-  actions: readonly YieldVenueAction[] = BOTH,
 ): KaminoReserveVenue {
   const slug = `${market.prefix}${asset.toLowerCase()}`;
   return {
     id: `solana:kamino:${slug}`, slug, protocol: "kamino", network: "solana", kind: "kamino-reserve",
     name: `${market.name} ${asset}`, asset, target: KAMINO_PROGRAM, market: market.address, reserve,
-    marketAuthority: market.authority, ...(supplyVault ? { supplyVault } : {}), actions,
+    marketAuthority: market.authority, ...(supplyVault ? { supplyVault } : {}), actions: BOTH,
+    // Markets other than Main execute only when named ("into kamino jlp-usdc"): the default stays the Main market.
+    ...(market !== KAMINO_MAIN ? { namedOnly: true as const } : {}),
   };
 }
 
@@ -1536,13 +1547,11 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   kaminoReserve("USDT", "H3t6qZ1JkguCNTi9uzVKqQ7dvt2cum4XiXWom6Gn5e5S"),
   kaminoReserve("PYUSD", "2gc9Dm1eB6UgVYFBUN9bWks6Kes9PbWSaPaa9DqyvEiN"),
   // Kamino JLP and Altcoins market reserves (the Altcoins market lists capped USDC decoys: pinned by address).
-  // Listed for discovery until sentences can name a Kamino venue by slug ("into kamino jlp-usdc"): a second
-  // executable Kamino USDC venue would make clarify offer a venue chip the grammar cannot read back.
-  // The adapter already serves them (KTX checked against the venue's own market and authority).
-  kaminoReserve("USDC", "Ga4rZytCpq1unD4DbEJ5bkHeUz9g3oh9AAFEi6vSauXp", "GENey8es3EgGiNTM8H8gzA3vf98haQF8LHiYFyErjgrv", KAMINO_JLP, []),
-  kaminoReserve("USDT", "2ov3CMqPBYG3jNBmmpXgK9KMW5GmU5GWZNGcwf7w3BC1", "BXE6FX8arPDS9uaQzdpTeqvFt4zAzWeUhnYuXUFzA8Hb", KAMINO_JLP, []),
-  kaminoReserve("PYUSD", "FswUCVjvfAuzHCgPDF95eLKscGsLHyJmD6hzkhq26CLe", "5aeoJKE5beaV8uJJnWRbGYxRTRrZCJi4mGgmK8yPE1wr", KAMINO_JLP, []),
-  kaminoReserve("USDC", "9TD2TSv4pENb8VwfbVYg25jvym7HN6iuAR6pFNSrKjqQ", "HTyrXvSvBbD7WstvU3oqFTBZM1fPZJPxVRvwLAmCTDyJ", KAMINO_ALTCOINS, []),
+  // Named only: executed when a sentence names the venue ("into kamino jlp-usdc"), never picked for a plain "kamino".
+  kaminoReserve("USDC", "Ga4rZytCpq1unD4DbEJ5bkHeUz9g3oh9AAFEi6vSauXp", "GENey8es3EgGiNTM8H8gzA3vf98haQF8LHiYFyErjgrv", KAMINO_JLP),
+  kaminoReserve("USDT", "2ov3CMqPBYG3jNBmmpXgK9KMW5GmU5GWZNGcwf7w3BC1", "BXE6FX8arPDS9uaQzdpTeqvFt4zAzWeUhnYuXUFzA8Hb", KAMINO_JLP),
+  kaminoReserve("PYUSD", "FswUCVjvfAuzHCgPDF95eLKscGsLHyJmD6hzkhq26CLe", "5aeoJKE5beaV8uJJnWRbGYxRTRrZCJi4mGgmK8yPE1wr", KAMINO_JLP),
+  kaminoReserve("USDC", "9TD2TSv4pENb8VwfbVYg25jvym7HN6iuAR6pFNSrKjqQ", "HTyrXvSvBbD7WstvU3oqFTBZM1fPZJPxVRvwLAmCTDyJ", KAMINO_ALTCOINS),
   // Save main pool reserves (cToken = reserve collateral mint, liquidity decimals)
   saveReserve("USDC", "BgxfHJDzm44T7XG68MYKx7YisTjZu73tVovyZSjJMpmw", "8SheGtsopRUDzdiD6v6BR9a6bqZ9QwywYQY99Fp5meNf", "993dVFL2uXWYeoXuEBFXR4BijeXdTv4s6BzsCjJZuwqk", 6),
   saveReserve("USDT", "8K9WC8xoh2rtQNY7iEGXtPvfbDCi563SdWhCAhuMP2xE", "3CdpSW5dxM7RTxBgxeyt8nnnjqoDbZe48tsBs9QUrmuN", "BTsbZDV7aCMRJ3VNy9ygV4Q2UeEo9GpR8D6VvmMZzNr8", 6),

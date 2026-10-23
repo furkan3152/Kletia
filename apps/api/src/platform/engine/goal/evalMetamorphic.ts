@@ -1,6 +1,6 @@
 /**
  * The metamorphic suite: for every ready prompt of a corpus (a hand-off acts as
- * a corpus, seeded variants of its text whose correct outcome follows from
+ * a plan), seeded variants of its text whose correct outcome follows from the
  * original's, so the corpora's own phrasings cannot hide a reader that ignores
  * a word. Relations:
  *
@@ -97,6 +97,14 @@ const NEVER_DROP_INSERTS: readonly { readonly phrase: string; readonly at: "star
   { phrase: "around", at: "verb" },
 ];
 
+/**
+ * Never-drop phrases a rule now reads: "every day" is a schedule, so the right outcome is a hand-off that
+ * carries it (an automation every day, or a daily native DCA), never the plan without it.
+ */
+const CONSUMED_BY_HANDOFF: Readonly<Record<string, RegExp>> = Object.freeze({
+  "every day": /^(?:automation:every 1 day |order:dca .* every day x)/u,
+});
+
 const UNIT_INSERTS: readonly string[] = ["k", "million", "cents", "thousand"];
 const FILLER_INSERTS: readonly { readonly phrase: string; readonly at: "start" | "end" }[] = [
   { phrase: "pls", at: "end" },
@@ -148,7 +156,7 @@ function wordPositions(say: string, word: string): number[] {
 
 /** The variants of one ready prompt (at most MAX_VARIANTS_PER_PROMPT), deterministic in its id and the seed. */
 export function metamorphicVariants(prompt: IntentEvalPrompt, result: EvalResult, seed = "kletia-metamorphic-v1"): MetamorphicVariant[] {
-  if (result.status !== "ready" || !result.plan) return [];
+  if (!acts(result) || !result.plan) return [];
   const random = rng(`${seed}|${prompt.id}`);
   const say = prompt.say;
   const out: MetamorphicVariant[] = [];
@@ -222,8 +230,13 @@ export interface MetamorphicFinding {
   readonly reason: string;
 }
 
+/** A plan or a hand-off (a hand-off prefills a surface the person signs on: it acts like a plan for every relation). */
+function acts(result: EvalResult): boolean {
+  return result.status === "ready" || result.status === "handoff";
+}
+
 function gotOf(result: EvalResult): string {
-  return result.status === "ready" ? result.plan ?? "" : result.status === "needs_input" ? `[${result.questions[0] ?? ""}]` : `${result.status}:${result.error ?? ""}`;
+  return acts(result) ? result.plan ?? "" : result.status === "needs_input" ? `[${result.questions[0] ?? ""}]` : `${result.status}:${result.error ?? ""}`;
 }
 
 /** Judges one variant's result against the original's (the relations above). */
@@ -231,9 +244,14 @@ export function judgeVariant(variant: MetamorphicVariant, original: EvalResult, 
   const got = gotOf(result);
   const finding = (kind: "violation" | "gap", reason: string): MetamorphicFinding => ({ variant, original: original.plan ?? "", got, kind, reason });
   if (result.status === "crashed") return finding("violation", "crashed");
-  const ready = result.status === "ready";
+  const ready = acts(result);
   switch (variant.relation) {
-    case "never-drop":
+    case "never-drop": {
+      const phrase = /^\+"(?<phrase>[^"]+)"/u.exec(variant.change)?.groups?.phrase ?? "";
+      const consumed = CONSUMED_BY_HANDOFF[phrase];
+      if (consumed && result.status === "handoff") return consumed.test(result.plan ?? "") ? null : finding("violation", `"${phrase}" is not in the hand-off`);
+      return ready ? finding("violation", "stays ready") : null;
+    }
     case "question-mark":
     case "look-alike":
     case "english-network":
@@ -285,7 +303,7 @@ export async function runMetamorphic(
   for (const prompt of corpus.prompts) {
     const original = byId.get(prompt.id);
     // Only plans that need no confirm: a confirm is already "not ready" for every relation.
-    if (!original || original.status !== "ready" || original.confirmed) continue;
+    if (!original || !acts(original) || original.confirmed) continue;
     for (const variant of metamorphicVariants(prompt, original, options.seed)) {
       variants.push({ variant, prompt: { ...prompt, id: variant.id, say: variant.say, then: undefined } as IntentEvalPrompt });
     }

@@ -90,7 +90,9 @@ vaults: `apyBasis`), Solana venues through their adapters. A venue whose rate
 cannot be read stays in the list with `apy: null`. `depositText` is a
 sentence for `POST /v1/intents` or the desk composer with an `[EDIT AMOUNT]`
 placeholder to replace, for example
-`Deposit [EDIT AMOUNT] USDC into Aave V3 USDC on Base`.
+`Deposit [EDIT AMOUNT] USDC into Aave V3 USDC on Base`. The sentence reader
+reads it as is: the full venue name picks that venue (a Kamino JLP reserve,
+a Morpho vault) and the placeholder makes it ask the amount.
 
 ### History
 

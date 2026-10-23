@@ -101,7 +101,9 @@ export async function fetchProviderJson<T = unknown>(
         ? (body as { error: string }).error
         : body && typeof body === "object" && "message" in body && typeof (body as { message: unknown }).message === "string"
           ? (body as { message: string }).message
-          : `HTTP ${response.status}`;
+          : body && typeof body === "object" && "description" in body && typeof (body as { description: unknown }).description === "string"
+            ? (body as { description: string }).description
+            : `HTTP ${response.status}`;
     throw new SolanaProviderError(
       `${provider} rejected the request: ${message.slice(0, 200)}`,
       providerCode(provider, "REJECTED"),

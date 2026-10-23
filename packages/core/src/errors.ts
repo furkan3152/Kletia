@@ -400,6 +400,18 @@ export const ERROR_CATALOG = {
   LINKS_DISABLED: { status: 503, category: "unavailable", retryable: true, title: "Links unavailable", remedy: "Intent links are switched off on this deployment. Retry later." },
   LINK_PAGE_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Link page unavailable", remedy: "The page shell could not be loaded. Retry shortly; the link itself is unaffected." },
 
+  /* ------------------------------------------------------ native orders */
+  ORDER_INVALID: request("Invalid order", "Fix the fields listed in error.issues: kind, sell, buy, amount, price (limit) or period and count (DCA)."),
+  ORDER_NETWORK_REQUIRED: intent("Order network required", "Both assets exist on several networks. Add network (solana, ethereum, arbitrum or base)."),
+  ORDER_UNSUPPORTED: intent("Order not supported", "Native orders run on Solana (Jupiter) and on Ethereum, Arbitrum and Base (CoW Protocol). error.details.reason names what is missing, e.g. a Safe for TWAP."),
+  ORDER_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Order not found", remedy: "Check the order id (<protocol>:<network>:<native id>) and its owner. GET /v1/orders?owner= lists them." },
+  ORDER_PREPARATION_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Order preparation not found", remedy: "Prepare the order again with POST /v1/orders/prepare; preparations are kept briefly and only on the instance that made them." },
+  ORDER_PREPARATION_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Order preparation expired", remedy: "The prepared transaction or signature request is too old. Prepare the order again." },
+  ORDER_NOT_CANCELLABLE: conflict("Order not cancellable", "Only open orders can be cancelled. Read the order with GET /v1/orders?owner= to see its status."),
+  ORDER_PREPARATION_USED: conflict("Order preparation already submitted", "This preparation was relayed with another signature. Prepare a new order."),
+  ORDER_SIGNATURE_MISMATCH: request("Signed payload differs from the prepared one", "Sign exactly the transaction or typed data returned by prepare, with the owner wallet, and submit it unchanged.", 422),
+  ORDER_RELAY_FAILED: upstream("Order relay failed", "The protocol did not accept the signed order (error.message has its reason). Prepare the order again.", 502, { retryable: false }),
+
   /* ------------------------------------------------------------ internal */
   INTERNAL_ERROR: internal("Internal error"),
   PLATFORM_ERROR: internal("Unclassified platform error"),
@@ -419,10 +431,10 @@ export const ERROR_CODE_FAMILIES: readonly { readonly suffix: string; readonly c
   { suffix: "_REJECTED", code: "PROVIDER_REJECTED" },
 ]);
 
-/** Features whose codes `FEATURE_ERROR_CODES` groups (round 5, then round 6). */
+/** Features whose codes `FEATURE_ERROR_CODES` groups (round 5, round 6, then native orders in round 9). */
 export type ErrorFeature =
   | "receipts" | "policies" | "links" | "preview"
-  | "protocols" | "departure" | "journey" | "clarify" | "integrator" | "projects";
+  | "protocols" | "departure" | "journey" | "clarify" | "integrator" | "projects" | "orders";
 
 /**
  * Codes added by the round-5 and round-6 designs, by feature. Core lands
@@ -464,6 +476,10 @@ export const FEATURE_ERROR_CODES: Readonly<Record<ErrorFeature, readonly KletiaE
   integrator: Object.freeze(["SECRET_KEY_FROM_BROWSER", "SESSION_EXPIRES_BEFORE_ACTIVATION"] as const),
   projects: Object.freeze([
     "PUBLISHABLE_KEY_FORBIDDEN", "PUBLISHABLE_ORIGIN_FORBIDDEN", "PROJECT_SETTINGS_INVALID", "PROJECT_CONFLICT", "FLOW_UNKNOWN", "PROJECT_LOGO_INVALID",
+  ] as const),
+  orders: Object.freeze([
+    "ORDER_INVALID", "ORDER_NETWORK_REQUIRED", "ORDER_UNSUPPORTED", "ORDER_NOT_FOUND", "ORDER_NOT_CANCELLABLE", "ORDER_PREPARATION_NOT_FOUND", "ORDER_PREPARATION_EXPIRED",
+    "ORDER_PREPARATION_USED", "ORDER_SIGNATURE_MISMATCH", "ORDER_RELAY_FAILED",
   ] as const),
 });
 

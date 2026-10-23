@@ -10,6 +10,7 @@ on-chain action in the browser.
 
 ### Added
 
+- Native protocol orders: `/v1/orders` quote, prepare, submit, list and cancel limit and DCA orders through Jupiter Trigger and Recurring (Solana) and CoW Protocol limit and Safe-only TWAP orders (Ethereum, Arbitrum, Base); submit relays only a signature that matches the prepared payload, and the desk has an Orders view ([orders](docs/platform/orders.md)).
 - Admin panel at `/admin` (noindex, its own lazy chunk): sign in with the owner's EVM wallet (EIP-4361, EOA or ERC-1271) or Solana wallet (ed25519); allowlists `KLETIA_ADMIN_ADDRESSES` and `KLETIA_ADMIN_SOLANA_ADDRESSES`; off when unset, invalid or without a database in production ([admin](docs/deployment/admin.md)).
 - Deployment registry for every Kletia contract on every EVM network it applies to: deploys built from committed artifacts (`npm run export:contract-artifacts`, checked in `verify`), signed by the admin wallet, verified on-chain by the API (code, arguments, owner), exported as JSON for pinning. Solana has no Kletia programs.
 - Owner management (direct or as Safe proposals with chain-derived hashes), fee and revenue view with x402 gateway claims, Render status and redeploy (server-side `RENDER_API_KEY`), env readiness (booleans only) and a persistent audit log.

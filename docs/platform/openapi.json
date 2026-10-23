@@ -96,6 +96,10 @@
       "description": "Rule books of keys and of the project (tighten now, loosen later), the simulator, the hash-chained decision log, spend windows and approvals."
     },
     {
+      "name": "Orders",
+      "description": "Native protocol orders that execute without the user online after one signature: Jupiter limit and DCA orders on Solana, CoW Protocol limit and TWAP orders on Ethereum, Arbitrum and Base. Kletia builds what the wallet signs and relays only the owner's checked signature."
+    },
+    {
       "name": "Links",
       "description": "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards."
     },
@@ -7788,6 +7792,471 @@
         }
       }
     },
+    "/v1/orders/quote": {
+      "post": {
+        "operationId": "quoteOrder",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Quote a native limit or DCA order",
+        "description": "Checks the order, picks the protocol (Solana: Jupiter Trigger for limit, Jupiter Recurring for DCA; Ethereum, Arbitrum, Base: CoW Protocol limit orders, TWAP for DCA) and compares it with the market. Nothing is stored. At most 30 quotes, preparations and cancels per minute from one address.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan and the quote.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderQuoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/orders/prepare": {
+      "post": {
+        "operationId": "prepareOrder",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Prepare what the owner signs",
+        "description": "Jupiter: an unsigned transaction built by Jupiter and checked by Kletia (fee payer and sole signer, programs, compute budget). CoW limit: an approval of the GPv2VaultRelayer when the allowance is short, then the EIP-712 order. CoW TWAP: Safe transactions (only a Safe set up for ComposableCoW can create one; a plain account gets 422 ORDER_UNSUPPORTED with error.details.reason `twap-requires-safe`). Preparations live briefly on the instance that made them. At most 30 quotes, preparations and cancels per minute from one address.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan and the preparation.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderPrepareResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/orders/submit": {
+      "post": {
+        "operationId": "submitOrder",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Relay the owner's signature",
+        "description": "Fail closed: a signed Solana transaction must carry byte for byte the prepared message (its sha256) and a valid signature of the owner, and nothing else is signed; an EIP-712 signature must recover to the owner over the prepared digest (ERC-1271 `isValidSignature` for contract owners). Otherwise 422 ORDER_SIGNATURE_MISMATCH and nothing is relayed. Then Kletia relays exactly that: Jupiter's `/execute`, or the CoW orderbook. Repeating the relayed submission returns the same result (Idempotent-Replayed); another signature for a used preparation is 409 ORDER_PREPARATION_USED.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Relayed (or the replayed result of the same submission).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderSubmitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "An owner's native orders",
+        "description": "Open and recent orders of up to 4 wallets on every protocol their family reaches (Solana: Jupiter; EVM: CoW on Ethereum, Arbitrum and Base), newest first. Jupiter reports its first page of open and of past orders; CoW the newest 20 per network. At most 60 lists per minute from one address.",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "description": "Comma-separated EVM or Solana addresses (or CAIP-10 accounts).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "solana",
+                "ethereum",
+                "arbitrum",
+                "base"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orders and the protocols that could not be read.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeOrderList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/orders/{id}": {
+      "get": {
+        "operationId": "getOrder",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "One native order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "`<protocol>:<network>:<native id>`: the Jupiter order account, the CoW order uid, or `twap-<ComposableCoW hash>`.",
+              "examples": [
+                "cow-protocol:base:0xe51b…82e4"
+              ]
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The order.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeOrderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/orders/{id}/cancel": {
+      "post": {
+        "operationId": "cancelOrder",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Prepare the cancellation of an open order",
+        "description": "Jupiter: an unsigned cancel transaction (submit it like a creation). CoW, plain account: an EIP-712 OrderCancellations message (no gas; best effort until settlement). CoW, contract owner: GPv2Settlement.invalidateOrder as a Safe transaction. TWAP: ComposableCoW.remove as a Safe transaction. Orders that are not open are 409 ORDER_NOT_CANCELLABLE. At most 30 quotes, preparations and cancels per minute from one address.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "`<protocol>:<network>:<native id>`: the Jupiter order account, the CoW order uid, or `twap-<ComposableCoW hash>`.",
+              "examples": [
+                "cow-protocol:base:0xe51b…82e4"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCancelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The cancellation to sign.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderPreparationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/v1/webhooks": {
       "post": {
         "operationId": "createWebhook",
@@ -10746,6 +11215,9 @@
           "mantle-lsp",
           "frax-ether",
           "solana-stake",
+          "jupiter-trigger",
+          "jupiter-recurring",
+          "cow-protocol",
           "spl-token",
           "system-transfer",
           "erc20-transfer",
@@ -12520,7 +12992,8 @@
             "enum": [
               "platform",
               "console",
-              "service"
+              "service",
+              "orders"
             ],
             "description": "Where it executes: `platform` (Platform API v1 plans and executes it), `console` (only the Kletia console's network engines and tools), `service` (a separate Kletia service, such as x402 payments)."
           },
@@ -23967,6 +24440,1002 @@
         },
         "required": [
           "activity"
+        ]
+      },
+      "OrderRequest": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "limit",
+              "dca"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "description": "The wallet that signs: an EVM or Solana address, or a CAIP-10 account."
+          },
+          "sell": {
+            "type": "string",
+            "description": "Symbol, address or mint of the asset sold."
+          },
+          "buy": {
+            "type": "string",
+            "description": "Symbol, address or mint of the asset bought."
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "description": "Decimal amount of the `amountIn` side; for DCA the total sold."
+          },
+          "amountIn": {
+            "type": "string",
+            "enum": [
+              "sell",
+              "buy"
+            ],
+            "default": "sell",
+            "description": "Limit orders only: `buy` counts the amount in the asset bought (\"buy 1000 JUP at 0.8\")."
+          },
+          "price": {
+            "type": "string",
+            "description": "Limit (required): counter-asset units per one unit of the `amountIn` asset. DCA on CoW: the least bought per one sold (else 10% below the quote at preparation); not accepted for Jupiter Recurring."
+          },
+          "period": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "minute",
+                  "hour",
+                  "day",
+                  "week",
+                  "month"
+                ]
+              },
+              {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 31536000
+              }
+            ],
+            "description": "DCA: time between parts (a name or seconds)."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 1000,
+            "description": "DCA: number of parts."
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "solana",
+              "ethereum",
+              "arbitrum",
+              "base"
+            ],
+            "description": "Inferred from the assets when only one order network lists both (else 422 ORDER_NETWORK_REQUIRED with error.details.candidates)."
+          },
+          "expiresAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "description": "Limit only: ISO time or unix seconds, within one year. CoW orders default to 30 days; Jupiter orders without it never expire."
+          }
+        },
+        "required": [
+          "kind",
+          "owner",
+          "sell",
+          "buy",
+          "amount"
+        ]
+      },
+      "OrderPlan": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "limit",
+              "dca"
+            ]
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "jupiter-trigger",
+              "jupiter-recurring",
+              "cow-protocol"
+            ]
+          },
+          "mechanism": {
+            "type": "string",
+            "enum": [
+              "limit",
+              "recurring",
+              "twap"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "solana",
+              "ethereum",
+              "arbitrum",
+              "base"
+            ]
+          },
+          "sell": {
+            "type": "string"
+          },
+          "buy": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "amountIn": {
+            "type": "string",
+            "enum": [
+              "sell",
+              "buy"
+            ]
+          },
+          "price": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "periodSeconds": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "count": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "description": "Unix seconds."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "protocol",
+          "mechanism",
+          "network",
+          "sell",
+          "buy",
+          "amount",
+          "amountIn",
+          "price",
+          "periodSeconds",
+          "count",
+          "expiresAt"
+        ]
+      },
+      "OrderAmount": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "string",
+            "description": "CAIP-19 id."
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "decimals": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Base units."
+          },
+          "formatted": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "symbol",
+          "decimals",
+          "amount",
+          "formatted"
+        ]
+      },
+      "OrderQuote": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "jupiter-trigger",
+              "jupiter-recurring",
+              "cow-protocol"
+            ]
+          },
+          "mechanism": {
+            "type": "string",
+            "enum": [
+              "limit",
+              "recurring",
+              "twap"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "solana",
+              "ethereum",
+              "arbitrum",
+              "base"
+            ]
+          },
+          "sell": {
+            "$ref": "#/components/schemas/OrderAmount"
+          },
+          "buy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderAmount"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Limit: least received. DCA: the protection floor, or null."
+          },
+          "market": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderAmount"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the market gives now for the same order (or one part); null when no quote was available."
+          },
+          "limitVsMarketPct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "How much better than the market the limit is, in percent (positive: waits for the price to move)."
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "parts": {
+                    "type": "integer"
+                  },
+                  "periodSeconds": {
+                    "type": "integer"
+                  },
+                  "perPart": {
+                    "$ref": "#/components/schemas/OrderAmount"
+                  },
+                  "endsAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "parts",
+                  "periodSeconds",
+                  "perPart",
+                  "endsAt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "fees": {
+            "type": "string"
+          },
+          "custody": {
+            "type": "string",
+            "description": "Where the funds are until the order fills. Kletia never holds them."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "protocol",
+          "mechanism",
+          "network",
+          "sell",
+          "buy",
+          "market",
+          "limitVsMarketPct",
+          "schedule",
+          "expiresAt",
+          "fees",
+          "custody",
+          "warnings"
+        ]
+      },
+      "OrderQuoteResponse": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/OrderPlan"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/OrderQuote"
+          }
+        },
+        "required": [
+          "plan",
+          "quote"
+        ]
+      },
+      "OrderSignRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "solana-transaction"
+              },
+              "network": {
+                "type": "string",
+                "const": "solana"
+              },
+              "transaction": {
+                "type": "string",
+                "description": "Unsigned base64 wire transaction."
+              },
+              "encoding": {
+                "type": "string",
+                "const": "base64"
+              },
+              "messageHash": {
+                "type": "string",
+                "description": "sha256 (hex) of the message bytes; the signed transaction must carry exactly this message."
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "network",
+              "transaction",
+              "encoding",
+              "messageHash",
+              "description"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "evm-transaction"
+              },
+              "network": {
+                "type": "string",
+                "enum": [
+                  "solana",
+                  "ethereum",
+                  "arbitrum",
+                  "base"
+                ]
+              },
+              "chainId": {
+                "type": "integer"
+              },
+              "to": {
+                "type": "string"
+              },
+              "data": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string",
+                "const": "0"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "network",
+              "chainId",
+              "to",
+              "data",
+              "value",
+              "description"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "eip712"
+              },
+              "network": {
+                "type": "string",
+                "enum": [
+                  "solana",
+                  "ethereum",
+                  "arbitrum",
+                  "base"
+                ]
+              },
+              "chainId": {
+                "type": "integer"
+              },
+              "typedData": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "object",
+                    "properties": {}
+                  },
+                  "types": {
+                    "type": "object",
+                    "properties": {}
+                  },
+                  "primaryType": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "object",
+                    "properties": {}
+                  }
+                },
+                "required": [
+                  "domain",
+                  "types",
+                  "primaryType",
+                  "message"
+                ]
+              },
+              "digest": {
+                "type": "string",
+                "description": "The EIP-712 digest the signature must belong to."
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "network",
+              "chainId",
+              "typedData",
+              "digest",
+              "description"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "safe-transaction"
+              },
+              "network": {
+                "type": "string",
+                "enum": [
+                  "solana",
+                  "ethereum",
+                  "arbitrum",
+                  "base"
+                ]
+              },
+              "chainId": {
+                "type": "integer"
+              },
+              "safe": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "data": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string",
+                "const": "0"
+              },
+              "operation": {
+                "type": "integer",
+                "const": 0
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "network",
+              "chainId",
+              "safe",
+              "to",
+              "data",
+              "value",
+              "operation",
+              "description"
+            ]
+          }
+        ]
+      },
+      "OrderPreparation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^ordp_[0-9a-f]{32}$"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "jupiter-trigger",
+              "jupiter-recurring",
+              "cow-protocol"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "cancel"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "solana",
+              "ethereum",
+              "arbitrum",
+              "base"
+            ]
+          },
+          "owner": {
+            "type": "string"
+          },
+          "orderId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "`<protocol>:<network>:<native id>`: the Jupiter order account, the CoW order uid, or `twap-<ComposableCoW hash>`.",
+                "examples": [
+                  "cow-protocol:base:0xe51b…82e4"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderSignRequest"
+            },
+            "description": "In order. Transactions the wallet or Safe sends itself; the last `solana-transaction` or `eip712` step comes back through POST /v1/orders/submit."
+          },
+          "submit": {
+            "type": "string",
+            "enum": [
+              "kletia",
+              "wallet"
+            ],
+            "description": "`wallet`: the wallet or Safe executes every step, nothing is submitted to Kletia."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "protocol",
+          "action",
+          "network",
+          "owner",
+          "orderId",
+          "steps",
+          "submit",
+          "expiresAt",
+          "warnings"
+        ]
+      },
+      "OrderPrepareResponse": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/OrderPlan"
+          },
+          "preparation": {
+            "$ref": "#/components/schemas/OrderPreparation"
+          }
+        },
+        "required": [
+          "plan",
+          "preparation"
+        ]
+      },
+      "OrderPreparationResponse": {
+        "type": "object",
+        "properties": {
+          "preparation": {
+            "$ref": "#/components/schemas/OrderPreparation"
+          }
+        },
+        "required": [
+          "preparation"
+        ]
+      },
+      "OrderSubmitRequest": {
+        "type": "object",
+        "properties": {
+          "preparationId": {
+            "type": "string",
+            "pattern": "^ordp_[0-9a-f]{32}$"
+          },
+          "signedTransaction": {
+            "type": "string",
+            "description": "Solana: the base64 wire transaction the wallet signed."
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]+$",
+            "description": "EIP-712: the 0x signature the wallet returned."
+          }
+        },
+        "required": [
+          "preparationId"
+        ]
+      },
+      "OrderSubmitted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "`<protocol>:<network>:<native id>`: the Jupiter order account, the CoW order uid, or `twap-<ComposableCoW hash>`.",
+                "examples": [
+                  "cow-protocol:base:0xe51b…82e4"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preparationId": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "jupiter-trigger",
+              "jupiter-recurring",
+              "cow-protocol"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "solana",
+              "ethereum",
+              "arbitrum",
+              "base"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "cancel"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "submitted",
+              "cancelled"
+            ]
+          },
+          "reference": {
+            "type": "string",
+            "description": "Solana transaction signature, or the CoW order uid."
+          }
+        },
+        "required": [
+          "id",
+          "preparationId",
+          "protocol",
+          "network",
+          "action",
+          "status",
+          "reference"
+        ]
+      },
+      "OrderSubmitResponse": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/OrderSubmitted"
+          }
+        },
+        "required": [
+          "order"
+        ]
+      },
+      "NativeOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`<protocol>:<network>:<native id>`: the Jupiter order account, the CoW order uid, or `twap-<ComposableCoW hash>`.",
+            "examples": [
+              "cow-protocol:base:0xe51b…82e4"
+            ]
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "jupiter-trigger",
+              "jupiter-recurring",
+              "cow-protocol"
+            ]
+          },
+          "mechanism": {
+            "type": "string",
+            "enum": [
+              "limit",
+              "recurring",
+              "twap"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "solana",
+              "ethereum",
+              "arbitrum",
+              "base"
+            ]
+          },
+          "owner": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "filled",
+              "cancelled",
+              "expired",
+              "unknown"
+            ],
+            "description": "`unknown`: a state Kletia does not recognise; never shown as open or filled."
+          },
+          "sell": {
+            "$ref": "#/components/schemas/OrderAmount"
+          },
+          "buy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderAmount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sold": {
+            "$ref": "#/components/schemas/OrderAmount"
+          },
+          "bought": {
+            "$ref": "#/components/schemas/OrderAmount"
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "perPart": {
+                    "$ref": "#/components/schemas/OrderAmount"
+                  },
+                  "periodSeconds": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "perPart",
+                  "periodSeconds"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cancellable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "protocol",
+          "mechanism",
+          "network",
+          "owner",
+          "status",
+          "sell",
+          "buy",
+          "sold",
+          "bought",
+          "createdAt",
+          "expiresAt",
+          "schedule",
+          "transactions",
+          "cancellable"
+        ]
+      },
+      "NativeOrderResponse": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/NativeOrder"
+          }
+        },
+        "required": [
+          "order"
+        ]
+      },
+      "NativeOrderList": {
+        "type": "object",
+        "properties": {
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NativeOrder"
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "protocol": {
+                  "type": "string",
+                  "enum": [
+                    "jupiter-trigger",
+                    "jupiter-recurring",
+                    "cow-protocol"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "enum": [
+                    "solana",
+                    "ethereum",
+                    "arbitrum",
+                    "base"
+                  ]
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocol",
+                "network",
+                "owner",
+                "code",
+                "message"
+              ]
+            },
+            "description": "Protocols that could not be read: their orders are unknown, not absent."
+          }
+        },
+        "required": [
+          "orders",
+          "failures"
+        ]
+      },
+      "OrderCancelRequest": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "The wallet that owns the order."
+          }
+        },
+        "required": [
+          "owner"
         ]
       },
       "StepFunding": {

@@ -139,6 +139,8 @@ introduced.
 | <a id="error-LINK_IMMUTABLE_FIELD"></a>`LINK_IMMUTABLE_FIELD` | 422 | no | Link field cannot change | A link's promise only tightens: raise min, lower max, remove sources, lower uses, expire earlier or turn the blink off. Create a new link for anything else. |
 | <a id="error-MESSAGE_SECRET_REFUSED"></a>`MESSAGE_SECRET_REFUSED` | 400 | no | Secret in a message | Never send private keys, seed phrases or API keys. Nothing was stored. |
 | <a id="error-METHOD_NOT_ALLOWED"></a>`METHOD_NOT_ALLOWED` | 405 | no | Method not allowed | Use one of the methods listed in the Allow header. |
+| <a id="error-ORDER_INVALID"></a>`ORDER_INVALID` | 400 | no | Invalid order | Fix the fields listed in error.issues: kind, sell, buy, amount, price (limit) or period and count (DCA). |
+| <a id="error-ORDER_SIGNATURE_MISMATCH"></a>`ORDER_SIGNATURE_MISMATCH` | 422 | no | Signed payload differs from the prepared one | Sign exactly the transaction or typed data returned by prepare, with the owner wallet, and submit it unchanged. |
 | <a id="error-PAYLOAD_TOO_LARGE"></a>`PAYLOAD_TOO_LARGE` | 413 | no | Request body too large | Keep request bodies under 64 KB. |
 | <a id="error-POLICY_INVALID"></a>`POLICY_INVALID` | 400 | no | Invalid rule book | Fix the fields listed in error.issues. validatePolicy in @kletia/core reports the same issues locally. |
 | <a id="error-PROJECT_SETTINGS_INVALID"></a>`PROJECT_SETTINGS_INVALID` | 400 | no | Invalid project settings | Fix the fields listed in error.issues and send the change again. |
@@ -204,6 +206,8 @@ introduced.
 | <a id="error-PROJECT_NOT_FOUND"></a>`PROJECT_NOT_FOUND` | 404 | no | Project not found | List the signed-in wallet's projects with GET /v1/accounts/projects; claim a project with one of its project keys first. |
 | <a id="error-LINK_NOT_FOUND"></a>`LINK_NOT_FOUND` | 404 | no | Link not found | Check the link id (lk_ + 24 hex). A key lists its own links with GET /v1/links. |
 | <a id="error-NOT_FOUND"></a>`NOT_FOUND` | 404 | no | Unknown route | Check the path against GET /v1/openapi.json. |
+| <a id="error-ORDER_NOT_FOUND"></a>`ORDER_NOT_FOUND` | 404 | no | Order not found | Check the order id (<protocol>:<network>:<native id>) and its owner. GET /v1/orders?owner= lists them. |
+| <a id="error-ORDER_PREPARATION_NOT_FOUND"></a>`ORDER_PREPARATION_NOT_FOUND` | 404 | no | Order preparation not found | Prepare the order again with POST /v1/orders/prepare; preparations are kept briefly and only on the instance that made them. |
 | <a id="error-POLICY_NOT_FOUND"></a>`POLICY_NOT_FOUND` | 404 | no | Rule book not found | This key or project has no rule book (or no pending amendment to cancel). Create one with PUT /v1/keys/{id}/policy. |
 | <a id="error-PREVIEW_NOT_FOUND"></a>`PREVIEW_NOT_FOUND` | 404 | no | No preview yet | Compute one with POST /v1/intents/{id}/preview, or create the intent with ?preview=true. |
 | <a id="error-RECEIPT_LOG_NOT_FOUND"></a>`RECEIPT_LOG_NOT_FOUND` | 404 | no | Log batch not found | List batches with GET /v1/receipts/log; batches close hourly, and an unbatched digest has no inclusion yet. |
@@ -247,6 +251,8 @@ introduced.
 | <a id="error-LINK_PENDING"></a>`LINK_PENDING` | 409 | yes | Link not active yet | Links that pay a fixed third party or call a custom contract activate after a delay. Retry after Retry-After seconds. |
 | <a id="error-LINK_RECIPIENT_CHANGED"></a>`LINK_RECIPIENT_CHANGED` | 409 | no | Link recipient changed | A pinned recipient name now resolves elsewhere, so the link paused itself. The publisher must review and resume it. |
 | <a id="error-LINK_SUSPENDED"></a>`LINK_SUSPENDED` | 409 | no | Link suspended | Kletia suspended the link. Funds of steps already completed are in your wallet. |
+| <a id="error-ORDER_NOT_CANCELLABLE"></a>`ORDER_NOT_CANCELLABLE` | 409 | no | Order not cancellable | Only open orders can be cancelled. Read the order with GET /v1/orders?owner= to see its status. |
+| <a id="error-ORDER_PREPARATION_USED"></a>`ORDER_PREPARATION_USED` | 409 | no | Order preparation already submitted | This preparation was relayed with another signature. Prepare a new order. |
 | <a id="error-POLICY_AMENDMENT_PENDING"></a>`POLICY_AMENDMENT_PENDING` | 409 | no | Amendment pending | A loosening amendment is waiting to activate. Cancel it with DELETE …/policy/pending first, or wait for activatesAt. |
 | <a id="error-POLICY_APPROVAL_STALE"></a>`POLICY_APPROVAL_STALE` | 409 | no | Approval no longer covers the intent | Fresh prices put the intent above the approved ceiling. Plan a new intent and ask for a new approval. |
 | <a id="error-POLICY_CONFLICT"></a>`POLICY_CONFLICT` | 409 | no | Rule book changed | The If-Match hash is not the current version. Read the rule book again and resend the change. |
@@ -279,6 +285,7 @@ introduced.
 | <a id="error-DEADLINE_PASSED"></a>`DEADLINE_PASSED` | 410 / 422 | no | Deadline passed | constraints.deadline is in the past. Plan again with a later deadline. |
 | <a id="error-INTENT_EXPIRED"></a>`INTENT_EXPIRED` | 410 | no | Intent expired | The plan expired before execution started. Create a new intent to re-quote. |
 | <a id="error-LINK_EXPIRED"></a>`LINK_EXPIRED` | 410 | no | Link expired or withdrawn | The link expired or its publisher withdrew it. Ask the publisher for a new link. |
+| <a id="error-ORDER_PREPARATION_EXPIRED"></a>`ORDER_PREPARATION_EXPIRED` | 410 | no | Order preparation expired | The prepared transaction or signature request is too old. Prepare the order again. |
 | <a id="error-POLICY_APPROVAL_EXPIRED"></a>`POLICY_APPROVAL_EXPIRED` | 410 | no | Approval expired | Nobody decided the approval in time. Plan a new intent to ask again. |
 | <a id="error-RECEIPT_DISCLOSURES_WITHDRAWN"></a>`RECEIPT_DISCLOSURES_WITHDRAWN` | 410 | no | Receipt disclosures withdrawn | The owner withdrew this intent's disclosures, so no share can be created. The signed payloads remain. |
 | <a id="error-RECEIPT_SHARE_EXPIRED"></a>`RECEIPT_SHARE_EXPIRED` | 410 | no | Receipt share expired | The share link expired. Ask the receipt's owner for a new link. |
@@ -368,6 +375,8 @@ introduced.
 | <a id="error-VENUE_UNKNOWN"></a>`VENUE_UNKNOWN` | 422 | no | Unknown venue | Use a venue listed for this network and protocol (see error.message for known ones). |
 | <a id="error-VENUE_UNSUPPORTED"></a>`VENUE_UNSUPPORTED` | 422 | no | Venue not executable | The venue is listed for discovery only. Choose an executable venue. |
 | <a id="error-APPROVAL_RESET_REQUIRED"></a>`APPROVAL_RESET_REQUIRED` | 422 | no | Allowance reset required | This token (Ethereum USDT) refuses a new approval over a non-zero allowance. Revoke the current allowance in your wallet, then plan again. |
+| <a id="error-ORDER_NETWORK_REQUIRED"></a>`ORDER_NETWORK_REQUIRED` | 422 | no | Order network required | Both assets exist on several networks. Add network (solana, ethereum, arbitrum or base). |
+| <a id="error-ORDER_UNSUPPORTED"></a>`ORDER_UNSUPPORTED` | 422 | no | Order not supported | Native orders run on Solana (Jupiter) and on Ethereum, Arbitrum and Base (CoW Protocol). error.details.reason names what is missing, e.g. a Safe for TWAP. |
 | <a id="error-VENUE_UNVERIFIED"></a>`VENUE_UNVERIFIED` | 422 | no | Venue failed verification | The venue's on-chain state no longer matches Kletia's pinned registry (factory, asset, comptroller, gates). Choose another venue. |
 | <a id="error-WEBHOOK_URL_FORBIDDEN"></a>`WEBHOOK_URL_FORBIDDEN` | 422 | no | Webhook URL refused | Use a public HTTPS endpoint on port 443 or 8443; private, loopback and metadata hosts are refused. |
 | <a id="error-WEBHOOK_URL_UNRESOLVABLE"></a>`WEBHOOK_URL_UNRESOLVABLE` | 422 | no | Webhook host does not resolve | Use a host name with public DNS records. |
@@ -417,6 +426,7 @@ introduced.
 | <a id="error-JUPITER_QUOTE_MISMATCH"></a>`JUPITER_QUOTE_MISMATCH` | 502 | yes | Jupiter quote mismatch | Jupiter returned a quote for another request. Retry shortly. |
 | <a id="error-JUPITER_SWAP_INVALID"></a>`JUPITER_SWAP_INVALID` | 502 | yes | Jupiter swap refused | Retry shortly. |
 | <a id="error-LINK_DELIVERY_UNQUOTABLE"></a>`LINK_DELIVERY_UNQUOTABLE` | 502 | yes | Delivery could not be sized | No quote delivered at least the fixed amount within three tries. Retry shortly, or start from another network. |
+| <a id="error-ORDER_RELAY_FAILED"></a>`ORDER_RELAY_FAILED` | 502 | no | Order relay failed | The protocol did not accept the signed order (error.message has its reason). Prepare the order again. |
 | <a id="error-PAYLOAD_INVALID"></a>`PAYLOAD_INVALID` | 502 | yes | Prepared payload refused | The prepared transactions failed Kletia's safety checks and were not returned. Retry shortly. |
 | <a id="error-PROVIDER_INVALID_JSON"></a>`PROVIDER_INVALID_JSON` | 502 | yes | Invalid provider response | Retry shortly. |
 | <a id="error-PROVIDER_RATE_LIMITED"></a>`PROVIDER_RATE_LIMITED` | 503 | yes | Provider rate limit | A routing or data provider (for example Jupiter) is limiting requests right now and Kletia's short retries did not get through. Nothing is wrong with the request: wait for Retry-After seconds and send it again. |

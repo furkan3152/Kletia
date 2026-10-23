@@ -156,6 +156,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://kletiaai.xyz/developers/data</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://kletiaai.xyz/networks</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>

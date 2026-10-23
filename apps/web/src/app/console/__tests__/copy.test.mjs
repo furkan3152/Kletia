@@ -88,7 +88,7 @@ test("starter sentences, capability labels and tool texts follow the same rules"
 });
 
 test("the desk's content and state sources carry no em dash and no emoji, in code or copy", () => {
-  for (const directory of ["../content", "../state", "../tools", "../shell", "../composer", "../tasks", "../holdings", "../activity", "../hooks", "."]) {
+  for (const directory of ["../content", "../state", "../tools", "../shell", "../composer", "../tasks", "../holdings", "../activity", "../dashboard", "../hooks", "."]) {
     for (const file of readdirSync(resolve(here, directory === "." ? ".." : directory)).filter((name) => /\.(tsx?|css)$/u.test(name))) {
       const source = readFileSync(join(resolve(here, directory === "." ? ".." : directory), file), "utf8");
       assert.ok(!source.includes("—"), `${directory}/${file} has no em dash`);

@@ -25,6 +25,11 @@
  * GET /v1/portfolio?accounts= costs one tier unit per request plus one unit
  * per (deduplicated) account of a per-IP budget of 60 account reads per
  * minute (console design 4.2), so a batch cannot multiply RPC reads.
+ *
+ * The data API (`/v1/data/*`) has its own weighted budget on top of the tier
+ * limit: a portfolio, positions or export read costs one unit per account of
+ * the wallet set, history and market reads one unit. 240 units a minute per
+ * API key (publishable keys included), 60 a minute per address without one.
  */
 import type { Request, RequestHandler } from "express";
 import { CONTRACT_LIMITS } from "@kletia/core";
@@ -274,6 +279,20 @@ export const portfolioReadBudget = new WeightedWindowLimiter(PORTFOLIO_ACCOUNT_R
 /** Spends one batch request's account reads from the caller's address budget. */
 export function takePortfolioReads(req: Request, accounts: number): void {
   portfolioReadBudget.take(`ip:${clientIp(req)}`, accounts);
+}
+
+export const DATA_READS_PER_MINUTE = Object.freeze({ key: 240, address: 60 });
+
+/** /v1/data/*: weighted reads per API key. */
+export const dataKeyBudget = new WeightedWindowLimiter(DATA_READS_PER_MINUTE.key, 60_000, "data reads per minute per API key");
+/** /v1/data/* without a key: weighted reads per client IP. */
+export const dataAddressBudget = new WeightedWindowLimiter(DATA_READS_PER_MINUTE.address, 60_000, "data reads per minute from one address");
+
+/** Spends `units` of the caller's data budget: its key's when it sent one, else its address's. */
+export function takeDataReads(req: Request, units: number): void {
+  const keyId = authOf(req).keyId;
+  if (keyId) dataKeyBudget.take(`key:${keyId}`, units);
+  else dataAddressBudget.take(`ip:${clientIp(req)}`, units);
 }
 
 /* ------------------------------------------------------- stream slots */

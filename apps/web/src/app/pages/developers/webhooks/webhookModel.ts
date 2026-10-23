@@ -8,7 +8,7 @@
  * Only `@kletia/core` and the status table are imported, so the node tests
  * load this file directly.
  */
-import { CONTRACT_EVENT_TYPES, KEY_EVENT_TYPES, LINK_EVENT_TYPES, POLICY_EVENT_TYPES, RECEIPT_EVENT_TYPE } from "@kletia/core";
+import { AGENT_EVENT_TYPES, CONTRACT_EVENT_TYPES, KEY_EVENT_TYPES, LINK_EVENT_TYPES, POLICY_EVENT_TYPES, RECEIPT_EVENT_TYPE } from "@kletia/core";
 
 import { toneFor, type StatusEntry } from "../../../site/ui/statusTones.ts";
 
@@ -263,7 +263,7 @@ export function checkWebhookUrl(raw: string): UrlCheck {
 /* ---------------------------------------------------------------- events */
 
 export interface EventGroup {
-  readonly id: "intent" | "contract" | "link" | "policy" | "key";
+  readonly id: "intent" | "contract" | "link" | "policy" | "key" | "agent";
   readonly label: string;
   readonly detail: string;
   readonly types: readonly string[];
@@ -281,6 +281,7 @@ export const WEBHOOK_EVENT_GROUPS: readonly EventGroup[] = [
   { id: "link", label: "Intent links", detail: "Created, activated, updated, paused, used up, expired and withdrawn.", types: [...LINK_EVENT_TYPES] },
   { id: "policy", label: "Rule Book", detail: "Violations, approvals, amendments and spend thresholds.", types: [...POLICY_EVENT_TYPES] },
   { id: "key", label: "Keys", detail: "Agent keys created and revoked.", types: [...KEY_EVENT_TYPES] },
+  { id: "agent", label: "Sub-agents", detail: "Sub-agents requested, approved, denied and revoked.", types: [...AGENT_EVENT_TYPES] },
 ];
 
 export const WEBHOOK_EVENT_TYPES: readonly string[] = WEBHOOK_EVENT_GROUPS.flatMap((group) => group.types);

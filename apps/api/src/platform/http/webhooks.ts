@@ -18,11 +18,13 @@
  *   book events), so a parent can watch its agents.
  */
 import {
+  AGENT_EVENT_TYPES,
   CONTRACT_EVENT_TYPES,
   KEY_EVENT_TYPES,
   LINK_EVENT_TYPES,
   POLICY_EVENT_TYPES,
   RECEIPT_EVENT_TYPE,
+  type AgentEventType,
   type ContractEventType,
   type KeyEventType,
   type LinkEventType,
@@ -47,7 +49,7 @@ const EVENT_TYPE_SET: Readonly<Record<IntentEventType, true>> = {
  * contract and link events (routed by the owning key) and Rule Book and key
  * events (routed by the subject key and opted-in ancestors).
  */
-export type WebhookEventType = IntentEventType | ReceiptEventType | ContractEventType | LinkEventType | PolicyEventType | KeyEventType;
+export type WebhookEventType = IntentEventType | ReceiptEventType | ContractEventType | LinkEventType | PolicyEventType | KeyEventType | AgentEventType;
 
 export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = Object.freeze([
   ...(Object.keys(EVENT_TYPE_SET) as IntentEventType[]),
@@ -56,6 +58,7 @@ export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = Object.freeze([
   ...LINK_EVENT_TYPES,
   ...POLICY_EVENT_TYPES,
   ...KEY_EVENT_TYPES,
+  ...AGENT_EVENT_TYPES,
 ]);
 
 /** `self`: the key's own events; `subtree`: also its descendants' (and project-wide rule book events on project keys). */

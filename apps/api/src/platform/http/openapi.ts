@@ -7,6 +7,7 @@
 import {
   CHAINS,
   CONTRACT_ADDRESS_LABEL_PATTERN,
+  AGENT_EVENT_TYPES,
   CONTRACT_ALIAS_PATTERN,
   CONTRACT_ENTRY_ID_PATTERN,
   CONTRACT_EVENT_TYPES,
@@ -50,6 +51,7 @@ import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openap
 import { linkPaths, linkSchemas } from "./links/openapi.js";
 import { projectPaths, projectSchemas } from "./projects/openapi.js";
 import { accountPaths, accountSchemas } from "./accounts/openapi.js";
+import { agentPaths, agentSchemas } from "./agents/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES, WEBHOOK_SCOPES } from "./webhooks.js";
@@ -1080,6 +1082,7 @@ function schemas(): JsonObject {
           ...Object.fromEntries(LINK_EVENT_TYPES.map((type) => [type, "#/components/schemas/LinkEvent"])),
           ...Object.fromEntries(POLICY_EVENT_TYPES.map((type) => [type, "#/components/schemas/PolicyEvent"])),
           ...Object.fromEntries(KEY_EVENT_TYPES.map((type) => [type, "#/components/schemas/KeyEvent"])),
+          ...Object.fromEntries(AGENT_EVENT_TYPES.map((type) => [type, "#/components/schemas/AgentEvent"])),
         },
       },
     },
@@ -1630,6 +1633,7 @@ function schemas(): JsonObject {
     ...linkSchemas(),
     ...projectSchemas(),
     ...accountSchemas(),
+    ...agentSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
 
@@ -2033,6 +2037,7 @@ function paths(): JsonObject {
     ...linkPaths(),
     ...projectPaths(),
     ...accountPaths(),
+    ...agentPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2405,6 +2410,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Sessions", description: "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet (with a publishable key: from a stored flow)." },
       { name: "Projects", description: "Project settings (brand, allowed origins, defaults, stored flows), the domain proof, publishable keys for browsers, the logo and the publishable profile." },
       { name: "Rule Book", description: "Rule books of keys and of the project (tighten now, loosen later), the simulator, the hash-chained decision log, spend windows and approvals." },
+      { name: "Sub-agents", description: "Main agents request sub-agents inside their own rule book; the project owner (wallet signature) or a project key approves; the requester claims the key once. The agent tree with caps and use, revoke and pause." },
       { name: "Links", description: "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards." },
       { name: "Blinks", description: "Solana Actions for eligible links (actions.json is served by the web origin)." },
       { name: "MCP", description: "Model Context Protocol server for agents: read-only tools, plus keyed creation of intents and links for a human to sign." },
@@ -2467,15 +2473,15 @@ export function buildOpenApiDocument(): JsonObject {
           operationId: "receivePolicyEvent",
           summary: "Rule Book and key event delivery",
           description:
-            "Sent to the subject key's webhooks, to `scope: \"subtree\"` webhooks of its ancestors and to `scope: \"subtree\"` webhooks of the project's project keys: policy.violation, policy.approval_requested, policy.approval_decided, policy.amendment_pending, policy.amended, policy.spend_threshold (80 % and 95 % of a window), key.created and key.revoked (with the cascade).",
+            "Sent to the subject key's webhooks, to `scope: \"subtree\"` webhooks of its ancestors and to `scope: \"subtree\"` webhooks of the project's project keys: policy.violation, policy.approval_requested, policy.approval_decided, policy.amendment_pending, policy.amended, policy.spend_threshold (80 % and 95 % of a window), key.created, key.revoked (with the cascade) and the sub-agent events agent.subagent_requested, agent.subagent_approved, agent.subagent_denied and agent.subagent_revoked (subject: the parent key).",
           parameters: [
             { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
             { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
-            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ enum: [...POLICY_EVENT_TYPES, ...KEY_EVENT_TYPES] }) },
+            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ enum: [...POLICY_EVENT_TYPES, ...KEY_EVENT_TYPES, ...AGENT_EVENT_TYPES] }) },
             { name: "Kletia-Webhook-Id", in: "header", required: true, schema: str() },
             { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ pattern: "^[1-4]$" }) },
           ],
-          requestBody: { required: true, content: { "application/json": { schema: { oneOf: [ref("PolicyEvent"), ref("KeyEvent")] } } } },
+          requestBody: { required: true, content: { "application/json": { schema: { oneOf: [ref("PolicyEvent"), ref("KeyEvent"), ref("AgentEvent")] } } } },
           responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
         },
       },

@@ -539,6 +539,8 @@ describe("GET /v1/openapi.json", () => {
         "PUT /v1/projects/current/policy",
         "POST /v1/links",
         "PATCH /v1/links/{id}",
+        "POST /v1/agents/requests/{id}/claim",
+        "POST /v1/agents/{id}/subagents",
         "POST /v1/webhooks",
         "POST /v1/contracts",
         "PATCH /v1/contracts/{id}",
@@ -1145,6 +1147,10 @@ describe("webhooks", () => {
       "policy.spend_threshold",
       "key.created",
       "key.revoked",
+      "agent.subagent_requested",
+      "agent.subagent_approved",
+      "agent.subagent_denied",
+      "agent.subagent_revoked",
     ]);
     assert.equal((created.body.webhook as { scope?: string }).scope, "self");
     const listed = await call<{ webhooks: Record<string, unknown>[] }>(server, "GET", "/webhooks", { key });

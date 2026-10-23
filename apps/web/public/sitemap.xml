@@ -126,6 +126,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://kletiaai.xyz/developers/agent-tree</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://kletiaai.xyz/developers/links</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

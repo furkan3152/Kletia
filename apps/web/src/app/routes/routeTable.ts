@@ -299,6 +299,7 @@ export type PortalPageId =
   | "webhooks"
   | "contracts"
   | "rule-book"
+  | "agent-tree"
   | "links"
   | "receipts"
   | "events"
@@ -393,6 +394,13 @@ export const PORTAL_ROUTES: readonly PortalRouteMeta[] = [
     path: "/developers/rule-book",
     title: portalTitle("Rule Book"),
     description: "Bound what Kletia plans for each key: networks, assets, recipients, caps, a timetable and approvals, with a simulator and a decision log.",
+    indexed: true,
+  },
+  {
+    id: "agent-tree",
+    path: "/developers/agent-tree",
+    title: portalTitle("Agents"),
+    description: "Your agents and the sub-agents they asked for: caps and spend per key, approvals you sign with your wallet, and revoke or pause buttons.",
     indexed: true,
   },
   {

@@ -96,6 +96,10 @@
       "description": "Rule books of keys and of the project (tighten now, loosen later), the simulator, the hash-chained decision log, spend windows and approvals."
     },
     {
+      "name": "Sub-agents",
+      "description": "Main agents request sub-agents inside their own rule book; the project owner (wallet signature) or a project key approves; the requester claims the key once. The agent tree with caps and use, revoke and pause."
+    },
+    {
       "name": "Links",
       "description": "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards."
     },
@@ -2901,7 +2905,7 @@
           "Keys"
         ],
         "summary": "Issue an agent key under a key (kl_agt_…, secret returned once)",
-        "description": "Agent keys sit at most 2 levels below a project key (409 KEY_DEPTH_EXCEEDED), at most 100 active per project (409 AGENT_KEY_LIMIT_REACHED), always expire and never outlive their parent. Their rule book (policy or template) is version 1; without one they are observers. Every request of an agent key is checked against its whole chain, and revoking a key revokes its subtree. An agent key needs `permissions.createChildKeys` to create children of its own. Honours `Idempotency-Key` (the stored response is encrypted at rest).",
+        "description": "Agent keys sit at most 3 levels below a project key (409 KEY_DEPTH_EXCEEDED), at most 100 active per project (409 AGENT_KEY_LIMIT_REACHED), always expire and never outlive their parent. Their rule book (policy or template) is version 1; without one they are observers. Every request of an agent key is checked against its whole chain, and revoking a key revokes its subtree. Project keys only: an agent key with `permissions.createChildKeys` requests a sub-agent instead (POST /v1/agents/{id}/subagents), which a human approves. Honours `Idempotency-Key` (the stored response is encrypted at rest).",
         "security": [
           {
             "bearerAuth": []
@@ -7788,6 +7792,890 @@
         }
       }
     },
+    "/v1/agents/{id}/subagents": {
+      "post": {
+        "operationId": "requestSubagent",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "Request a sub-agent (a human approves)",
+        "description": "With the agent key `{id}` itself, whose chain grants `permissions.createChildKeys`. The rule book must be a subset of the parent's whole chain; sub-agents never get webhooks, registerContracts, sessions or links, and every permission not asked for is off. At most 3 levels below a project key (409 KEY_DEPTH_EXCEEDED), 10 children and open requests per parent and 5 open requests (409 SUBAGENT_LIMIT_REACHED). The request stays open 24 h. Emits agent.subagent_requested. Honours `Idempotency-Key` (stored sealed: the answer carries the claim token).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubagentRequestCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The request and its claim token (shown once).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubagentRequestCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listSubagents",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "Requests and sub-agents of a key",
+        "description": "The key `{id}` must be the caller or in its subtree (project keys: any key of the project).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requests newest first, and the live children with caps and use.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubagentListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/tree": {
+      "get": {
+        "operationId": "getAgentTree",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "The agent tree with caps, use and requests",
+        "description": "Project keys: every project and agent key of the project; agent keys: themselves and their subtree. Each node shows its mode, the strictest mode of its chain, caps and rolling 24 h / 7 d use (children's spending counts in every ancestor's windows).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Roots first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentTreeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/pending": {
+      "get": {
+        "operationId": "countPendingSubagentRequests",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "Open requests for a wallet's projects (a count)",
+        "description": "Public. Answers only how many open sub-agent requests wait in projects the wallet owns, so the desk can tell the connected wallet; names, ids and projects are never shown here.",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160,
+              "description": "CAIP-10 account."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The count.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPendingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/requests/{id}": {
+      "get": {
+        "operationId": "getSubagentRequest",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "A sub-agent request",
+        "description": "What is granted, line by line beside the parent's own rule book. Keys of the request's subtree and project keys read it.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sar_[0-9a-f]{32}$",
+              "examples": [
+                "sar_3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubagentRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/requests/{id}/challenge": {
+      "post": {
+        "operationId": "createSubagentChallenge",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "The message the owner wallet signs",
+        "description": "From the Kletia developer portal (first-party Origin, else 403 ACCOUNT_ORIGIN_FORBIDDEN), for the wallet that owns the project only (403 SUBAGENT_APPROVER_NOT_ALLOWED). The message names the domain, the wallet, the decision, the request, project, parent, rule book hash, caps, networks, actions, permissions and the key's expiry, with a single-use nonce valid 10 minutes. A new message replaces the previous one.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sar_[0-9a-f]{32}$",
+              "examples": [
+                "sar_3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubagentChallengeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The message to sign.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubagentChallengeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/requests/{id}/approve": {
+      "post": {
+        "operationId": "approveSubagentRequest",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "Approve: mint the sub-agent",
+        "description": "With a project key of the project (empty body, current secret) or the owner wallet's `{ message, signature }` from the same origin as the challenge (the nonce is used up first; 403 SUBAGENT_SIGNATURE_INVALID otherwise; 502 RPC_UNAVAILABLE when a smart account cannot be checked). The parent's chain is read again (409 SUBAGENT_PARENT_INACTIVE, 403 SUBAGENT_POLICY_NOT_SUBSET). Mints the key once with a secret nobody sees; the requester claims it within 15 minutes. Emits key.created and agent.subagent_approved.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sar_[0-9a-f]{32}$",
+              "examples": [
+                "sar_3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubagentDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The approved request with childKeyId and claimBy.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubagentRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/requests/{id}/deny": {
+      "post": {
+        "operationId": "denySubagentRequest",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "Deny a sub-agent request",
+        "description": "Same deciders and signature rules as approve. A decision is final (409 SUBAGENT_REQUEST_DECIDED). Emits agent.subagent_denied.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sar_[0-9a-f]{32}$",
+              "examples": [
+                "sar_3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubagentDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The denied request.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubagentRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/requests/{id}/claim": {
+      "post": {
+        "operationId": "claimSubagent",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "Claim the approved sub-agent's key (once)",
+        "description": "With the requesting parent's key and the claim token (compared in constant time). Sets a fresh secret and returns it once. A wrong token, a second claim or a claim after the 15-minute window is 403 SUBAGENT_CLAIM_INVALID; a late claim revokes the unclaimed key. Honours `Idempotency-Key` (stored sealed).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sar_[0-9a-f]{32}$",
+              "examples": [
+                "sar_3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubagentClaimRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The sub-agent's key, shown once.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubagentClaimResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/{id}/revoke": {
+      "post": {
+        "operationId": "revokeSubagent",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "Revoke an agent and its subtree",
+        "description": "Project keys: any agent key of the project; agent keys: their descendants only. Everything below stops at once. Emits key.revoked and agent.subagent_revoked.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked keys.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubagentRevokeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/agents/{id}/pause": {
+      "post": {
+        "operationId": "pauseAgent",
+        "tags": [
+          "Sub-agents"
+        ],
+        "summary": "Pause an agent (and its subtree)",
+        "description": "Project keys only. Writes `mode: \"paused\"` into the key's rule book, a tightening that applies at once; every descendant reads its chain fresh and stops too. Resume from the Rule Book (a loosening waits the amendment delay).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new rule book version.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPauseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/v1/webhooks": {
       "post": {
         "operationId": "createWebhook",
@@ -9800,7 +10688,7 @@
           "MCP"
         ],
         "summary": "Model Context Protocol server (Streamable HTTP)",
-        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
+        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -10202,7 +11090,7 @@
       "post": {
         "operationId": "receivePolicyEvent",
         "summary": "Rule Book and key event delivery",
-        "description": "Sent to the subject key's webhooks, to `scope: \"subtree\"` webhooks of its ancestors and to `scope: \"subtree\"` webhooks of the project's project keys: policy.violation, policy.approval_requested, policy.approval_decided, policy.amendment_pending, policy.amended, policy.spend_threshold (80 % and 95 % of a window), key.created and key.revoked (with the cascade).",
+        "description": "Sent to the subject key's webhooks, to `scope: \"subtree\"` webhooks of its ancestors and to `scope: \"subtree\"` webhooks of the project's project keys: policy.violation, policy.approval_requested, policy.approval_decided, policy.amendment_pending, policy.amended, policy.spend_threshold (80 % and 95 % of a window), key.created, key.revoked (with the cascade) and the sub-agent events agent.subagent_requested, agent.subagent_approved, agent.subagent_denied and agent.subagent_revoked (subject: the parent key).",
         "parameters": [
           {
             "name": "Kletia-Signature",
@@ -10235,7 +11123,11 @@
                 "policy.amended",
                 "policy.spend_threshold",
                 "key.created",
-                "key.revoked"
+                "key.revoked",
+                "agent.subagent_requested",
+                "agent.subagent_approved",
+                "agent.subagent_denied",
+                "agent.subagent_revoked"
               ]
             }
           },
@@ -10268,6 +11160,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/KeyEvent"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AgentEvent"
                   }
                 ]
               }
@@ -12220,7 +13115,11 @@
             "policy.amended": "#/components/schemas/PolicyEvent",
             "policy.spend_threshold": "#/components/schemas/PolicyEvent",
             "key.created": "#/components/schemas/KeyEvent",
-            "key.revoked": "#/components/schemas/KeyEvent"
+            "key.revoked": "#/components/schemas/KeyEvent",
+            "agent.subagent_requested": "#/components/schemas/AgentEvent",
+            "agent.subagent_approved": "#/components/schemas/AgentEvent",
+            "agent.subagent_denied": "#/components/schemas/AgentEvent",
+            "agent.subagent_revoked": "#/components/schemas/AgentEvent"
           }
         }
       },
@@ -13487,7 +14386,11 @@
                 "policy.amended",
                 "policy.spend_threshold",
                 "key.created",
-                "key.revoked"
+                "key.revoked",
+                "agent.subagent_requested",
+                "agent.subagent_approved",
+                "agent.subagent_denied",
+                "agent.subagent_revoked"
               ]
             }
           },
@@ -13555,7 +14458,11 @@
                 "policy.amended",
                 "policy.spend_threshold",
                 "key.created",
-                "key.revoked"
+                "key.revoked",
+                "agent.subagent_requested",
+                "agent.subagent_approved",
+                "agent.subagent_denied",
+                "agent.subagent_revoked"
               ]
             },
             "minItems": 1,
@@ -13849,6 +14756,10 @@
               "policy.spend_threshold",
               "key.created",
               "key.revoked",
+              "agent.subagent_requested",
+              "agent.subagent_approved",
+              "agent.subagent_denied",
+              "agent.subagent_revoked",
               "webhook.test"
             ]
           },
@@ -21185,7 +22096,7 @@
               "depth": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 2
+                "maximum": 3
               },
               "expiresAt": {
                 "type": "string",
@@ -23968,6 +24879,782 @@
         "required": [
           "activity"
         ]
+      },
+      "SubagentRequestCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 280,
+            "description": "What the sub-agent is for, shown to the approver."
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyDocument"
+          },
+          "template": {
+            "type": "string",
+            "enum": [
+              "observer",
+              "payments-agent",
+              "treasury-rebalancer",
+              "contract-operator"
+            ]
+          },
+          "fill": {
+            "type": "object",
+            "properties": {
+              "accounts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "recipients": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "approverWallets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "contracts": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Values a template needs."
+          },
+          "expiresInSeconds": {
+            "type": "integer",
+            "minimum": 3600,
+            "maximum": 31536000,
+            "default": 604800,
+            "description": "Never later than the parent's expiry."
+          }
+        },
+        "required": [
+          "name",
+          "purpose"
+        ],
+        "additionalProperties": false,
+        "description": "The rule book must be a subset of the parent's chain (403 SUBAGENT_POLICY_NOT_SUBSET lists the fields). Without policy or template the sub-agent is an observer."
+      },
+      "SubagentGrantLine": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "child": {
+            "type": "string",
+            "description": "What the sub-agent gets."
+          },
+          "parent": {
+            "type": "string",
+            "description": "What the parent's own rule book has."
+          },
+          "same": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "label",
+          "child",
+          "parent",
+          "same"
+        ]
+      },
+      "SubagentRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^sar_[0-9a-f]{32}$",
+            "examples": [
+              "sar_3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "claimed",
+              "denied",
+              "expired",
+              "cancelled"
+            ]
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "parentKeyId": {
+            "type": "string",
+            "pattern": "^key_[0-9a-f]{24}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyDocument"
+          },
+          "policyHash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "keyExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When an open request lapses."
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "wallet",
+                      "key"
+                    ]
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "A key id, or the masked owner wallet."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "childKeyId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^key_[0-9a-f]{24}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claimedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "claimBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Approved requests: the end of the 15-minute claim window."
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "not_decided",
+                  "parent_inactive",
+                  "claim_window",
+                  "mint_failed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grant": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubagentGrantLine"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "projectId",
+          "parentKeyId",
+          "name",
+          "purpose",
+          "policy",
+          "policyHash",
+          "keyExpiresAt",
+          "createdAt",
+          "expiresAt",
+          "decidedAt",
+          "decidedBy",
+          "childKeyId",
+          "claimedAt",
+          "claimBy",
+          "reason",
+          "grant"
+        ]
+      },
+      "SubagentRequestResponse": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/SubagentRequest"
+          }
+        },
+        "required": [
+          "request"
+        ]
+      },
+      "SubagentRequestCreated": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/SubagentRequest"
+          },
+          "claimToken": {
+            "type": "string",
+            "pattern": "^kl_scl_[A-Za-z0-9_-]{43}$",
+            "description": "Shown once; only its SHA-256 is stored."
+          }
+        },
+        "required": [
+          "request",
+          "claimToken"
+        ]
+      },
+      "AgentTreeNode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^key_[0-9a-f]{24}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "agent"
+            ]
+          },
+          "parentId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^key_[0-9a-f]{24}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "dry-run",
+              "paused"
+            ]
+          },
+          "chainMode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "dry-run",
+              "paused"
+            ],
+            "description": "The strictest mode of the project and every ancestor: a paused parent pauses its subtree."
+          },
+          "policyVersion": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "policyHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "caps": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "perStepUsd": {
+                    "type": "string"
+                  },
+                  "perIntentUsd": {
+                    "type": "string"
+                  },
+                  "dailyUsd": {
+                    "type": "string"
+                  },
+                  "weeklyUsd": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "dayUsd": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d{2}$"
+              },
+              "weekUsd": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d{2}$"
+              }
+            },
+            "required": [
+              "dayUsd",
+              "weekUsd"
+            ],
+            "description": "Counted exposure of the key and everything below it, rolling 24 h and 7 d."
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentTreeNode"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "parentId",
+          "depth",
+          "expiresAt",
+          "active",
+          "mode",
+          "chainMode",
+          "policyVersion",
+          "policyHash",
+          "caps",
+          "usage",
+          "children"
+        ]
+      },
+      "AgentTreeResponse": {
+        "type": "object",
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentTreeNode"
+            }
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubagentRequest"
+            }
+          }
+        },
+        "required": [
+          "nodes",
+          "requests"
+        ]
+      },
+      "SubagentListResponse": {
+        "type": "object",
+        "properties": {
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubagentRequest"
+            }
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentTreeNode"
+            }
+          }
+        },
+        "required": [
+          "requests",
+          "children"
+        ]
+      },
+      "SubagentChallengeRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "deny"
+            ]
+          },
+          "walletKind": {
+            "type": "string",
+            "enum": [
+              "evm",
+              "solana"
+            ]
+          },
+          "address": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "integer",
+            "enum": [
+              8453,
+              1,
+              42161,
+              10,
+              137
+            ],
+            "description": "EVM only; smart accounts are checked on it."
+          }
+        },
+        "required": [
+          "decision",
+          "walletKind",
+          "address"
+        ]
+      },
+      "SubagentChallengeResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "The exact text to sign (EIP-191 personal_sign or Solana signMessage)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "message",
+          "expiresAt"
+        ]
+      },
+      "SubagentDecisionRequest": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "EVM: 0x hex. Solana: base58 or base64 of the 64-byte ed25519 signature."
+          }
+        },
+        "description": "Empty with a project key; { message, signature } from the owner wallet."
+      },
+      "SubagentClaimRequest": {
+        "type": "object",
+        "properties": {
+          "claimToken": {
+            "type": "string",
+            "pattern": "^kl_scl_[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "claimToken"
+        ]
+      },
+      "SubagentClaimResponse": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^key_[0-9a-f]{24}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^kl_agt_[0-9A-Za-z]{32}$",
+                "description": "Shown once."
+              },
+              "parentId": {
+                "type": "string",
+                "pattern": "^key_[0-9a-f]{24}$"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "agent"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "key",
+              "parentId",
+              "expiresAt",
+              "kind"
+            ]
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "hash": {
+                "type": "string"
+              },
+              "version": {
+                "type": "integer",
+                "enum": [
+                  1
+                ]
+              }
+            },
+            "required": [
+              "hash",
+              "version"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "policy"
+        ]
+      },
+      "SubagentRevokeResponse": {
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "pattern": "^key_[0-9a-f]{24}$"
+          },
+          "revoked": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          }
+        },
+        "required": [
+          "keyId",
+          "revoked"
+        ]
+      },
+      "AgentPauseResponse": {
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "pattern": "^key_[0-9a-f]{24}$"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "paused"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "keyId",
+          "mode",
+          "version"
+        ]
+      },
+      "AgentPendingResponse": {
+        "type": "object",
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "pending"
+        ]
+      },
+      "AgentEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "agent.subagent_requested",
+              "agent.subagent_approved",
+              "agent.subagent_denied",
+              "agent.subagent_revoked"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "type": "string"
+              },
+              "keyId": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^key_[0-9a-f]{24}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestId": {
+                "type": "string",
+                "pattern": "^sar_[0-9a-f]{32}$",
+                "examples": [
+                  "sar_3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "childKeyId": {
+                "type": "string",
+                "pattern": "^key_[0-9a-f]{24}$"
+              },
+              "policyHash": {
+                "type": "string"
+              },
+              "decidedBy": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "wallet",
+                          "key"
+                        ]
+                      },
+                      "account": {
+                        "type": "string"
+                      },
+                      "keyId": {
+                        "type": "string",
+                        "pattern": "^key_[0-9a-f]{24}$"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cascade": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^key_[0-9a-f]{24}$"
+                }
+              }
+            },
+            "required": [
+              "projectId",
+              "keyId",
+              "name"
+            ],
+            "description": "`keyId` is the parent (the requesting agent). Never a secret or a claim token."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "at",
+          "data"
+        ],
+        "description": "Sub-agent events, routed like key events: to the parent's webhooks and to `scope: \"subtree\"` webhooks of its ancestors and of the project's project keys."
       },
       "StepFunding": {
         "type": "object",

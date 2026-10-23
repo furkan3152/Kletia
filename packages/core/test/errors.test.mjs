@@ -302,8 +302,9 @@ test("errors: the 2026-10 reading and routes codes are catalogued with their fea
     PLAN_TIMEOUT: [504, "upstream", true],
     PLAN_TOO_LARGE: [422, "intent", false],
     LEG_BELOW_PLANNED_MINIMUM: [409, "conflict", false],
+    INTENT_HANDOFF: [422, "intent", false],
   };
-  assert.deepEqual([...FEATURE_ERROR_CODES.reading].sort(), ["CLARIFY_REQUIRED", "CONFIRM_AUTHORITY_REQUIRED"]);
+  assert.deepEqual([...FEATURE_ERROR_CODES.reading].sort(), ["CLARIFY_REQUIRED", "CONFIRM_AUTHORITY_REQUIRED", "INTENT_HANDOFF"]);
   assert.deepEqual([...FEATURE_ERROR_CODES.routes].sort(), ["LEG_BELOW_PLANNED_MINIMUM", "PLAN_TIMEOUT", "PLAN_TOO_LARGE"]);
   for (const [code, [status, category, retryable]] of Object.entries(expected)) {
     const entry = ERROR_CATALOG[code];

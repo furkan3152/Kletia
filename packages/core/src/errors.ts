@@ -279,6 +279,7 @@ export const ERROR_CATALOG = {
 
   /* -------------------------------------------------------------- intent */
   INTENT_UNSUPPORTED: intent("Intent not supported", "Rephrase using one of the examples in error.hints, or send structured actions."),
+  INTENT_HANDOFF: intent("Runs on another surface", "The text is a perps trade, native order or automation: error.details.handoff has its typed input (or details.questions to answer first). Open that surface, or send the text with ?clarify=true."),
   CLARIFY_REQUIRED: intent("Questions needed", "The text needs an answer or a confirmation before it can be planned (error.details.questions). Send it with ?clarify=true and answer there, or rewrite it with the missing details."),
   PLAN_TOO_LARGE: intent("Plan too large", "The request expands to more wallet signatures or venue auctions than one plan allows (error.details lists the moves). Split it into smaller requests."),
   ACCOUNT_REQUIRED: intent("Account missing", "Add a CAIP-10 account for every network the intent touches."),
@@ -509,7 +510,7 @@ export const FEATURE_ERROR_CODES: Readonly<Record<ErrorFeature, readonly KletiaE
   ] as const),
   integrator: Object.freeze(["SECRET_KEY_FROM_BROWSER", "SESSION_EXPIRES_BEFORE_ACTIVATION"] as const),
   // Intent reading (2026-10): the strict path asks for clarify; only the person confirms a model-assisted reading.
-  reading: Object.freeze(["CLARIFY_REQUIRED", "CONFIRM_AUTHORITY_REQUIRED"] as const),
+  reading: Object.freeze(["CLARIFY_REQUIRED", "CONFIRM_AUTHORITY_REQUIRED", "INTENT_HANDOFF"] as const),
   // Routes (2026-10): the planning deadline, the plan-size caps and the per-leg floor checked at prepare.
   routes: Object.freeze(["PLAN_TIMEOUT", "PLAN_TOO_LARGE", "LEG_BELOW_PLANNED_MINIMUM"] as const),
   projects: Object.freeze([

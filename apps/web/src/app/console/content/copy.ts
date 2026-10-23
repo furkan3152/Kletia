@@ -212,6 +212,7 @@ const COPY = {
       cancelled: "Cancelled",
       unsupported: "Can't do that yet",
       engine: "Network engine",
+      handoff: "Opened in its view",
     },
     /** A task that is executing before any signature exists (the fare or a review waits for the user). */
     awaitingApproval: "Awaiting approval",

@@ -7,6 +7,7 @@
  * comes from the protocol through /v1/orders.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { IntentHandoff } from "@kletia/core";
 
 import { getKletiaClient, describePlatformError, toPlatformError } from "../../../shared/platform/kletiaClient";
 import { useWallets } from "../../../shared/wallet/useWallets";
@@ -32,6 +33,9 @@ import {
   type OrderStepView,
 } from "./ordersModel";
 import { useOrderRunner } from "./useOrderRunner";
+import { orderPrefill } from "../handoff/handoffModel";
+import { HandoffNote } from "../handoff/HandoffNote";
+import { useHandoff } from "../handoff/useHandoff";
 
 const copy = DESK_COPY.orders;
 const FIELD = "min-h-11 w-full border-2 border-control bg-surface px-3 text-base text-fg focus:outline focus:outline-4 focus:outline-offset-2 focus:outline-[var(--kl-focus)]";
@@ -138,6 +142,13 @@ export function OrdersView() {
   const run = useOrderRunner();
 
   const [form, setForm] = useState<OrderFormState>(EMPTY_ORDER_FORM);
+  const [handoffNote, setHandoffNote] = useState<string | null>(null);
+  useHandoff("orders", useCallback((handoff: IntentHandoff) => {
+    if (handoff.surface !== "orders") return;
+    const prefill = orderPrefill(handoff.input, EMPTY_ORDER_FORM, Date.now());
+    if ("form" in prefill) setForm(prefill.form);
+    setHandoffNote("form" in prefill ? `${handoff.summary}: check the form, then quote and sign.` : `${handoff.summary}. ${prefill.problem}`);
+  }, []));
   const [quote, setQuote] = useState<OrderQuoteView | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -226,6 +237,7 @@ export function OrdersView() {
           {copy.title}
         </h2>
         <p className="text-sm">{copy.intro}</p>
+        <HandoffNote text={handoffNote} />
       </div>
 
       <form className={cx("flex flex-col gap-4 p-4", INK_BORDER, SURFACE)} onSubmit={(event) => event.preventDefault()} aria-labelledby="desk-orders-create">

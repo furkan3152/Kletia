@@ -75,7 +75,9 @@ works and its USD value reads as unknown).
 ## Sentence reader
 
 The grammar reads the new staking words ("stake 1 ETH with kelp", "with
-renzo", "rseth", "ezeth") from the registry. Lending words are hand-written in
-the reader, so "into sky", "into susds", "into sdai" and "into ethena" are not
-read yet; the venues are reachable through structured actions
-(`{"kind":"deposit","from":"USDS","protocol":"sky"}`) and the API.
+renzo", "rseth", "ezeth") and the savings words ("deposit 100 USDS into sky",
+"into susds", "into sdai", "into savings dai", "deposit 100 USDe into
+ethena") from the registry. A word that is a venue's own name picks that
+venue ("into sdai" with USDS is refused, never sent to sUSDS). "withdraw ...
+from ethena" is refused with the way out: Ethena's cooldown on ethena.fi,
+which Kletia does not run.

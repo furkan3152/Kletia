@@ -225,6 +225,11 @@ export function intentSessionReducer(state: IntentSessionState, action: IntentSe
           },
         };
       }
+      if (response.status === "handoff") {
+        // A perps trade, native order or automation runs on its own Kletia surface, never in this widget.
+        const error = new Error(`${response.handoff.summary}: this runs in the Kletia desk (${response.handoff.surface}), not here. Nothing was planned or signed.`);
+        return { ...INITIAL_INTENT_SESSION_STATE, error };
+      }
       // Cancelled: the task is closed.
       return INITIAL_INTENT_SESSION_STATE;
     }

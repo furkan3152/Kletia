@@ -64,6 +64,11 @@ export function configureFactsClock(now: number | null): void {
 
 const nowMs = () => clock ?? Date.now();
 
+/** The turn's "now" (Unix ms): the fixed clock of tests and the offline eval, else the real one. */
+export function factsNow(): number {
+  return nowMs();
+}
+
 type BalanceEntry = { readonly units: bigint; readonly decimals: number } | null;
 
 const balanceKey = (network: NetworkKey, symbol: string) => `${network}|${symbol.toUpperCase()}`;

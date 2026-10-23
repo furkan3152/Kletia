@@ -275,6 +275,12 @@ export interface CreateIntentOptions {
   readonly journey?: boolean;
   /** Account reads of that journey: `none` skips them (demo accounts, indicative plans). Default `live`. */
   readonly journeyReads?: "live" | "none";
+  /**
+   * Text the grammar refuses is read by the deterministic reader and planned when that reading is exact,
+   * whatever KLETIA_STRICT_GOAL_READER says. Automation runs set it: the key's owner approved the sentence when
+   * creating the rule, and "sell half of my SOL on solana" is read the same way at every run.
+   */
+  readonly exactReading?: boolean;
 }
 
 export interface CreatedIntent {
@@ -367,8 +373,10 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
       try {
         planned = await plan(guard.request, options.interpretation);
       } catch (error) {
+        // A perps trade, native order or automation is never planned here: the refusal carries its hand-off.
+        if (!options.interpretation?.thread) await strictHandoff(guard.request, error, options.contractAuthorityKeyId ?? options.ownerKeyId);
         // Strict text the grammar cannot read: the deterministic Goal reader may read it, exactly.
-        const reading = options.interpretation?.thread ? null : await strictGoalReading(guard.request, error, options.contractAuthorityKeyId ?? options.ownerKeyId);
+        const reading = options.interpretation?.thread ? null : await strictGoalReading(guard.request, error, options.contractAuthorityKeyId ?? options.ownerKeyId, options.exactReading === true);
         if (!reading) throw error;
         planned = await plan(reading.request, { ...(options.interpretation ?? {}), ...reading.interpretation });
       }
@@ -424,7 +432,7 @@ export function strictGoalReaderEnabled(env: NodeJS.ProcessEnv = process.env): b
 }
 
 /** Why a ready reading is not exact (source E), or null when it is. */
-function inexactReading(decision: {
+export function inexactReading(decision: {
   readonly modelReading?: true;
   readonly assumptions: readonly { readonly field: string; readonly label: string; readonly source: string }[];
   readonly state: { readonly steps: readonly { readonly source?: string; readonly modelRead?: true; readonly questionForm?: true; readonly readAs?: readonly unknown[]; readonly goalRead?: { readonly orderOnly?: true } }[] };
@@ -459,8 +467,9 @@ async function strictGoalReading(
   request: unknown,
   error: unknown,
   contractKeyId: string | undefined,
+  exact = false,
 ): Promise<{ readonly request: IntentRequest; readonly interpretation: PlanInterpretation } | null> {
-  if (!strictGoalReaderEnabled() || !isGrammarRefusal(error)) return null;
+  if (!(exact || strictGoalReaderEnabled()) || !isGrammarRefusal(error)) return null;
   const validated = validateIntentRequest(request);
   if (!validated.ok) return null;
   const original = validated.value;
@@ -476,6 +485,7 @@ async function strictGoalReading(
     confirmAuthority: "api",
   }, original.constraints);
   const hint = "Send the same text with ?clarify=true to answer the questions, or write the request in Kletia's grammar.";
+  if (decision.status === "handoff") return null;
   if (decision.status !== "ready") {
     const questions = decision.questions.map((question) => publicQuestion(question, decision.optionSentences));
     const details = platformErrorDetails({ questions }) ?? platformErrorDetails({ questions: questions.map((question) => ({ id: question.id, field: question.field, reason: question.reason, prompt: question.prompt })) });
@@ -506,6 +516,42 @@ async function strictGoalReading(
       ...(decision.departure ? { departure: decision.departure } : {}),
     },
   };
+}
+
+/**
+ * Hand-offs on the strict path: text the grammar refused that reads as
+ * a perps trade, a native order or an automation is refused with
+ * INTENT_HANDOFF, whose `details` carry the typed hand-off (or the questions
+ * the clarify flow would ask first). Returns when the text is no hand-off.
+ */
+export async function strictHandoff(request: unknown, error: unknown, contractKeyId?: string): Promise<void> {
+  if (isGrammarRefusal(error)) await handoffRefusal(request, contractKeyId);
+}
+
+/** Throws INTENT_HANDOFF when the request's text is a hand-off (see strictHandoff); returns otherwise. */
+export async function handoffRefusal(request: unknown, contractKeyId?: string): Promise<void> {
+  const validated = validateIntentRequest(request);
+  if (!validated.ok || !validated.value.text || (validated.value.actions && validated.value.actions.length > 0)) return;
+  const original = validated.value;
+  const { readHandoff } = await import("./handoff/read.js");
+  if (!readHandoff(original.text as string)) return;
+  const { decideTurn, publicAssumption, publicQuestion } = await import("./clarify/index.js");
+  const decision = await decideTurn(null, { text: original.text as string }, {
+    accounts: original.accounts,
+    ...(original.defaultNetwork ? { defaultNetwork: original.defaultNetwork } : {}),
+    contracts: await contractPhrases(contractKeyId),
+    confirmAuthority: "api",
+  }, original.constraints);
+  const hint = "Send the same text with ?clarify=true, or call the surface's own endpoint with details.handoff.input.";
+  if (decision.status === "handoff" && decision.handoff) {
+    const details = platformErrorDetails({ handoff: decision.handoff, assumptions: decision.assumptions.map(publicAssumption) }) ?? platformErrorDetails({ handoff: decision.handoff });
+    throw new PlatformError("INTENT_HANDOFF", `${decision.handoff.summary}: this runs on the ${decision.handoff.surface} surface, not as an intent.`, 422, undefined, [hint], details ?? undefined);
+  }
+  if (decision.status === "needs_input" && decision.thread.handoff) {
+    const questions = decision.questions.map((question) => publicQuestion(question, decision.optionSentences));
+    const details = platformErrorDetails({ surface: decision.thread.handoff.surface, questions }) ?? platformErrorDetails({ surface: decision.thread.handoff.surface });
+    throw new PlatformError("INTENT_HANDOFF", `This runs on the ${decision.thread.handoff.surface} surface and needs an answer first.`, 422, undefined, [hint], details ?? undefined);
+  }
 }
 
 export async function createIntent(request: unknown, options: CreateIntentOptions = {}): Promise<IntentGraph> {

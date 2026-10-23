@@ -151,7 +151,8 @@ async function fire(record: AutomationRecord, observation: Observation, run: Aut
   }
   try {
     const request = requestFor(record, observation, run.id);
-    const owner = record.owner.kind === "key" ? { ownerKeyId: record.owner.keyId } : {};
+    // A run reads its sentence the way the owner approved it ("sell half of my SOL on solana"): exact readings only.
+    const owner = { ...(record.owner.kind === "key" ? { ownerKeyId: record.owner.keyId } : {}), exactReading: true };
     const dry = (await deps.planner(request, { ...owner, dryRun: true })).intent;
     const scope = scopeSkip(record, dry);
     if (scope) return skipped(scope);

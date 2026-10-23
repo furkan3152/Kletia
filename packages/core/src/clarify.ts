@@ -15,6 +15,7 @@ import { ASSETS } from "./assets.js";
 import type { IntentConstraints, IntentGraph } from "./intent.js";
 import type { IntentPreview } from "./preview.js";
 import { goalListIssues, type Goal } from "./goal.js";
+import { handoffStateIssues, type IntentHandoff, type ThreadHandoff } from "./handoff.js";
 import { NETWORK_WORDS, normalizeMessage } from "./normalize.js";
 import type { ProtocolId } from "./protocols.js";
 import {
@@ -101,6 +102,8 @@ export const CLARIFY_REASONS = Object.freeze([
   // fees above 5 % of the value moved, a plan above the signature or auction caps
   "AMOUNT_VAGUE", "REFERENCE_AMBIGUOUS", "RECIPIENT_EACH", "SPEND_CONFLICT", "STAKE_INPUT_MISMATCH", "NETWORK_CONTRADICTION",
   "PAIRING_AMBIGUOUS", "DELIVERY_AMOUNT", "GAS_ON_ARRIVAL", "FEE_HIGH", "PLAN_TOO_LARGE",
+  // hand-offs: a perps trade, a native order or an automation missing a value only the person can give
+  "LEVERAGE_MISSING", "SIDE_MISSING", "PRICE_MISSING", "PERIOD_MISSING", "DIRECTION_MISSING",
 ] as const);
 export type ClarifyReason = (typeof CLARIFY_REASONS)[number];
 
@@ -377,6 +380,8 @@ export interface ClarifyThread {
   readonly confirmDigest?: string;
   /** How the first message reached Kletia (session consent covers typed text only). */
   readonly textOrigin?: TextOrigin;
+  /** A hand-off the thread is building (perps, native orders, automations); its steps are then empty. */
+  readonly handoff?: ThreadHandoff;
 }
 
 export interface ThreadRef {
@@ -437,6 +442,14 @@ export type IntentTurnResponse =
       readonly sentence: string;
       readonly thread: ClarifyThread | ThreadRef;
       readonly replayed?: boolean;
+    }
+  | {
+      /** The sentence is a perps trade, a native order or an automation: open `handoff`'s surface prefilled; nothing was planned or stored. */
+      readonly status: "handoff";
+      readonly turn: TurnKind;
+      readonly handoff: IntentHandoff;
+      readonly assumptions: readonly ClarifyAssumption[];
+      readonly thread: ClarifyThread | ThreadRef;
     }
   | { readonly status: "cancelled"; readonly turn: "control"; readonly thread: ClarifyThread | ThreadRef };
 
@@ -762,7 +775,8 @@ function boundedString(value: unknown, max: number, pattern?: RegExp): value is 
   return typeof value === "string" && value.length > 0 && value.length <= max && (!pattern || pattern.test(value));
 }
 
-const FIELD_PATTERN = /^actions\[[0-7]\]\.[a-zA-Z]{1,24}$/u;
+/** A slot path ("actions[0].amount") or a hand-off field ("handoff.leverage"). */
+const FIELD_PATTERN = /^(?:actions\[[0-7]\]|handoff)\.[a-zA-Z]{1,24}$/u;
 const WHY_CODE_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,47}$/u;
 const TOKEN_PATTERN = /^\S{1,128}$/u;
 const PROTOCOL_SLOT_PATTERN = /^[a-z0-9][a-z0-9.-]{0,63}$/u;
@@ -959,7 +973,7 @@ function threadIssues(input: unknown, path: string, issues: ValidationIssue[]): 
     issues.push({ path, message: `A thread is at most ${THREAD_LIMITS.maxBytes} bytes.` });
     return;
   }
-  unknownKeys(input, ["spec", "id", "rev", "status", "policy", "steps", "open", "pendingEdit", "corrections", "turns", "undo", "goals", "confirmDigest", "textOrigin"], path, issues);
+  unknownKeys(input, ["spec", "id", "rev", "status", "policy", "steps", "open", "pendingEdit", "corrections", "turns", "undo", "goals", "confirmDigest", "textOrigin", "handoff"], path, issues);
   if (input.spec !== THREAD_SPEC) issues.push({ path: at("spec"), message: `Must be "${THREAD_SPEC}".` });
   if (!isThreadId(input.id)) issues.push({ path: at("id"), message: "Must be th_ followed by 24 base32 characters." });
   if (!Number.isSafeInteger(input.rev) || (input.rev as number) < 0) issues.push({ path: at("rev"), message: "Must be a non-negative integer." });
@@ -1006,6 +1020,10 @@ function threadIssues(input: unknown, path: string, issues: ValidationIssue[]): 
   }
   if (input.textOrigin !== undefined && !(TEXT_ORIGINS as readonly unknown[]).includes(input.textOrigin)) {
     issues.push({ path: at("textOrigin"), message: `Must be one of ${TEXT_ORIGINS.join(", ")}.` });
+  }
+  if (input.handoff !== undefined) {
+    issues.push(...handoffStateIssues(input.handoff, at("handoff")));
+    if (Array.isArray(input.steps) && input.steps.length > 0) issues.push({ path: at("handoff"), message: "A hand-off thread has no steps." });
   }
 }
 

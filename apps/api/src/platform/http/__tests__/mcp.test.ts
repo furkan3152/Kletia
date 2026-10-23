@@ -319,6 +319,16 @@ describe("plan_intent clarifies", () => {
     assert.match(String(link.structuredContent.url), /\/studio/u);
   });
 
+  it("returns a perps trade as a hand-off for the person's desk, never planned", async () => {
+    const before = (await getIntentStore().listActive(500)).length;
+    const handed = await callTool("plan_intent", { text: "long ETH 5x with 100 USDC", accounts: ACCOUNTS });
+    assert.equal(handed.isError, undefined, JSON.stringify(handed));
+    assert.equal(handed.structuredContent.status, "handoff");
+    assert.equal((handed.structuredContent.handoff as { surface: string }).surface, "perps");
+    assert.match(String(handed.structuredContent.next), /Never execute it yourself/u);
+    assert.equal((await getIntentStore().listActive(500)).length, before);
+  });
+
   it("keeps the strict planner with clarify false or structured actions", async () => {
     const strict = await callTool("plan_intent", { text: "swap SOL to USDC", accounts: ACCOUNTS, clarify: false });
     assert.equal(strict.isError, true);

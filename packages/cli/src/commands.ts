@@ -7,6 +7,7 @@
 import { readFile } from "node:fs/promises";
 import {
   CONSEQUENCE_SEVERITIES,
+  HANDOFF_VIEWS,
   sameAddressAccount,
   signWebhookPayload,
   validateThread,
@@ -540,6 +541,12 @@ const plan: Command = {
         if (response.status === "cancelled") {
           if (context.json) context.print.json(response);
           else context.print.err("Cancelled: nothing was planned.");
+          return EXIT_OK;
+        }
+        if (response.status === "handoff") {
+          // A perps trade, native order or automation: it runs on its own surface, never as an intent.
+          context.print.json(response);
+          context.print.err(`${response.handoff.summary}: this runs on Kletia's ${response.handoff.surface} surface (${HANDOFF_VIEWS[response.handoff.surface]} on the desk), not as an intent. Nothing was planned or signed; .handoff.input is that surface's request.`);
           return EXIT_OK;
         }
         const question = response.questions[0];

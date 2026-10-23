@@ -26,6 +26,7 @@
  */
 import type { Request, RequestHandler, Response } from "express";
 import {
+  effectivePerps,
   THREAD_LIMITS,
   THREAD_STATUSES,
   isThreadId,
@@ -43,6 +44,7 @@ import { PlatformError } from "../errors.js";
 import { journeyFor } from "../index.js";
 import { authOf, booleanQuery, integerQuery, invalidRequest, isRecord, pathParam, queryParam, type AuthContext } from "./context.js";
 import { journeyReadsQuery } from "./journey.js";
+import { readKeyChain } from "./policies/chain.js";
 import { rememberIntentOwner } from "./owners.js";
 import { readingAccess, type ReadingAccess } from "./reading.js";
 import {
@@ -232,6 +234,17 @@ export async function runClarifyTurn(request: IntentTurnRequest, options: Clarif
   }
 }
 
+/**
+ * The caller's perps rights for perps hand-offs (round 9): the key's Rule Book chain (agent keys have perps off
+ * unless their rule book sets perps.enabled; a revoked chain has none), or the project defaults without a key.
+ */
+export async function perpsOption(owner: string | undefined): Promise<Pick<ClarifyTurnOptions, "perps">> {
+  if (!owner) return {};
+  const chain = await readKeyChain(owner);
+  if (!chain || !chain.keyActive) return { perps: { enabled: false, maxLeverage: 1, venues: [], reason: "This key (or one of its ancestors) is revoked or expired." } };
+  return { perps: effectivePerps(chain.levels) };
+}
+
 function engineOptions(owner: string | undefined, flags: TurnFlags, thread: ClarifyThread | null, access?: ReadingAccess): ClarifyTurnOptions {
   return {
     ...(access?.reader ? { reader: access.reader } : {}),
@@ -269,7 +282,7 @@ export async function handleIntentTurn(req: Request, res: Response): Promise<voi
   const access = await readingAccess(req, body);
   if (!isRecord(body) || (body.threadId === undefined && body.remember !== true)) {
     // Client-held thread (or none yet): the engine validates the request and the blob.
-    const response = await runClarifyTurn(body as unknown as IntentTurnRequest, engineOptions(auth.keyId, flags, null, access));
+    const response = await runClarifyTurn(body as unknown as IntentTurnRequest, { ...engineOptions(auth.keyId, flags, null, access), ...(await perpsOption(auth.keyId)) });
     await send(res, response, flags, auth.keyId, response.thread);
     return;
   }
@@ -282,7 +295,7 @@ export async function handleIntentTurn(req: Request, res: Response): Promise<voi
     // remember: true on a first turn: a new Kletia-held thread (cap checked before planning, and again on insert).
     if (body.thread !== undefined) throw invalidRequest("Only a first turn creates a remembered thread.", [{ path: "remember", message: "Send remember on a first turn only." }]);
     if ((await store.countOpen(owner, nowIso)) >= THREAD_LIMITS.openPerKey) throw openThreadLimitReached();
-    const response = await runClarifyTurn(body as unknown as IntentTurnRequest, engineOptions(owner, flags, null, access));
+    const response = await runClarifyTurn(body as unknown as IntentTurnRequest, { ...engineOptions(owner, flags, null, access), ...(await perpsOption(owner)) });
     const blob = response.thread as ClarifyThread;
     const stored = response.status === "planned" && !flags.dryRun;
     const record: ThreadRecord = {
@@ -317,7 +330,7 @@ export async function handleIntentTurn(req: Request, res: Response): Promise<voi
   // The stored context fills what this turn left out; expectedRev is the HTTP layer's (checked above).
   const { expectedRev: _expectedRev, ...rest } = body;
   const request = { ...context, ...rest } as unknown as IntentTurnRequest;
-  const response = await runClarifyTurn(request, engineOptions(owner, flags, current.thread, access));
+  const response = await runClarifyTurn(request, { ...engineOptions(owner, flags, current.thread, access), ...(await perpsOption(owner)) });
   const blob = response.thread as ClarifyThread;
   const stored = response.status === "planned" && !flags.dryRun;
   const next: ThreadRecord = {

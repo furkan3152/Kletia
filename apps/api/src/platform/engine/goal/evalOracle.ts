@@ -95,7 +95,8 @@ const VENUE_CHECK: Readonly<Record<string, readonly string[]>> = (() => {
 })();
 
 /** Words that turn a venue into one to avoid ("without aave", "not via relay"). */
-const AVOIDING = /\b(?:without|not|avoid|avoiding|except|no)\s+(?:using\s+|via\s+|through\s+|on\s+)?(?:the\s+)?$/iu;
+/** "avoiding raydium and ", "without solfi, ": an avoided venue list before the word (Jupiter venue filters). */
+const AVOIDING = /\b(?:without|not|avoid|avoiding|except|excluding|no)\s+(?:using\s+|via\s+|through\s+|on\s+)?(?:the\s+)?(?:[a-z.]+(?:\s*,\s*|\s+(?:and|or|nor)\s+))*$/iu;
 
 // -------------------------------------------------------------- verbs
 
@@ -272,7 +273,8 @@ export function oracleFlags(input: OracleInput): string[] {
     const recipient = lower(action.recipient);
     const ownLeg = dependent(actions, index);
     if (!ownLeg && action.amount === "max") flags.push(`I13 third party: pays all of a holding to ${recipient}`);
-    const impliesNetwork = /\.(?:base\.eth|sns|sol)$/u.test(recipient) || /^[1-9a-hj-np-z]{32,44}$/u.test(recipient);
+    // A Solana address (any case) or "with solana pay" names the receiving network.
+    const impliesNetwork = /\.(?:base\.eth|sns|sol)$/u.test(recipient) || /^[1-9a-hj-np-z]{32,44}$/iu.test(action.recipient) || /\bsolana[\s-]*pay\b/iu.test(normal);
     if (!ownLeg && !impliesNetwork && !networkSaid.test(normal)) flags.push(`I13 third party: receiving network of ${recipient} not said`);
   });
 

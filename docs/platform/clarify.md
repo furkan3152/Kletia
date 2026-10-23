@@ -107,6 +107,7 @@ Structured `actions` are refused with clarify: send them without the flag.
 |---|---|---|
 | `needs_input` | 200 | `turn`, `questions` (at most 2), `assumptions` (chips), `draft` (`summary`, `missing`, `steps`), `thread` |
 | `planned` | 201 when stored; 200 on a dry run, or with `Idempotent-Replayed: true` when the turn's clientReference already planned an intent | `turn`, `intent`, `preview`?, `journey`?, `assumptions`, `sentence`, `thread`, `replayed`? |
+| `handoff` | 200 | `turn`, `handoff` (`surface`, `input`, `summary`, `execution`), `assumptions`, `thread` (see [Hand-offs](#hand-offs)) |
 | `cancelled` | 200 | `turn: "control"`, `thread` |
 | refusal | the code's status ([errors](errors.md)) | The error envelope; the thread is unchanged |
 
@@ -187,6 +188,53 @@ server):
   refused with `400 MESSAGE_SECRET_REFUSED` before anything is read, reserved
   or stored (not even an idempotency record).
 - Turns count against the tier limits like any request.
+
+## Hand-offs
+
+Some sentences are not intents: they run on their own surface. Kletia reads
+them into that surface's typed input and returns `status: "handoff"`.
+Nothing is planned, stored or executed: the client opens the surface
+prefilled, and the person checks it and signs there (the desk opens its
+Perps, Orders or Automations view).
+
+| Sentence | `surface` | `input` |
+|---|---|---|
+| "long ETH 5x with 100 USDC", "short BTC $500 with 50 USDC on Hyperliquid", "close my ETH long", "reduce my SOL short by $100" | `perps` | `planPerpsIntent`'s input (`market`, `side`, `action`, `collateral`, `sizeUsd`, `leverage`, `venue`?) for `POST /v1/perps/quote` |
+| "sell 1 WETH at 4000 on base", "limit buy 1000 JUP at 0.8", "buy SOL with 500 USDC over 10 days", "sell 100 USDC for SOL every day for 5 days", "cancel order <id>" | `orders` | `{ action: "create", order, protocol, network }` for `POST /v1/orders/quote`, or `{ action: "cancel", orderId }` |
+| "buy $50 of ETH every Monday", "if SOL drops below 120 sell half", "every month send 100 USDC to vitalik.eth on base", "keep my USDC in the best yield", "when USDC arrives, deposit it into aave" | `automations` | `{ draft }`, a validated `POST /v1/automations` body |
+
+- What the sentence leaves out is asked, never guessed: leverage
+  (`LEVERAGE_MISSING`), side (`SIDE_MISSING`), collateral or size
+  (`AMOUNT_MISSING`), a network the pair is on several of
+  (`NETWORK_AMBIGUOUS`), a price direction Kletia cannot tell from the
+  current price (`DIRECTION_MISSING`). Question fields are `handoff.<name>`.
+  An automation's run sentence is read by the same reader, so its own
+  questions come back with field `handoff.action`.
+- Every default is a chip: the counter asset (USDC), a derived leverage or
+  collateral, the venue chosen at quote time, a first run at 09:00 UTC.
+- Refused: a disabled venue (`PERPS_VENUE_DISABLED`, Drift with its
+  reason), leverage above the caller's rule-book cap
+  (`PERPS_LEVERAGE_TOO_HIGH`), perps a rule book turns off
+  (`PERPS_POLICY_DENIED`), non-USDC collateral, and an order network
+  outside Solana, Ethereum, Arbitrum and Base (`ORDER_UNSUPPORTED`).
+- Native first: a swap of an exact amount on a schedule with an end ("for
+  10 days") and no weekday or time is a native DCA order; "if SOL rises
+  above 200 sell 2 SOL" is a native limit order. Both run without the
+  person after one signature. Everything else is an automation, whose runs
+  wait for the owner's signature; a stop below the market is always an
+  automation (Jupiter and CoW limit orders fill at or above their price).
+- An automation's run sentence must read again at every run without
+  questions. A share of a holding keeps its words ("sell half of my SOL for
+  USDC on solana"): the run spends that share of the balance it reads then.
+  A sweep ("when USDC arrives, deposit it") spends the whole balance and is
+  confirmed first.
+- The thread keeps the hand-off in `thread.handoff` (no steps). Answer its
+  questions as usual; a commit turn returns the hand-off again; a new
+  sentence starts a new task.
+
+Without `?clarify=true`, `POST /v1/intents` refuses such text with
+`422 INTENT_HANDOFF`; `error.details.handoff` carries the same typed
+hand-off (or `details.questions` when it needs an answer first).
 
 ## Model-assisted reading (opt-in)
 
@@ -321,6 +369,7 @@ if (turn.status === "needs_input") {
 | `THREAD_REQUIRES_API_KEY` | 400 | `remember` or `threadId` without a server API key. |
 | `RATE_LIMITED` | 429 | The key holds 1,000 open threads (`Retry-After`), or the tier limit. |
 | `INTENT_UNSUPPORTED` | 422 | A sentence Kletia cannot read at all (with example sentences in `hints`). |
+| `INTENT_HANDOFF` | 422 | Strict path only: the text is a perps trade, order or automation (`details.handoff`). |
 
 Every other planner error (for example `ACCOUNT_REQUIRED`, `CAPITAL_LANE_MIXED`,
 `SELF_TRANSFER`) answers as on the strict path. The full catalogue is in

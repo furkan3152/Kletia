@@ -33,6 +33,7 @@ import {
   CHAINS,
   NETWORK_KEYS,
   YIELD_VENUES,
+  venueExecutes,
   assetsForNetwork,
   capabilityIndex,
   findAssetBySymbol,
@@ -424,7 +425,8 @@ export function buildGraph(adapters: readonly ProtocolAdapter[] = activeProtocol
     // The gas asset may enter (or leave) a wrapped-asset venue directly when the adapter says so (ETH into a WETH reserve).
     const native = wallets.find((entry) => entry.node.isNative && entry.node.asset !== underlying.node.asset);
     for (const kind of ["deposit", "withdraw"] as const) {
-      if (!venue.actions.includes(kind) || !protocolExecutesKind(venue.protocol, kind)) continue;
+      // A named-only venue (Kamino JLP) is never a route the search may pick: only a sentence naming it reaches it.
+      if (!venueExecutes(venue, kind) || !protocolExecutesKind(venue.protocol, kind)) continue;
       const candidates = askable(kind, venue.network, null).filter(({ adapter }) => adapter.protocols.includes(venue.protocol));
       for (const wallet of native ? [underlying, native] : [underlying]) {
         const shape = route(kind, venue.network, venue.network, wallet.resolved, wallet.resolved);

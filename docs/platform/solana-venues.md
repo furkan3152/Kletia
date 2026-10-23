@@ -40,7 +40,7 @@ and `simulateTransaction` without signatures, 2026-10-23):
 - Journey facts: `positionOf` (cTokens in the wallet at the stored rate) and
   `venueCapacity` (room under the deposit limit, available liquidity).
 - Structured actions name it with `protocol: "save"`. Sentences ("deposit 10
-  USDC into solend") need the reader hook below.
+  USDC into solend") are read by the sentence reader (below).
 
 ## Stake pools
 
@@ -83,24 +83,20 @@ with the list. `encodeJupiterVenueFilter` is the typed entry point.
   matching a step's transaction, and `findSolanaPayTransactions(network,
   reference)` lists the signatures that name a reference (read-only).
 
-## Reader hooks (for the integrator)
+## Sentence reader
 
-The sentence reader is unchanged in this round. These shapes need hooks:
-
-- "deposit 10 USDC into solend [on solana]", "withdraw 10 USDC from save
-  finance" → lending word `solend|save finance|save lending` → `save`
-  (`LENDING_VENUES` / `LENDING_WORDS`).
-- "stake 1 SOL with blazestake|solblaze|bsol" → `LIQUID_STAKING_TOKENS`
-  entry `{ symbol: "bSOL", provider: "BlazeStake" }` and planner
-  `STAKE_PROTOCOLS.blazestake`; "stake 1 SOL with hsol|dsol|bonksol" →
-  `{ symbol: "hSOL" | "dSOL" | "bonkSOL", provider: "Sanctum" }`.
-- "deposit 10 USDC into kamino jlp-usdc" → add `kamino` to the vault
-  protocols (grammar and clarify catalog), then switch the JLP / Altcoins
-  venues' `actions` to deposit and withdraw.
-- "swap 1 SOL to USDC via phoenix" / "... avoiding raydium" →
-  `params.provider = encodeJupiterVenueFilter({ mode: "only" | "avoid", families })`.
-- "pay 5 USDC to <address> with solana pay" → transfer action with
-  `protocol: "solana-pay"`.
+- "deposit 10 USDC into solend", "withdraw 10 USDC from save finance": Save.
+- "stake 1 SOL with blazestake|solblaze|bsol" (bSOL), "with hsol|dsol|bonksol"
+  (Sanctum): the stake pools, by the LST each word names.
+- "deposit 10 USDC into kamino jlp-usdc": the JLP and Altcoins reserves
+  execute when a sentence names them by slug; a plain "kamino" stays the Main
+  market, and neither is ever ranked into a venue-less deposit.
+- "swap 1 SOL to USDC via phoenix" (a family that is no swap venue of its
+  own), "using only raydium and orca", "avoiding raydium": the Jupiter venue
+  filter (`encodeJupiterVenueFilter`); a filter on another network is refused.
+- "pay 5 USDC to <address> with solana pay": a Solana Pay transfer.
+- The data dashboard's "Move here" sentence (`Deposit [EDIT AMOUNT] USDC into
+  Kamino JLP USDC on Solana`) reads the full venue name; the amount is asked.
 
 ## Not added
 

@@ -47,7 +47,7 @@ import {
 import { assetRegistry, networkCapabilities, protocolRegistry } from "../catalog.js";
 import { HttpError, invalidRequest, type ApiTier } from "../context.js";
 import { createContractDirectory, getContract, keyContext, listContracts, parseContractListFilter, testContract } from "../contracts.js";
-import { runClarifyTurn } from "../clarify.js";
+import { perpsOption, runClarifyTurn } from "../clarify.js";
 import { contractTestLimiter } from "../limits.js";
 import { PlatformError } from "../../errors.js";
 import { JOURNEY_PLAN_DEADLINE_MS } from "../../engine/journey/facts.js";
@@ -385,6 +385,7 @@ async function clarifyPlan(args: Record<string, unknown>, caller: ToolCaller): P
   const { clarify: _clarify, ...request } = args;
   const response = await runClarifyTurn(request as unknown as IntentTurnRequest, {
     ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}),
+    ...(await perpsOption(caller.keyId)),
     dryRun: true,
     preview: true,
     thread: null,
@@ -401,6 +402,16 @@ async function clarifyPlan(args: Record<string, unknown>, caller: ToolCaller): P
       draft: { summary: response.draft.summary, missing: response.draft.missing },
       thread: response.thread,
       next: "Ask the person each question. Never pick an option of a question whose purpose is true yourself, and never answer a confirm (INTERPRETATION_CONFIRM) for the person: relay it, and when Kletia answers CONFIRM_AUTHORITY_REQUIRED, call create_signing_link with the original text so the person confirms in Kletia. Then call plan_intent with the same accounts, this thread and answer { question, option } (or { question, text }).",
+    };
+  }
+  if (response.status === "handoff") {
+    return {
+      status: "handoff",
+      dryRun: true,
+      handoff: response.handoff,
+      assumptions: response.assumptions.map(assumptionView),
+      thread: response.thread,
+      next: `Nothing was planned or stored: this is a ${response.handoff.surface} request ("${response.handoff.summary}"), which runs on its own Kletia surface, not as an intent. Tell the person the summary and every assumption, then call create_signing_link with the original text: Kletia reads it again there and sends the person to the desk view that holds it, prefilled, where they check it and sign. Never execute it yourself.`,
     };
   }
   let journey: Journey | null = null;

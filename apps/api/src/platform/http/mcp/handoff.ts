@@ -4,6 +4,7 @@
  * flagged there) and sign it. No server state is created and nothing in the
  * link can move funds by itself.
  */
+import { assertNoSecret } from "../../engine/secretScreen.js";
 import { invalidRequest } from "../context.js";
 import { kletiaWebOrigin } from "../webOrigin.js";
 
@@ -23,6 +24,8 @@ export function signingLink(text: unknown): SigningLink {
       { path: "text", message: `Required, 1-${HANDOFF_MAX_TEXT} printable characters.` },
     ]);
   }
+  // The text travels in the link's query string: secret material never goes into it.
+  assertNoSecret(value, "text");
   const url = new URL("/studio", kletiaWebOrigin());
   url.searchParams.set("q", value);
   return {

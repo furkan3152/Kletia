@@ -1,10 +1,13 @@
 /**
- * SPL stake pool deposits: Jito (JitoSOL) and Sanctum SPL pools (JupSOL)
- * (protocols design 3.4). SOL goes straight into the pool's reserve and the
- * pool mints its LST at the pool rate, instead of buying the LST at market.
+ * SPL stake pool deposits: Jito (JitoSOL), Sanctum pools (JupSOL, hSOL, dSOL,
+ * bonkSOL) and BlazeStake (bSOL) (protocols design 3.4). SOL goes straight
+ * into the pool's reserve and the pool mints its LST at the pool rate,
+ * instead of buying the LST at market.
  *
- * - Pins (VENUE_CONTRACTS): program, stake pool, pool mint, reserve stake,
- *   manager fee account and validator list per protocol. Plan and prepare
+ * - Pins (SOLANA_STAKE_POOLS, mirrored in VENUE_CONTRACTS): program, stake
+ *   pool, pool mint, reserve stake, manager fee account and validator list
+ *   per pool; one adapter per protocol serves each of its pools, chosen by
+ *   the LST the route asks for (never by symbol alone). Plan and prepare
  *   read the pool account: owner = pinned program, account type StakePool,
  *   every pinned field equal, classic SPL Token mint, no SOL deposit
  *   authority (a gated pool refuses), and `lastUpdateEpoch` equal to the
@@ -20,11 +23,11 @@
  *   the user's token account, exact lamports) and proves the LST credited to
  *   the step account from token deltas.
  */
-import type { ProtocolId } from "@kletia/core";
+import { stakePoolsFor, type SolanaStakePool, type StakePoolProtocolId } from "@kletia/core";
 import { address as toAddress, createNoopSigner, getAddressEncoder, getProgramDerivedAddress, type Instruction } from "@solana/kit";
 import { findAssociatedTokenPda, getCreateAssociatedTokenIdempotentInstruction, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { PlatformError } from "../../errors.js";
-import { assetAmount } from "../assets.js";
+import { assetAmount, assetFromRef } from "../assets.js";
 import { readSolanaAccounts, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
 import { nativeUsdPrice } from "../prices.js";
 import {
@@ -37,7 +40,6 @@ import {
   liquidStakeRoute,
   meta,
   noUnstakeWarning,
-  pinnedSolana,
   readPubkey,
   readU64Le,
   stakeFeeUsd,
@@ -57,18 +59,7 @@ const ACCOUNT_TYPE_STAKE_POOL = 1;
 /** ATA creation (idempotent) plus the deposit; measured well below this on mainnet. */
 const DEPOSIT_COMPUTE_UNITS = 150_000;
 
-export type StakePoolProtocol = Extract<ProtocolId, "jito" | "sanctum">;
-
-interface PoolConfig {
-  readonly protocol: StakePoolProtocol;
-  readonly label: string;
-  readonly symbol: string;
-}
-
-const POOLS: Readonly<Record<StakePoolProtocol, PoolConfig>> = Object.freeze({
-  jito: { protocol: "jito", label: "Jito stake pool", symbol: "JitoSOL" },
-  sanctum: { protocol: "sanctum", label: "Sanctum JupSOL pool", symbol: "JupSOL" },
-});
+export type StakePoolProtocol = StakePoolProtocolId;
 
 /** A pool fee ratio (borsh `Fee { denominator, numerator }`). */
 export interface PoolFee {
@@ -101,23 +92,23 @@ export interface StakePoolPins {
   readonly reserve: string;
   readonly feeAccount: string;
   readonly validatorList: string;
+  readonly symbol: string;
+  readonly label: string;
 }
 
-const poolPins = new Map<StakePoolProtocol, StakePoolPins>();
+/**
+ * The pins of `protocol`'s pool minting `mint` (default: the protocol's first
+ * pool), or null when the protocol pins no such pool.
+ */
+export function findStakePoolPins(protocol: StakePoolProtocol, mint?: string): StakePoolPins | null {
+  const pools = stakePoolsFor(protocol);
+  const pool: SolanaStakePool | undefined = mint === undefined ? pools[0] : pools.find((entry) => entry.mint === mint);
+  return pool ? { ...pool } : null;
+}
 
-/** The pool's pins (VENUE_CONTRACTS is frozen, so they are read once; `supports` runs on every route probe). */
-export function stakePoolPins(protocol: StakePoolProtocol): StakePoolPins {
-  const known = poolPins.get(protocol);
-  if (known) return known;
-  const pins: StakePoolPins = {
-    program: pinnedSolana(protocol, "solana", "program"),
-    pool: pinnedSolana(protocol, "solana", "stake-pool"),
-    mint: pinnedSolana(protocol, "solana", "pool-mint"),
-    reserve: pinnedSolana(protocol, "solana", "reserve-stake"),
-    feeAccount: pinnedSolana(protocol, "solana", "fee-account"),
-    validatorList: pinnedSolana(protocol, "solana", "validator-list"),
-  };
-  poolPins.set(protocol, pins);
+export function stakePoolPins(protocol: StakePoolProtocol, mint?: string): StakePoolPins {
+  const pins = findStakePoolPins(protocol, mint);
+  if (!pins) throw new PlatformError("VENUE_INVALID", `${protocol} pins no stake pool${mint ? ` minting ${mint}` : ""}.`, 500);
   return pins;
 }
 
@@ -223,8 +214,8 @@ export interface PoolSnapshot {
  * Checks a decoded pool against its pins and the current epoch. Returns the
  * refusal, or null when the pool takes SOL deposits from anyone now.
  */
-export function stakePoolRefusal(config: Pick<PoolConfig, "label">, pins: StakePoolPins, state: StakePoolState, epoch: bigint): PlatformError | null {
-  const drift = (field: string) => new PlatformError("VENUE_UNVERIFIED", `The ${config.label} ${field} no longer matches its pin. Kletia will not use it.`, 422);
+export function stakePoolRefusal(pins: StakePoolPins, state: StakePoolState, epoch: bigint): PlatformError | null {
+  const drift = (field: string) => new PlatformError("VENUE_UNVERIFIED", `The ${pins.label} ${field} no longer matches its pin. Kletia will not use it.`, 422);
   if (state.accountType !== ACCOUNT_TYPE_STAKE_POOL) return drift("account type");
   if (state.poolMint !== pins.mint) return drift("pool mint");
   if (state.reserveStake !== pins.reserve) return drift("reserve stake");
@@ -232,28 +223,26 @@ export function stakePoolRefusal(config: Pick<PoolConfig, "label">, pins: StakeP
   if (state.validatorList !== pins.validatorList) return drift("validator list");
   if (state.tokenProgram !== SOLANA_PROGRAM_IDS.token) return drift("token program");
   if (state.solDepositAuthority !== null) {
-    return new PlatformError("RESERVE_UNAVAILABLE", `The ${config.label} only takes SOL deposits signed by its deposit authority.`, 422);
+    return new PlatformError("RESERVE_UNAVAILABLE", `The ${pins.label} only takes SOL deposits signed by its deposit authority.`, 422);
   }
   if (state.lastUpdateEpoch !== epoch) {
     return new PlatformError(
       "RESERVE_UNAVAILABLE",
-      `The ${config.label} has not been updated for epoch ${epoch} yet (pools update at epoch start); try again in a few minutes.`,
+      `The ${pins.label} has not been updated for epoch ${epoch} yet (pools update at epoch start); try again in a few minutes.`,
       422,
     );
   }
   return null;
 }
 
-export async function readStakePool(protocol: StakePoolProtocol): Promise<PoolSnapshot> {
-  const config = POOLS[protocol];
-  const pins = stakePoolPins(protocol);
+export async function readStakePool(pins: StakePoolPins): Promise<PoolSnapshot> {
   const [[account], epoch] = await Promise.all([readSolanaAccounts("solana", [pins.pool]), currentEpoch("solana")]);
   if (!account || account.owner !== pins.program) {
-    throw new PlatformError("VENUE_UNVERIFIED", `The ${config.label} account is missing or not owned by the pinned stake pool program.`, 422);
+    throw new PlatformError("VENUE_UNVERIFIED", `The ${pins.label} account is missing or not owned by the pinned stake pool program.`, 422);
   }
   const state = decodeStakePool(account.data);
-  if (!state) throw new PlatformError("VENUE_UNVERIFIED", `The ${config.label} account could not be decoded.`, 422);
-  const refusal = stakePoolRefusal(config, pins, state, epoch);
+  if (!state) throw new PlatformError("VENUE_UNVERIFIED", `The ${pins.label} account could not be decoded.`, 422);
+  const refusal = stakePoolRefusal(pins, state, epoch);
   if (refusal) throw refusal;
   return { pins, state, epoch };
 }
@@ -315,15 +304,21 @@ interface Quoted {
   readonly warnings: string[];
 }
 
-async function quote(config: PoolConfig, action: AdapterAction): Promise<Quoted> {
-  const pins = stakePoolPins(config.protocol);
-  const amount = assertLiquidStakeAction(action, config.label, config.symbol, pins.mint);
-  const snapshot = await readStakePool(config.protocol);
+/** The protocol's pool for the action's LST; a route the adapter does not serve refuses with the shape error. */
+function actionPool(protocol: StakePoolProtocol, action: AdapterAction): StakePoolPins {
+  return findStakePoolPins(protocol, action.output.address ?? "") ?? stakePoolPins(protocol);
+}
+
+async function quote(pins: StakePoolPins, action: AdapterAction): Promise<Quoted> {
+  const amount = assertLiquidStakeAction(action, pins.label, pins.symbol, pins.mint);
+  const snapshot = await readStakePool(pins);
   const { user, fee } = poolTokensForDeposit(snapshot.state, amount);
-  if (user <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", `The amount mints no ${config.symbol}.`, 422);
+  if (user <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", `The amount mints no ${pins.symbol}.`, 422);
   const minimum = lessBps(user, STAKE_TOLERANCE_BPS);
-  const warnings = [noUnstakeWarning(config.label.replace(/ (stake )?pool$/u, ""), config.symbol)];
-  if (fee > 0n) warnings.push(`The pool keeps a SOL deposit fee of ${fee} ${config.symbol} base units.`);
+  const warnings = [noUnstakeWarning(pins.label.replace(/ (stake )?pool$/u, ""), pins.symbol)];
+  // The referral share of the fee is minted back to the user's own account (the referrer), so only the rest is kept.
+  const kept = fee - (fee * BigInt(snapshot.state.solReferralFee)) / 100n;
+  if (kept > 0n) warnings.push(`The pool keeps a SOL deposit fee of ${kept} ${pins.symbol} base units.`);
   return { snapshot, amount, expected: user, minimum, warnings };
 }
 
@@ -337,22 +332,23 @@ async function amounts(action: AdapterAction, quoted: Quoted) {
   };
 }
 
-function createStakePoolAdapter(config: PoolConfig): ProtocolAdapter {
+function createStakePoolAdapter(protocol: StakePoolProtocol, label: string): ProtocolAdapter {
   return {
-    id: config.protocol,
-    protocols: [config.protocol],
-    label: config.label,
+    id: protocol,
+    protocols: [protocol],
+    label,
 
     supports(route) {
-      return liquidStakeRoute(route, stakePoolPins(config.protocol).mint);
+      return stakePoolsFor(protocol).some((pool) => liquidStakeRoute(route, pool.mint));
     },
 
     async plan(action): Promise<PlannedStep> {
-      const quoted = await quote(config, action);
+      const pins = actionPool(protocol, action);
+      const quoted = await quote(pins, action);
       const fees = await stakeFeeUsd("solana");
       return {
-        protocol: config.protocol,
-        title: stakeTitle(quoted.amount, config.label, config.symbol, "solana"),
+        protocol,
+        title: stakeTitle(quoted.amount, pins.label, pins.symbol, "solana"),
         mode: "wallet",
         ...(await amounts(action, quoted)),
         ...(fees !== undefined ? { feesUsd: fees } : {}),
@@ -368,17 +364,18 @@ function createStakePoolAdapter(config: PoolConfig): ProtocolAdapter {
     },
 
     async prepare({ action }) {
-      const quoted = await quote(config, action);
+      const pins = actionPool(protocol, action);
+      const quoted = await quote(pins, action);
       const owner = action.account.address;
       const built = await buildStakeTransaction(
         "solana",
         owner,
         await stakePoolDepositInstructions(quoted.snapshot, owner, quoted.amount, quoted.minimum),
         DEPOSIT_COMPUTE_UNITS,
-        `${config.label} deposit`,
+        `${pins.label} deposit`,
       );
       const fees = await stakeFeeUsd("solana");
-      return stakePayload("solana", owner, quoted.snapshot.pins.program, built, stakeTitle(quoted.amount, config.label, config.symbol, "solana"), await amounts(action, quoted), {
+      return stakePayload("solana", owner, pins.program, built, stakeTitle(quoted.amount, pins.label, pins.symbol, "solana"), await amounts(action, quoted), {
         ...(fees !== undefined ? { feesUsd: fees } : {}),
         quoteId: `epoch:${quoted.snapshot.epoch}`,
         warnings: quoted.warnings,
@@ -386,12 +383,16 @@ function createStakePoolAdapter(config: PoolConfig): ProtocolAdapter {
     },
 
     async verify(context) {
-      const pins = stakePoolPins(config.protocol);
+      const mint = context.step.minimumOutput ? assetFromRef(context.step.minimumOutput).address : null;
+      const pins = mint ? findStakePoolPins(protocol, mint) : null;
+      if (!pins) {
+        return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: `The step does not stake into a pinned ${label}.` } };
+      }
       const owner = context.step.account.slice(context.step.account.lastIndexOf(":") + 1);
       const userAta = await userPoolTokenAccount(owner, pins.mint);
       return verifyLiquidStake(context, {
-        protocol: config.protocol,
-        label: config.label,
+        protocol,
+        label: pins.label,
         mint: pins.mint,
         bind: (step, observations) => {
           const deposits = observations.flatMap((observation) => observation.instructions ?? []).filter((entry) => entry.program === pins.program);
@@ -402,13 +403,13 @@ function createStakePoolAdapter(config: PoolConfig): ProtocolAdapter {
             entry.accounts[3] === owner &&
             entry.accounts[4] === userAta &&
             entry.accounts[7] === pins.mint);
-          return bound ? null : `No landed transaction deposited ${step.input?.formatted} SOL into the ${config.label} for the step account.`;
+          return bound ? null : `No landed transaction deposited ${step.input?.formatted} SOL into the ${pins.label} for the step account.`;
         },
       });
     },
   };
 }
 
-export const jitoStakePoolAdapter: ProtocolAdapter | null = createStakePoolAdapter(POOLS.jito);
-export const sanctumStakePoolAdapter: ProtocolAdapter | null = createStakePoolAdapter(POOLS.sanctum);
-
+export const jitoStakePoolAdapter: ProtocolAdapter | null = createStakePoolAdapter("jito", "Jito stake pool");
+export const sanctumStakePoolAdapter: ProtocolAdapter | null = createStakePoolAdapter("sanctum", "Sanctum stake pools");
+export const blazeStakePoolAdapter: ProtocolAdapter | null = createStakePoolAdapter("blazestake", "BlazeStake stake pool");

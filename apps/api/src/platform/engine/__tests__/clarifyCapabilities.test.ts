@@ -24,6 +24,7 @@ import { assetAmount } from "../assets.js";
 import { BRIDGE_NETWORKS, OFFERED_KINDS, protocolWord, STAKE_PROVIDERS, SWAP_NETWORKS, TESTNET_BRIDGE_NETWORKS, VAULT_PROTOCOLS } from "../clarify/catalog.js";
 import { installWallet, type Corpus } from "../clarify/corpusHarness.js";
 import { clarifyTurn } from "../clarify/index.js";
+import { LENDING_VENUES } from "../grammar.js";
 import { configureHoldingsReaders } from "../holdings.js";
 import { EVM_ACCOUNT, OTHER_EVM_ADDRESS, OTHER_SOL_ADDRESS, resetEngine, SOL_ACCOUNT } from "./helpers.js";
 
@@ -168,7 +169,8 @@ describe("clarify capabilities: every offered kind and network plans", () => {
   });
 
   it("deposits into and withdraws from every executable venue", async () => {
-    for (const venue of YIELD_VENUES) {
+    // Round 9: Save executes through structured actions until the sentence reader learns its words ("solend").
+    for (const venue of YIELD_VENUES.filter((entry) => LENDING_VENUES.some((word) => word.protocol === entry.protocol))) {
       const vault = VAULT_PROTOCOLS.includes(venue.protocol) ? ` ${venue.slug}` : "";
       for (const kind of venue.actions) {
         const text = kind === "deposit"

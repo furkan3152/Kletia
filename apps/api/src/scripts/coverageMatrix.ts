@@ -100,6 +100,9 @@ export const COVERAGE_CELLS: readonly CoverageCell[] = Object.freeze([
   plans("solana", "stake-jito", "stake 1 SOL with jito", [["jito"]], { output: "JitoSOL" }),
   plans("solana", "stake-marinade", "stake 1 SOL with marinade", [["marinade"]], { output: "mSOL" }),
   plans("solana", "stake-sanctum", "stake 1 SOL with jupsol", [["sanctum"]], { output: "JupSOL" }),
+  // round 9: stake-pool LSTs are registry assets (staking words for them are a reader hook)
+  plans("solana", "buy-bsol", "swap 1 SOL to bSOL", [["jupiter", "relay"]], { output: "bSOL" }),
+  plans("solana", "buy-hsol", "swap 1 SOL to hSOL", [["jupiter", "relay"]], { output: "hSOL" }),
   plans("solana", "stake-native", "stake 2 SOL natively", [["solana-stake"]], { output: "SOL" }),
   plans("solana", "stake-validator", `stake 2 SOL with validator ${VOTE}`, [["solana-stake"]], { output: "SOL" }),
   plans("solana", "bridge", "bridge 25 USDC from solana to base", [["relay", "debridge-dln"]]),

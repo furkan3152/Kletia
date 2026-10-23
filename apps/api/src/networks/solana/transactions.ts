@@ -183,6 +183,21 @@ export interface TransferRequest {
   readonly mint: string;
   readonly amount: string;
   readonly decimals: number;
+  /**
+   * Solana Pay reference keys: appended to the transfer instruction as
+   * read-only, non-signer accounts, so the transfer can be found by them
+   * (getSignaturesForAddress).
+   */
+  readonly references?: readonly string[];
+}
+
+/** The instruction with the reference keys appended as read-only accounts (Solana Pay transfer requests). */
+function withReferences(instruction: Instruction, references: readonly string[] = []): Instruction {
+  if (references.length === 0) return instruction;
+  if (references.some((reference) => !isSolanaAddress(reference))) {
+    throw new SolanaProviderError("Every reference must be a Solana address.", "SOLANA_ADDRESS_INVALID", 400);
+  }
+  return { ...instruction, accounts: [...(instruction.accounts ?? []), ...references.map((reference) => ({ address: address(reference), role: AccountRole.READONLY }))] };
 }
 
 export async function buildSolanaTransfer(request: TransferRequest): Promise<PreparedSolanaTransaction> {
@@ -201,11 +216,11 @@ export async function buildSolanaTransfer(request: TransferRequest): Promise<Pre
     await assertSolanaWalletRecipient(request.network, request.to);
     return finalize(request.network, request.from, [
       ...priorityInstructions(),
-      getTransferSolInstruction({
+      withReferences(getTransferSolInstruction({
         source: signer,
         destination: address(request.to),
         amount: lamports(BigInt(request.amount)),
-      }),
+      }), request.references),
     ]);
   }
   if (!isSolanaAddress(request.mint)) {
@@ -231,7 +246,7 @@ export async function buildSolanaTransfer(request: TransferRequest): Promise<Pre
       mint,
       tokenProgram,
     }),
-    getTransferCheckedInstruction(
+    withReferences(getTransferCheckedInstruction(
       {
         source: sourceAta,
         mint,
@@ -241,7 +256,7 @@ export async function buildSolanaTransfer(request: TransferRequest): Promise<Pre
         decimals,
       },
       { programAddress: tokenProgram },
-    ),
+    ), request.references),
   ]);
 }
 

@@ -633,6 +633,7 @@ const RECEIPT_KIND_LABEL: Readonly<Record<string, string>> = {
   ctoken: "mToken",
   "jupiter-lend": "jlToken",
   "kamino-reserve": "Kamino collateral",
+  "save-reserve": "cToken",
   "fluid-ftoken": "fToken shares",
   "spark-vault": "savings shares",
   "yearn-vault": "vault shares",
@@ -1559,7 +1560,7 @@ function rulePriceExposure(walk: Walk, drafts: Draft[]): void {
       });
     }
     const venue = stepVenue(step);
-    if (step.kind === "deposit" && venue && !oneToOne(venue) && venue.kind !== "jupiter-lend" && venue.kind !== "kamino-reserve") {
+    if (step.kind === "deposit" && venue && !oneToOne(venue) && venue.kind !== "jupiter-lend" && venue.kind !== "kamino-reserve" && venue.kind !== "save-reserve") {
       drafts.push({
         id: `price-exposure:${stopId}:shares`, kind: "price-exposure", severity: "info", stopId, legIds: [step.id],
         title: `${venue.name} shares can lose value`,

@@ -198,6 +198,11 @@ export const ASSETS: readonly AssetDescriptor[] = Object.freeze([
   spl("solana", "JitoSOL", "Jito Staked SOL", "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn", 9, "liquid-staking", "SOL"),
   spl("solana", "mSOL", "Marinade Staked SOL", "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So", 9, "liquid-staking", "SOL"),
   spl("solana", "JupSOL", "Jupiter Staked SOL", "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v", 9, "liquid-staking", "SOL"),
+  // round 9: stake-pool LSTs (mints from Sanctum's LST list; decimals and mint authority read back 2026-10-23)
+  spl("solana", "bSOL", "BlazeStake Staked SOL", "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1", 9, "liquid-staking", "SOL"),
+  spl("solana", "hSOL", "Helius Staked SOL", "he1iusmfkpAdwvxLNGV8Y1iSbj4rUy6yMhEA3fotn9A", 9, "liquid-staking", "SOL"),
+  spl("solana", "dSOL", "Drift Staked SOL", "Dso1bDeDjCQxTrWHqUUi63oBvV7Mdm6WaobLbQ7gnPQ", 9, "liquid-staking", "SOL"),
+  spl("solana", "bonkSOL", "bonkSOL", "BonK1YhkXEGLZzwtcvRTip3gAL9nCeQD7ppZBLXhtTs", 9, "liquid-staking", "SOL"),
   spl("solana", "JUP", "Jupiter", "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", 6, "governance"),
   spl("solana", "cbBTC", "Coinbase Wrapped BTC", "cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij", 8, "btc", "BTC"),
   spl("solana", "BONK", "Bonk", "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", 5, "meme"),

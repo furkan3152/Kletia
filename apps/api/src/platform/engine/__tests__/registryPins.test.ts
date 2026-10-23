@@ -17,6 +17,7 @@ import {
   getProtocol,
   PROTOCOLS,
   RESERVED_CONTRACT_PHRASES,
+  stakePoolsFor,
   VENUE_CONTRACTS,
   YIELD_VENUES,
   type AaveReserveVenue,
@@ -38,6 +39,9 @@ const SINGLE_ROLES = new Set([
   "config", "pauser", "stake-pool", "pool-mint", "reserve-stake", "fee-account", "validator-list", "program-state", "liquidity-leg",
   "addresses-provider", "locator", "storage", "liquidity-pool", "spoke-pool", "depository", "diamond",
 ]);
+
+/** Stake pool roles: one per pool of SOLANA_STAKE_POOLS (a protocol may pin several pools, read by LST mint). */
+const STAKE_POOL_ROLES = new Set(["stake-pool", "pool-mint", "reserve-stake", "fee-account", "validator-list"]);
 
 /**
  * Networks a pinned-venue protocol lists without a pin there, and why.
@@ -65,7 +69,7 @@ describe("registry pins (round 7)", () => {
       const id = `${row.protocol}|${row.network}|${row.role}|${address}`;
       assert.ok(!rows.has(id), `duplicate pin ${id}`);
       rows.add(id);
-      if (SINGLE_ROLES.has(row.role)) {
+      if (SINGLE_ROLES.has(row.role) && !(STAKE_POOL_ROLES.has(row.role) && stakePoolsFor(row.protocol).length > 0)) {
         const slot = `${row.protocol}|${row.network}|${row.role}`;
         assert.ok(!singles.has(slot), `${slot} has two addresses (${singles.get(slot)}, ${row.address})`);
         singles.set(slot, row.address);

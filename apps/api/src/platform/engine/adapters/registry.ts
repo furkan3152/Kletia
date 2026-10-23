@@ -24,10 +24,12 @@ import { yearnAdapter } from "./lending/yearn.js";
 import { lifiAdapter } from "./lifi.js";
 import { marinadeAdapter } from "./marinade.js";
 import { relayAdapter } from "./relay.js";
+import { saveAdapter } from "./save.js";
 import { solanaActionAdapter } from "./solanaAction.js";
 import { meteoraAdapter, orcaAdapter, raydiumAdapter } from "./solanaDex.js";
 import { solanaNativeStakeAdapter } from "./solanaNativeStake.js";
-import { jitoStakePoolAdapter, sanctumStakePoolAdapter } from "./solanaStakePool.js";
+import { solanaPayAdapter } from "./solanaPay.js";
+import { blazeStakePoolAdapter, jitoStakePoolAdapter, sanctumStakePoolAdapter } from "./solanaStakePool.js";
 import { solanaTransferAdapter } from "./solanaTransfer.js";
 import { etherfiAdapter } from "./staking/etherfi.js";
 import { fraxAdapter } from "./staking/frax.js";
@@ -60,9 +62,13 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     // round 7: direct Solana staking (competes with the Jupiter route for the same LST)
     jitoStakePoolAdapter,
     sanctumStakePoolAdapter,
+    // round 9: BlazeStake bSOL (same SPL stake pool adapter)
+    blazeStakePoolAdapter,
     marinadeAdapter,
     solanaNativeStakeAdapter,
     solanaTransferAdapter,
+    // round 9: Solana Pay transfer requests (named only)
+    solanaPayAdapter,
     evmTransferAdapter,
     uniswapV3Adapter,
     aerodromeAdapter,
@@ -86,6 +92,8 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     moonwellAdapter,
     jupiterLendAdapter,
     kaminoAdapter,
+    // round 9: Save (ex-Solend) main pool
+    saveAdapter,
     lidoAdapter,
     rocketPoolAdapter,
     etherfiAdapter,

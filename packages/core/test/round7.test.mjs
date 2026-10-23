@@ -48,7 +48,9 @@ const ROUND7_ASSETS = [
 
 const evidence = JSON.parse(readFileSync(new URL("./fixtures/protocols-2026-10-15.json", import.meta.url), "utf8"));
 const key = (network, address) => `${network}:${CHAINS[network].vm === "evm" ? address.toLowerCase() : address}`;
-const verified = new Set(evidence.entries.filter((entry) => entry.verified).map((entry) => key(entry.network, entry.address)));
+/** Round 9 adds pools to round-7 protocols (Sanctum hSOL, dSOL, bonkSOL): their rows are read back in the round-9 evidence. */
+const round9 = JSON.parse(readFileSync(new URL("./fixtures/protocols-2026-10-23.json", import.meta.url), "utf8"));
+const verified = new Set([...evidence.entries, ...round9.entries].filter((entry) => entry.verified).map((entry) => key(entry.network, entry.address)));
 
 test("round 7 registry: seven new ids with words and tiers; Solana LSTs execute stake", () => {
   for (const id of NEW_IDS) {

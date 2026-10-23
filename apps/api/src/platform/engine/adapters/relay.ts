@@ -320,6 +320,10 @@ function assertRelayEvmCalls(action: AdapterAction, calls: readonly RelayCall[])
     }
   });
   if (crossNetwork(action) && sameAssetGroup(action) && deposits !== 1) rejectRelayCall("A Relay bridge must make exactly one depository deposit.");
+  // Each call was checked alone; together they may not carry more native value than the step amount either.
+  if (evmCalls.reduce((total, call) => total + BigInt(call.value), 0n) > (action.input.isNative ? amount : 0n)) {
+    rejectRelayCall("Relay calls carry more value than the step amount.");
+  }
   return evmCalls;
 }
 

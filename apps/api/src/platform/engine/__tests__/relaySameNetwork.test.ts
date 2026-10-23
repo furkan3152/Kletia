@@ -141,6 +141,27 @@ describe("Relay same-network swaps on Ethereum, OP Mainnet and Polygon PoS", () 
     }
   });
 
+  it("refuses a native quote whose calls together carry more value than the step amount", async () => {
+    const action = swapAction("base", "ETH", "USDC", "50000000000000000");
+    const chainId = CHAINS[action.network].settlement.relayChainId as number;
+    const calls = [
+      { to: ROUTER, data: "0xcd6e13f7", value: action.amount },
+      { to: ROUTER, data: "0xcd6e13f7", value: action.amount },
+    ];
+    relaySwapQuote(action, { amount: "124037195", minimumAmount: "123417009" });
+    const quote = mock.rpc.relayQuote as NonNullable<typeof mock.rpc.relayQuote>;
+    mock.rpc.relayQuote = (body) => ({
+      ...(quote(body) as Record<string, unknown>),
+      steps: calls.map((call, index) => ({
+        id: `swap-${index}`,
+        kind: "transaction",
+        requestId: `0x${"78".repeat(32)}`,
+        items: [{ status: "incomplete", data: { from: EVM_ADDRESS, ...call, chainId } }],
+      })),
+    });
+    await assert.rejects(relayAdapter.plan(action), (error: Error & { code?: string }) => error.code === "RELAY_QUOTE_INVALID" && /more value/u.test(error.message));
+  });
+
   it("confirms an ERC-20 output only when the receipts credit at least the floor (OUTCOME_NOT_PROVEN below it)", async () => {
     const action = swapAction("optimism", "ETH", "USDC", "50000000000000000");
     const usdc = action.output.address as string;

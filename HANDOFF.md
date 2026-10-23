@@ -9,7 +9,7 @@ and what is known to be missing. Branch `ccr-cc3fa951-22gm0c`, 2026-10-15 (round
 Polygon PoS and Solana. Testnet: Arc Testnet, Arbitrum Sepolia and Solana
 Devnet. Production and testnet money never share one intent.
 
-**Protocols.** `GET /v1/protocols` lists 64 protocols, 46 of them executable
+**Protocols.** `GET /v1/protocols` lists 64 protocols, 45 of them executable
 through the API, plus two own-contract slots (EVM contract calls and Solana
 Actions). The others are naming (ENS, Basenames, SNS), data (Chainlink,
 Pyth, Allora, Webacy), payments (x402) or console-only suites. The site computes these numbers from

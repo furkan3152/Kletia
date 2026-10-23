@@ -1164,7 +1164,7 @@ function listedExactly(network: NetworkKey, symbol: string): boolean {
 
 /**
  * Look-alike symbols (design A.10, C.5): a typed symbol of a look-alike family
- * ("wsol", "bsol") that Kletia does not list on a Solana network, by symbol or
+ * ("wsol", "stsol") that Kletia does not list on a Solana network, by symbol or
  * reviewed alias, is never searched for by name on the strict path (a search
  * could return the sibling or an unrelated token); it is refused so the
  * person names the token exactly.

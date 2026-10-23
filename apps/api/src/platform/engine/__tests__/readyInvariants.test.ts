@@ -142,7 +142,7 @@ describe("look-alike families (A.4.14)", () => {
   });
 
   it("an unlisted family member is asked or refused on every path, never planned as another member", async () => {
-    for (const text of ["swap 1 ETH to stETH on base", "swap 1 SOL to stSOL", "stake 1 sol for bsol"]) {
+    for (const text of ["swap 1 ETH to stETH on base", "swap 1 SOL to stSOL", "stake 1 sol for stsol"]) {
       const run = await first(text);
       if (run.error) assert.equal(run.error.code, "INTENT_UNSUPPORTED", text);
       else {
@@ -156,7 +156,7 @@ describe("look-alike families (A.4.14)", () => {
     const run = await first("swap 1 SOL to stSOL");
     const options = run.decision?.questions[0]?.options.map((option) => option.id) ?? [];
     assert.ok(!options.includes("SOL"));
-    assert.deepEqual(options, ["JitoSOL", "JupSOL", "mSOL", "cancel"]);
+    assert.deepEqual(options, ["JitoSOL", "JupSOL", "mSOL", "bSOL", "cancel"]);
   });
 });
 

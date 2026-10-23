@@ -1,6 +1,6 @@
 /**
  * Strict path look-alike symbols (design A.10, C.5): a Solana symbol of a
- * look-alike family that Kletia does not list ("wsol", "bsol") is refused by
+ * look-alike family that Kletia does not list ("wsol", "stsol") is refused by
  * the grammar instead of being searched for by name, where a search could
  * return the listed sibling or an unrelated token. Listed symbols, reviewed
  * aliases and EVM symbols keep their existing handling.
@@ -22,10 +22,10 @@ function refusal(text: string): string {
 }
 
 describe("strict path look-alike symbols", () => {
-  it("refuses wSOL and bSOL on either side, naming the listed tokens", () => {
+  it("refuses wSOL and stSOL on either side, naming the listed tokens", () => {
     assert.match(refusal("swap 1 wsol to usdc on solana"), /"wsol" is not a token Kletia lists on Solana.*Kletia lists SOL/u);
     assert.match(refusal("swap 10 usdc to wsol on solana"), /"wsol" is not a token Kletia lists on Solana/u);
-    assert.match(refusal("swap 2 bsol to sol on solana"), /"bsol" is not a token Kletia lists on Solana/u);
+    assert.match(refusal("swap 2 stsol to sol on solana"), /"stsol" is not a token Kletia lists on Solana/u);
   });
 
   it("keeps listed symbols, reviewed aliases and EVM symbols", () => {

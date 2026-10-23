@@ -42,6 +42,8 @@ export const REVIEWED_KEYWORDS: readonly string[] = Object.freeze([
   "rocketpool", "reth", "ether", "etherfi", "weeth", "eeth", "stader", "ethx", "mantle", "meth", "frax",
   "sfrxeth", "frxeth", "pancakeswap", "pancake", "camelot", "curve", "finance", "native", "stake", "staking",
   "validator",
+  // round 9 venue words
+  "kelp", "rseth", "renzo", "ezeth",
 ]);
 
 /** Lower-case English words that are never corrected into a keyword. */
@@ -107,6 +109,8 @@ export const ENGLISH_WORDS: ReadonlySet<string> = new Set([
   "weather", "well", "wend", "when", "whether", "width", "wish", "wit", "witch", "withdrawal", "withdrawn",
   "withdraws", "withdrew", "withe", "wits", "wort", "wove", "yarn", "year", "yearned", "yearns", "years",
   "yell",
+  // within one edit of the round 9 venue words ("kelp"; "renzo", "rseth" and "ezeth" have none)
+  "help", "keep", "kelps", "yelp",
 ]);
 
 /** True when `token` (any case) is an English word the corrector must leave as typed. */

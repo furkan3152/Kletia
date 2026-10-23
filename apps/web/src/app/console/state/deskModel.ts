@@ -403,7 +403,7 @@ export function departureLine({
 /** Longest sentence the composer sends. */
 export const COMPOSER_LIMIT = 500;
 
-export type DeskView = "desk" | "tasks" | "holdings" | "tools" | "activity" | "dashboard";
+export type DeskView = "desk" | "tasks" | "holdings" | "tools" | "activity" | "dashboard" | "automations";
 
 export type ComposerVerdict =
   | { readonly kind: "empty" }
@@ -421,6 +421,7 @@ export const DESK_COMMANDS: Readonly<Record<string, DeskView>> = Object.freeze({
   "show my activity": "activity",
   "show my dashboard": "dashboard",
   "open tools": "tools",
+  "show my automations": "automations",
 });
 
 /** Placeholders a template leaves for the user to replace ("[EDIT MAX USDC]", "<address>"). */

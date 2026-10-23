@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "7e3d05f5-e21f-5ddf-b23f-03ff534e8a69",
     "name": "Kletia Platform API",
-    "description": "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\nTiers: public 30/min per IP, developer 300/min per key, operator 1200/min per key. Errors are `{ \"error\": { \"code\", \"message\", \"issues\"?, \"hints\"?, \"details\"?, \"docs\"? }, \"requestId\" }` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept `Idempotency-Key`. Agents can use the MCP server at /v1/mcp (read-only tools, plus keyed creation of intents and links; nothing is ever signed). Agent keys (`kl_agt_`) are bound by their rule book chain. Developer and agent keys are server keys: sent from a browser on another origin they get 403 SECRET_KEY_FROM_BROWSER.\n\n## Using this collection\n\n- `baseUrl` is `https://api.kletiaai.xyz` (Production) or `http://localhost:3001` (Local development).\n\n- Public endpoints work with an empty `apiKey`. Issue a key with `POST /v1/keys` (Keys folder), then store it in an environment or vault variable named `apiKey`; never share a collection that contains a key.\n\n- The `POST /v1/intents` requests plan with `dryRun=true`: nothing is stored and nothing is signed. Kletia never holds keys; signing happens in the user's wallet.\n\n- Ids such as `intentId`, `webhookId` and `keyId` are collection variables. Copy them from responses.\n\n- Webhook deliveries (Intent event delivery, Contract registration event delivery, Intent link event delivery, Rule Book and key event delivery, Test delivery) are requests Kletia sends to you; see the OpenAPI `webhooks` section and [webhook verification](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md).\n\nGenerated from `docs/platform/openapi.json` (OpenAPI 3.1.0, API 1.0.0) by `tooling/generate-collections.mjs`. Do not edit by hand.",
+    "description": "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\nTiers: public 30/min per IP, developer 300/min per key, operator 1200/min per key. Errors are `{ \"error\": { \"code\", \"message\", \"issues\"?, \"hints\"?, \"details\"?, \"docs\"? }, \"requestId\" }` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept `Idempotency-Key`. Agents can use the MCP server at /v1/mcp (read-only tools, plus keyed creation of intents and links; nothing is ever signed). Agent keys (`kl_agt_`) are bound by their rule book chain. Developer and agent keys are server keys: sent from a browser on another origin they get 403 SECRET_KEY_FROM_BROWSER.\n\n## Using this collection\n\n- `baseUrl` is `https://api.kletiaai.xyz` (Production) or `http://localhost:3001` (Local development).\n\n- Public endpoints work with an empty `apiKey`. Issue a key with `POST /v1/keys` (Keys folder), then store it in an environment or vault variable named `apiKey`; never share a collection that contains a key.\n\n- The `POST /v1/intents` requests plan with `dryRun=true`: nothing is stored and nothing is signed. Kletia never holds keys; signing happens in the user's wallet.\n\n- Ids such as `intentId`, `webhookId` and `keyId` are collection variables. Copy them from responses.\n\n- Webhook deliveries (Intent event delivery, Contract registration event delivery, Intent link event delivery, Automation event delivery, Rule Book and key event delivery, Test delivery) are requests Kletia sends to you; see the OpenAPI `webhooks` section and [webhook verification](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md).\n\nGenerated from `docs/platform/openapi.json` (OpenAPI 3.1.0, API 1.0.0) by `tooling/generate-collections.mjs`. Do not edit by hand.",
     "version": "1.0.0",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -112,6 +112,12 @@
       "value": "",
       "type": "string",
       "description": "An intent link id (lk_…) from creating or listing links."
+    },
+    {
+      "key": "automationId",
+      "value": "",
+      "type": "string",
+      "description": "An automation id (au_…) from creating or listing automations."
     },
     {
       "key": "threadId",
@@ -4719,6 +4725,341 @@
               ]
             },
             "description": "Visitors get 410 LINK_EXPIRED; intents already started can finish. Idempotent.\n\nRequires an API key (set `apiKey`).\n\n`DELETE /v1/links/{id}` · operationId `deleteLink` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "023f571f-b404-5698-98e3-7596cea46c97",
+      "name": "Automations",
+      "description": "Rules that watch a schedule, a price, a balance, venue APYs or incoming transfers and plan an intent for the owner to sign (or hand it to a native order provider); runs and the inbox.",
+      "item": [
+        {
+          "id": "5195ed4f-c6c5-55a1-913f-8af458fd43f9",
+          "name": "The owner's automations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations"
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/automations` · operationId `listAutomations` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "447eea57-e577-52ad-97f7-551dd5d40bde",
+          "name": "Create an automation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trigger\": {\n    \"kind\": \"schedule\",\n    \"every\": {\n      \"unit\": \"hour\",\n      \"count\": 1\n    },\n    \"startAt\": \"\"\n  },\n  \"action\": {\n    \"kind\": \"intent\",\n    \"accounts\": [\n      \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\"\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations"
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. Triggers: schedule, price, balance, apy, event. A wallet's automations use its own address only (403 AUTOMATION_ACCOUNT_FORBIDDEN); agent keys need `permissions.automations`. At most 50 live automations (409 AUTOMATION_LIMIT_REACHED) and 30 creations an hour per owner.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/automations` · operationId `createAutomation` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "b08ca852-9ea5-59fb-acbc-39e2aa01fb37",
+          "name": "Runs waiting for the owner's signature",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations/inbox",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations",
+                "inbox"
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. Runs of the last 7 days whose intent is still planned or part-signed; open each intent's normal sign flow.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/automations/inbox` · operationId `automationInbox` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "07cbb978-af92-5b69-94f6-a2c0bbe844f7",
+          "name": "One automation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{automationId}}"
+                }
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/automations/{id}` · operationId `getAutomation` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "1cb3a784-2d49-5d7a-83ad-d68b5a5f11f1",
+          "name": "Change the label or limits",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{automationId}}"
+                }
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. The trigger and action never change: create a new automation. 409 AUTOMATION_CONFLICT when another change landed first.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`PATCH /v1/automations/{id}` · operationId `updateAutomation` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "cd5e2378-a54e-556f-b0bf-49dc03c4baf9",
+          "name": "Pause an automation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations/:id/pause",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations",
+                ":id",
+                "pause"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{automationId}}"
+                }
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. Always allowed, agent keys included.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/automations/{id}/pause` · operationId `pauseAutomation` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "ee947c21-0148-56de-89df-cf1667d0f0e4",
+          "name": "Resume a paused automation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations/:id/resume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations",
+                ":id",
+                "resume"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{automationId}}"
+                }
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. A completed or expired automation answers 409 AUTOMATION_ENDED.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/automations/{id}/resume` · operationId `resumeAutomation` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "8fabfeb5-f637-52e0-90d7-58859e97de0a",
+          "name": "Runs of an automation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations/:id/runs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations",
+                ":id",
+                "runs"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{automationId}}"
+                }
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/automations/{id}/runs` · operationId `listAutomationRuns` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "b6346009-ebad-531f-b37d-25da00ac89d5",
+          "name": "Delete an automation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/automations/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "automations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{automationId}}"
+                }
+              ]
+            },
+            "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. Intents already planned stay; nothing was signed for them.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`DELETE /v1/automations/{id}` · operationId `deleteAutomation` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

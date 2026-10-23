@@ -177,6 +177,12 @@ export interface DeskState {
   readonly toolId: string | null;
   setDeparture(departure: Departure): void;
   addTask(task: NewTask): TaskRecord;
+  /**
+   * A stored intent planned elsewhere (an automation run from the inbox) as a
+   * paused task: it opens "Pick up" and signs through the normal flow. An
+   * intent already on the desk is focused instead.
+   */
+  adoptIntent(input: { readonly intentId: string; readonly title: string }): TaskRecord;
   patchTask(id: string, patch: TaskPatch): void;
   /** Refused (false) for the signing task. */
   removeTask(id: string): boolean;
@@ -294,6 +300,37 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
       const { kept, dropped } = capTasks([...get().tasks, task]);
       forget(dropped.map((entry) => entry.id));
       set({ tasks: kept, focusedTaskId: task.id, answering: null, editing: null, enginePin: null });
+      return task;
+    },
+
+    adoptIntent({ intentId, title }) {
+      const known = get().tasks.find((task) => task.intentId === intentId);
+      if (known) {
+        set({ focusedTaskId: known.id });
+        return known;
+      }
+      const task: TaskRecord = {
+        id: newId(),
+        createdAt: now(),
+        sentence: "",
+        title,
+        departure: "auto",
+        lane: "production",
+        engine: { kind: "platform" },
+        intentId,
+        status: "paused",
+        question: null,
+        turns: [],
+        ends: null,
+        thread: null,
+        restored: true,
+        origin: "automation",
+      };
+      // The execution hook resumes from this record (intentSession.ts format), nothing signed yet.
+      storage.setItem(deskIntentSessionKey(task.id), JSON.stringify({ v: 1, intentId, savedAt: now(), signing: {}, references: {} }));
+      const { kept, dropped } = capTasks([...get().tasks, task]);
+      forget(dropped.map((entry) => entry.id));
+      set({ tasks: kept, focusedTaskId: task.id, answering: null, editing: null });
       return task;
     },
 

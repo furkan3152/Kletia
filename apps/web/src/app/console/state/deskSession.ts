@@ -38,7 +38,9 @@ export const LEGACY_RESUME_KEYS = Object.freeze([
   { key: "kletia-solana-ask-intent", origin: "solana-ask" },
 ] as const);
 
-export type TaskOrigin = (typeof LEGACY_RESUME_KEYS)[number]["origin"];
+/** Where a task that was not typed came from: a legacy resume record, or an automation run from the inbox. */
+export type TaskOrigin = (typeof LEGACY_RESUME_KEYS)[number]["origin"] | "automation";
+const TASK_ORIGINS: readonly TaskOrigin[] = Object.freeze([...LEGACY_RESUME_KEYS.map((entry) => entry.origin), "automation"]);
 
 /** The resume record of one desk task (format of `intentSession.ts`). */
 export function deskIntentSessionKey(taskId: string): string {
@@ -183,7 +185,7 @@ function parseEntry(value: unknown): TaskIndexEntry | null {
     if (!isRecord(ends) || !isNetworkKey(ends.from) || !isNetworkKey(ends.to)) return null;
     parsedEnds = { from: ends.from, to: ends.to };
   }
-  const knownOrigin = LEGACY_RESUME_KEYS.find((entry) => entry.origin === origin)?.origin;
+  const knownOrigin = TASK_ORIGINS.find((entry) => entry === origin);
   return {
     id,
     createdAt,

@@ -99,6 +99,7 @@ export function DeskHeader({ view, onView, taskCount, onOpenTask, onNewTask, the
           {item("tools", copy.views.tools)}
           {item("activity", copy.views.activity)}
           {item("dashboard", copy.views.dashboard)}
+          {item("automations", copy.views.automations)}
         </nav>
         <TasksPopover count={taskCount} onOpenTask={onOpenTask} onNewTask={onNewTask} />
         <div className="ml-auto flex min-w-0 items-center gap-2">

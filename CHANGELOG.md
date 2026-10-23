@@ -25,6 +25,8 @@ on-chain action in the browser.
 - More EVM protocols, every pin read back on-chain ([EVM protocols](docs/platform/evm-protocols.md)): Curve USDC / USDT0 on Arbitrum; Compound V3 USDT and USDS (Ethereum) and AERO (Base); ten more Morpho vaults on all five networks; Sky Savings (sUSDS, sDAI) and Ethena sUSDe (deposit only, with the live cooldown shown); Kelp (rsETH, on-chain minimum) and Renzo (ezETH) restaking. The registry now lists 53 protocols.
 - Data API `/v1/data/*` and the desk's Dashboard (`/app/dashboard`): holdings, positions, Aave V3, SparkLend and Compound V3 debt with health warnings, allocation, a labelled 24-hour change and PnL estimate, the key's activity, venue rates with "Move here", prices, network status and CSV export; every value carries `source` and `asOf`, unknown values are null with a reason; SDK `client.data.*` and a Data API portal page ([data](docs/platform/data.md)).
 
+- Automations (`/v1/automations`, desk view `/app/automations`): schedule, price, balance, yield and incoming-transfer triggers that plan an intent for the owner's signature (or a native order provider), with per-run and total USD caps, cooldown, expiry, network and protocol scope, hysteresis, one run per window, a leader-safe evaluator, the inbox, `automation.*` webhooks and the Rule Book permission `automations`.
+
 ### Fixed
 
 - The hosted site build failed from round 6 onwards (the web workspace did not depend on `@kletia/embed`), so an old site stayed live; the desk now runs the round-7 engine.

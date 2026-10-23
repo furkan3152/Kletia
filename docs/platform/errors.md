@@ -125,6 +125,7 @@ introduced.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-AUTOMATION_DRAFT_INVALID"></a>`AUTOMATION_DRAFT_INVALID` | 400 | no | Invalid automation | Fix the fields listed in error.issues. validateAutomationDraft in @kletia/core reports the same issues locally. |
 | <a id="error-ACCOUNT_INVALID"></a>`ACCOUNT_INVALID` | 400 / 500 | no | Invalid account | Send accounts as CAIP-10 ids such as eip155:8453:0x… or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:<address>. |
 | <a id="error-ACTION_URL_FORBIDDEN"></a>`ACTION_URL_FORBIDDEN` | 422 | no | Action URL refused | Use public HTTPS URLs on the registered origin (port 443 or 1024+); private, loopback, credential and redirecting URLs are refused. |
 | <a id="error-AMOUNT_REQUIRED"></a>`AMOUNT_REQUIRED` | 400 | no | Amount required | Give every action an amount (a decimal, or max on a dependent step). |
@@ -162,6 +163,7 @@ introduced.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-AUTOMATION_OWNER_REQUIRED"></a>`AUTOMATION_OWNER_REQUIRED` | 401 | no | Automations need an owner | Send a project or agent API key, or a wallet session (Kletia-Account-Session) from the Kletia desk. |
 | <a id="error-API_KEY_REQUIRED"></a>`API_KEY_REQUIRED` | 401 | no | API key required | Issue a key with POST /v1/keys and send it as Authorization: Bearer <key>. |
 | <a id="error-INVALID_API_KEY"></a>`INVALID_API_KEY` | 401 | no | Invalid or revoked API key | Check the key, or issue a new one. Revoked and expired rotated keys stop working within 15 seconds. |
 | <a id="error-INVALID_AUTHORIZATION"></a>`INVALID_AUTHORIZATION` | 401 | no | Malformed credentials | Send Authorization: Bearer <key> or X-Kletia-Key: <key>, not both with different keys. |
@@ -173,7 +175,8 @@ introduced.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
-| <a id="error-AGENT_KEY_FORBIDDEN"></a>`AGENT_KEY_FORBIDDEN` | 403 | no | Not allowed for agent keys | Agent keys never manage project keys or rule books, and need the matching permission (webhooks, registerContracts, sessions, createChildKeys, links) for the rest. Use a project key. |
+| <a id="error-AUTOMATION_ACCOUNT_FORBIDDEN"></a>`AUTOMATION_ACCOUNT_FORBIDDEN` | 403 | no | Account is not the signed-in wallet | A wallet's automations spend from and watch that wallet's own address only. Sign in with the wallet that holds the account. |
+| <a id="error-AGENT_KEY_FORBIDDEN"></a>`AGENT_KEY_FORBIDDEN` | 403 | no | Not allowed for agent keys | Agent keys never manage project keys or rule books, and need the matching permission (webhooks, registerContracts, sessions, createChildKeys, links, automations) for the rest. Use a project key. |
 | <a id="error-APPROVAL_SIGNATURE_INVALID"></a>`APPROVAL_SIGNATURE_INVALID` | 403 | no | Approval signature invalid | Sign the exact typed data (EIP-712 "Kletia Approvals") or message text of this approval with the listed wallet, before it expires. |
 | <a id="error-APPROVER_NOT_ALLOWED"></a>`APPROVER_NOT_ALLOWED` | 403 | no | Not an approver of this intent | Approve with an active project key outside the requester's subtree, or with a wallet the rule book lists. Agent keys never approve, and requireWallet refuses keys. |
 | <a id="error-CONTRACT_DENIED"></a>`CONTRACT_DENIED` | 422 | no | Contract not allowed | Tokens, routers, Permit2, Multicall3, precompiles, system contracts and deny-listed addresses can never be registered or called. Register the contract that performs the action. |
@@ -196,6 +199,7 @@ introduced.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-AUTOMATION_NOT_FOUND"></a>`AUTOMATION_NOT_FOUND` | 404 | no | Automation not found | Check the id (au_ + 24 hex). GET /v1/automations lists the caller's own automations. |
 | <a id="error-APPROVAL_NOT_FOUND"></a>`APPROVAL_NOT_FOUND` | 404 | no | Approval not found | Check the approval id from the link (/approve#apr_…) or error.policy.approval. |
 | <a id="error-CONTRACT_NOT_FOUND"></a>`CONTRACT_NOT_FOUND` | 404 | no | Contract registration not found | List registrations with GET /v1/contracts; a key sees its own and the project-visible ones of its project. |
 | <a id="error-FLOW_UNKNOWN"></a>`FLOW_UNKNOWN` | 404 | no | Flow not found | Use the id of a flow stored in the project's settings; GET /v1/publishable/profile lists them. |
@@ -218,6 +222,9 @@ introduced.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-AUTOMATION_CONFLICT"></a>`AUTOMATION_CONFLICT` | 409 | yes | Automation changed | Another change to this automation landed first. Read it again and retry. |
+| <a id="error-AUTOMATION_ENDED"></a>`AUTOMATION_ENDED` | 409 | no | Automation ended | A completed or expired automation cannot resume. Create a new one. |
+| <a id="error-AUTOMATION_LIMIT_REACHED"></a>`AUTOMATION_LIMIT_REACHED` | 409 | no | Too many automations | An owner holds at most 50 live automations and creates at most 30 an hour. Delete some first. |
 | <a id="error-AGENT_KEY_LIMIT_REACHED"></a>`AGENT_KEY_LIMIT_REACHED` | 409 | no | Too many agent keys | A project holds at most 100 active agent keys. Revoke one first. |
 | <a id="error-APPROVAL_DECIDED"></a>`APPROVAL_DECIDED` | 409 | no | Approval already decided | The approval was already approved, rejected or expired; a decision is final. Read it with GET /v1/policy/approvals/{id}. |
 | <a id="error-CLIENT_REFERENCE_EXISTS"></a>`CLIENT_REFERENCE_EXISTS` | 409 | no | clientReference already used | Use a new clientReference, or read the existing intent. |

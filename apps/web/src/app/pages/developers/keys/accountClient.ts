@@ -43,7 +43,8 @@ function failure(status: number, code: string, message: string, issues: readonly
   return { code, message, status, issues, requestId, retryable: status === 429 || status >= 500, unreachable: status === 0 };
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+/** One call of an account-session route (also the desk's automations, which use the same session). */
+export async function accountRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { accept: "application/json" };
   if (options.token) headers[ACCOUNT_SESSION_HEADER] = options.token;
   if (options.apiKey) headers["X-Kletia-Key"] = options.apiKey;
@@ -92,27 +93,27 @@ const projectPath = (projectId: string) => `/accounts/projects/${encodeURICompon
 
 export const accountApi = {
   nonce: (body: { walletKind: "evm" | "solana"; address: string; chainId?: number }) =>
-    request<AccountNonceResponse>("/accounts/nonce", { method: "POST", body }),
-  signIn: (message: string, signature: string) => request<AccountSignInResponse>("/accounts/session", { method: "POST", body: { message, signature } }),
+    accountRequest<AccountNonceResponse>("/accounts/nonce", { method: "POST", body }),
+  signIn: (message: string, signature: string) => accountRequest<AccountSignInResponse>("/accounts/session", { method: "POST", body: { message, signature } }),
   session: (token: string, signal?: AbortSignal) =>
-    request<{ session: AccountSessionView }>("/accounts/session", { token, ...(signal ? { signal } : {}) }).then((reply) => reply.session),
-  signOut: (token: string) => request<void>("/accounts/session", { method: "DELETE", token }),
+    accountRequest<{ session: AccountSessionView }>("/accounts/session", { token, ...(signal ? { signal } : {}) }).then((reply) => reply.session),
+  signOut: (token: string) => accountRequest<void>("/accounts/session", { method: "DELETE", token }),
   projects: (token: string, signal?: AbortSignal) =>
-    request<{ projects: AccountProjectView[] }>("/accounts/projects", { token, ...(signal ? { signal } : {}) }).then((reply) => reply.projects),
+    accountRequest<{ projects: AccountProjectView[] }>("/accounts/projects", { token, ...(signal ? { signal } : {}) }).then((reply) => reply.projects),
   createProject: (token: string, name: string, sandbox: boolean) =>
-    request<{ project: AccountProjectView; key: IssuedAccountKey }>("/accounts/projects", { method: "POST", token, body: { name, sandbox } }),
+    accountRequest<{ project: AccountProjectView; key: IssuedAccountKey }>("/accounts/projects", { method: "POST", token, body: { name, sandbox } }),
   claim: (token: string, apiKey: string) =>
-    request<{ project: AccountProjectView; claimed: boolean }>("/accounts/projects/claim", { method: "POST", token, apiKey }),
+    accountRequest<{ project: AccountProjectView; claimed: boolean }>("/accounts/projects/claim", { method: "POST", token, apiKey }),
   keys: (token: string, projectId: string, signal?: AbortSignal) =>
-    request<{ keys: AccountKeyView[] }>(`${projectPath(projectId)}/keys`, { token, ...(signal ? { signal } : {}) }).then((reply) => reply.keys),
+    accountRequest<{ keys: AccountKeyView[] }>(`${projectPath(projectId)}/keys`, { token, ...(signal ? { signal } : {}) }).then((reply) => reply.keys),
   issueKey: (token: string, projectId: string, name: string, sandbox: boolean) =>
-    request<{ key: IssuedAccountKey }>(`${projectPath(projectId)}/keys`, { method: "POST", token, body: { name, sandbox } }).then((reply) => reply.key),
+    accountRequest<{ key: IssuedAccountKey }>(`${projectPath(projectId)}/keys`, { method: "POST", token, body: { name, sandbox } }).then((reply) => reply.key),
   rotateKey: (token: string, projectId: string, keyId: string, graceSeconds: number) =>
-    request<{ key: RotatedAccountKey }>(`${projectPath(projectId)}/keys/${encodeURIComponent(keyId)}/rotate`, { method: "POST", token, body: { graceSeconds } }).then(
+    accountRequest<{ key: RotatedAccountKey }>(`${projectPath(projectId)}/keys/${encodeURIComponent(keyId)}/rotate`, { method: "POST", token, body: { graceSeconds } }).then(
       (reply) => reply.key,
     ),
   revokeKey: (token: string, projectId: string, keyId: string) =>
-    request<void>(`${projectPath(projectId)}/keys/${encodeURIComponent(keyId)}`, { method: "DELETE", token }),
+    accountRequest<void>(`${projectPath(projectId)}/keys/${encodeURIComponent(keyId)}`, { method: "DELETE", token }),
   activity: (token: string, signal?: AbortSignal) =>
-    request<{ activity: AccountActivityView[] }>("/accounts/activity", { token, ...(signal ? { signal } : {}) }).then((reply) => reply.activity),
+    accountRequest<{ activity: AccountActivityView[] }>("/accounts/activity", { token, ...(signal ? { signal } : {}) }).then((reply) => reply.activity),
 };

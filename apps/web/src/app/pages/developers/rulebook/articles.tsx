@@ -56,6 +56,7 @@ const PERMISSION_TEXT: Readonly<Record<PolicyPermission, { label: string; meanin
   storeIntents: { label: "Store intents", meaning: "Store intents (POST /v1/intents without a dry run). On by default." },
   mcpCreateIntents: { label: "Store intents through MCP", meaning: "Use the MCP create_intent tool." },
   links: { label: "Publish links", meaning: "Create intent links, bounded by this rule book." },
+  automations: { label: "Create automations", meaning: "Create and resume automations whose runs plan intents within this rule book." },
 };
 
 /**

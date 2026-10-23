@@ -32,7 +32,7 @@ import type { ContractPhrase } from "../contracts/directory.js";
 import { candidates, keywordCandidates } from "./fuzzy.js";
 import { isEnglishWord } from "./englishWords.js";
 import { hasQuestionMark, questionRefusal, readOnlyRates, readOnlyRatesRefusal } from "../readOnly.js";
-import { EXACT_OF_PREVIOUS, lex, normalizeClause, readClause, spellNumbers, stripLabel, symbolTypoCandidates, type Token } from "../goal/index.js";
+import { abstractClause, EXACT_OF_PREVIOUS, lex, normalizeClause, readClause, spellNumbers, stripLabel, symbolTypoCandidates, type Token } from "../goal/index.js";
 import { amountInWords, groupedThousands } from "../goal/amounts.js";
 import {
   clauseRecord,
@@ -1078,7 +1078,8 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
     const plural = steps.length > 0 ? pluralReference(clause, steps, index) : null;
     if (plural) throw plural;
     // L1 (the relaxed sentence shapes) consumes no closed-class word: a clause that holds one is read by the Goal reader only.
-    const shapes = record.hits.length === 0;
+    // An abstract goal or idiom ("prepare 100 usdc on optimism", "fund alice.eth with ...") is read whole by the Goal reader.
+    const shapes = record.hits.length === 0 && !abstractClause(normalizeClause(clause));
     // "stake something": the vague noun is read before the filler pass drops it.
     let parsed = shapes ? parseContractClause(clause, phrases, index, previous) ?? vagueClause(clause, false) ?? vagueClause(original, false) ?? parseClause(clause, previous) : null;
     let fixed: ReturnType<typeof correctClause> | undefined;

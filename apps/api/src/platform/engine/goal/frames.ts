@@ -711,7 +711,12 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
           want.venue = venue;
           want.custody = venue.best ? { kind: "venue", category: "any" } : venue.provider && !venue.lending ? stakingCustody(venue) : lendingCustody(venue, venue.lending ? "lending" : "any");
         } else if (WITH_CONNECTORS.has(conn ?? "")) {
-          if (venue.provider && (verb?.op === "stake" || verb?.kind === "earn" || !verb)) {
+          if (venue.best && (verb?.op === "stake" || verb?.kind === "earn")) {
+            // "stake half my sol with the best provider": the solver ranks the venue.
+            if (want.venue) return null;
+            want.venue = venue;
+            want.custody = verb.op === "stake" ? { kind: "venue", category: "staking" } : { kind: "venue", category: "any" };
+          } else if (venue.provider && (verb?.op === "stake" || verb?.kind === "earn" || !verb)) {
             if (want.venue) return null;
             want.venue = venue;
             want.custody = stakingCustody(venue);

@@ -1480,6 +1480,198 @@
    "from": "refused",
    "to": "ready",
    "why": "Strict-path safety net inserts the crossing leg that carries the swap output from Solana to Base before the deposit; the strict-mode shape now shows that leg (lead: evalHarness strictShape) and the end state equals the corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS009",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"exit all my lending positions\" is read as exit-all (position custody, category lending); the solver asks the scope when a network could not be read, then lists every withdraw in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS019",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"go 100% stablecoins on base\" is a rebalance on the asset axis (any-stable 10 000 bps, scope Base); every computed swap is listed in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS022",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"fund alice.eth with 25 usdc on base\" is the payment \"send 25 usdc to alice.eth on base\" (rule abstract:fund); amount, token, network and recipient are copied as typed; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS042",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"wrap 0.1 eth on base\" is the 1:1 wrap step, read as the swap ETH -> WETH on Base (rule abstract:wrap); amount and network as typed."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS047",
+   "from": "refused",
+   "to": "ready",
+   "why": "The payment purpose \"rent of\" is consumed by rule abstract:paymentPurpose; the payment is read as typed and equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS049",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"make sure alice.eth gets exactly 50 usdc on arbitrum\" is one exact transfer of the stated amount on Arbitrum (rule abstract:exactly); equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS050",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"close everything on base\" is exit-all of the positions on Base; every withdraw is listed in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS051",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"with the best provider\" is a best-venue phrase: the solver ranks the staking provider (default chip); amount half of the SOL as before; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS056",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"even out my usdc between base and arbitrum\" is a network-axis rebalance 50/50; the one computed bridge is listed in a moves confirm and equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS057",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"withdraw all my usdc from everywhere\" is exit-all of USDC positions on every network; unread networks are asked (SCOPE_AMBIGUOUS), never treated as empty."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS060",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"on the safest venue\" is a best-venue phrase: the deposit of the USDC on Base goes to the ranked venue (default chip), as \"put my usdc to work on base\" reads; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS063",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"get my sol ready for a payment of 50 usdc on solana\" is a SOL -> 50 USDC exact-output swap on Solana (rule abstract:ensure); the SOL amount is priced (chip); equals the corpus plan shape."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS009",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"exit all my lending positions\" is read as exit-all (position custody, category lending); the solver asks the scope when a network could not be read, then lists every withdraw in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS019",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"go 100% stablecoins on base\" is a rebalance on the asset axis (any-stable 10 000 bps, scope Base); every computed swap is listed in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS022",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"fund alice.eth with 25 usdc on base\" is the payment \"send 25 usdc to alice.eth on base\" (rule abstract:fund); amount, token, network and recipient are copied as typed; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS042",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"wrap 0.1 eth on base\" is the 1:1 wrap step, read as the swap ETH -> WETH on Base (rule abstract:wrap); amount and network as typed."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS047",
+   "from": "refused",
+   "to": "ready",
+   "why": "The payment purpose \"rent of\" is consumed by rule abstract:paymentPurpose; the payment is read as typed and equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS049",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"make sure alice.eth gets exactly 50 usdc on arbitrum\" is one exact transfer of the stated amount on Arbitrum (rule abstract:exactly); equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS050",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"close everything on base\" is exit-all of the positions on Base; every withdraw is listed in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS051",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"with the best provider\" is a best-venue phrase: the solver ranks the staking provider (default chip); amount half of the SOL as before; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS056",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"even out my usdc between base and arbitrum\" is a network-axis rebalance 50/50; the one computed bridge is listed in a moves confirm and equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS057",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"withdraw all my usdc from everywhere\" is exit-all of USDC positions on every network; unread networks are asked (SCOPE_AMBIGUOUS), never treated as empty."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS060",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"on the safest venue\" is a best-venue phrase: the deposit of the USDC on Base goes to the ranked venue (default chip), as \"put my usdc to work on base\" reads; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS063",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"get my sol ready for a payment of 50 usdc on solana\" is a SOL -> 50 USDC exact-output swap on Solana (rule abstract:ensure); the SOL amount is priced (chip); equals the corpus plan shape."
   }
  ]
 }

@@ -45,6 +45,7 @@ import {
   getAsset,
   isDecimalAmount,
   resolveContractAsset,
+  sameAccount,
   validateSessionCreateRequest,
   validateSessionIntentRequest,
   type AccountId,
@@ -661,9 +662,10 @@ function useReference(reference: string | undefined, use: number, maxIntents: nu
   return `${reference.slice(0, 80 - suffix.length)}${suffix}`;
 }
 
+/** Same account set: Solana addresses are case-sensitive, so compare by CAIP account, not lower-cased text. */
 function sameAccounts(left: readonly string[], right: readonly string[]): boolean {
-  const normalize = (accounts: readonly string[]) => accounts.map((account) => account.toLowerCase()).sort().join("\n");
-  return normalize(left) === normalize(right);
+  return left.length === right.length && left.every((account) => right.some((other) => sameAccount(account, other)))
+    && right.every((account) => left.some((other) => sameAccount(account, other)));
 }
 
 export interface SessionIntentResult {

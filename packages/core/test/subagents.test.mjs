@@ -170,7 +170,7 @@ test("sub-agents start permissionless and never get what the chain lacks", () =>
   const parent = { schema: "kletia.policy/v1", mode: "live", permissions: { createChildKeys: true, mcpCreateIntents: true, webhooks: true } };
   const plain = checkSubagentPolicy({ child: { schema: "kletia.policy/v1", mode: "live" }, chain: chainOf(parent), childDepth: 2 });
   assert.ok(plain.ok);
-  assert.deepEqual(plain.document.permissions, { createChildKeys: false, webhooks: false, registerContracts: false, sessions: false, storeIntents: true, mcpCreateIntents: false, links: false });
+  assert.deepEqual(plain.document.permissions, { createChildKeys: false, webhooks: false, registerContracts: false, sessions: false, storeIntents: true, mcpCreateIntents: false, links: false, automations: false });
   const nested = checkSubagentPolicy({ child: { schema: "kletia.policy/v1", permissions: { createChildKeys: true, mcpCreateIntents: true } }, chain: chainOf(parent), childDepth: 2 });
   assert.ok(nested.ok);
   assert.equal(nested.document.permissions.createChildKeys, true);
@@ -184,6 +184,19 @@ test("sub-agents start permissionless and never get what the chain lacks", () =>
   assert.deepEqual(lacking.issues.map((issue) => issue.path), ["permissions.storeIntents"]);
   // The observer parent: a live child is wider than dry-run.
   assert.deepEqual(checkSubagentPolicy({ child: { schema: "kletia.policy/v1", mode: "live" }, chain: chainOf(null), childDepth: 2 }).issues.map((issue) => issue.path), ["mode"]);
+});
+
+test("sub-agent perps stay inside the parent's perps section", () => {
+  const off = { schema: "kletia.policy/v1", mode: "live", permissions: { createChildKeys: true } };
+  const on = { ...off, perps: { enabled: true, maxLeverage: 5, venues: ["gmx-v2"] } };
+  const ask = (perps, parent) => checkSubagentPolicy({ child: { schema: "kletia.policy/v1", mode: "live", perps }, chain: chainOf(parent), childDepth: 2 });
+  assert.ok(ask(undefined, off).ok, "no perps section asks for nothing");
+  assert.deepEqual(ask({ enabled: true, maxLeverage: 2, venues: ["gmx-v2"] }, off).issues.map((issue) => issue.path), ["perps.enabled"]);
+  assert.ok(ask({ enabled: true, maxLeverage: 5, venues: ["gmx-v2"] }, on).ok);
+  assert.deepEqual(ask({ enabled: true, maxLeverage: 10, venues: ["gmx-v2"] }, on).issues.map((issue) => issue.path), ["perps.maxLeverage"]);
+  assert.deepEqual(ask({ enabled: true, venues: ["gmx-v2"] }, on).issues.map((issue) => issue.path), ["perps.maxLeverage"]);
+  assert.deepEqual(ask({ enabled: true, maxLeverage: 3, venues: ["hyperliquid"] }, on).issues.map((issue) => issue.path), ["perps.venues"]);
+  assert.deepEqual(ask({ enabled: true, maxLeverage: 3 }, on).issues.map((issue) => issue.path), ["perps.venues"]);
 });
 
 test("approver identities, account wildcards, expiry and depth", () => {

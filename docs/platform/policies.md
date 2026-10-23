@@ -82,6 +82,7 @@ Idempotency-Key: 4c1e…
 | Stored intents (`POST /v1/intents`) | yes | `permissions.storeIntents` and the chain |
 | MCP `create_intent` | yes | `permissions.mcpCreateIntents` |
 | `POST /v1/links` (publish a link) | yes | `permissions.links` and the chain |
+| Automations (create, change, resume) | yes | `permissions.automations`; every run's plan is checked against the chain |
 | Approve or reject | yes, outside the requester's subtree | never |
 | Reads (`GET /v1/policy/*`, decisions, spend) | the whole project | itself and its subtree |
 

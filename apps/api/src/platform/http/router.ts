@@ -111,6 +111,8 @@ import { installPolicyGate, startPolicyBackground } from "./policies/install.js"
 import { parseUsageScope, subtreeUsage } from "./policies/usage.js";
 import { linkHandlers } from "./links/handlers.js";
 import { accountHandlers } from "./accounts/handlers.js";
+import { automationHandlers } from "../automation/handlers.js";
+import { startAutomationEvaluator } from "../automation/evaluator.js";
 import { afterLinkSubmit, beforeLinkPrepare } from "./links/uses.js";
 import { startLinkBackground } from "./links/watcher.js";
 import { platformSecretStatus } from "./secrets.js";
@@ -237,6 +239,17 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/blinks/:id", auth: "public", publishable: true },
   { method: "post", path: "/blinks/:id", auth: "public", publishable: true },
   { method: "post", path: "/blinks/:id/next", auth: "public", publishable: true },
+  // Automations (automation/): the API key's own, or (without a key) a desk wallet session's.
+  { method: "post", path: "/automations", auth: "public" },
+  { method: "get", path: "/automations", auth: "public" },
+  // Before /automations/:id, which would otherwise capture "inbox".
+  { method: "get", path: "/automations/inbox", auth: "public" },
+  { method: "get", path: "/automations/:id", auth: "public" },
+  { method: "patch", path: "/automations/:id", auth: "public" },
+  { method: "delete", path: "/automations/:id", auth: "public" },
+  { method: "post", path: "/automations/:id/pause", auth: "public" },
+  { method: "post", path: "/automations/:id/resume", auth: "public" },
+  { method: "get", path: "/automations/:id/runs", auth: "public" },
   { method: "post", path: "/contracts", auth: "key" },
   { method: "get", path: "/contracts", auth: "key" },
   // Before /contracts/:id, which would otherwise capture "inspect".
@@ -891,6 +904,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ...linkHandlers(),
     ...accountHandlers(),
     ...dataHandlers(),
+    ...automationHandlers(),
     "post /webhooks": [
       requireApiKey,
       forbidAgent("webhooks"),
@@ -1011,7 +1025,8 @@ let stopBackground: (() => void) | null = null;
 
 /**
  * Starts the settlement poller, the webhook dispatcher, the usage flusher,
- * the contract pin watcher, the receipt issuer and transparency log, and the
+ * the contract pin watcher, the receipt issuer and transparency log, the
+ * automation evaluator, and the
  * hourly pruning of idempotency records, delivery logs, expired sessions,
  * previews and clarify threads, once per process. Returns an idempotent stop function. Call it on long-running
  * hosts only (not in serverless request handlers; there usage is written
@@ -1033,6 +1048,7 @@ export function startPlatformBackground(options: PlatformBackgroundOptions = {})
     startReceiptLog(),
     startPolicyBackground(),
     startLinkBackground(),
+    startAutomationEvaluator(),
   ];
   const stop = () => {
     if (stopBackground !== stop) return;

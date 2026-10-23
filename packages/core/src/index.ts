@@ -29,3 +29,4 @@ export * from "./capabilities.js";
 export * from "./admin.js";
 export * from "./accounts.js";
 export * from "./data.js";
+export * from "./automation.js";

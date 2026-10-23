@@ -28,9 +28,10 @@ const COPY = {
       tools: "Tools",
       activity: "Activity",
       dashboard: "Dashboard",
+      automations: "Automations",
     },
-    /** The view nav under 1024 px: six views share 360 px, so the dashboard's label is short there. */
-    viewNavShort: { dashboard: "Data" },
+    /** The view nav under 1024 px: short labels where the full name would crowd the bar. */
+    viewNavShort: { dashboard: "Data", automations: "Automate" } as Readonly<Record<string, string>>,
     tasksButton: (count: number) => `Tasks (${count})`,
     tasksView: (count: number) => `Tasks ${count}`,
     skipToComposer: "Skip to the composer",
@@ -105,6 +106,7 @@ const COPY = {
       activity: "Opened your activity.",
       tools: "Opened the tools.",
       dashboard: "Opened your dashboard.",
+      automations: "Opened your automations.",
     },
   },
 
@@ -226,6 +228,7 @@ const COPY = {
     pickedUpFromAsk: "Picked up from the Solana Ask tab",
     questionCleared: "This question was cleared when the page reloaded. Type the task again.",
     sentenceForgotten: "The sentence stays in this tab's memory only; after a reload the title is all that is kept.",
+    automationRun: "An automation planned this. Nothing is signed yet: review it, then sign with your wallet.",
     announcements: {
       added: "Task added",
       question: (title: string) => `Kletia has a question about ${title}`,

@@ -6,7 +6,7 @@
  * only when one is needed.
  *
  * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools,
- * /app/dashboard) are the same desk (the Dashboard loads as its own chunk): the thread stays mounted under every view, because unmounting a
+ * /app/dashboard, /app/automations) are the same desk (the Dashboard and Automations load as their own chunks): the thread stays mounted under every view, because unmounting a
  * task's execution would cancel its run. One task signs at a time (the
  * store's signing lock, enforced by the execution hook).
  */
@@ -52,6 +52,8 @@ import { TaskThread } from "./tasks/TaskThread";
 import { ToolsView } from "./tools/ToolsView";
 
 const copy = DESK_COPY;
+/** Its own chunk: wallet sign-in and the automation forms load only when the view opens. */
+const AutomationsView = lazy(() => import("./automations/AutomationsView"));
 
 /** The Dashboard view, read-only and loaded only when opened. */
 const DashboardView = lazy(() => import("./dashboard/DashboardView"));
@@ -270,6 +272,11 @@ export default function DeskApp() {
         {view === "dashboard" ? (
           <Suspense fallback={<p className="text-sm font-bold">{copy.dashboard.loading}</p>}>
             <DashboardView lane={lane} />
+          </Suspense>
+        ) : null}
+        {view === "automations" ? (
+          <Suspense fallback={null}>
+            <AutomationsView />
           </Suspense>
         ) : null}
         {emptyDesk ? (

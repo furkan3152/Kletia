@@ -8,8 +8,8 @@
  * - Revoking a key deletes its webhooks (deleteWebhooksOfKey, from keys.ts).
  * - Event types: the intent events of the key's intents, the contract
  *   registration events of the key's registrations, the intent link events
- *   of its links, and the Rule Book (`policy.*`) and key (`key.*`) events
- *   about it. A webhook created without `events` subscribes to every type
+ *   of its links, the automation events of its automations, and the Rule
+ *   Book (`policy.*`) and key (`key.*`) events about it. A webhook created without `events` subscribes to every type
  *   that exists at creation time, so older webhooks never start receiving
  *   types added later.
  * - `scope`: `self` (default) receives events of the key's own intents,
@@ -18,11 +18,13 @@
  *   book events), so a parent can watch its agents.
  */
 import {
+  AUTOMATION_EVENT_TYPES,
   CONTRACT_EVENT_TYPES,
   KEY_EVENT_TYPES,
   LINK_EVENT_TYPES,
   POLICY_EVENT_TYPES,
   RECEIPT_EVENT_TYPE,
+  type AutomationEventType,
   type ContractEventType,
   type KeyEventType,
   type LinkEventType,
@@ -47,13 +49,14 @@ const EVENT_TYPE_SET: Readonly<Record<IntentEventType, true>> = {
  * contract and link events (routed by the owning key) and Rule Book and key
  * events (routed by the subject key and opted-in ancestors).
  */
-export type WebhookEventType = IntentEventType | ReceiptEventType | ContractEventType | LinkEventType | PolicyEventType | KeyEventType;
+export type WebhookEventType = IntentEventType | ReceiptEventType | ContractEventType | LinkEventType | AutomationEventType | PolicyEventType | KeyEventType;
 
 export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = Object.freeze([
   ...(Object.keys(EVENT_TYPE_SET) as IntentEventType[]),
   RECEIPT_EVENT_TYPE,
   ...CONTRACT_EVENT_TYPES,
   ...LINK_EVENT_TYPES,
+  ...AUTOMATION_EVENT_TYPES,
   ...POLICY_EVENT_TYPES,
   ...KEY_EVENT_TYPES,
 ]);

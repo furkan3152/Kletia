@@ -1,6 +1,6 @@
 /**
  * Views of the desk under 1024 px: Desk, Tasks, Holdings, Tools,
- * Activity; sticky. The five share the width, so all of them fit a 360
+ * Holdings, Tools, Orders, Activity; sticky. The six share the width, so all of
  * px phone without scrolling (it still scrolls sideways if a larger text
  * setting needs it).
  */
@@ -8,7 +8,7 @@ import { DESK_COPY } from "../content/copy";
 import type { DeskView } from "../state/deskModel";
 
 const copy = DESK_COPY.header;
-const VIEWS: readonly DeskView[] = ["desk", "tasks", "holdings", "tools", "activity"];
+const VIEWS: readonly DeskView[] = ["desk", "tasks", "holdings", "tools", "orders", "activity"];
 
 export function DeskViewNav({ view, onView, taskCount }: { readonly view: DeskView; readonly onView: (view: DeskView) => void; readonly taskCount: number }) {
   return (

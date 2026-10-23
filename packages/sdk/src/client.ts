@@ -491,6 +491,8 @@ const PUBLISHABLE_ROUTES: readonly { readonly method: string; readonly pattern: 
   { method: "POST", pattern: /^\/blinks\/[^/]+(?:\/next)?$/iu },
   { method: "GET", pattern: /^\/sessions\/[^/]+$/iu },
   { method: "POST", pattern: /^\/sessions(?:\/[^/]+\/intents)?$/iu },
+  { method: "GET", pattern: /^\/orders(?:\/[^/]+)?$/iu },
+  { method: "POST", pattern: /^\/orders\/(?:quote|prepare|submit|[^/]+\/cancel)$/iu },
 ];
 
 function routePath(path: string): string | null {

@@ -1,17 +1,17 @@
 /**
- * The execution badge on a protocol card: what this deployment does with the
- * venue, read from GET /v1/protocols. Executable (planned and run by Platform
- * API v1), Executable named (a named venue whose transactions run through
- * another protocol, e.g. Raydium through the Jupiter program), Data feed
- * (read for limits and guards), Console only (the Kletia console's own
- * engines, not the API), plus Read only (names, risk screens), Kletia service
- * (a separate service) and Listed (no adapter here). Without live flags (the
- * registry view) no execution badge is printed: the registry cannot know
- * which adapters a deployment runs.
+ * The execution badge on a protocol card: what this
+ * deployment does with the venue, read from GET /v1/protocols. Executable
+ * (planned and run by Platform API v1), Executable named (a named venue whose
+ * transactions run through another protocol, e.g. Raydium through the
+ * Jupiter program), Data feed (read for limits and guards), Console only (the
+ * Kletia console's own engines, not the API), plus Read only (names, risk
+ * screens), Kletia service (a separate service), Native orders (/v1/orders)
+ * and Listed (no adapter here). Without live flags (the registry view) no execution badge is
+ * printed: the registry cannot know which adapters a deployment runs.
  */
 import { isExecutableThroughApi, isOwnContractEntry, surfaceOf } from "../../site/protocolCount.ts";
 
-export type ProtocolBadgeKind = "executable" | "named" | "data" | "read" | "console" | "service" | "listed";
+export type ProtocolBadgeKind = "executable" | "named" | "data" | "read" | "console" | "service" | "orders" | "listed";
 
 export interface ProtocolBadge {
   readonly kind: ProtocolBadgeKind;
@@ -40,6 +40,7 @@ const BADGES: Readonly<Record<ProtocolBadgeKind, ProtocolBadge>> = {
   read: { kind: "read", label: "Read only", help: "Kletia reads data here (names, risk screens). Nothing is executed." },
   console: { kind: "console", label: "Console only", help: "Executed by the Kletia console's own engines, not by Platform API v1." },
   service: { kind: "service", label: "Kletia service", help: "Executed by a separate Kletia service, not by Platform API v1." },
+  orders: { kind: "orders", label: "Native orders", help: "Limit or DCA orders built by /v1/orders and filled by the protocol's own keepers or solvers after one signature." },
   listed: { kind: "listed", label: "Listed", help: "In the registry, but this deployment has no execution adapter for it." },
 };
 
@@ -54,6 +55,7 @@ export function protocolBadge(entry: BadgeInput): ProtocolBadge | null {
   const surface = surfaceOf(entry);
   if (surface === "console") return BADGES.console;
   if (surface === "service") return BADGES.service;
+  if (surface === "orders") return BADGES.orders;
   const capabilities = Array.isArray(entry.capabilities) ? entry.capabilities : [];
   const readOnly = capabilities.length > 0 && capabilities.every((capability) => capability === "discover");
   if (entry.category === "data") return BADGES.data;

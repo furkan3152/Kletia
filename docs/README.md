@@ -42,6 +42,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Receipts](platform/receipts.md): signed, selectively disclosed, independently verifiable receipts.
 - [Policies](platform/policies.md): the Rule Book, agent keys and approvals.
 - [Intent links](platform/links.md): shareable, bounded intents at `/go/<id>`.
+- [Native orders](platform/orders.md): limit and DCA orders the protocol fills after one signature (Jupiter on Solana, CoW Protocol on Ethereum, Arbitrum and Base).
 - [MCP server](platform/mcp.md): read-only Model Context Protocol tools at `/v1/mcp` for AI agents.
 - [Embed web component](platform/embed.md): `<kletia-intent>` and `mountKletiaIntent()` for any site, the frame bridge protocol and server-side verification.
 - [OpenAPI document](platform/openapi.json) and [API collections](platform/collections/README.md): the machine-readable contract (generated from the API source, drift-checked by `npm run check:openapi`) and a Postman v2.1 collection for Postman, Insomnia, Bruno and Hoppscotch.

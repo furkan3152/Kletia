@@ -5,9 +5,9 @@
  * network engines (Base, Arbitrum One, Arc) as inline engine tasks loaded
  * only when one is needed.
  *
- * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools) are the
- * same desk: the thread stays mounted under every view, because unmounting a
- * task's execution would cancel its run. One task signs at a time (the
+ * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools,
+ * /app/orders) are the same desk: the thread stays mounted under every view,
+ * because unmounting a task's execution would cancel its run. One task signs at a time (the
  * store's signing lock, enforced by the execution hook).
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -24,6 +24,7 @@ import { DeparturePicker } from "./composer/DeparturePicker";
 import { DESK_COPY } from "./content/copy";
 import { enterDeskMode, leaveDeskMode } from "./deskMode";
 import { HoldingsPanel } from "./holdings/HoldingsPanel";
+import { OrdersView } from "./orders/OrdersView";
 import { useDeskAccounts } from "./hooks/useDeskAccounts";
 import { useDeskUrlState } from "./hooks/useDeskUrlState";
 import { useHoldings } from "./hooks/useHoldings";
@@ -264,6 +265,7 @@ export default function DeskApp() {
         {view === "holdings" ? <section className="pb-8">{holdingsPanel(2)}</section> : null}
         {view === "tools" ? <ToolsView toolId={toolId} /> : null}
         {view === "activity" ? <ActivityView /> : null}
+        {view === "orders" ? <OrdersView /> : null}
         {emptyDesk ? (
           <DeskEmptyState departure={departure} actions={status.actions} health={status.health} healthAt={status.healthAt} onPick={(sentence) => composerRef.current?.fill(sentence)} />
         ) : null}

@@ -37,7 +37,7 @@ describe("planner: lending venues", () => {
     assert.deepEqual(shape(graph), ["s1:deposit/morpho@base#base:morpho:steakhouse-prime-usdc"]);
     assert.equal(lending.calls[0]?.venue, "base:morpho:steakhouse-prime-usdc");
     assert.equal(graph.steps[0]?.input?.amount, "100000000");
-    assert.match(graph.steps[0]?.warnings?.[0] ?? "", /Using Steakhouse Prime USDC; name another Morpho Vaults venue with params.venue \(gauntlet-usdc-prime, gauntlet-usdc-prime-v1, spark-usdc\)/u);
+    assert.match(graph.steps[0]?.warnings?.[0] ?? "", /Using Steakhouse Prime USDC; name another Morpho Vaults venue with params.venue \(gauntlet-usdc-prime, gauntlet-usdc-prime-v1, spark-usdc, steakhouse-high-yield-usdc, grove-steakhouse-usdc\)/u);
     assert.deepEqual(validateIntentGraph(graph), []);
   });
 
@@ -159,9 +159,9 @@ describe("planner: lending venues", () => {
 });
 
 describe("venue listing order (/v1/venues)", () => {
-  it("lists the existing Ethereum venues first and the round-6 venues after them", () => {
+  it("lists the existing Ethereum venues first and the round-6 and round-9 venues after them", () => {
     const protocols = [...new Set(evmLendingVenues({ network: "ethereum" }).map((venue) => venue.protocol))];
-    assert.deepEqual(protocols, ["aave-v3", "compound-v3", "morpho", "sparklend", "spark-savings", "fluid", "yearn-v3"]);
+    assert.deepEqual(protocols, ["aave-v3", "compound-v3", "morpho", "sparklend", "spark-savings", "fluid", "yearn-v3", "sky", "ethena"]);
     const savings = evmLendingVenues({ network: "ethereum", protocol: "spark-savings" }).map((venue) => venue.slug);
     assert.deepEqual(savings, ["usdc", "spusdc", "speth"], "sUSDC first: Ethereum's default USDC savings venue");
     assert.deepEqual(evmLendingVenues({ network: "base", protocol: "fluid" }).map((venue) => venue.id), ["base:fluid:usdc", "base:fluid:weth"]);

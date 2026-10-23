@@ -15,7 +15,7 @@ import { vaultFamilyMetrics } from "./vaultFamilies.js";
 const CACHE_TTL_MS = 60_000;
 const cache = new Map<string, { readonly value: Promise<LendingMetrics>; readonly expiresAt: number }>();
 
-const EVM_LENDING_KINDS: readonly string[] = ["aave-reserve", "comet", "erc4626", "ctoken", "spark-vault", "fluid-ftoken", "yearn-vault"];
+const EVM_LENDING_KINDS: readonly string[] = ["aave-reserve", "comet", "erc4626", "ctoken", "spark-vault", "fluid-ftoken", "yearn-vault", "savings-vault"];
 
 export function isEvmLendingVenue(venue: { readonly kind: string; readonly network: NetworkKey }): venue is EvmLendingVenue {
   return EVM_LENDING_KINDS.includes(venue.kind) && CHAINS[venue.network].vm === "evm";
@@ -33,6 +33,7 @@ function read(venue: EvmLendingVenue): Promise<LendingMetrics> {
     case "spark-vault":
     case "fluid-ftoken":
     case "yearn-vault":
+    case "savings-vault":
       return vaultFamilyMetrics(venue);
   }
 }

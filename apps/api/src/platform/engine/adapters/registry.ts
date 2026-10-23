@@ -18,6 +18,7 @@ import { compoundV3Adapter } from "./lending/compoundV3.js";
 import { erc4626Adapter } from "./lending/erc4626.js";
 import { fluidAdapter } from "./lending/fluid.js";
 import { moonwellAdapter } from "./lending/moonwell.js";
+import { ethenaAdapter, skyAdapter } from "./lending/savings.js";
 import { sparkSavingsAdapter } from "./lending/sparkSavings.js";
 import { sparklendAdapter } from "./lending/sparklend.js";
 import { yearnAdapter } from "./lending/yearn.js";
@@ -31,8 +32,10 @@ import { jitoStakePoolAdapter, sanctumStakePoolAdapter } from "./solanaStakePool
 import { solanaTransferAdapter } from "./solanaTransfer.js";
 import { etherfiAdapter } from "./staking/etherfi.js";
 import { fraxAdapter } from "./staking/frax.js";
+import { kelpAdapter } from "./staking/kelp.js";
 import { lidoAdapter } from "./staking/lido.js";
 import { mantleAdapter } from "./staking/mantle.js";
+import { renzoAdapter } from "./staking/renzo.js";
 import { rocketPoolAdapter } from "./staking/rocketPool.js";
 import { staderAdapter } from "./staking/stader.js";
 import type { AdapterRoute, ContractProtocolAdapter, ProtocolAdapter } from "./types.js";
@@ -47,7 +50,7 @@ export const CONTRACT_ADAPTERS: readonly ContractProtocolAdapter[] = Object.free
 
 /**
  * Default preference order when several adapters can serve a route (round 6
- * order, round 7 venues appended within their family). Venues whose package
+ * order, round 7 and round 9 venues appended within their family). Venues whose package
  * has not landed yet are `null` placeholders and are skipped, so wiring a
  * venue never reorders the list.
  */
@@ -84,6 +87,9 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     fluidAdapter,
     yearnAdapter,
     moonwellAdapter,
+    // round 9 EVM savings vaults
+    skyAdapter,
+    ethenaAdapter,
     jupiterLendAdapter,
     kaminoAdapter,
     lidoAdapter,
@@ -93,6 +99,9 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     staderAdapter,
     mantleAdapter,
     fraxAdapter,
+    // round 9 EVM restaking
+    kelpAdapter,
+    renzoAdapter,
     ...CONTRACT_ADAPTERS,
   ].filter((adapter): adapter is ProtocolAdapter => adapter !== null),
 );

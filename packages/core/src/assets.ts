@@ -160,6 +160,10 @@ export const ASSETS: readonly AssetDescriptor[] = Object.freeze([
   evm("ethereum", "ETHx", "Stader ETHx", "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b", 18, "liquid-staking"),
   evm("ethereum", "mETH", "Mantle Staked Ether", "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa", 18, "liquid-staking"),
   evm("ethereum", "sfrxETH", "Staked Frax Ether", "0xac3E018457B222d93114458476f3E3416Abbe38F", 18, "liquid-staking"),
+  // round 9 (symbol() and decimals() read back 2026-10-23): Ethena's USDe and the restaking tokens of Kelp and Renzo
+  evm("ethereum", "USDe", "Ethena USDe", "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3", 18, "stablecoin"),
+  evm("ethereum", "rsETH", "KelpDAO Restaked ETH", "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7", 18, "liquid-staking"),
+  evm("ethereum", "ezETH", "Renzo Restaked ETH", "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110", 18, "liquid-staking"),
   // OP Mainnet (USDC is Circle-native, CCTP V2 domain 2)
   native("optimism", "ETH"),
   evm("optimism", "USDC", "USD Coin", "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", 6, "stablecoin", "USDC"),

@@ -16,6 +16,8 @@ on-chain action in the browser.
 - Every admin write (deploy records, reverify, Safe proposals, fee rescans, redeploys, settings) needs a fresh wallet confirmation signed by the session's own wallet (single-use, 5 minutes): a stolen session cookie can only read. "Verified" deployments must be admin-controlled; others are "foreign", never exported or used as dependencies.
 - Intent engine: whole-balance readings for stake, deposit and withdraw ("stake my SOL", "withdraw my USDC from aave"), the single position when a venue and network are named, leading labels ("rent: send 500 USDC to …") kept as notes, and "fund my <network> wallet" goals. Eval: 97.9% correct on the original 338 prompts (was 95.9%), 0 wrong plans.
 
+- More EVM protocols, every pin read back on-chain ([EVM protocols](docs/platform/evm-protocols.md)): Curve USDC / USDT0 on Arbitrum; Compound V3 USDT and USDS (Ethereum) and AERO (Base); ten more Morpho vaults on all five networks; Sky Savings (sUSDS, sDAI) and Ethena sUSDe (deposit only, with the live cooldown shown); Kelp (rsETH, on-chain minimum) and Renzo (ezETH) restaking. The registry now lists 53 protocols.
+
 ### Fixed
 
 - The hosted site build failed from round 6 onwards (the web workspace did not depend on `@kletia/embed`), so an old site stayed live; the desk now runs the round-7 engine.

@@ -237,7 +237,7 @@ flowchart LR
 |---|---|---|
 | **Base** (`eip155:8453`) | Production | Uniswap V3, Aerodrome Slipstream, PancakeSwap V3, Kletia Intent Router V2 and Relay swaps (wstETH and cbETH bought at market instead of staking); bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3 (USDC, WETH, cbBTC, wstETH, cbETH), Compound V3, Morpho vaults, Moonwell, Spark Savings and Fluid; token launch (LaunchFactory V2), Basenames, x402 |
 | **Arbitrum One** (`eip155:42161`) | Production | Uniswap V3, PancakeSwap V3, Camelot V3 and Relay swaps; bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3 (incl. USDT0 and wstETH), Compound V3 (incl. USDT0), Morpho vaults, Spark Savings and Fluid |
-| **Ethereum** (`eip155:1`) | Production | Uniswap V3, PancakeSwap V3, Curve (3pool) and Relay swaps; transfers; bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3 (incl. USDT, wstETH, cbBTC), Compound V3 (incl. wstETH), Morpho vaults (incl. Steakhouse USDC, USDT and ETH), SparkLend, Spark Savings, Fluid and Yearn V3; Lido, Rocket Pool, ether.fi, Stader, Mantle LSP and Frax Ether staking; ENS recipients |
+| **Ethereum** (`eip155:1`) | Production | Uniswap V3, PancakeSwap V3, Curve (3pool) and Relay swaps; transfers; bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3 (incl. USDT, wstETH, cbBTC), Compound V3 (incl. wstETH, USDT, USDS), Morpho vaults (incl. Steakhouse USDC, USDT and ETH), SparkLend, Spark Savings, Sky Savings (sUSDS, sDAI), Ethena sUSDe (deposits), Fluid and Yearn V3; Lido, Rocket Pool, ether.fi, Stader, Mantle LSP and Frax Ether staking, Kelp and Renzo restaking; ENS recipients |
 | **OP Mainnet** (`eip155:10`) | Production | Uniswap V3, Velodrome Slipstream and Relay swaps; transfers; bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3 (incl. USDT and wstETH), Compound V3 (incl. USDT), Moonwell, Morpho vaults and Spark Savings |
 | **Polygon PoS** (`eip155:137`) | Production | Uniswap V3 and Relay swaps ("ETH" is read as WETH, with a note); transfers (POL and ERC-20); bridges (Relay, LI.FI, Across, Circle CCTP V2; deBridge DLN from Polygon only when named, since its POL fee has no price source yet); Aave V3 (incl. USDT0 and wstETH), Compound V3 (USDT0), Morpho vaults and Fluid |
 | **Solana** (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) | Production | Jupiter swaps, with Raydium, Orca and Meteora as named routes through the Jupiter program; liquid staking (JitoSOL and JupSOL stake pools and Marinade mSOL minted directly, competing with the Jupiter route) and native SOL staking to a validator; SOL/SPL/Token-2022 transfers; Jupiter Lend and Kamino deposit/withdraw; bridges to and from every EVM network above (Relay, deBridge DLN, Circle CCTP V2 from EVM; LI.FI into Solana); SNS recipients |
@@ -245,7 +245,7 @@ flowchart LR
 | **Arbitrum Sepolia** (`eip155:421614`) | Testnet | Uniswap V3 test-token swaps (pool quote only, 1 % slippage cap); Aave V3 USDC supply; Circle CCTP V2 (sandbox) to Arc Testnet and Solana Devnet |
 | **Solana Devnet** | Testnet | Transfers, portfolio, native SOL staking and CCTP V2 arrivals |
 
-The registry lists **49 protocols, 38 of them executable through the API**,
+The registry lists **53 protocols, 42 of them executable through the API**,
 plus your own contracts (EVM calls and Solana Actions). The numbers are what
 `GET /v1/protocols` returns: every registry entry that is not an own-contract
 slot, and those whose `executable` flag is set because an active adapter
@@ -277,7 +277,7 @@ flowchart TB
     subgraph API[Kletia API]
       V1["/v1 Platform API<br/>keys · intents · SSE · webhooks"]
       MCP["/v1/mcp<br/>read-only agent tools"]
-      Engine[Planner + clarify + journey + venue auction + adapters<br/>Uniswap · PancakeSwap · Camelot · Curve · Aerodrome · Velodrome · Jupiter · Relay · LI.FI · deBridge · Across · CCTP · Aave · Compound · Morpho · Moonwell · Spark · Fluid · Yearn · Lido · Rocket Pool · ether.fi · Stader · Mantle · Frax · Jito · Marinade · Sanctum · native staking · Jupiter Lend · Kamino · transfers]
+      Engine[Planner + clarify + journey + venue auction + adapters<br/>Uniswap · PancakeSwap · Camelot · Curve · Aerodrome · Velodrome · Jupiter · Relay · LI.FI · deBridge · Across · CCTP · Aave · Compound · Morpho · Moonwell · Spark · Sky · Ethena · Fluid · Yearn · Lido · Rocket Pool · ether.fi · Stader · Mantle · Frax · Kelp · Renzo · Jito · Marinade · Sanctum · native staking · Jupiter Lend · Kamino · transfers]
       Store[(Intent store<br/>Postgres or memory)]
       AppApi["/api console engines<br/>Base · Arc · Arbitrum · Solana"]
     end

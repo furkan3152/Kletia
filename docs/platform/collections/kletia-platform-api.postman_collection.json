@@ -126,6 +126,12 @@
       "description": "An automation id (au_…) from creating or listing automations."
     },
     {
+      "key": "orderId",
+      "value": "",
+      "type": "string",
+      "description": "A native order id (<protocol>:<network>:<native id>) from listing orders or a prepared order."
+    },
+    {
       "key": "threadId",
       "value": "",
       "type": "string",
@@ -4239,6 +4245,231 @@
               ]
             },
             "description": "404 POLICY_NOT_FOUND when nothing is pending.\n\nRequires an API key (set `apiKey`).\n\n`DELETE /v1/projects/current/policy/pending` · operationId `cancelPendingProjectPolicy` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "9dede65b-c8ba-59f4-be2a-1ae0d105716c",
+      "name": "Orders",
+      "description": "Native protocol orders that execute without the user online after one signature: Jupiter limit and DCA orders on Solana, CoW Protocol limit and TWAP orders on Ethereum, Arbitrum and Base. Kletia builds what the wallet signs and relays only the owner's checked signature.",
+      "item": [
+        {
+          "id": "b5c02733-4cef-59e0-a1da-444f55cff467",
+          "name": "Quote a native limit or DCA order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"limit\",\n  \"owner\": \"\",\n  \"sell\": \"\",\n  \"buy\": \"\",\n  \"amount\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/orders/quote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "orders",
+                "quote"
+              ]
+            },
+            "description": "Checks the order, picks the protocol (Solana: Jupiter Trigger for limit, Jupiter Recurring for DCA; Ethereum, Arbitrum, Base: CoW Protocol limit orders, TWAP for DCA) and compares it with the market. Nothing is stored. At most 30 quotes, preparations and cancels per minute from one address.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/orders/quote` · operationId `quoteOrder` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "48977a0e-05a9-5804-ba1f-08ed3ad56f0d",
+          "name": "Prepare what the owner signs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"limit\",\n  \"owner\": \"\",\n  \"sell\": \"\",\n  \"buy\": \"\",\n  \"amount\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/orders/prepare",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "orders",
+                "prepare"
+              ]
+            },
+            "description": "Jupiter: an unsigned transaction built by Jupiter and checked by Kletia (fee payer and sole signer, programs, compute budget). CoW limit: an approval of the GPv2VaultRelayer when the allowance is short, then the EIP-712 order. CoW TWAP: Safe transactions (only a Safe set up for ComposableCoW can create one; a plain account gets 422 ORDER_UNSUPPORTED with error.details.reason `twap-requires-safe`). Preparations live briefly on the instance that made them. At most 30 quotes, preparations and cancels per minute from one address.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/orders/prepare` · operationId `prepareOrder` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "bfd420f8-249d-5870-9a72-f1c6f7397055",
+          "name": "Relay the owner's signature",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preparationId\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/orders/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "orders",
+                "submit"
+              ]
+            },
+            "description": "Fail closed: a signed Solana transaction must carry byte for byte the prepared message (its sha256) and a valid signature of the owner, and nothing else is signed; an EIP-712 signature must recover to the owner over the prepared digest (ERC-1271 `isValidSignature` for contract owners). Otherwise 422 ORDER_SIGNATURE_MISMATCH and nothing is relayed. Then Kletia relays exactly that: Jupiter's `/execute`, or the CoW orderbook. Repeating the relayed submission returns the same result (Idempotent-Replayed); another signature for a used preparation is 409 ORDER_PREPARATION_USED.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/orders/submit` · operationId `submitOrder` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "f91af0bb-e035-59bb-ab93-5fa834e2e937",
+          "name": "An owner's native orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/orders?owner=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "owner",
+                  "value": "",
+                  "description": "Comma-separated EVM or Solana addresses (or CAIP-10 accounts)."
+                },
+                {
+                  "key": "network",
+                  "value": "solana",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Open and recent orders of up to 4 wallets on every protocol their family reaches (Solana: Jupiter; EVM: CoW on Ethereum, Arbitrum and Base), newest first. Jupiter reports its first page of open and of past orders; CoW the newest 20 per network. At most 60 lists per minute from one address.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/orders` · operationId `listOrders` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "46a4189a-ef06-51e2-8b0b-439a03edd859",
+          "name": "One native order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/orders/:id?owner=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "orders",
+                ":id"
+              ],
+              "query": [
+                {
+                  "key": "owner",
+                  "value": ""
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{orderId}}"
+                }
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`GET /v1/orders/{id}` · operationId `getOrder` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "87b10bf7-8267-58a1-adef-00413fa4e183",
+          "name": "Prepare the cancellation of an open order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/orders/:id/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "orders",
+                ":id",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{orderId}}"
+                }
+              ]
+            },
+            "description": "Jupiter: an unsigned cancel transaction (submit it like a creation). CoW, plain account: an EIP-712 OrderCancellations message (no gas; best effort until settlement). CoW, contract owner: GPv2Settlement.invalidateOrder as a Safe transaction. TWAP: ComposableCoW.remove as a Safe transaction. Orders that are not open are 409 ORDER_NOT_CANCELLABLE. At most 30 quotes, preparations and cancels per minute from one address.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/orders/{id}/cancel` · operationId `cancelOrder` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

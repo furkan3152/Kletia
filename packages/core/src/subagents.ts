@@ -31,7 +31,7 @@ import {
   type PolicyDocument,
   type PolicyPermission,
 } from "./policy.js";
-import { effectivePermissions } from "./policyEvaluate.js";
+import { effectivePermissions, effectivePerps } from "./policyEvaluate.js";
 
 export const SUBAGENT_LIMITS = Object.freeze({
   /** Agent keys below a project key (the limit of every agent key). */
@@ -54,8 +54,8 @@ export const SUBAGENT_LIMITS = Object.freeze({
 export const SUBAGENT_REQUEST_ID_PATTERN = /^sar_[0-9a-f]{32}$/u;
 /** Claim tokens: `kl_scl_` + 32 random bytes, base64url. */
 export const SUBAGENT_CLAIM_TOKEN_PATTERN = /^kl_scl_[A-Za-z0-9_-]{43}$/u;
-/** Permissions a sub-agent never gets: it never manages webhooks, contracts, sessions or links. */
-export const SUBAGENT_NEVER_PERMISSIONS: readonly PolicyPermission[] = Object.freeze(["webhooks", "registerContracts", "sessions", "links"]);
+/** Permissions a sub-agent never gets: it never manages webhooks, contracts, sessions, links or automations. */
+export const SUBAGENT_NEVER_PERMISSIONS: readonly PolicyPermission[] = Object.freeze(["webhooks", "registerContracts", "sessions", "links", "automations"]);
 
 export type SubagentRequestStatus = "pending" | "approved" | "claimed" | "denied" | "expired" | "cancelled";
 export const SUBAGENT_REQUEST_STATUSES: readonly SubagentRequestStatus[] = Object.freeze(["pending", "approved", "claimed", "denied", "expired", "cancelled"]);
@@ -263,7 +263,7 @@ function permissionsOf(issues: Issues, child: PolicyDocument, chain: readonly Su
     let reason = "the parent's chain does not grant it";
     if (SUBAGENT_NEVER_PERMISSIONS.includes(permission)) {
       allowed = false;
-      reason = "sub-agents never manage webhooks, contracts, sessions or links";
+      reason = "sub-agents never manage webhooks, contracts, sessions, links or automations";
     } else if (permission === "createChildKeys" && childDepth >= SUBAGENT_LIMITS.maxDepth) {
       allowed = false;
       reason = `a key at depth ${childDepth} cannot have children (limit ${SUBAGENT_LIMITS.maxDepth})`;
@@ -288,6 +288,7 @@ export function checkSubagentPolicy(input: SubagentCheckInput): SubagentCheckRes
   chain.forEach((level, index) => checkLevel(issues, child, level, levelName(level, index)));
   checkApprovers(issues, child, chain);
   const permissions = permissionsOf(issues, child, chain, input.childDepth);
+  checkPerps(issues, child, chain);
   if (input.childExpiresAt !== undefined) {
     const at = Date.parse(input.childExpiresAt);
     if (Number.isNaN(at)) issues.add("expiresAt", null, "The expiry is not a time.");
@@ -295,6 +296,29 @@ export function checkSubagentPolicy(input: SubagentCheckInput): SubagentCheckRes
   }
   if (issues.list.length > 0) return { ok: false, issues: issues.list, document: null };
   return { ok: true, issues: [], document: { ...child, permissions } };
+}
+
+/**
+ * Perps (Rule Book `perps`): a sub-agent may trade perps only where its
+ * parent's chain does, at no higher leverage and on no other venue. The
+ * runtime intersects the whole chain anyway; this refuses the request up
+ * front so the approver never sees a grant that would not hold.
+ */
+function checkPerps(issues: Issues, child: PolicyDocument, chain: readonly SubagentChainLevel[]): void {
+  const perps = child.perps;
+  if (!perps?.enabled) return;
+  const parent = effectivePerps(chain.map((level) => ({ policy: level.policy, defaults: level.defaults })));
+  if (!parent.enabled) {
+    issues.add("perps.enabled", null, `perps cannot be enabled: ${parent.reason ?? "the parent's chain does not trade perps"}`);
+    return;
+  }
+  if (perps.maxLeverage === undefined || perps.maxLeverage > parent.maxLeverage) {
+    issues.add("perps.maxLeverage", null, `perps.maxLeverage must be set and at most ${parent.maxLeverage} (the parent's cap).`);
+  }
+  const outside = (perps.venues ?? []).filter((venue) => !parent.venues.includes(venue));
+  if (!perps.venues || outside.length > 0) {
+    issues.add("perps.venues", null, `perps.venues must list only venues the parent may use (${parent.venues.join(", ") || "none"}).`);
+  }
 }
 
 /* =========================================================== description */

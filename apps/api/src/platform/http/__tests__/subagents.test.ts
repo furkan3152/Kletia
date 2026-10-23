@@ -165,7 +165,7 @@ describe("sub-agent requests", () => {
     const filed = await fileRequest(main);
     assert.match(filed.claimToken, /^kl_scl_[A-Za-z0-9_-]{43}$/u);
     assert.equal(filed.request.status, "pending");
-    assert.deepEqual(filed.request.policy.permissions, { createChildKeys: false, webhooks: false, registerContracts: false, sessions: false, storeIntents: true, mcpCreateIntents: false, links: false });
+    assert.deepEqual(filed.request.policy.permissions, { createChildKeys: false, webhooks: false, registerContracts: false, sessions: false, storeIntents: true, mcpCreateIntents: false, links: false, automations: false });
     const caps = filed.request.grant.find((line) => line.path === "caps.dailyUsd");
     assert.deepEqual([caps?.child, caps?.parent, caps?.same], ["$250", "$1000", false]);
     const id = filed.request.id;

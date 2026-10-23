@@ -133,6 +133,8 @@ export function navigate(to: string, options: NavigateOptions = {}) {
     return;
   }
   if (url.origin !== window.location.origin) {
+    // Only web pages: never a javascript:, data: or other scheme, whatever the caller passed.
+    if (url.protocol !== "https:" && url.protocol !== "http:") return;
     window.location.assign(url.toString());
     return;
   }

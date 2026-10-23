@@ -1,0 +1,5279 @@
+{
+ "spec": "kletia.intent-ledger/v1",
+ "entries": [
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS001",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS004",
+   "klass": "refuses_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS006",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS007",
+   "klass": "refuses_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS008",
+   "klass": "refuses_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS009",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS014",
+   "klass": "refuses_wrongly",
+   "root": "question-form",
+   "clears": "P4-M3 (confirm P2-M1)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS016",
+   "klass": "asks_needlessly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS019",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS021",
+   "klass": "plans_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS022",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS023",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS025",
+   "klass": "plans_wrongly",
+   "root": "WP8",
+   "clears": "P2-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS026",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS028",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS030",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS031",
+   "klass": "asks_needlessly",
+   "root": "AQ8",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS032",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS033",
+   "klass": "plans_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS034",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS036",
+   "klass": "refuses_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS038",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS041",
+   "klass": "refuses_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS043",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS044",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS046",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS047",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS048",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS049",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS050",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS051",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS054",
+   "klass": "asks_needlessly",
+   "root": "AQ9",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS055",
+   "klass": "plans_unconfirmed",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS056",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS057",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS060",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS063",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS064",
+   "klass": "plans_wrongly",
+   "root": "WP8",
+   "clears": "P2-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT015",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT018",
+   "klass": "refuses_wrongly",
+   "root": "approximation",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT019",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT021",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT022",
+   "klass": "asks_needlessly",
+   "root": "AQ5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT023",
+   "klass": "asks_needlessly",
+   "root": "AQ5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT025",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT030",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT031",
+   "klass": "plans_wrongly",
+   "root": "WP7",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT032",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT033",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT036",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT040",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT045",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT048",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT049",
+   "klass": "refuses_wrongly",
+   "root": "I13-value",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT054",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT055",
+   "klass": "plans_unconfirmed",
+   "root": "I13-value",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT057",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT058",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON002",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON003",
+   "klass": "plans_wrongly",
+   "root": "WP1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON016",
+   "klass": "refuses_wrongly",
+   "root": "RF10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON028",
+   "klass": "asks_needlessly",
+   "root": "AQ10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON055",
+   "klass": "asks_needlessly",
+   "root": "AQ4",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON058",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON064",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON072",
+   "klass": "plans_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON073",
+   "klass": "refuses_wrongly",
+   "root": "RF10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON095",
+   "klass": "plans_wrongly",
+   "root": "WP1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP001",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP002",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP004",
+   "klass": "plans_wrongly",
+   "root": "WP11",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP007",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP009",
+   "klass": "refuses_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP010",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP011",
+   "klass": "refuses_wrongly",
+   "root": "WP3",
+   "clears": "P2-M0 refusal, P2-M1 question"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP015",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP017",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP019",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP020",
+   "klass": "asks_needlessly",
+   "root": "C3-delivery",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP021",
+   "klass": "refuses_wrongly",
+   "root": "C3-delivery",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP023",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP025",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP029",
+   "klass": "plans_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP030",
+   "klass": "refuses_wrongly",
+   "root": "WP3",
+   "clears": "P2-M0 refusal, P2-M1 question"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL009",
+   "klass": "plans_wrongly",
+   "root": "WP2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL010",
+   "klass": "asks_needlessly",
+   "root": "AQ2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL014",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL016",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL023",
+   "klass": "asks_needlessly",
+   "root": "AQ2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL027",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL031",
+   "klass": "asks_needlessly",
+   "root": "AQ2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL032",
+   "klass": "asks_needlessly",
+   "root": "AQ1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL035",
+   "klass": "refuses_wrongly",
+   "root": "RF8",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL040",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI002",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI003",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI009",
+   "klass": "plans_wrongly",
+   "root": "RF2-guard",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI010",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI011",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI013",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI014",
+   "klass": "asks_needlessly",
+   "root": "AQ6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI016",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI018",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI019",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI020",
+   "klass": "plans_unconfirmed",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI021",
+   "klass": "plans_unconfirmed",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI023",
+   "klass": "plans_unconfirmed",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI025",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI027",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI028",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI031",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI032",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI033",
+   "klass": "refuses_wrongly",
+   "root": "question-form",
+   "clears": "P4-M3 (confirm P2-M1)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI034",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI035",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI036",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI037",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI038",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI040",
+   "klass": "refuses_wrongly",
+   "root": "RF10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY009",
+   "klass": "plans_wrongly",
+   "root": "WP10-ask",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY010",
+   "klass": "asks_needlessly",
+   "root": "C3-delivery",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY020",
+   "klass": "asks_wrong_question",
+   "root": "AQ12",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY022",
+   "klass": "plans_wrongly",
+   "root": "WP5",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY026",
+   "klass": "refuses_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY029",
+   "klass": "asks_wrong_question",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY036",
+   "klass": "plans_wrongly",
+   "root": "WP10-ask",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY037",
+   "klass": "refuses_wrongly",
+   "root": "RF8",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY041",
+   "klass": "refuses_wrongly",
+   "root": "RF10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY042",
+   "klass": "refuses_wrongly",
+   "root": "RF12",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY043",
+   "klass": "plans_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY046",
+   "klass": "refuses_wrongly",
+   "root": "RF8",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF031",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF032",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF033",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF037",
+   "klass": "refuses_wrongly",
+   "root": "approximation",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF048",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF049",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF051",
+   "klass": "plans_wrongly",
+   "root": "WP2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT001",
+   "klass": "asks_wrong_question",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT002",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT003",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT004",
+   "klass": "asks_needlessly",
+   "root": "AQ11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT006",
+   "klass": "asks_needlessly",
+   "root": "AQ1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT007",
+   "klass": "asks_needlessly",
+   "root": "AQ1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT009",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT010",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT014",
+   "klass": "plans_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT015",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT016",
+   "klass": "plans_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT017",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT018",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT019",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT026",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT030",
+   "klass": "plans_wrongly",
+   "root": "WP2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT031",
+   "klass": "asks_needlessly",
+   "root": "AQ1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT032",
+   "klass": "refuses_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT033",
+   "klass": "plans_wrongly",
+   "root": "A10-lookalike",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS001",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS004",
+   "klass": "refuses_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS006",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS007",
+   "klass": "refuses_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS008",
+   "klass": "refuses_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS009",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS014",
+   "klass": "refuses_wrongly",
+   "root": "question-form",
+   "clears": "P4-M3 (confirm P2-M1)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS016",
+   "klass": "asks_needlessly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS019",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS021",
+   "klass": "plans_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS022",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS023",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS025",
+   "klass": "plans_wrongly",
+   "root": "WP8",
+   "clears": "P2-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS026",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS028",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS030",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS031",
+   "klass": "asks_needlessly",
+   "root": "AQ8",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS032",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS033",
+   "klass": "plans_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS034",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS036",
+   "klass": "refuses_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS038",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS041",
+   "klass": "refuses_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS043",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS044",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS046",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS047",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS048",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS049",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS050",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS051",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS054",
+   "klass": "asks_needlessly",
+   "root": "AQ9",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS055",
+   "klass": "plans_unconfirmed",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS056",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS057",
+   "klass": "refuses_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS060",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS063",
+   "klass": "refuses_wrongly",
+   "root": "RF5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS064",
+   "klass": "plans_wrongly",
+   "root": "WP8",
+   "clears": "P2-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT015",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT018",
+   "klass": "refuses_wrongly",
+   "root": "approximation",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT019",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT021",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT022",
+   "klass": "asks_needlessly",
+   "root": "AQ5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT023",
+   "klass": "asks_needlessly",
+   "root": "AQ5",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT025",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT030",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT031",
+   "klass": "plans_wrongly",
+   "root": "WP7",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT032",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT033",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT036",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT040",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT045",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT048",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT049",
+   "klass": "refuses_wrongly",
+   "root": "I13-value",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT054",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT055",
+   "klass": "plans_unconfirmed",
+   "root": "I13-value",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT057",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT058",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON002",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON003",
+   "klass": "plans_wrongly",
+   "root": "WP1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON016",
+   "klass": "refuses_wrongly",
+   "root": "RF10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON028",
+   "klass": "asks_needlessly",
+   "root": "AQ10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON034",
+   "klass": "plans_unplannable",
+   "root": "F-2: named bridge venue cannot route the pair",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON055",
+   "klass": "asks_needlessly",
+   "root": "AQ4",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON058",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON064",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON072",
+   "klass": "plans_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON073",
+   "klass": "refuses_wrongly",
+   "root": "RF10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON086",
+   "klass": "plans_unplannable",
+   "root": "F-2: named bridge venue cannot route the pair",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON095",
+   "klass": "plans_wrongly",
+   "root": "WP1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP001",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP002",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP004",
+   "klass": "plans_wrongly",
+   "root": "WP11",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP007",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP009",
+   "klass": "refuses_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP010",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP011",
+   "klass": "refuses_wrongly",
+   "root": "WP3",
+   "clears": "P2-M0 refusal, P2-M1 question"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP015",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP017",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP019",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP020",
+   "klass": "asks_needlessly",
+   "root": "C3-delivery",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP021",
+   "klass": "refuses_wrongly",
+   "root": "C3-delivery",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP023",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP025",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP029",
+   "klass": "plans_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP030",
+   "klass": "refuses_wrongly",
+   "root": "WP3",
+   "clears": "P2-M0 refusal, P2-M1 question"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL009",
+   "klass": "plans_wrongly",
+   "root": "WP2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL010",
+   "klass": "asks_needlessly",
+   "root": "AQ2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL014",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL016",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL023",
+   "klass": "asks_needlessly",
+   "root": "AQ2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL027",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL031",
+   "klass": "asks_needlessly",
+   "root": "AQ2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL032",
+   "klass": "asks_needlessly",
+   "root": "AQ1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL035",
+   "klass": "refuses_wrongly",
+   "root": "RF8",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL040",
+   "klass": "refuses_wrongly",
+   "root": "RF11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI002",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI003",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI009",
+   "klass": "plans_wrongly",
+   "root": "RF2-guard",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI010",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI011",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI013",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI014",
+   "klass": "asks_needlessly",
+   "root": "AQ6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI016",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI018",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI019",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI020",
+   "klass": "plans_unconfirmed",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI021",
+   "klass": "plans_unconfirmed",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI023",
+   "klass": "plans_unconfirmed",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI025",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI027",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI028",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI031",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI032",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI033",
+   "klass": "refuses_wrongly",
+   "root": "question-form",
+   "clears": "P4-M3 (confirm P2-M1)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI034",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI035",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI036",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI037",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI038",
+   "klass": "refuses_wrongly",
+   "root": "RF1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI040",
+   "klass": "refuses_wrongly",
+   "root": "RF10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY009",
+   "klass": "plans_wrongly",
+   "root": "WP10-ask",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY010",
+   "klass": "asks_needlessly",
+   "root": "C3-delivery",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY020",
+   "klass": "asks_wrong_question",
+   "root": "AQ12",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY022",
+   "klass": "plans_wrongly",
+   "root": "WP5",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY026",
+   "klass": "refuses_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY029",
+   "klass": "asks_wrong_question",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY036",
+   "klass": "plans_wrongly",
+   "root": "WP10-ask",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY037",
+   "klass": "refuses_wrongly",
+   "root": "RF8",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY041",
+   "klass": "refuses_wrongly",
+   "root": "RF10",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY042",
+   "klass": "refuses_wrongly",
+   "root": "RF12",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY043",
+   "klass": "plans_wrongly",
+   "root": "C10-moves",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY046",
+   "klass": "refuses_wrongly",
+   "root": "RF8",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF031",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF032",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF033",
+   "klass": "refuses_wrongly",
+   "root": "RF7",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF037",
+   "klass": "refuses_wrongly",
+   "root": "approximation",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF048",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF049",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF051",
+   "klass": "plans_wrongly",
+   "root": "WP2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT001",
+   "klass": "asks_wrong_question",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT002",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT003",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT004",
+   "klass": "asks_needlessly",
+   "root": "AQ11",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT006",
+   "klass": "asks_needlessly",
+   "root": "AQ1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT007",
+   "klass": "asks_needlessly",
+   "root": "AQ1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT009",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT010",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT014",
+   "klass": "plans_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT015",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT016",
+   "klass": "plans_wrongly",
+   "root": "C11",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT017",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT018",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT019",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT026",
+   "klass": "refuses_wrongly",
+   "root": "RF3",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT030",
+   "klass": "plans_wrongly",
+   "root": "WP2",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT031",
+   "klass": "asks_needlessly",
+   "root": "AQ1",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT032",
+   "klass": "refuses_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT033",
+   "klass": "plans_wrongly",
+   "root": "A10-lookalike",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS020",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS022",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS026",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS040",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS044",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS045",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS047",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS049",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT001",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT006",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT007",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT014",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT015",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT031",
+   "klass": "plans_wrongly",
+   "root": "strict/WP7",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT033",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT034",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT036",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT037",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT040",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF11",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT041",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT042",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT043",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT044",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT046",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT053",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT057",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON002",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON003",
+   "klass": "refuses_wrongly",
+   "root": "strict/WP1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON015",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON016",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF10",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON027",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON030",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON034",
+   "klass": "refuses_wrongly",
+   "root": "F-2: named bridge venue cannot route the pair",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON041",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON043",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON055",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON056",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON058",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON060",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON061",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON062",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON064",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON086",
+   "klass": "refuses_wrongly",
+   "root": "F-2: named bridge venue cannot route the pair",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON095",
+   "klass": "refuses_wrongly",
+   "root": "strict/WP1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP001",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP002",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP003",
+   "klass": "plans_wrongly",
+   "root": "strict/C3-delivery",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP004",
+   "klass": "plans_wrongly",
+   "root": "strict/WP11",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP007",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP010",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP011",
+   "klass": "refuses_wrongly",
+   "root": "strict/WP3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP012",
+   "klass": "plans_wrongly",
+   "root": "strict/C2-funds-elsewhere",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP014",
+   "klass": "plans_wrongly",
+   "root": "strict/C2-funds-elsewhere",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP015",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP017",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP018",
+   "klass": "plans_wrongly",
+   "root": "strict/C2-funds-elsewhere",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP019",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP023",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP025",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP029",
+   "klass": "plans_wrongly",
+   "root": "strict/I13-network",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL004",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL010",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL015",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL017",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL021",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL022",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL023",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL030",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL031",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL034",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL035",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL040",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF11",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI010",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI014",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI018",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI029",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI032",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI036",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY001",
+   "klass": "plans_wrongly",
+   "root": "strict/I13-network",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY004",
+   "klass": "plans_wrongly",
+   "root": "strict/I13-network",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY009",
+   "klass": "plans_wrongly",
+   "root": "strict/WP10-ask",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY015",
+   "klass": "plans_wrongly",
+   "root": "strict/I13-network",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY023",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY036",
+   "klass": "plans_wrongly",
+   "root": "strict/WP10-ask",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY037",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY046",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT002",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT003",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT004",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ11",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT006",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT007",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT009",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT010",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT015",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT017",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT019",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT021",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT022",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT026",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT027",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT030",
+   "klass": "refuses_wrongly",
+   "root": "strict/WP2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT031",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT033",
+   "klass": "plans_wrongly",
+   "root": "strict/A10-lookalike",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT030",
+   "klass": "plans_wrongly",
+   "root": "A2",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT042",
+   "klass": "plans_wrongly",
+   "root": "A4",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT044",
+   "klass": "asks_needlessly",
+   "root": "A4",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT049",
+   "klass": "plans_wrongly",
+   "root": "A5",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT050",
+   "klass": "plans_wrongly",
+   "root": "A5",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT086",
+   "klass": "asks_wrong_question",
+   "root": "A10",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT087",
+   "klass": "asks_wrong_question",
+   "root": "A10",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT090",
+   "klass": "plans_wrongly",
+   "root": "A10",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT110",
+   "klass": "plans_wrongly",
+   "root": "B6",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT111",
+   "klass": "plans_wrongly",
+   "root": "C1",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT118",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT119",
+   "klass": "plans_wrongly",
+   "root": "C10",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT124",
+   "klass": "plans_wrongly",
+   "root": "A1",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT125",
+   "klass": "plans_wrongly",
+   "root": "A1",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT030",
+   "klass": "plans_wrongly",
+   "root": "A2",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT042",
+   "klass": "plans_wrongly",
+   "root": "A4",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT044",
+   "klass": "asks_needlessly",
+   "root": "A4",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT049",
+   "klass": "plans_wrongly",
+   "root": "A5",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT050",
+   "klass": "plans_wrongly",
+   "root": "A5",
+   "clears": "P4-M2"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT086",
+   "klass": "asks_wrong_question",
+   "root": "A10",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT087",
+   "klass": "asks_wrong_question",
+   "root": "A10",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT090",
+   "klass": "plans_wrongly",
+   "root": "A10",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT110",
+   "klass": "plans_wrongly",
+   "root": "B6",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT111",
+   "klass": "plans_wrongly",
+   "root": "C1",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT118",
+   "klass": "plans_wrongly",
+   "root": "C8",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT119",
+   "klass": "plans_wrongly",
+   "root": "C10",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT124",
+   "klass": "plans_wrongly",
+   "root": "A1",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT125",
+   "klass": "plans_wrongly",
+   "root": "A1",
+   "clears": "P4-M1"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT041",
+   "klass": "refuses_wrongly",
+   "root": "strict/A4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT047",
+   "klass": "plans_wrongly",
+   "root": "strict/A5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT048",
+   "klass": "plans_wrongly",
+   "root": "strict/A5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT049",
+   "klass": "plans_wrongly",
+   "root": "strict/A5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT050",
+   "klass": "plans_wrongly",
+   "root": "strict/A5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT081",
+   "klass": "plans_wrongly",
+   "root": "strict/A10",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT082",
+   "klass": "plans_wrongly",
+   "root": "strict/A10",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT088",
+   "klass": "plans_wrongly",
+   "root": "strict/A10",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT110",
+   "klass": "plans_wrongly",
+   "root": "strict/B6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT111",
+   "klass": "plans_wrongly",
+   "root": "strict/C1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT112",
+   "klass": "plans_wrongly",
+   "root": "strict/C2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT114",
+   "klass": "plans_wrongly",
+   "root": "strict/C4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT115",
+   "klass": "plans_wrongly",
+   "root": "strict/C4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT118",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "AMO032",
+   "klass": "refuses_wrongly",
+   "root": "repo: commentary cross-check",
+   "clears": "P4"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GAP009",
+   "klass": "asks_wrong_question",
+   "root": "AQ12",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GAP030",
+   "klass": "asks_needlessly",
+   "root": "AQ4",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA005",
+   "klass": "refuses_wrongly",
+   "root": "repo: question + imperative",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA045",
+   "klass": "refuses_wrongly",
+   "root": "RF5 rebalance",
+   "clears": "P4"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA046",
+   "klass": "refuses_wrongly",
+   "root": "repo: question-shaped goal",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "REC003",
+   "klass": "asks_wrong_question",
+   "root": "AQ12",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "AMO032",
+   "klass": "refuses_wrongly",
+   "root": "repo: commentary cross-check",
+   "clears": "P4"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GAP009",
+   "klass": "asks_wrong_question",
+   "root": "AQ12",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GAP030",
+   "klass": "asks_needlessly",
+   "root": "AQ4",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA005",
+   "klass": "refuses_wrongly",
+   "root": "repo: question + imperative",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA045",
+   "klass": "refuses_wrongly",
+   "root": "RF5 rebalance",
+   "clears": "P4"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA046",
+   "klass": "refuses_wrongly",
+   "root": "repo: question-shaped goal",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "REC003",
+   "klass": "asks_wrong_question",
+   "root": "AQ12",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "TYP023",
+   "klass": "plans_unplannable",
+   "root": "F-2: corrected bridge venue cannot route the pair (Across to Solana)",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO001",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO003",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO004",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO006",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO007",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO014",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO015",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO020",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO021",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO022",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO023",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO025",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO026",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO027",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO028",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO029",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO031",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO032",
+   "klass": "refuses_wrongly",
+   "root": "strict/repo: commentary cross-check",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO039",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO040",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO046",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO047",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO048",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO050",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS003",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS007",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS017",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS018",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS019",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS020",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS021",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS022",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS023",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS025",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS027",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS028",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS029",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS030",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS032",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS033",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS038",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS039",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS040",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS041",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GAP025",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA033",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA035",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA036",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA037",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA038",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA044",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA048",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA053",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA055",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA056",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA057",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA060",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA061",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA063",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL014",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL017",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL018",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "REC004",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "REC012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER001",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER003",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER004",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER006",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER007",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER015",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER017",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL007",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL010",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL018",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  }
+ ],
+ "oracleAllow": [
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "CAS020",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "EXP021",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA041",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "TER010",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "TYP020",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "TYP021",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "CAS020",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "EXP021",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA041",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "TER010",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "TYP020",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "TYP021",
+   "flag": "I9 funding",
+   "why": "WP10: a transfer has no balance check yet (faithful but infeasible): the fixture wallet holds less than the amount on that network; transfers in SPENDING_KINDS with a 'Use funds on N' question clear it.",
+   "clears": "P2-M1"
+  }
+ ],
+ "metamorphic": [
+  {
+   "id": "hard:ABS020~never-drop~3",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "hard:ABS020~never-drop~6",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "hard:ABS040~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:AMT003~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:AMT006~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:AMT051~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:CON015~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:CON018~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:CON020~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:CON061~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:CON075~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:CON094~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:DEP003~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:MUL021~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:MUL038~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:NOI026~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:NOI030~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:PAY009~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:PAY017~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:PAY022~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:PAY044~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "hard:XNT033~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "redteam:RT042~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "redteam:RT124~never-drop~3",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "redteam:RT124~never-drop~5",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "redteam:RT125~never-drop~2",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "redteam:RT125~never-drop~5",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:AMO001~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:AMO006~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:AMO008~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:AMO013~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:AMO038~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:AMO041~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:CAS002~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:CAS005~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:CAS006~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:CAS009~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:CAS014~never-drop~2",
+   "why": "Red-team A2: 'over' is still dropped as a filler; P4-M0 removes it from the fillers and P4-M1 adds the limit message.",
+   "clears": "P4-M0"
+  },
+  {
+   "id": "repo:CAS039~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:CAS040~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:EXP006~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:EXP007~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:EXP008~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:GOA028~look-alike~1",
+   "why": "Red-team A10: 'steth' after 'my' reads as a venue position and withdraws Aave USDC; look-alikes ask on every path.",
+   "clears": "P4-M1, P2-M1"
+  },
+  {
+   "id": "repo:GOA041~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:GOA053~never-drop~2",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA053~never-drop~4",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA053~never-drop~5",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA053~never-drop~7",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA056~never-drop~4",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA056~never-drop~6",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA056~never-drop~7",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA057~never-drop~1",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA057~never-drop~2",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA057~never-drop~4",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:GOA057~never-drop~6",
+   "why": "Red-team A1: a never-drop word inside a '<label>:' prefix (or glued into a hyphenated word) is swallowed with the label; the closed-class scan over every word clears it.",
+   "clears": "P4-M1"
+  },
+  {
+   "id": "repo:MUL005~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:MUL020~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:TER019~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:TYP028~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:TYP029~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  },
+  {
+   "id": "repo:TYP030~look-alike~1",
+   "why": "Red-team A10: an unlisted look-alike (USDC.e on Solana, bSOL, stETH typed for ETH) plans as typed or as another token instead of asking ASSET_LOOKALIKE; LOOKALIKE_FAMILIES on every path clears it.",
+   "clears": "P2-M1"
+  }
+ ]
+}

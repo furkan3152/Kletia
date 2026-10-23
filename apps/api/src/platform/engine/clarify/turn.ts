@@ -16,20 +16,32 @@ import {
   CONTROL_UNDO_PATTERN,
   normalizeMessage,
   THREAD_LIMITS,
+  type Goal,
   type ThreadAmount,
 } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { NAME, resolveNetworkName } from "../grammar.js";
 import { knownSymbol } from "./catalog.js";
 import { applyEdit, applyEditTo, editLabel, parseIndex, readFollowUp } from "./edits.js";
-import { applyGoalEdit, applyGoalOption, isGoalStep } from "./goals.js";
-import { analyze } from "./policy.js";
+import { applyGoalEdit, applyGoalOption, isGoalStep, withClassGoals } from "./goals.js";
+import { analyze, type PolicyAnalysis } from "./policy.js";
 import { parseAmountText, parseSentence } from "./slots.js";
 import type { Analysis, FactsView, Option, Question, TurnContext, TurnInput, TurnKindName, WorkState, WorkStep } from "./types.js";
 
 const ADDRESS = new RegExp(`^(?:0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME}|[1-9A-HJ-NP-Za-km-z]{32,44})$`, "iu");
 
 export const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+/** `parseSentence` with the seam S1 options (`readings` per clause index), which the reader accepts as its sixth argument. */
+type SentenceReader = (
+  raw: string,
+  phrases: TurnContext["contracts"],
+  previousExists?: boolean,
+  offset?: number,
+  previousStep?: WorkStep,
+  options?: { readonly readings?: ReadonlyMap<number, readonly Goal[]> },
+) => ReturnType<typeof parseSentence>;
+const parseWithReadings = parseSentence as SentenceReader;
 
 export function emptyState(id: string): WorkState {
   return { id, rev: 0, status: "needs_input", steps: [], open: [], corrections: [], turns: [], undo: [] };
@@ -39,7 +51,7 @@ export interface ReduceOutcome {
   readonly status: "ready" | "needs_input" | "cancelled";
   readonly turn: TurnKindName;
   readonly state: WorkState;
-  readonly analysis: Analysis;
+  readonly analysis: PolicyAnalysis;
 }
 
 function editUnsupported(message: string): PlatformError {
@@ -67,6 +79,24 @@ export function applyOption(state: WorkState, q: { field: string; reason?: strin
   const { index, name } = parseIndex(q.field);
   const step = state.steps[index] as WorkStep;
   const value = option.value;
+  // NETWORK_CONTRADICTION "skip the bridge": the said bridge before this step goes, and this step spends
+  // what the bridge would have moved, where it runs.
+  if (q.reason === "NETWORK_CONTRADICTION" && value.target === "contradiction:skip") {
+    const bridge = state.steps[index - 1];
+    if (!bridge || bridge.kind?.v !== "bridge") return;
+    if (bridge.amount) step.amount = { v: clone(bridge.amount.v), by: "answer" };
+    if (!step.from && bridge.from) step.from = { v: bridge.from.v, by: "answer" };
+    if (bridge.usdFrom && !step.from) step.usdFrom = true;
+    if (value.network) step.network = { v: value.network, by: "answer" };
+    state.steps.splice(index - 1, 1);
+    return;
+  }
+  // A payment short on its network (D2) or sent from another network: the money comes from the network chosen,
+  // and the payment becomes one crossing leg to where the recipient receives.
+  if ((q.reason === "AMOUNT_EXCEEDS_BALANCE" || q.reason === "FUNDS_ELSEWHERE") && value.source && step.kind?.v === "transfer") {
+    step.fundFrom = { v: value.source, by: "answer" };
+    return;
+  }
   // AMOUNT_EXCEEDS_BALANCE (D2) "use funds on <network>": a bridge starts there instead; another step is bridged to first.
   if (q.reason === "AMOUNT_EXCEEDS_BALANCE" && value.source && step.kind?.v === "bridge") {
     step.network = { v: value.source, by: "answer" };
@@ -93,6 +123,12 @@ export function applyOption(state: WorkState, q: { field: string; reason?: strin
     step.network = { v: "ethereum", by: "answer" };
     step.amount = { v: { t: "previous", bps: 10_000 }, by: "answer" };
     state.steps.splice(index, 0, bridge);
+    return;
+  }
+  if ((q.reason === "FUNDS_ELSEWHERE" || q.reason === "AMOUNT_EXCEEDS_BALANCE") && value.network && value.source === value.network) {
+    // The funds are where the step runs: it spends them there (a said spend-side network, so no departure moves it).
+    step.network = { v: value.network, by: "answer" };
+    step.fundFrom = { v: value.source, by: "answer" };
     return;
   }
   if ((q.reason === "FUNDS_ELSEWHERE" || q.reason === "AMOUNT_EXCEEDS_BALANCE") && value.network && value.source) {
@@ -141,6 +177,29 @@ export function applyOption(state: WorkState, q: { field: string; reason?: strin
   if (value.kind) step.kind = { v: value.kind, by: "answer" };
 }
 
+/** The end-state digest an acknowledgement option carries ("ack:" or "ackllm:" + "sha256:<hex>"), or null. */
+export function ackDigest(option: Option): string | null {
+  const match = /^ack(?:llm)?:(sha256:[0-9a-f]{64})$/u.exec(option.value.target ?? "");
+  return match ? (match[1] as string) : null;
+}
+
+/**
+ * Who may confirm a model-assisted reading: the person, from the
+ * first-party desk or with the wallet-bound token its confirm card mints;
+ * never a plain API or agent answer (CONFIRM_AUTHORITY_REQUIRED).
+ */
+function assertConfirmAuthority(ctx: TurnContext, state: WorkState, analysis: Analysis, q: Question, option: Option): void {
+  const llmAck = /^ackllm:/u.test(option.value.target ?? "");
+  const at = locate(analysis, q.field);
+  const step = state.steps[at.step];
+  const llmGoal = q.reason === "INTERPRETATION_CONFIRM" && option.value.target === "confirm" && at.goal && isGoalStep(step) && step.goal.confidence === "llm";
+  if (!llmAck && !llmGoal) return;
+  if (ctx.confirmAuthority === "desk" || ctx.confirmAuthority === "token") return;
+  throw new PlatformError("CONFIRM_AUTHORITY_REQUIRED", "Only the person can confirm a model-assisted reading: confirm it in the Kletia desk, or with the token its confirm card issues.", 403, [
+    { path: "answer", message: "Confirmed by an API or agent answer." },
+  ]);
+}
+
 /** Where a question or chip field (an action index) points in the thread: a state step, and the part of a goal step. */
 function locate(analysis: Analysis | undefined, path: string): { step: number; part: number; goal: boolean; name: string } {
   const { index, name } = parseIndex(path);
@@ -156,6 +215,12 @@ function locate(analysis: Analysis | undefined, path: string): { step: number; p
 export function applyChoice(state: WorkState, analysis: Analysis | undefined, q: { field: string; reason?: string }, option: Option): "cancel" | void {
   if (q.reason === "EDIT_TARGET_AMBIGUOUS") return applyOption(state, q, option);
   if (option.value.target === "cancel") return "cancel";
+  // An acknowledgement of the solved plan (confirm mechanics): the thread keeps the digest of its end state.
+  const ack = ackDigest(option);
+  if (ack) {
+    state.confirmDigest = ack;
+    return;
+  }
   const at = locate(analysis, q.field);
   const step = state.steps[at.step];
   if (at.goal && isGoalStep(step)) return applyGoalOption(step, at.name, at.part, option.value);
@@ -179,8 +244,11 @@ function amountAnswer(text: string, step: WorkStep): ThreadAmount | null {
 }
 
 /** Free text as the answer to one question; false when it does not fit, "cancel" when it chose to cancel. */
-function answerQuestionText(state: WorkState, analysis: Analysis | undefined, q: Question, raw: string): boolean | "cancel" {
-  const choose = (option: Option): true | "cancel" => (applyChoice(state, analysis, q, option) === "cancel" ? "cancel" : true);
+function answerQuestionText(state: WorkState, analysis: Analysis | undefined, q: Question, raw: string, guard?: (q: Question, option: Option) => void): boolean | "cancel" {
+  const choose = (option: Option): true | "cancel" => {
+    guard?.(q, option);
+    return applyChoice(state, analysis, q, option) === "cancel" ? "cancel" : true;
+  };
   const text = normalizeMessage(raw)
     .replace(/^(?:make\s+it|actually|about|use|send\s+(?:it\s+)?to|to|from|on|via|with|its|it\s+is)\s+/iu, "")
     .replace(/\s+instead$/iu, "")
@@ -221,10 +289,10 @@ function answerQuestionText(state: WorkState, analysis: Analysis | undefined, q:
 }
 
 /** A message while questions are open: does it answer one of them? */
-function answerFromText(state: WorkState, analysis: Analysis, text: string): boolean | "cancel" {
+function answerFromText(state: WorkState, analysis: Analysis, text: string, guard?: (q: Question, option: Option) => void): boolean | "cancel" {
   for (const q of analysis.questions) {
     const trial = clone(state);
-    if (answerQuestionText(trial, analysis, q, text)) return answerQuestionText(state, analysis, q, text);
+    if (answerQuestionText(trial, analysis, q, text)) return answerQuestionText(state, analysis, q, text, guard);
   }
   return false;
 }
@@ -251,7 +319,7 @@ function snapshot(state: WorkState, before: WorkStep[]): void {
  * PlatformError (INTENT_UNSUPPORTED, EDIT_UNSUPPORTED, QUESTION_NOT_OPEN,
  * ANSWER_INVALID and the policy's refusals) without touching `previous`.
  */
-export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: TurnContext, facts: FactsView, newId: () => string): ReduceOutcome {
+export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: TurnContext, facts: FactsView, newId: () => string, readings?: ReadonlyMap<number, readonly Goal[]>): ReduceOutcome {
   const state = previous ? clone(previous) : emptyState(newId());
   const before = clone(state.steps);
   let turn: TurnKindName = "message";
@@ -260,15 +328,17 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
     let label = "Started the task";
     if (previous && CONTROL_CANCEL_PATTERN.test(text)) return cancelled(state, "Cancelled the task");
     let answered: boolean | "cancel" = false;
+    let openAnalysis: Analysis | undefined;
     if (previous && CONTROL_UNDO_PATTERN.test(text)) {
       const last = state.undo.pop();
       if (!last) throw editUnsupported("There is nothing to undo.");
       state.steps = last;
       state.corrections = [];
       delete state.pendingEdit;
+      delete state.confirmDigest;
       turn = "control";
       label = "Undid the last change";
-    } else if (previous && previous.open.length > 0 && (answered = answerFromText(state, analyze(clone(state), ctx, facts), input.text))) {
+    } else if (previous && previous.open.length > 0 && (answered = answerFromText(state, (openAnalysis = analyze(clone(state), ctx, facts)), input.text, (q, option) => assertConfirmAuthority(ctx, state, openAnalysis as Analysis, q, option)))) {
       if (answered === "cancel") return cancelled(state, "Cancelled the task");
       snapshot(state, before);
       turn = "answer";
@@ -282,7 +352,7 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
         snapshot(state, before);
         delete state.pendingEdit;
         if (edit.op === "append") {
-          const added = parseSentence(edit.text, ctx.contracts, true, state.steps.length).steps;
+          const added = withClassGoals(parseSentence(edit.text, ctx.contracts, true, state.steps.length).steps);
           if (state.steps.length + added.length > THREAD_LIMITS.maxSteps) throw editUnsupported(`A task has at most ${THREAD_LIMITS.maxSteps} steps.`);
           state.steps = [...state.steps, ...added];
           turn = "append";
@@ -297,7 +367,9 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
       } else {
         let parsed;
         try {
-          parsed = parseSentence(input.text, ctx.contracts);
+          // Clauses the deterministic reader refused may come back as model-assisted readings (proposals the
+          // decision layer confirms with the person); the reader takes them per clause index.
+          parsed = readings ? parseWithReadings(input.text, ctx.contracts, false, 0, undefined, { readings }) : parseSentence(input.text, ctx.contracts);
         } catch (error) {
           // On a task, a message that is neither a follow-up nor a sentence changes nothing (R11).
           if (previous && state.steps.length > 0 && error instanceof PlatformError && error.code === "INTENT_UNSUPPORTED") {
@@ -310,9 +382,12 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
           turn = "replace";
           label = "Replaced the task with a new sentence";
         }
-        state.steps = parsed.steps;
+        state.steps = withClassGoals(parsed.steps);
         state.corrections = parsed.corrections;
         delete state.pendingEdit;
+        // A new sentence has nothing confirmed yet; how it reached Kletia decides the consent scope.
+        delete state.confirmDigest;
+        state.textOrigin = ctx.textOrigin ?? "prefilled";
       }
     }
     pushTurn(state, "user", turn, label);
@@ -325,10 +400,11 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
     if (input.answer.option !== undefined) {
       const option = q.options.find((entry) => entry.id === input.answer.option);
       if (!option) throw answerInvalid("That option is not one of the question's choices.", "answer.option");
+      assertConfirmAuthority(ctx, state, open, q, option);
       if (applyChoice(state, open, q, option) === "cancel") return cancelled(state, `Chose: ${option.label}`);
       label = `Chose: ${option.label}`;
     } else {
-      const answered = input.answer.text === undefined ? false : answerQuestionText(state, open, q, input.answer.text);
+      const answered = input.answer.text === undefined ? false : answerQuestionText(state, open, q, input.answer.text, (question, option) => assertConfirmAuthority(ctx, state, open, question, option));
       if (answered === "cancel") return cancelled(state, "Cancelled the task");
       if (!answered) throw answerInvalid(q.allowsText ? "That answer does not fit the question." : "Pick one of the question's options.", "answer.text");
     }

@@ -87,6 +87,12 @@ export interface IntentActionSpec {
   readonly contract?: string;
   /** `call` / `action` only (required there): the registration's entry id, e.g. `deposit`. */
   readonly entry?: string;
+  /**
+   * Payments (`transfer`, or a `bridge` that pays a recipient): the recipient
+   * receives exactly `amount`; the input is sized up to cover the crossing's
+   * fees (inverse quote). Absent: `amount` is what is spent.
+   */
+  readonly receiveExact?: true;
 }
 
 export interface IntentConstraints {
@@ -115,7 +121,24 @@ export interface IntentConstraints {
    * GAS_TOPUP_UNAVAILABLE. Validated by `validateIntentRequest`.
    */
   readonly gasOnArrival?: Readonly<Partial<Record<NetworkKey, string>>>;
+  /**
+   * What the route choice optimises: the expected value delivered after costs
+   * (default), the fastest settlement, or the fewest wallet signatures.
+   */
+  readonly routePreference?: RoutePreference;
+  /** "single": only single-signature route shapes (one bridge or one cross-network swap per crossing). Default "auto". */
+  readonly routeShapes?: "auto" | "single";
+  /**
+   * Structured `actions[]` only: allow Kletia to insert a crossing leg (a
+   * bridge or a cross-network swap) where an action spends funds on another
+   * network than the previous action's output. Default false: such a request
+   * is refused.
+   */
+  readonly allowCrossings?: boolean;
 }
+
+export const ROUTE_PREFERENCES = Object.freeze(["value", "fastest", "fewest-signatures"] as const);
+export type RoutePreference = (typeof ROUTE_PREFERENCES)[number];
 
 /** Where the money of a request starts: a network key, or "auto" (the funded network). */
 export type SourceNetwork = NetworkKey | "auto";
@@ -431,6 +454,87 @@ export interface InterpretationAssumption {
   readonly material: boolean;
 }
 
+/** Route shapes a crossing or a step can take (`interpretation.routes[].shape`). */
+export const ROUTE_SHAPES = Object.freeze(["single", "bridge", "one-shot", "bridge-swap", "swap-bridge", "swap-bridge-swap", "wrap"] as const);
+export type RouteShape = (typeof ROUTE_SHAPES)[number];
+
+/**
+ * How a route was scored (all USD at quote time). `minimumKind`: "onchain"
+ * when every leg's floor is enforced by a contract, "claimed" when a solver
+ * promises it and it is checked after settlement (shown as "quoted minimum").
+ */
+export interface RouteScore {
+  readonly valueUsd: number;
+  readonly expectedUsd: number;
+  readonly minimumUsd: number;
+  readonly minimumKind: "onchain" | "claimed";
+  readonly gasUsd: number;
+  readonly feesUsd: number;
+  readonly seconds: number;
+  readonly signatures: number;
+  readonly riskUsd: number;
+  /** Set when a number comes from a cached pre-screen quote, not a fresh one. */
+  readonly estimate?: true;
+}
+
+/** Every score input of one route choice, so "the same plan" is checkable over it. */
+export interface RouteSnapshot {
+  readonly quotes: readonly {
+    readonly venue: ProtocolId;
+    readonly id?: string;
+    readonly expected: string;
+    readonly minimum: string;
+    /** Unix ms. */
+    readonly at: number;
+  }[];
+  readonly cutByDeadline: readonly ProtocolId[];
+  readonly breakerSkipped: readonly ProtocolId[];
+  readonly haircutsBps: Readonly<Record<string, number>>;
+  readonly gas: Readonly<Record<string, string>>;
+}
+
+/** Why a leg (or a step) took its route, in Kletia's own words (`interpretation.routes`). */
+export interface RouteChoice {
+  /** Step ids of this leg. */
+  readonly steps: readonly string[];
+  readonly shape: RouteShape;
+  /** The token carried across networks by a composite ("USDC"). */
+  readonly carrier?: string;
+  readonly venues: readonly ProtocolId[];
+  readonly score: RouteScore;
+  /** At most 200 characters. */
+  readonly reason: string;
+  /** At most 6: the other shapes and venues compared, scored or with why they were excluded. */
+  readonly compared: readonly { readonly label: string; readonly score?: RouteScore; readonly excluded?: string }[];
+  /** At most 3 re-plans with a constraint (Fastest, Fewest signatures, a named bridge). */
+  readonly alternatives: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly detail: string;
+    readonly constraints: Partial<IntentConstraints>;
+  }[];
+  readonly snapshot: RouteSnapshot;
+}
+
+/** A provider that received a quote request for this plan, and whether it saw the person's account. */
+export interface ProviderContact {
+  readonly provider: ProtocolId;
+  readonly sawAccount: boolean;
+}
+
+/**
+ * Set when a step was read with model-assisted reading: the masked clause was
+ * sent, every family agreed, and whether the person confirmed the rendered
+ * plan. No vendor or model names.
+ */
+export interface InterpretationModelReading {
+  readonly used: true;
+  readonly sent: "masked_clause";
+  readonly families: number;
+  readonly agreed: true;
+  readonly confirmed: boolean;
+}
+
 export interface IntentInterpretation {
   readonly source: "structured" | "grammar" | "assistant";
   readonly normalizedText?: string;
@@ -443,6 +547,12 @@ export interface IntentInterpretation {
   readonly assumptions?: readonly InterpretationAssumption[];
   /** The clarify thread revision this intent was planned from. */
   readonly thread?: { readonly id: string; readonly rev: number };
+  /** How each crossing or step took its route (shape, venues, score, compared, alternatives, snapshot). */
+  readonly routes?: readonly RouteChoice[];
+  /** Every provider that received a quote request for this plan. */
+  readonly providersContacted?: readonly ProviderContact[];
+  /** Present when a step was read with model-assisted reading. */
+  readonly modelReading?: InterpretationModelReading;
 }
 
 export interface IntentGraph {

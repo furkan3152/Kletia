@@ -75,6 +75,7 @@ import type {
   SettlementResult,
   VerificationResult,
 } from "./types.js";
+import { crossNetworkSeconds } from "./timing.js";
 import {
   effectiveSolDelta,
   fillNotBefore,
@@ -700,7 +701,7 @@ export const relayAdapter: ProtocolAdapter = {
       mode: "wallet",
       ...amounts(action, result),
       ...(result.feesUsd !== null ? { feesUsd: result.feesUsd } : {}),
-      estimatedSeconds: cross ? Math.max(result.timeEstimateSeconds, 5) + 15 : 15,
+      estimatedSeconds: cross ? crossNetworkSeconds(action.network, Math.max(result.timeEstimateSeconds, 5)) : 15,
       settlement: cross
         ? { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: Math.max(result.timeEstimateSeconds, 5) }
         : { kind: "same-network" },

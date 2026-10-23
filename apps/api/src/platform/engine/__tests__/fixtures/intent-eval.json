@@ -430,9 +430,12 @@
    "say": "can you swap 1 SOL to USDC for me?",
    "wallet": "full",
    "accept": [
-    "P:swap@solana 1 SOL->USDC"
+    "R",
+    "A:INTERPRETATION_CONFIRM$",
+    "C:^swap@solana 1 SOL->USDC"
    ],
-   "tags": []
+   "tags": [],
+   "why": "A sentence ending in \"?\" is a question, never a ready plan: refused today, a one-click confirm once question-form readings land."
   },
   {
    "id": "CAS002",
@@ -1291,10 +1294,10 @@
    "say": "send 5 USDC to vitalik.eth",
    "wallet": "full",
    "accept": [
-    "A:(network|recipient)",
-    "P:^transfer@base 5 USDC to vitalik"
+    "A:(network|recipient)"
    ],
-   "tags": []
+   "tags": [],
+   "why": "A payment to a plain .eth name with no network asks TRANSFER_NETWORK; a ready plan on an assumed network is no longer accepted."
   },
   {
    "id": "GAP026",
@@ -2247,10 +2250,10 @@
    "say": "pay vitalik.eth 5 USDC from whatever network is cheapest",
    "wallet": "full",
    "accept": [
-    "P:^transfer@\\w+ 5 USDC to vitalik",
     "A:network"
    ],
-   "tags": []
+   "tags": [],
+   "why": "\"whatever network is cheapest\" pays a plain .eth name: the receiving network is never assumed."
   },
   {
    "id": "GOA041",
@@ -2482,10 +2485,10 @@
    "say": "swap 1 SOL to USDC and send it to vitalik.eth",
    "wallet": "full",
    "accept": [
-    "A:(network|recipient)",
-    "P:swap@solana 1 SOL->USDC \\| bridge@solana->\\w+ max USDC.*vitalik"
+    "A:(network|recipient)"
    ],
-   "tags": []
+   "tags": [],
+   "why": "Sending the swap output to a plain .eth name asks where it should arrive; no assumed bridge."
   },
   {
    "id": "MUL008",
@@ -2986,10 +2989,10 @@
    "say": "send 5 USDC to 0x1111111111111111111111111111111111111111",
    "wallet": "full",
    "accept": [
-    "A:network",
-    "P:^transfer@base 5 USDC to 0x1111"
+    "A:network"
    ],
-   "tags": []
+   "tags": [],
+   "why": "A payment to a raw address with no network asks TRANSFER_NETWORK; a ready plan on an assumed network is no longer accepted."
   },
   {
    "id": "REC005",

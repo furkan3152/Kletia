@@ -21,6 +21,7 @@ import {
 import { isPlatformError } from "../../errors.js";
 import { configureAdapters } from "../adapters/registry.js";
 import type { AdapterAction, PlannedStep, ProtocolAdapter } from "../adapters/types.js";
+import { wrapDirection } from "../adapters/wrap.js";
 import { assetAmount } from "../assets.js";
 import { l2StakeOptions, lendingProtocols, rankedVenueOptions, REGISTRY_STAKE_PROVIDERS, STAKE_PROVIDERS } from "../clarify/catalog.js";
 import { installWallet, type Corpus } from "../clarify/corpusHarness.js";
@@ -80,6 +81,8 @@ function stubFromIndex(protocol: ProtocolId): ProtocolAdapter {
         const token = POOL_TOKENS[protocol];
         if (token && route.output.symbol !== token) return false;
       }
+      // The wrap venue's index row takes "any asset its adapter accepts": only the gas asset and its wrapped token.
+      if (protocol === "wrap") return wrapDirection(route) !== null;
       const symbols = route.kind === "swap" ? [route.input.symbol, route.output.symbol] : [route.input.symbol];
       return symbols.every((symbol) => mine.some((row) => row.asset === null || row.asset.toUpperCase() === symbol.toUpperCase()));
     },

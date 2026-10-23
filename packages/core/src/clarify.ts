@@ -15,6 +15,7 @@ import { ASSETS } from "./assets.js";
 import type { IntentConstraints, IntentGraph } from "./intent.js";
 import type { IntentPreview } from "./preview.js";
 import { goalListIssues, type Goal } from "./goal.js";
+import { NETWORK_WORDS, normalizeMessage } from "./normalize.js";
 import type { ProtocolId } from "./protocols.js";
 import {
   MAX_INTENT_ACTIONS,
@@ -94,6 +95,12 @@ export const CLARIFY_REASONS = Object.freeze([
   // the goal solver: a spend above the known balance, a possessive scope across
   // networks, staking or lending, a misspelt symbol, a reading to confirm
   "AMOUNT_EXCEEDS_BALANCE", "SCOPE_AMBIGUOUS", "EARN_KIND", "ASSET_TYPO", "INTERPRETATION_CONFIRM",
+  // reading and placement (2026-10): a vague or approximate amount, an unclear "it"/"them"/"the rest", one
+  // amount for several recipients, two steps spending one holding, a stake fed another asset, networks that
+  // contradict, parallel lists, how much a crossing payment delivers, gas missing where a later step signs,
+  // fees above 5 % of the value moved, a plan above the signature or auction caps
+  "AMOUNT_VAGUE", "REFERENCE_AMBIGUOUS", "RECIPIENT_EACH", "SPEND_CONFLICT", "STAKE_INPUT_MISMATCH", "NETWORK_CONTRADICTION",
+  "PAIRING_AMBIGUOUS", "DELIVERY_AMOUNT", "GAS_ON_ARRIVAL", "FEE_HIGH", "PLAN_TOO_LARGE",
 ] as const);
 export type ClarifyReason = (typeof CLARIFY_REASONS)[number];
 
@@ -202,15 +209,49 @@ export interface ClarifyDraft {
 export const THREAD_PROVENANCES = Object.freeze(["user", "answer", "assumed", "derived"] as const);
 export type ThreadProvenance = (typeof THREAD_PROVENANCES)[number];
 
+/**
+ * Where a slot's value comes from, beyond `by` (the grounding ledger): the
+ * words' offsets for `user`, the rule for `derived` (and for a user value a
+ * closed-class rule consumed, such as "unit:million"), the chip for
+ * `assumed`, the question for `answer`, and a model-assisted reading with
+ * whether the person confirmed it. Offsets and ids only: threads keep no words.
+ */
+export interface SlotProvenance {
+  /** [start, end) in the normalised message. */
+  readonly span?: readonly [number, number];
+  /** "previous-output", "provider-input", "recipient-family", "home-network", "allBut:except", "atLeast", "unit:million", ... */
+  readonly rule?: string;
+  /** The assumption (chip) id ("a.actions.0.network"). */
+  readonly assumption?: string;
+  /** The question id that was answered ("q.actions.0.amount"). */
+  readonly answer?: string;
+  /** Proposed by model-assisted reading; `confirmed` once the person confirmed the rendered plan. */
+  readonly reading?: { readonly source: "llm"; readonly confirmed: boolean };
+}
+
 export interface ThreadSlot<T> {
   readonly v: T;
   readonly by: ThreadProvenance;
   /** Assumed slots only: why, as a template code, so the chip stays the same on later turns. */
   readonly why?: { readonly source: AssumptionSource; readonly code: string };
+  readonly prov?: SlotProvenance;
 }
 
+/**
+ * Amount units and multipliers a message may use after a number ("1.5 k",
+ * "2 million", "50 cents", "sats", "gwei", "lamports", "bps"): the unit kept
+ * on an exact amount (`wordLists.ts` UNIT_WORDS maps the words to these).
+ */
+export const AMOUNT_UNITS = Object.freeze(["thousand", "million", "billion", "cents", "sats", "gwei", "wei", "lamports", "bps"] as const);
+export type AmountUnit = (typeof AMOUNT_UNITS)[number];
+
 export type ThreadAmount =
-  | { readonly t: "exact"; readonly value: string; readonly raw?: string }
+  /**
+   * `raw`: the amount as typed ("2,500", "1.5 k", "half a sol"); `rewritten`:
+   * the typed form is not the plain decimal (a "Read as" item); `unit`: the
+   * multiplier or unit word that was applied.
+   */
+  | { readonly t: "exact"; readonly value: string; readonly raw?: string; readonly rewritten?: true; readonly unit?: AmountUnit }
   | { readonly t: "usd"; readonly value: string }
   /** "it", "half", "25%" of the previous output. */
   | { readonly t: "previous"; readonly bps: number }
@@ -218,6 +259,46 @@ export type ThreadAmount =
   | { readonly t: "balance"; readonly bps: number }
   /** Withdraw all / half of the position. */
   | { readonly t: "position"; readonly bps: number };
+
+/**
+ * "the rest" on a step: resolved by the decision layer, never paid to someone
+ * else without a question. Not yet a member of `ThreadAmount` (and refused by
+ * `validateThread`): it joins the union in the change that resolves it, so no
+ * thread can carry it before something reads it.
+ */
+export type ThreadRestAmount = { readonly t: "rest" };
+export type ThreadAmountWithRest = ThreadAmount | ThreadRestAmount;
+
+/** Reading sources: E exact, F frame with an order-only role, C corrected or derived, M model proposal. */
+export const READING_SOURCES = Object.freeze(["E", "F", "C", "M"] as const);
+export type ReadingSource = (typeof READING_SOURCES)[number];
+
+/** "keep 50", "keep 0.05 eth on base for gas": a constraint of the step, not a step. */
+export interface ThreadKeep {
+  readonly amount: ThreadAmount;
+  readonly asset?: string;
+  readonly network?: NetworkKey;
+}
+
+/**
+ * One "Read as" item of a step ("Read as 0.5 SOL (half a sol)", "Read as 15
+ * USDC (10 + 5)"): the slot, the rule that read it, the typed form (at most
+ * 16 characters, like a correction) and what it was read as.
+ */
+export interface ThreadReadAs {
+  readonly slot: string;
+  readonly rule: string;
+  readonly from?: string;
+  readonly to: string;
+}
+
+/** How the message text reached Kletia: typed by the person in the desk input, or pre-filled (handoff, embed, agent). */
+export const TEXT_ORIGINS = Object.freeze(["typed", "prefilled"] as const);
+export type TextOrigin = (typeof TEXT_ORIGINS)[number];
+
+/** Who may confirm a model-assisted reading on this turn: the first-party desk, a wallet-bound token, or a plain API caller. */
+export const CONFIRM_AUTHORITIES = Object.freeze(["desk", "token", "api"] as const);
+export type ConfirmAuthority = (typeof CONFIRM_AUTHORITIES)[number];
 
 export interface ThreadStep {
   readonly kind?: ThreadSlot<string>;
@@ -235,6 +316,18 @@ export interface ThreadStep {
   readonly contract?: ThreadSlot<string>;
   readonly usdFrom?: boolean;
   readonly usdTo?: boolean;
+  /** Where the money is now, as the person said it ("from base", "my base usdc", "using eth on arbitrum"). */
+  readonly fundFrom?: ThreadSlot<NetworkKey>;
+  /** At most 4 amounts kept back. */
+  readonly keep?: readonly ThreadKeep[];
+  /** Read with model-assisted reading. */
+  readonly modelRead?: true;
+  /** At most 4 "Read as" items. */
+  readonly readAs?: readonly ThreadReadAs[];
+  /** The clause was asked as a question or with a polite opener: never planned without a confirm. */
+  readonly questionForm?: true;
+  /** How the step was read. */
+  readonly source?: ReadingSource;
 }
 
 export const TURN_KINDS = Object.freeze(["message", "answer", "edit", "append", "replace", "control", "none"] as const);
@@ -276,6 +369,14 @@ export interface ClarifyThread {
   readonly undo: readonly (readonly ThreadStep[])[];
   /** The goals the steps were solved from: each turn re-solves from them and the current facts. */
   readonly goals?: readonly Goal[];
+  /**
+   * Digest of the end state the person confirmed (assets spent per holding,
+   * received per network and holder, positions, recipients): "sha256:" + 64
+   * hex. A plan whose end state differs is confirmed again.
+   */
+  readonly confirmDigest?: string;
+  /** How the first message reached Kletia (session consent covers typed text only). */
+  readonly textOrigin?: TextOrigin;
 }
 
 export interface ThreadRef {
@@ -309,6 +410,13 @@ export interface IntentTurnRequest {
   readonly remember?: boolean;
   /** Optimistic concurrency for Kletia-held threads. */
   readonly expectedRev?: number;
+  // Model-assisted reading (off by default; never on the strict path).
+  /** "on": a clause no rule can read may be proposed by model-assisted reading, then confirmed by the person. */
+  readonly modelReading?: "off" | "on";
+  /** A consent token from the desk or the reading card (single use or session). */
+  readonly consent?: string;
+  /** Default "prefilled": session consent covers text the person typed in the desk input only. */
+  readonly textOrigin?: TextOrigin;
 }
 
 export type IntentTurnResponse =
@@ -480,15 +588,6 @@ export const STAKE_PROVIDER_WORDS: Readonly<Record<string, { readonly provider: 
 /** Dollar words: the engine reads them as USDC with USDT, PYUSD and DAI as alternatives. */
 export const USD_WORDS: ReadonlySet<string> = new Set(["usd", "dollar", "dollars", "stablecoin", "stablecoins", "stable", "stables"]);
 
-const NUMBER_WORDS: Readonly<Record<string, string>> = Object.freeze({
-  one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10",
-  eleven: "11", twelve: "12", fifteen: "15", twenty: "20", thirty: "30", forty: "40", fifty: "50", hundred: "100",
-  "a hundred": "100", "one hundred": "100", "a thousand": "1000", "one thousand": "1000",
-});
-const NUMBER_WORD_PATTERNS = Object.entries(NUMBER_WORDS)
-  .sort((a, b) => b[0].length - a[0].length)
-  .map(([word, digits]) => [new RegExp(`(^|\\s)${word}(?=\\s)`, "giu"), digits] as const);
-
 /** Symbols a message may name besides the registry's: renames and synonyms the engine maps (MATIC, BTC, ETHER, WSOL). */
 const SYMBOL_ALIASES: ReadonlySet<string> = new Set(["MATIC", "BTC", "ETHER", "WSOL"]);
 const LISTED_SYMBOLS: ReadonlySet<string> = new Set(ASSETS.map((asset) => asset.symbol.toUpperCase()));
@@ -499,30 +598,6 @@ export function isKnownSymbol(token: string): boolean {
   return LISTED_SYMBOLS.has(upper) || SYMBOL_ALIASES.has(upper);
 }
 
-/**
- * Message normalisation shared with the engine: arrows become " to ", quotes
- * and trailing punctuation go, polite prefixes and suffixes are dropped and
- * number words up to "a thousand" become digits.
- */
-export function normalizeMessage(text: string): string {
-  let value = text
-    .replace(/[→➡]|->|=>/gu, " to ")
-    .replace(/[“”"']/gu, "")
-    .replace(/\s+/gu, " ")
-    .trim()
-    .replace(/[.!?]+$/u, "")
-    .trim();
-  const prefix = /^(?:please|pls|kletia,?|i want to|id like to|i would like to|can you|could you|lets)\s+/iu;
-  while (prefix.test(value)) value = value.replace(prefix, "");
-  value = value.replace(/(?:,?\s+(?:please|pls|thanks|thank you|thx))+$/iu, "").trim();
-  for (const [pattern, digits] of NUMBER_WORD_PATTERNS) value = value.replace(pattern, `$1${digits}`);
-  return value;
-}
-
-const NETWORK_WORDS =
-  "arbitrum[\\s-]+sepolia|arb[\\s-]+sepolia|solana[\\s-]+devnet|solana[\\s-]+mainnet|arbitrum[\\s-]+one|arc[\\s-]+testnet|base[\\s-]+mainnet|" +
-  "ethereum[\\s-]+mainnet|op[\\s-]+mainnet|optimism[\\s-]+mainnet|polygon[\\s-]+pos|polygon[\\s-]+mainnet|mainnet-beta|" +
-  "base|arbitrum|arb|arc|solana|sol|devnet|ethereum|optimism|polygon|matic|op";
 const NAME_PATTERN = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\\.(?:eth|sns|sol)";
 const ADDRESS_PATTERN = `(?:0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME_PATTERN}|[1-9A-HJ-NP-Za-km-z]{32,44})`;
 const escapeWord = (word: string): string => word.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&").replace(/ /gu, "[\\s-]+");
@@ -699,9 +774,11 @@ function validAmount(value: unknown): value is ThreadAmount {
   if (!isRecord(value)) return false;
   switch (value.t) {
     case "exact":
-      return Object.keys(value).every((key) => key === "t" || key === "value" || key === "raw") &&
+      return Object.keys(value).every((key) => ["t", "value", "raw", "rewritten", "unit"].includes(key)) &&
         typeof value.value === "string" && POSITIVE_DECIMAL.test(value.value) && !/^0(?:\.0+)?$/u.test(value.value) &&
-        (value.raw === undefined || boundedString(value.raw, 40));
+        (value.raw === undefined || boundedString(value.raw, 40)) &&
+        (value.rewritten === undefined || value.rewritten === true) &&
+        (value.unit === undefined || (AMOUNT_UNITS as readonly unknown[]).includes(value.unit));
     case "usd":
       return Object.keys(value).every((key) => key === "t" || key === "value") &&
         typeof value.value === "string" && POSITIVE_DECIMAL.test(value.value) && !/^0(?:\.0+)?$/u.test(value.value);
@@ -713,6 +790,27 @@ function validAmount(value: unknown): value is ThreadAmount {
     default:
       return false;
   }
+}
+
+const READ_AS_SLOT_PATTERN = /^[a-zA-Z]{1,24}$/u;
+
+function validKeep(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 4) return false;
+  return value.every((entry) =>
+    isRecord(entry) && Object.keys(entry).every((key) => ["amount", "asset", "network"].includes(key)) &&
+    validAmount(entry.amount) && (entry.amount as { t: string }).t !== "previous" &&
+    (entry.asset === undefined || (typeof entry.asset === "string" && TOKEN_PATTERN.test(entry.asset))) &&
+    (entry.network === undefined || isNetworkKey(entry.network)));
+}
+
+function validReadAs(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 4) return false;
+  return value.every((entry) =>
+    isRecord(entry) && Object.keys(entry).every((key) => ["slot", "rule", "from", "to"].includes(key)) &&
+    boundedString(entry.slot, 24, READ_AS_SLOT_PATTERN) &&
+    typeof entry.rule === "string" && PROVENANCE_RULE_PATTERN.test(entry.rule) &&
+    (entry.from === undefined || boundedString(entry.from, CLARIFY_LIMITS.correctionFrom)) &&
+    boundedString(entry.to, 64));
 }
 
 const SLOT_CHECKS: Readonly<Record<string, (v: unknown) => boolean>> = Object.freeze({
@@ -728,14 +826,53 @@ const SLOT_CHECKS: Readonly<Record<string, (v: unknown) => boolean>> = Object.fr
   provider: (v) => typeof v === "string" && PROTOCOL_SLOT_PATTERN.test(v),
   contract: (v) => typeof v === "string" && CONTRACT_SLOT_PATTERN.test(v),
 });
-const STEP_KEYS = [...Object.keys(SLOT_CHECKS), "kindCandidates", "usdFrom", "usdTo"];
+const STEP_KEYS = [...Object.keys(SLOT_CHECKS), "fundFrom", "kindCandidates", "usdFrom", "usdTo", "keep", "modelRead", "readAs", "questionForm", "source"];
+
+/** A rule id: "previous-output", "allBut:except", "unit:million". */
+export const PROVENANCE_RULE_PATTERN = /^[a-z][a-zA-Z0-9-]{0,31}(?::[a-zA-Z0-9-]{1,31})?$/u;
+const SLOT_QUESTION_ID_PATTERN = /^q\.[\w.[\]-]{1,94}$/u;
+const SLOT_ASSUMPTION_ID_PATTERN = /^a\.[\w.[\]-]{1,94}$/u;
+const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
+
+function provenanceIssues(value: unknown, by: unknown, path: string, issues: ValidationIssue[]): void {
+  if (!isRecord(value)) {
+    issues.push({ path, message: "Provenance is { span?, rule?, assumption?, answer?, reading? }." });
+    return;
+  }
+  unknownKeys(value, ["span", "rule", "assumption", "answer", "reading"], path, issues);
+  if (value.span !== undefined) {
+    const span = value.span;
+    const ok = Array.isArray(span) && span.length === 2 && span.every((entry) => Number.isInteger(entry) && entry >= 0 && entry <= CLARIFY_LIMITS.text) &&
+      (span[0] as number) < (span[1] as number);
+    if (!ok) issues.push({ path: `${path}.span`, message: "A span is [start, end) offsets in the message." });
+    else if (by !== "user" && by !== "derived") issues.push({ path: `${path}.span`, message: "Only user and derived slots cite words." });
+  }
+  if (value.rule !== undefined) {
+    if (typeof value.rule !== "string" || !PROVENANCE_RULE_PATTERN.test(value.rule)) issues.push({ path: `${path}.rule`, message: "A rule id such as previous-output or unit:million." });
+    else if (by !== "derived" && by !== "user") issues.push({ path: `${path}.rule`, message: "Only derived and user slots name a rule." });
+  }
+  if (value.assumption !== undefined) {
+    if (typeof value.assumption !== "string" || !SLOT_ASSUMPTION_ID_PATTERN.test(value.assumption)) issues.push({ path: `${path}.assumption`, message: "An assumption id (a.…)." });
+    else if (by !== "assumed") issues.push({ path: `${path}.assumption`, message: "Only assumed slots name an assumption." });
+  }
+  if (value.answer !== undefined) {
+    if (typeof value.answer !== "string" || !SLOT_QUESTION_ID_PATTERN.test(value.answer)) issues.push({ path: `${path}.answer`, message: "A question id (q.…)." });
+    else if (by !== "answer") issues.push({ path: `${path}.answer`, message: "Only answered slots name a question." });
+  }
+  if (value.reading !== undefined) {
+    const reading = value.reading;
+    if (!isRecord(reading) || Object.keys(reading).some((key) => key !== "source" && key !== "confirmed") || reading.source !== "llm" || typeof reading.confirmed !== "boolean") {
+      issues.push({ path: `${path}.reading`, message: "A reading is { source: \"llm\", confirmed }." });
+    }
+  }
+}
 
 function validateSlot(value: unknown, path: string, check: (v: unknown) => boolean, issues: ValidationIssue[]): void {
   if (!isRecord(value)) {
-    issues.push({ path, message: "A slot is { v, by, why? }." });
+    issues.push({ path, message: "A slot is { v, by, why?, prov? }." });
     return;
   }
-  unknownKeys(value, ["v", "by", "why"], path, issues);
+  unknownKeys(value, ["v", "by", "why", "prov"], path, issues);
   if (!check(value.v)) issues.push({ path: `${path}.v`, message: "Invalid value for this slot." });
   if (!(THREAD_PROVENANCES as readonly unknown[]).includes(value.by)) {
     issues.push({ path: `${path}.by`, message: `Must be one of ${THREAD_PROVENANCES.join(", ")}.` });
@@ -751,6 +888,7 @@ function validateSlot(value: unknown, path: string, check: (v: unknown) => boole
       issues.push({ path: `${path}.why`, message: "A reason is { source, code } with a template code." });
     }
   }
+  if (value.prov !== undefined) provenanceIssues(value.prov, value.by, `${path}.prov`, issues);
 }
 
 function validateSteps(value: unknown, path: string, issues: ValidationIssue[]): void {
@@ -778,6 +916,19 @@ function validateSteps(value: unknown, path: string, issues: ValidationIssue[]):
     }
     for (const flag of ["usdFrom", "usdTo"] as const) {
       if (step[flag] !== undefined && typeof step[flag] !== "boolean") issues.push({ path: `${at}.${flag}`, message: "Must be a boolean." });
+    }
+    if (step.fundFrom !== undefined) validateSlot(step.fundFrom, `${at}.fundFrom`, isNetworkKey, issues);
+    if (step.keep !== undefined && !validKeep(step.keep)) {
+      issues.push({ path: `${at}.keep`, message: "Up to 4 { amount, asset?, network? } kept back (an exact, USD or share amount)." });
+    }
+    for (const flag of ["modelRead", "questionForm"] as const) {
+      if (step[flag] !== undefined && step[flag] !== true) issues.push({ path: `${at}.${flag}`, message: "Only true, or absent." });
+    }
+    if (step.readAs !== undefined && !validReadAs(step.readAs)) {
+      issues.push({ path: `${at}.readAs`, message: `Up to 4 { slot, rule, from? (at most ${CLARIFY_LIMITS.correctionFrom} characters), to }.` });
+    }
+    if (step.source !== undefined && !(READING_SOURCES as readonly unknown[]).includes(step.source)) {
+      issues.push({ path: `${at}.source`, message: `Must be one of ${READING_SOURCES.join(", ")}.` });
     }
   });
 }
@@ -808,7 +959,7 @@ function threadIssues(input: unknown, path: string, issues: ValidationIssue[]): 
     issues.push({ path, message: `A thread is at most ${THREAD_LIMITS.maxBytes} bytes.` });
     return;
   }
-  unknownKeys(input, ["spec", "id", "rev", "status", "policy", "steps", "open", "pendingEdit", "corrections", "turns", "undo", "goals"], path, issues);
+  unknownKeys(input, ["spec", "id", "rev", "status", "policy", "steps", "open", "pendingEdit", "corrections", "turns", "undo", "goals", "confirmDigest", "textOrigin"], path, issues);
   if (input.spec !== THREAD_SPEC) issues.push({ path: at("spec"), message: `Must be "${THREAD_SPEC}".` });
   if (!isThreadId(input.id)) issues.push({ path: at("id"), message: "Must be th_ followed by 24 base32 characters." });
   if (!Number.isSafeInteger(input.rev) || (input.rev as number) < 0) issues.push({ path: at("rev"), message: "Must be a non-negative integer." });
@@ -850,6 +1001,12 @@ function threadIssues(input: unknown, path: string, issues: ValidationIssue[]): 
     undo.forEach((snapshot, index) => validateSteps(snapshot, `${at("undo")}[${index}]`, issues));
   }
   if (input.goals !== undefined) goalListIssues(input.goals, at("goals"), issues);
+  if (input.confirmDigest !== undefined && (typeof input.confirmDigest !== "string" || !DIGEST_PATTERN.test(input.confirmDigest))) {
+    issues.push({ path: at("confirmDigest"), message: "Must be sha256: followed by 64 lowercase hex characters." });
+  }
+  if (input.textOrigin !== undefined && !(TEXT_ORIGINS as readonly unknown[]).includes(input.textOrigin)) {
+    issues.push({ path: at("textOrigin"), message: `Must be one of ${TEXT_ORIGINS.join(", ")}.` });
+  }
 }
 
 /** Shape, size and slot syntax of a client-held thread (`THREAD_INVALID` when it fails). */
@@ -863,7 +1020,11 @@ export function validateThread(input: unknown): ValidationResult<ClarifyThread> 
 const TURN_REQUEST_KEYS = [
   "accounts", "defaultNetwork", "sourceNetwork", "constraints", "metadata", "clientReference",
   "text", "answer", "assumption", "thread", "threadId", "remember", "expectedRev",
+  "modelReading", "consent", "textOrigin",
 ];
+/** A consent token: dot-separated base64url parts. */
+const CONSENT_TOKEN_PATTERN = /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){1,3}$/u;
+const CONSENT_TOKEN_MAX = 4_096;
 const QUESTION_ID_PATTERN = /^q\.[\w.[\]-]{1,94}$/u;
 const ASSUMPTION_ID_PATTERN = /^a\.[\w.[\]-]{1,94}$/u;
 const OPTION_ID_PATTERN = /^[\w.:[\]-]{1,128}$/u;
@@ -940,6 +1101,16 @@ export function validateIntentTurnRequest(input: unknown): ValidationResult<Inte
     } else if (!hasThreadId) issues.push({ path: "expectedRev", message: "expectedRev applies to a remembered thread (threadId)." });
   }
 
+  if (input.modelReading !== undefined && input.modelReading !== "off" && input.modelReading !== "on") {
+    issues.push({ path: "modelReading", message: "Must be off or on." });
+  }
+  if (input.consent !== undefined && (typeof input.consent !== "string" || input.consent.length > CONSENT_TOKEN_MAX || !CONSENT_TOKEN_PATTERN.test(input.consent))) {
+    issues.push({ path: "consent", message: "Must be a consent token as issued." });
+  }
+  if (input.textOrigin !== undefined && !(TEXT_ORIGINS as readonly unknown[]).includes(input.textOrigin)) {
+    issues.push({ path: "textOrigin", message: `Must be one of ${TEXT_ORIGINS.join(", ")}.` });
+  }
+
   const context = validateIntentContext(input, issues, {
     requireAccounts: !hasThreadId,
     clientReferenceMax: CLARIFY_LIMITS.clientReference,
@@ -958,6 +1129,9 @@ export function validateIntentTurnRequest(input: unknown): ValidationResult<Inte
       ...(hasThreadId ? { threadId: input.threadId as string } : {}),
       ...(input.remember === true ? { remember: true } : {}),
       ...(input.expectedRev !== undefined ? { expectedRev: input.expectedRev as number } : {}),
+      ...(input.modelReading !== undefined ? { modelReading: input.modelReading as "off" | "on" } : {}),
+      ...(input.consent !== undefined ? { consent: input.consent as string } : {}),
+      ...(input.textOrigin !== undefined ? { textOrigin: input.textOrigin as TextOrigin } : {}),
     },
   };
 }

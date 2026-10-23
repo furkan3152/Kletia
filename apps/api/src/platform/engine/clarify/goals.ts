@@ -17,7 +17,7 @@
  *   is stored as `exact`), a typo (D9) is a symbol within one edit of listed
  *   ones, the possessive scope (D4) is `spend.amount: max`.
  */
-import { findAssetBySymbol, getProtocol, type Custody, type Goal, type NetworkKey, type Place, type ProtocolId, type ThreadAmount } from "@kletia/core";
+import { findAssetBySymbol, getProtocol, isEvmAddress, isSolanaAddress, type Custody, type Goal, type NetworkKey, type Place, type ProtocolId, type ThreadAmount } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { symbolTypoCandidates } from "../goal/lexer.js";
 import { readNotesOf, solveGoals, type GoalPins, type GoalReadNotes } from "../solver/index.js";
@@ -95,6 +95,61 @@ export function goalStepFrom(placeholder: WorkStep, goal: Goal): WorkStep {
   if (placeholder.amount) pins.amount = placeholder.amount.v;
   if (placeholder.protocol?.v === SCOPE_ALL) pins.scope = "all";
   return { goal: JSON.parse(JSON.stringify(goal)) as Goal, ...(pins.amount || pins.scope ? { goalPins: pins } : {}) };
+}
+
+/**
+ * A strict step that spends all of the dollar class, or a share of it ("move all my stables
+ * to arbitrum", "swap half my usd to eth on base"), says a class goal: every stablecoin holding in scope moves, never
+ * only the one a network choice prefers. The step becomes that goal (same words, no new value), so the solver asks
+ * the scope across networks (SCOPE_AMBIGUOUS) or lists every move for a confirm. Null when the step is anything else,
+ * carries a reading the goal cannot hold, or a later step spends its output.
+ */
+export function classSpendGoal(step: WorkStep, next: WorkStep | undefined): WorkStep | null {
+  const amount = step.amount;
+  if (!step.usdFrom || step.from || step.contract || step.goal || !amount || amount.by !== "user" || amount.v.t !== "balance") return null;
+  if (next?.amount?.v.t === "previous") return null;
+  const extra: readonly (keyof WorkStep)[] = ["keep", "fundFrom", "readAs", "questionForm", "modelRead", "closedClass", "ignored", "vault", "provider", "goalPins"];
+  if (extra.some((key) => step[key] !== undefined) || (step.source !== undefined && step.source !== "E")) return null;
+  const said = step.network && (step.network.by === "user" || step.network.by === "answer") ? step.network.v : undefined;
+  const wallet = (network: NetworkKey): Place => ({ network, custody: { kind: "wallet" } });
+  const share = amount.v.bps >= 10_000 ? ({ t: "max" } as const) : ({ t: "portion", bps: amount.v.bps } as const);
+  const spend = { asset: { class: "usd-stable" as const }, amount: share };
+  const base = { holder: { t: "self" as const }, constraints: {}, confidence: "exact" as const };
+  let goal: Goal | null = null;
+  switch (step.kind?.v) {
+    case "bridge":
+      if (!step.toNetwork || step.recipient) return null;
+      goal = { ...base, kind: "relocate", op: "bridge", spend: { ...spend, ...(said ? { from: wallet(said) } : {}) }, want: { at: wallet(step.toNetwork.v) } };
+      break;
+    case "swap":
+      if (!step.to || step.usdTo || step.recipient) return null;
+      goal = { ...base, kind: "convert", op: "swap", spend: { ...spend, ...(said ? { from: wallet(said) } : {}) }, want: { asset: { symbol: step.to.v } } };
+      break;
+    case "deposit": {
+      if (step.recipient) return null;
+      const custody: Custody = { kind: "venue", ...(step.protocol?.by === "user" ? { protocol: step.protocol.v as ProtocolId } : {}) };
+      goal = { ...base, kind: "earn", op: "deposit", spend, want: { at: { ...(said ? { network: said } : {}), custody } } };
+      break;
+    }
+    case "transfer": {
+      const recipient = step.recipient?.by === "user" ? step.recipient.v : undefined;
+      if (!recipient) return null;
+      const holder = isEvmAddress(recipient) || isSolanaAddress(recipient)
+        ? { t: "address" as const, value: recipient }
+        : /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:eth|sol|sns)$/iu.test(recipient) ? { t: "name" as const, value: recipient } : null;
+      if (!holder) return null;
+      goal = { ...base, holder, kind: "deliver", op: "transfer", spend: { ...spend, ...(said ? { from: wallet(said) } : {}) }, want: said ? { at: wallet(said) } : {} };
+      break;
+    }
+    default:
+      return null;
+  }
+  return { goal, goalRead: { lowered: false, possessive: true } };
+}
+
+/** The steps of a new sentence with every class spend as its goal (`classSpendGoal`). */
+export function withClassGoals(steps: readonly WorkStep[]): WorkStep[] {
+  return steps.map((step, index) => classSpendGoal(step, steps[index + 1]) ?? step);
 }
 
 /* -------------------------------------------------------------- answers */

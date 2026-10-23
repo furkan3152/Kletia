@@ -7,7 +7,12 @@
  * Thresholds: shorter than 3 characters, never; 3 characters, only one
  * missing letter into a 4-letter word ("frm" -> "from"); 4-6 characters,
  * distance 1; 7 or more, distance 2.
+ *
+ * Keyword corrections (verbs, connectors, networks, venues) go through
+ * `keywordCandidates`, which never corrects a token that is itself an
+ * English word ("case" is not "base", "delay" is not "relay").
  */
+import { isEnglishWord } from "./englishWords.js";
 
 export function distance(a: string, b: string): number {
   const s = a.toLowerCase();
@@ -56,4 +61,14 @@ export function candidates(token: string, vocabulary: readonly string[]): string
   if (scored.length === 0) return [];
   const best = Math.min(...scored.map((entry) => entry.score));
   return [...new Set(scored.filter((entry) => entry.score === best).sort((x, y) => x.order - y.order).map((entry) => entry.word))];
+}
+
+/**
+ * `candidates` for keyword corrections: none when the token is itself an
+ * English word (clarify/englishWords.ts), so a word the person typed is
+ * never turned into a network, venue, verb or connector.
+ */
+export function keywordCandidates(token: string, vocabulary: readonly string[]): string[] {
+  if (isEnglishWord(token)) return [];
+  return candidates(token, vocabulary);
 }

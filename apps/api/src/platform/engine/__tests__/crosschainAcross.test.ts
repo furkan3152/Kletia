@@ -10,7 +10,14 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import { encodeFunctionData, parseAbi, type Hex } from "viem";
 import { applySlippage, type IntentGraph, type IntentStep, type TransactionRequest } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { acrossAdapter, ACROSS_FILL_DEADLINE_BUFFER_SECONDS } from "../adapters/across.js";
+import {
+  acrossAdapter,
+  acrossSpokePool,
+  ACROSS_FILL_DEADLINE_BUFFER_SECONDS,
+  ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS,
+  exclusivityWindowSeconds,
+  MAX_EXCLUSIVITY_SECONDS,
+} from "../adapters/across.js";
 import type { AdapterAction, SettlementResult, VerificationResult } from "../adapters/types.js";
 import {
   ACROSS_SPOKE_ARBITRUM,
@@ -136,7 +143,7 @@ describe("Across quotes and the encoded deposit", () => {
     assert.equal(planned.minimumOutput.amount, applySlippage(RECORDED_OUTPUT.toString(), 5));
     assert.equal(planned.floor, "onchain");
     assert.equal(planned.transactionCount, 2, "exact approval, then the deposit");
-    assert.equal(planned.estimatedSeconds, 17);
+    assert.equal(planned.estimatedSeconds, 6, "the fill estimate plus Base's confirmation (no signing margin)");
     assert.equal(planned.settlement.kind, "cross-network");
     assert.ok(planned.warnings.some((warning) => /refunds the deposit to the sending account on Base/u.test(warning)), planned.warnings.join(" | "));
     assert.equal(planned.preview?.approvalSpender, ACROSS_SPOKE_BASE.toLowerCase());
@@ -212,6 +219,53 @@ describe("Across quotes and the encoded deposit", () => {
       mock.acrossQuote = () => acrossQuoteBody(action, overrides);
       assert.match(await errorOf(() => acrossAdapter.plan(action)), reason, JSON.stringify(overrides));
       assert.match(await errorOf(() => acrossAdapter.prepare(prepareContext(action))), reason, `prepare ${JSON.stringify(overrides)}`);
+    }
+  });
+});
+
+describe("Across exclusivity", () => {
+  const RELAYER = "0x1111111111111111111111111111111111111111";
+
+  it("reads exclusivityParameter like the SpokePool: a period up to MAX_EXCLUSIVITY_PERIOD_SECONDS, a timestamp above it", () => {
+    const now = 1_790_000_000;
+    assert.equal(ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS, 31_536_000, "read back from all five pinned SpokePools on 2026-10-23");
+    assert.equal(exclusivityWindowSeconds(0, now), 0);
+    assert.equal(exclusivityWindowSeconds(5, now), 5, "a period");
+    assert.equal(exclusivityWindowSeconds(ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS, now), ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS, "at the constant: still a period");
+    assert.equal(exclusivityWindowSeconds(ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS + 1, ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS), 1, "above it: a timestamp");
+    assert.equal(exclusivityWindowSeconds(now + 120, now), 120);
+    assert.equal(exclusivityWindowSeconds(now - 60, now), 0, "a timestamp already past leaves no exclusivity");
+  });
+
+  it("accepts the absolute exclusivity deadline Across returns from Ethereum and Polygon, and refuses long windows", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    for (const network of ["ethereum", "polygon"] as const) {
+      const action = bridgeAction(network, "base", { amount: "100000000" });
+      mock.acrossQuote = () => acrossQuoteBody(action, {
+        exclusiveRelayer: RELAYER,
+        exclusivityDeadline: now + 30,
+        spokePoolAddress: acrossSpokePool(network),
+        destinationSpokePoolAddress: acrossSpokePool("base"),
+      });
+      const planned = await acrossAdapter.plan(action);
+      assert.equal(planned.protocol, "across", network);
+      const deposit = planned.preview?.transactions.at(-1);
+      assert.ok(deposit && deposit.vm === "evm");
+      assert.ok(deposit.data.includes((now + 30).toString(16)), "the timestamp is encoded unchanged");
+    }
+    const action = hundred();
+    const cases: [number, boolean][] = [
+      [MAX_EXCLUSIVITY_SECONDS, true],
+      [MAX_EXCLUSIVITY_SECONDS + 1, false],
+      [now + MAX_EXCLUSIVITY_SECONDS - 60, true],
+      [now + 2 * MAX_EXCLUSIVITY_SECONDS, false],
+      [now - 10, true],
+      [ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS, false],
+    ];
+    for (const [exclusivityDeadline, accepted] of cases) {
+      mock.acrossQuote = () => acrossQuoteBody(action, { exclusiveRelayer: RELAYER, exclusivityDeadline });
+      if (accepted) assert.equal((await acrossAdapter.plan(action)).protocol, "across", String(exclusivityDeadline));
+      else assert.match(await errorOf(() => acrossAdapter.plan(action)), /^PROVIDER_TRANSACTION_INVALID.*exclusivity window is too long/u, String(exclusivityDeadline));
     }
   });
 });

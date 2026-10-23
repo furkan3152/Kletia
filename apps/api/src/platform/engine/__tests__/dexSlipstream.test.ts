@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import { decodeFunctionData, encodeFunctionData, erc20Abi, getAddress, zeroAddress, type Abi, type Address, type Hex } from "viem";
 import { dexDeploymentsFor, nativeAssetId, type DexDeployment, type EvmTransactionRequest, type IntentGraph, type NetworkKey } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { decodeRoute, PINS_ABI, POOL_ABI, resetDexCaches, SLIPSTREAM_FACTORY_ABI, SLIPSTREAM_QUOTER_ABI, SLIPSTREAM_ROUTER_ABI } from "../adapters/dex/concentrated.js";
+import { decodeRoute, encodePath, PINS_ABI, POOL_ABI, resetDexCaches, SLIPSTREAM_FACTORY_ABI, SLIPSTREAM_QUOTER_ABI, SLIPSTREAM_ROUTER_ABI } from "../adapters/dex/concentrated.js";
 import { aerodromeAdapter, velodromeAdapter } from "../adapters/dex/aerodrome.js";
 import { WETH_ABI } from "../adapters/lending/common.js";
 import { configureAdapters } from "../adapters/registry.js";
@@ -52,6 +52,8 @@ interface Deployed {
   readonly pools: Map<string, Address>;
   /** amountOut by `${tokenIn}:${tokenOut}:${tickSpacing}`. */
   readonly quotes: Map<string, bigint>;
+  /** amountOut by encoded two-pool path (lower case). */
+  readonly paths: Map<string, bigint>;
   routerFactory: string;
 }
 
@@ -60,7 +62,7 @@ const quoteKey = (a: string, b: string, ts: number) => `${a.toLowerCase()}:${b.t
 let poolCounter = 0;
 
 function deploy(deployment: DexDeployment): Deployed {
-  const world: Deployed = { deployment, pools: new Map(), quotes: new Map(), routerFactory: deployment.factory };
+  const world: Deployed = { deployment, pools: new Map(), quotes: new Map(), paths: new Map(), routerFactory: deployment.factory };
   chain.contract(deployment.factory, SLIPSTREAM_FACTORY_ABI as unknown as Abi, {
     getPool: ([a, b, ts]) => world.pools.get(pairKey(String(a), String(b), Number(ts))) ?? zeroAddress,
   });
@@ -72,6 +74,11 @@ function deploy(deployment: DexDeployment): Deployed {
       const out = world.quotes.get(quoteKey(tokenIn, tokenOut, tickSpacing));
       if (out === undefined) throw new Revert();
       return [out, 0n, 1, 100_000n];
+    },
+    quoteExactInput: ([path]) => {
+      const out = world.paths.get(String(path).toLowerCase());
+      if (out === undefined) throw new Revert();
+      return [out, [], [], 180_000n];
     },
   });
   chain.contract(deployment.router, [...PINS_ABI, ...SLIPSTREAM_ROUTER_ABI] as unknown as Abi, {
@@ -252,6 +259,45 @@ describe("Slipstream pool selection", () => {
     assert.equal(step.protocol, "velodrome");
     assert.equal(decodeRoute("velodrome", "optimism", decodeStepRef(step.quoteRef)?.provider)?.deployment.id, "optimism:velodrome:cl-gauges-v2");
     assert.match(step.warnings?.join(" ") ?? "", new RegExp(best, "u"));
+  });
+});
+
+describe("Slipstream two-pool paths", () => {
+  it("routes through WETH when no direct pool exists, with an exactInput path of tick spacings", async () => {
+    const t = tokens("base");
+    const AERO = getAddress(tokenAddress("base", "AERO"));
+    const aero = mockToken(chain, AERO, { symbol: "AERO", decimals: 18 });
+    setBalance(aero, ACCOUNT, 10n ** 21n);
+    const [initial] = AERODROME.map(deploy) as [Deployed, Deployed, Deployed];
+    pool(initial, AERO, t.WETH, 200, { ab: 40_000_000_000_000_000n });
+    pool(initial, t.WETH, t.USDC, 100, { ab: 99_600_000n });
+    const path = encodePath([{ tokenIn: AERO, tokenOut: t.WETH, tier: 200 }, { tokenIn: t.WETH, tokenOut: t.USDC, tier: 100 }]);
+    initial.paths.set(path.toLowerCase(), 99_500_000n);
+    oracle.restore();
+    oracle = installSwapOracle([
+      [CHAINLINK_FEEDS.ethUsdBase, 2_500],
+      [CHAINLINK_FEEDS.usdcUsdBase, 1],
+      [CHAINLINK_FEEDS.aeroUsdBase, 1],
+    ]);
+    const graph = await swap("base", "AERO", "USDC", "100");
+    const step = graph.steps[0]!;
+    assert.equal(step.protocol, "aerodrome");
+    assert.equal(step.expectedOutput?.amount, "99500000");
+    const recorded = decodeRoute("aerodrome", "base", decodeStepRef(step.quoteRef)?.provider);
+    assert.deepEqual(recorded?.tiers, [200, 100]);
+    assert.equal(recorded?.intermediate, "W");
+    const transactions = await prepared(graph);
+    const router = getAddress(initial.deployment.router);
+    assert.equal(transactions.at(-1)?.to, router);
+    const outer = decodeFunctionData({ abi: SLIPSTREAM_ROUTER_ABI, data: transactions.at(-1)?.data as Hex });
+    assert.equal(outer.functionName, "multicall");
+    const swapCall = decodeFunctionData({ abi: SLIPSTREAM_ROUTER_ABI, data: (outer.args[0] as readonly Hex[])[0] as Hex });
+    assert.equal(swapCall.functionName, "exactInput");
+    const params = swapCall.args[0] as { path: Hex; recipient: string; amountIn: bigint; amountOutMinimum: bigint };
+    assert.equal(params.path.toLowerCase(), path.toLowerCase());
+    assert.equal(getAddress(params.recipient), getAddress(ACCOUNT));
+    assert.equal(params.amountIn, 10n ** 20n);
+    assert.equal(params.amountOutMinimum, (99_500_000n * 9_950n) / 10_000n);
   });
 });
 

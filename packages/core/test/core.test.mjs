@@ -267,3 +267,13 @@ test("registry assets: EVM liquid staking tokens without a group, USDbC transfer
   // Base weETH is transfer-only too: its pools trade far below fair value.
   assert.deepEqual(ASSETS.filter((asset) => asset.transferOnly).map((asset) => `${asset.network}:${asset.symbol}`), ["base:USDbC", "base:weETH"]);
 });
+
+test("core: the 2026-10 contract modules are exported from the package root", async () => {
+  const core = await import("../dist/index.js");
+  for (const name of [
+    "normalizeMessage", "NETWORK_WORDS", "REVIEWED_FILLERS", "NEVER_DROP", "UNIT_WORDS", "LOOKALIKE_FAMILIES", "DIGIT_TOKENS", "scanClosedClass",
+    "TRANSIT_RISK", "HOLDING_PENALTY_APY_POINTS", "transitRiskUsd", "ROUTE_SHAPES", "ROUTE_PREFERENCES", "READING_SOURCES", "isRestAmount",
+  ]) assert.ok(name in core, name);
+  assert.deepEqual([...core.ROUTE_PREFERENCES], ["value", "fastest", "fewest-signatures"]);
+  assert.deepEqual([...core.ROUTE_SHAPES], ["single", "bridge", "one-shot", "bridge-swap", "swap-bridge", "swap-bridge-swap", "wrap"]);
+});

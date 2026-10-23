@@ -16,7 +16,9 @@ import { WRAPPED_SOL_MINT } from "@kletia/core";
 import {
   EVAL_PRICE_AT,
   INTENT_EVAL_ENFORCE,
+  EVAL_SEVERITY,
   classifyResult,
+  moreSevere,
   evalGates,
   evalPriceReader,
   formatScoreboard,
@@ -64,6 +66,61 @@ describe("intent eval harness", () => {
     assert.equal(classifyResult(refuse, result({ error: "INTENT_UNSUPPORTED" })), "refuse_ok");
     assert.equal(classifyResult(refuse, result({ error: "OTHER" })), "refuses_wrongly");
     assert.equal(classifyResult(prompt(["R"]), result({ status: "crashed", error: "CRASH" })), "crashed");
+  });
+
+  it("C accepts need a confirm; a harness confirm before a P plan is a needless ask unless the corpus accepts it", () => {
+    const confirmPlan = prompt(["C:^swap@solana 1 SOL->USDC$", "A:INTERPRETATION_CONFIRM$"]);
+    const ready = { status: "ready" as const, plan: "swap@solana 1 SOL->USDC" };
+    assert.equal(classifyResult(confirmPlan, result(ready)), "plans_unconfirmed");
+    assert.equal(classifyResult(confirmPlan, result({ ...ready, confirmed: true })), "plan_ok");
+    assert.equal(classifyResult(confirmPlan, result({ ...ready, plan: "swap@solana 1 USDC->SOL", confirmed: true })), "plans_wrongly");
+    assert.equal(classifyResult(confirmPlan, result({ status: "needs_input", questions: ["actions[0].kind:INTERPRETATION_CONFIRM"] })), "ask_ok");
+    const plain = prompt(["P:^swap@solana 1 SOL->USDC$"]);
+    const auto = { ...ready, confirmed: true as const, autoConfirmed: "actions[0].kind:INTERPRETATION_CONFIRM" };
+    assert.equal(classifyResult(plain, result(auto)), "asks_needlessly");
+    assert.equal(classifyResult(prompt(["P:^swap@solana 1 SOL->USDC$", "A:INTERPRETATION_CONFIRM$"]), result(auto)), "plan_ok");
+    // A scripted confirm (`then`) is the corpus' own expectation.
+    assert.equal(classifyResult(plain, result({ ...ready, confirmed: true })), "plan_ok");
+  });
+
+  it("a plan that differs from the sentence its confirm promised is a wrong plan (I14)", () => {
+    const confirmPlan = prompt(["C:^swap@solana 1 SOL->USDC$"]);
+    const mismatch = result({ status: "ready", plan: "swap@solana 1 SOL->USDC", confirmed: true, confirmMismatch: 'confirmed "a", planned "b"' });
+    assert.equal(classifyResult(confirmPlan, mismatch), "plans_wrongly");
+  });
+
+  it("plan mode: a changed end state is wrong, a planner refusal is unplannable; strict mode accepts a refusal for an ask", () => {
+    const plan = prompt(["P:^swap@solana 1 SOL->USDC$"]);
+    const ready = { status: "ready" as const, plan: "swap@solana 1 SOL->USDC" };
+    assert.equal(classifyResult(plan, result({ ...ready, planned: { ok: true }, endStateDiff: [] })), "plan_ok");
+    assert.equal(classifyResult(plan, result({ ...ready, planned: { ok: true }, endStateDiff: ["receive base:USDC@self planned, not decided"] })), "plans_wrongly");
+    assert.equal(classifyResult(plan, result({ ...ready, planned: { ok: false, code: "INTENT_UNSUPPORTED", message: "no route" } })), "plans_unplannable");
+    const ask = prompt(["A:amount:AMOUNT_MISSING"]);
+    const refusal = result({ error: "CLARIFY_REQUIRED" });
+    assert.equal(classifyResult(ask, refusal), "refuses_wrongly");
+    assert.equal(classifyResult(ask, refusal, { strict: true }), "refuse_ok");
+    assert.equal(classifyResult(plan, refusal, { strict: true }), "refuses_wrongly");
+  });
+
+  it("orders failure classes by severity", () => {
+    assert.equal(EVAL_SEVERITY[0], "plans_wrongly");
+    assert.ok(moreSevere("plans_wrongly", "crashed"));
+    assert.ok(moreSevere("crashed", "plans_unplannable"));
+    assert.ok(moreSevere("plans_unplannable", "plans_unconfirmed"));
+    assert.ok(moreSevere("plans_unconfirmed", "asks_wrong_question"));
+    assert.ok(moreSevere("asks_wrong_question", "refuses_wrongly"));
+    assert.ok(moreSevere("refuses_wrongly", "asks_needlessly"));
+    assert.ok(moreSevere("asks_needlessly", "plan_ok"));
+    assert.ok(!moreSevere("plan_ok", "ask_ok"));
+  });
+
+  it("the plan-mode gate counts unplannable prompts the ledger does not record", () => {
+    const tiny = { ...corpus, prompts: [prompt(["P:^ok$"]), { ...prompt(["R"], "refuse"), id: "T2" }] };
+    const board = scoreIntentEval(tiny, [result({ status: "ready", plan: "ok", planned: { ok: false, code: "X", message: "x" } }), result({ id: "T2" })]);
+    const gate = (ledgered?: Set<string>) => evalGates(board, { mode: "plan", ...(ledgered ? { ledgered } : {}) }).find((entry) => entry.gate === "plans_unplannable");
+    assert.equal(gate()?.ok, false);
+    assert.equal(gate(new Set(["T1"]))?.ok, true);
+    assert.equal(evalGates(board).some((entry) => entry.gate === "plans_unplannable"), false, "decide mode has no planner gate");
   });
 
   it("scores gates: a perfect board passes, a wrong plan fails", () => {
@@ -129,6 +186,17 @@ describe("intent eval harness", () => {
     assert.equal(limitedResult?.status, "crashed");
     assert.equal(specShape([{ kind: "swap", network: "base", amount: "max", from: "USDC", to: "ETH", params: { portionBps: 5000 } }]), "swap@base max(5000) USDC->ETH");
     assert.equal(specShape([{ kind: "stake", network: "ethereum", amount: "1", from: "ETH", to: "weETH", params: { provider: "ether.fi" } }]), "stake@ethereum 1 ETH->weETH {etherfi}");
+    // Typed spellings become listed symbols; a dependent step spends the output of the last step that has one.
+    assert.equal(specShape([{ kind: "swap", network: "base", amount: "0.5", from: "wsteth", to: "eth" }]), "swap@base 0.5 wstETH->ETH");
+    assert.equal(specShape([{ kind: "stake", network: "ethereum", amount: "1", from: "ETH", to: "ETHx", params: { provider: "Stader" } }]), "stake@ethereum 1 ETH->ETHx {stader}");
+    assert.equal(
+      specShape([
+        { kind: "swap", network: "solana", amount: "1", from: "sol", to: "usdc" },
+        { kind: "bridge", network: "solana", toNetwork: "arbitrum", amount: "max" },
+        { kind: "swap", network: "arbitrum", amount: "max", to: "eth" },
+      ]),
+      "swap@solana 1 SOL->USDC | bridge@solana->arbitrum max USDC | swap@arbitrum max USDC->ETH",
+    );
     assert.equal(
       specShape([{ kind: "swap", network: "solana", amount: "1", from: "SOL", to: "USDC" }, { kind: "bridge", network: "solana", toNetwork: "base", amount: "max" }]),
       "swap@solana 1 SOL->USDC | bridge@solana->base max USDC",

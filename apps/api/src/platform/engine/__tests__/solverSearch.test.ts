@@ -13,7 +13,7 @@ import type { WorkStep } from "../clarify/types.js";
 import { readGoals } from "../goal/index.js";
 import { capabilityGraph, walletNodeId } from "../solver/graph.js";
 import { ceilTo } from "../solver/decide.js";
-import { searchRoutes, solveGoals, type SearchSource, type SolveResult } from "../solver/index.js";
+import { searchRoutes, solveGoals, type GoalPins, type SearchSource, type SolveResult } from "../solver/index.js";
 import { goalOf, fixtureWallet, runPolicy, snapshotOf, STUB_PRICES, type SnapshotOptions } from "./solverFixtures.js";
 
 const APY = { "base:aave-v3:usdc": 0.041, "base:morpho:steakhouse-prime-usdc": 0.05, "base:compound-v3:usdc": 0.038 } as const;
@@ -24,9 +24,16 @@ function goalsOf(text: string): { goals: Goal[]; reads: { orderOnly: boolean; po
   return { goals: read.map((entry) => entry!.goal), reads: read.map((entry) => ({ orderOnly: entry!.notes.orderOnly, possessive: entry!.notes.possessive })) };
 }
 
-function solveText(wallet: string, text: string, options: SnapshotOptions = { apy: APY }): SolveResult {
+function solveText(wallet: string, text: string, options: SnapshotOptions = { apy: APY }, pins?: readonly (GoalPins | undefined)[]): SolveResult {
   const { goals, reads } = goalsOf(text);
-  return solveGoals(goals, snapshotOf(wallet, options), { accounts: fixtureWallet(wallet).accounts, reads });
+  return solveGoals(goals, snapshotOf(wallet, options), { accounts: fixtureWallet(wallet).accounts, reads, ...(pins ? { pins } : {}) });
+}
+
+/** A crossing from a network the person did not name is asked first (FUNDS_ELSEWHERE); returns the option values. */
+function sourceAsked(result: SolveResult): unknown[] {
+  assert.equal(result.steps.length, 0);
+  assert.equal(result.questions[0]?.reason, "FUNDS_ELSEWHERE");
+  return result.questions[0]?.options.map((option) => option.value) ?? [];
 }
 
 /** Runs the steps through the policy; asserts it plans them and the sentence round-trips. Returns the plan shape. */
@@ -39,8 +46,9 @@ function planned(wallet: string, steps: readonly WorkStep[]): string {
 }
 
 describe("goal solver: golden routes", () => {
-  it("get me 0.01 ETH on arbitrum, ETH on Base: bridges ETH (exposure-neutral, D3 chip)", () => {
-    const result = solveText("full", "get me 0.01 ETH on arbitrum");
+  it("get me 0.01 ETH on arbitrum, ETH on Base: asks the source (ETH on Base first), then bridges ETH (exposure-neutral, D3 chip)", () => {
+    assert.deepEqual(sourceAsked(solveText("full", "get me 0.01 ETH on arbitrum"))[0], { source: "base", asset: "ETH" });
+    const result = solveText("full", "get me 0.01 ETH on arbitrum", { apy: APY }, [{ source: "base" }]);
     assert.deepEqual(result.questions, []);
     assert.equal(planned("full", result.steps), "bridge@base->arbitrum 0.01 ETH");
     const source = result.assumptions.find((entry) => entry.field === "actions[0].from");
@@ -55,8 +63,9 @@ describe("goal solver: golden routes", () => {
     assert.equal(step.amount?.why?.code, "solver.target-amount");
   });
 
-  it("get me 0.01 ETH on arbitrum with only USDC: swaps into ETH across, back-solved with the stub prices (D3 chip)", () => {
-    const result = solveText("evm_base", "get me 0.01 ETH on arbitrum", { balances: { "base:ETH": "0" } });
+  it("get me 0.01 ETH on arbitrum with only USDC: asks the source, then swaps into ETH across, back-solved with the stub prices (D3 chip)", () => {
+    assert.ok(sourceAsked(solveText("evm_base", "get me 0.01 ETH on arbitrum", { balances: { "base:ETH": "0" } })).length > 0);
+    const result = solveText("evm_base", "get me 0.01 ETH on arbitrum", { balances: { "base:ETH": "0" } }, [{ source: "base" }]);
     assert.deepEqual(result.questions, []);
     const route = result.outcomes[0]?.routes[0];
     assert.ok(route);
@@ -75,7 +84,9 @@ describe("goal solver: golden routes", () => {
     assert.match(source.label, /USDC on Base/u);
     const target = result.assumptions.find((entry) => entry.field === "actions[0].amount");
     assert.ok(target?.material, "a priced target amount is a material chip");
-    assert.match(planned("evm_base", result.steps), /USDC.*ETH|ETH/u);
+    // The wallet holds no ETH anywhere (base:ETH 0): the policy asks how a step there pays its network fee (C.1 rule 8).
+    const run = runPolicy("evm_base", result.steps);
+    assert.deepEqual(run.analysis.questions.map((question) => question.reason), ["GAS_ON_ARRIVAL"]);
   });
 
   it("consolidate to Base (two_usdc): bridges Arbitrum's 150 USDC; gas tokens stay", () => {
@@ -106,14 +117,16 @@ describe("goal solver: golden routes", () => {
     assert.deepEqual(result.steps[1]?.amount?.v, { t: "previous", bps: 10_000 });
   });
 
-  it("send 20 USDC to toly.sns: Solana holds too little, so it bridges first and then sends", () => {
-    const result = solveText("full", "send 20 USDC to toly.sns");
+  it("send 20 USDC to toly.sns: Solana holds too little, so where the USDC comes from is asked; the answer bridges first and then sends", () => {
+    assert.ok(sourceAsked(solveText("full", "send 20 USDC to toly.sns")).some((value) => (value as { source?: string }).source === "base"));
+    const result = solveText("full", "send 20 USDC to toly.sns", { apy: APY }, [{ source: "base", asset: "USDC" }]);
     assert.match(planned("full", result.steps), /^bridge@\w+->solana 20 USDC \| transfer@solana max USDC to toly\.sns$/u);
     assert.equal(result.steps[1]?.recipient?.by, "user");
   });
 
-  it("I need 20 USDC on arbitrum (low_evm): moves exactly 20 USDC from Solana", () => {
-    const result = solveText("low_evm", "I need 20 USDC on arbitrum");
+  it("I need 20 USDC on arbitrum (low_evm): asks the source, then moves exactly 20 USDC from Solana", () => {
+    assert.deepEqual(sourceAsked(solveText("low_evm", "I need 20 USDC on arbitrum"))[0], { source: "solana", asset: "USDC" });
+    const result = solveText("low_evm", "I need 20 USDC on arbitrum", { apy: APY }, [{ source: "solana", asset: "USDC" }]);
     assert.equal(planned("low_evm", result.steps), "bridge@solana->arbitrum 20 USDC");
   });
 
@@ -183,7 +196,7 @@ describe("goal solver: search", () => {
   });
 
   it("asks the amount when a priced target has no price (never guessed)", () => {
-    const result = solveText("evm_base", "get me 0.01 ETH on arbitrum", { balances: { "base:ETH": "0" }, prices: { ETH: null, WETH: null } });
+    const result = solveText("evm_base", "get me 0.01 ETH on arbitrum", { balances: { "base:ETH": "0" }, prices: { ETH: null, WETH: null } }, [{ source: "base" }]);
     assert.equal(result.steps.length, 0);
     assert.equal(result.questions[0]?.reason, "AMOUNT_MISSING");
   });

@@ -51,6 +51,8 @@ import { JOURNEY_PLAN_DEADLINE_MS } from "./journey/facts.js";
 import { journeyFor } from "./journey/index.js";
 import { resolveRecipientName } from "./names.js";
 import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize, withIntentTtl, type PlanInterpretation } from "./planner.js";
+import { withPlanDeadline } from "./routing/deadline.js";
+import { recordFill, recordOrder } from "./routing/venueStats.js";
 import { payloadExposure, pinNonces, solanaBlockHeight } from "./policy/execution.js";
 import { policyGate, policyGateActive, type ExposureHandle, type QuoteLeg } from "./policy/gate.js";
 import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, SIMULATION_RETRY_AFTER_SECONDS, type PreparedPreview } from "./preview/index.js";
@@ -253,6 +255,8 @@ export interface CreateIntentOptions {
    * applied departure), passed to the planner unchanged.
    */
   readonly interpretation?: PlanInterpretation;
+  /** Fee sanity of the planner (PlanOptions.feeSanity); default: on for text requests outside a clarify thread. */
+  readonly feeSanity?: boolean;
   /**
    * Also build the journey on the plan-stage preview, which it implies:
    * `journey.basis.previewDigest` is that preview's digest.
@@ -340,12 +344,14 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
         ...(exposureScope ? { exposureScope } : {}),
       };
       const guard = await gate.beforePlan(planInput);
-      const planned = await planIntentWithPreviews(guard.request, {
+      // One planning budget for the whole request: every stage gets what remains, then PLAN_TIMEOUT.
+      const planned = await withPlanDeadline(() => planIntentWithPreviews(guard.request, {
         ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}),
         ...(options.contractAuthorityKeyId ? { contractAuthorityKeyId: options.contractAuthorityKeyId } : {}),
         ...(options.interpretation ? { interpretation: options.interpretation } : {}),
+        ...(options.feeSanity !== undefined ? { feeSanity: options.feeSanity } : {}),
         ...(gate.beforeQuote ? { beforeQuote: (legs: readonly QuoteLeg[]) => gate.beforeQuote?.(guard, legs) ?? Promise.resolve() } : {}),
-      });
+      }));
       const previews = planned.previews;
       await options.verifyPlan?.(planned.graph);
       // The planned graph is evaluated in full: deny refuses here; allow and confirm stamp the intent.
@@ -1094,6 +1100,10 @@ function toIndeterminate(step: IntentStep, now: number, detail: string): IntentS
 }
 
 function applyVerification(step: IntentStep, result: VerificationResult, now: number): IntentStep {
+  return recordVenueOutcome(step, verificationState(step, result, now));
+}
+
+function verificationState(step: IntentStep, result: VerificationResult, now: number): IntentStep {
   if (result.status === "failed" && result.failure.code === "CONTRACT_CHANGED_DURING_EXECUTION") {
     // The contract's code identity differed at the receipt block: manual review, never a plain failure or retry.
     if (step.status === "indeterminate") return step;
@@ -1122,6 +1132,51 @@ function applyVerification(step: IntentStep, result: VerificationResult, now: nu
 }
 
 function applySettlement(step: IntentStep, result: SettlementResult, now: number): IntentStep {
+  return recordVenueOutcome(step, settlementState(step, result, now));
+}
+
+/**
+ * Feeds the venue statistics the route score reads (routing/venueStats.ts):
+ * a verified fill's shortfall against the quoted expected output
+ * (haircuts) and, for solver-filled cross-network legs, whether the order
+ * filled (fill rates). Recorded once, on the transition.
+ */
+function recordVenueOutcome(before: IntentStep, after: IntentStep): IntentStep {
+  if (before.status === after.status) return after;
+  try {
+    const destination = after.settlement?.destinationNetwork ?? after.network;
+    const cross = after.settlement?.kind === "cross-network";
+    const expected = after.expectedOutput;
+    const fill = (received: { readonly amount: string } | undefined) => {
+      if (!received || !expected || !/^\d+$/u.test(received.amount) || !/^\d+$/u.test(expected.amount)) return;
+      recordFill({
+        venue: after.protocol,
+        kind: after.kind,
+        network: after.network,
+        destination,
+        usd: after.input?.usd ?? null,
+        expected: BigInt(expected.amount),
+        actual: BigInt(received.amount),
+      });
+    };
+    if (after.status === "settled") {
+      fill(after.actualOutput);
+      if (cross) recordOrder(after.protocol, after.network, destination, true);
+    } else if (after.status === "failed" && cross) {
+      if (after.failure?.code === "SETTLEMENT_MISMATCH" && after.observedCredit) {
+        fill(after.observedCredit);
+        recordOrder(after.protocol, after.network, destination, true);
+      } else if (after.failure?.code === "SETTLEMENT_REFUNDED" || after.failure?.code === "SETTLEMENT_FAILED") {
+        recordOrder(after.protocol, after.network, destination, false);
+      }
+    }
+  } catch {
+    // Statistics never change a step's outcome.
+  }
+  return after;
+}
+
+function settlementState(step: IntentStep, result: SettlementResult, now: number): IntentStep {
   if (result.status === "settled") {
     return {
       ...step,

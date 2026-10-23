@@ -3104,32 +3104,43 @@
   {
    "id": "F10",
    "category": "asset",
-   "title": "Typo 'SOLL' matches nothing: corrected to SOL with a material chip",
+   "title": "Typo 'SOLL' is one letter from SOL: ask 'did you mean SOL?' (a symbol is never corrected on a chip), then plan",
    "wallet": "full",
    "turns": [
     {
      "say": "swap 1.5 SOLL to USDC",
      "expect": {
-      "status": "ready",
-      "plan": "swap@solana 1.5 SOL->USDC",
-      "assumptions": [
+      "status": "needs_input",
+      "questions": [
        {
         "field": "actions[0].from",
-        "source": "correction",
-        "value": {
-         "asset": "SOL"
-        },
-        "material": true
+        "kind": "choice",
+        "reason": "ASSET_LOOKALIKE",
+        "options": [
+         "SOL"
+        ],
+        "recommended": "SOL",
+        "allowsText": true
        }
-      ],
-      "assumptionsExact": true
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.from",
+      "option": "SOL"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1.5 SOL->USDC"
      }
     }
    ],
    "today": {
     "code": "TOKEN_UNKNOWN",
     "probe": "T10"
-   }
+   },
+   "why": "A symbol correction never becomes a chip. An unlisted Solana symbol may be a real unverified token, so one close listed symbol asks ASSET_LOOKALIKE with it suggested, as F09 does on the receive side."
   },
   {
    "id": "F11",

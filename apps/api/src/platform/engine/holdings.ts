@@ -39,6 +39,7 @@ import { accountForNetwork } from "./accounts.js";
 import { evmClient, isEvmNetwork, readEvmBalance } from "./chains/evm.js";
 import { jsonRpc } from "./contracts/simulationRpc.js";
 import { PlatformError } from "../errors.js";
+import { accountCode as readAccountCode, type AccountCodeKind } from "./nameResolvers.js";
 import { resolveRecipientName } from "./names.js";
 
 /** Largest number of balance and token-account reads one call may make. */
@@ -162,6 +163,11 @@ export interface HoldingsReaders {
   /** True when the owner holds at least one token account for `mint`. */
   solanaTokenAccountExists(network: NetworkKey, owner: string, mint: string): Promise<boolean>;
   resolveName(name: string, network: NetworkKey): Promise<{ readonly address: string; readonly protocol: ProtocolId }>;
+  /**
+   * What lives at a raw EVM address on one network (nameResolvers.accountCode): nothing, an
+   * EIP-7702 delegation, or contract code. Throws when it cannot be read (never "none" for unknown).
+   */
+  accountCode(network: NetworkKey, address: string): Promise<AccountCodeKind>;
 }
 
 function solanaUrl(network: NetworkKey): string {
@@ -222,14 +228,37 @@ const DEFAULT_READERS: HoldingsReaders = {
     const resolved = await resolveRecipientName(name, network);
     return { address: resolved.address, protocol: resolved.protocol };
   },
+  async accountCode(network, address) {
+    const kind = await readAccountCode(network, address, FACTS_DEADLINE_MS);
+    if (kind === "unknown") throw new Error("account code unavailable");
+    return kind;
+  },
 };
+
+/** Offline fixtures record no contract code: an address they do not describe is an externally owned account. */
+const FIXTURE_ACCOUNT_CODE: HoldingsReaders["accountCode"] = async () => "none";
 
 let readers: HoldingsReaders = DEFAULT_READERS;
 
-/** Replaces the raw readers (tests); `null` restores the RPC readers. Clears every cache. */
+/**
+ * Replaces the raw readers (tests and the offline eval); `null` restores the
+ * RPC readers. Clears every cache. Replaced readers are offline fixtures: a
+ * set that does not give `accountCode` reads every address as having no code
+ * (an externally owned account); a test of contract or unknown code passes
+ * its own reader.
+ */
 export function configureHoldingsReaders(next: Partial<HoldingsReaders> | null): void {
-  readers = next === null ? DEFAULT_READERS : { ...DEFAULT_READERS, ...next };
+  readers = next === null ? DEFAULT_READERS : { ...DEFAULT_READERS, accountCode: FIXTURE_ACCOUNT_CODE, ...next };
   resetHoldingsCaches();
+}
+
+/**
+ * Replaces only the account-code reader of the installed readers, keeping the balances and names a test or
+ * harness installed; null restores the fixture reader ("none" everywhere). Clears the account-code cache.
+ */
+export function configureAccountCodeReader(next: HoldingsReaders["accountCode"] | null): void {
+  readers = { ...readers, accountCode: next ?? (readers === DEFAULT_READERS ? DEFAULT_READERS.accountCode : FIXTURE_ACCOUNT_CODE) };
+  codeCache.clear();
 }
 
 interface Cached<T> {
@@ -242,6 +271,7 @@ const gasPriceCache = new Map<string, Cached<bigint>>();
 const rentCache = new Map<string, Cached<{ wallet: bigint; token: bigint }>>();
 const tokenAccountCache = new Map<string, Cached<boolean>>();
 const nameCache = new Map<string, Cached<{ address: string; protocol: ProtocolId }>>();
+const codeCache = new Map<string, Cached<AccountCodeKind>>();
 /** Balance reads in flight, by cache key. */
 const balanceReads = new Map<string, Promise<bigint>>();
 
@@ -251,6 +281,7 @@ export function resetHoldingsCaches(): void {
   rentCache.clear();
   tokenAccountCache.clear();
   nameCache.clear();
+  codeCache.clear();
   balanceReads.clear();
 }
 
@@ -522,6 +553,43 @@ export async function readFacts(accounts: readonly AccountId[], needs: readonly 
     reads: shared.reads,
     preview: flags.preview,
   };
+}
+
+/** Largest number of account-code reads one call may make (the receiving network and the other EVM networks of its lane). */
+export const MAX_CODE_READS = 6;
+export const CODE_TTL_MS = 15_000;
+
+/** One account-code read: the kind, or "unknown" when it could not be read in time (never "none"). */
+export interface AccountCodeFact {
+  readonly network: NetworkKey;
+  readonly address: string;
+  readonly kind: AccountCodeKind | "unknown";
+}
+
+/**
+ * Reads what lives at raw EVM addresses, at most MAX_CODE_READS a
+ * call, in parallel within the deadline; cached 15 s. A read that fails,
+ * does not answer in time or does not fit the budget is "unknown".
+ */
+export async function readAccountCodes(needs: readonly { readonly network: NetworkKey; readonly address: string }[], deadlineMs: number = FACTS_DEADLINE_MS): Promise<AccountCodeFact[]> {
+  const deadline = Date.now() + Math.max(1, Math.min(FACTS_DEADLINE_MS, deadlineMs));
+  let budget = MAX_CODE_READS;
+  return Promise.all(needs.map(async (need) => {
+    const base = { network: need.network, address: need.address };
+    if (CHAINS[need.network].vm !== "evm" || !isEvmAddress(need.address)) return { ...base, kind: "unknown" as const };
+    const key = `${need.network}|${need.address.toLowerCase()}`;
+    const cached = recall(codeCache, key, CODE_TTL_MS);
+    if (cached !== undefined) return { ...base, kind: cached };
+    if (budget <= 0) return { ...base, kind: "unknown" as const };
+    budget -= 1;
+    try {
+      const kind = await beforeDeadline(readers.accountCode(need.network, need.address), deadline);
+      if (kind !== "none" && kind !== "delegated" && kind !== "contract") throw new Error("invalid account code");
+      return { ...base, kind: remember(codeCache, key, kind) };
+    } catch {
+      return { ...base, kind: "unknown" as const };
+    }
+  }));
 }
 
 /** The known balance of a fact in base units, or null when it is not known (never zero for unknown). */

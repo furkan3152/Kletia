@@ -49,6 +49,12 @@ export interface GoalNotes {
   readonly verbWord?: string;
   /** The spend amount was a portion / max of the previous output (no asset said after a step). */
   readonly ofPrevious: boolean;
+  /**
+   * "buy 100 USDC of ETH": read as spending 100 USDC on ETH (the worth
+   * reading), never the reversed one. Always confirmed (D12) before planning:
+   * lowering keeps it a goal step so the solver asks.
+   */
+  readonly worthIdiom?: true;
   /** Spans the frame used, for the eval and corrections. */
   readonly spans: readonly Span[];
 }
@@ -63,6 +69,12 @@ export interface FrameContext {
   readonly previousExists: boolean;
   /** This goal's index in its list (chain.after points to index - 1). */
   readonly index: number;
+  /**
+   * False when the step before pays someone else: a clause that names no
+   * amount and no token ("..., then swap to ETH") is then not chained to
+   * that output (the policy asks for its amount). Default true.
+   */
+  readonly chainable?: boolean;
 }
 
 type Role = "spend" | "want";
@@ -83,6 +95,38 @@ const TO_CONNECTORS = new Set(["to", "into", "onto", "for", "as", "in exchange f
 const PLACE_CONNECTORS = new Set(["on", "in", "at"]);
 const WITH_CONNECTORS = new Set(["with", "using", "via", "through", "by"]);
 const DELIVER_KINDS: ReadonlySet<GoalKind> = new Set(["deliver"]);
+/** Verbs after which "<amount> <stablecoin> of <token>" is a worth phrase ("buy 100 USDC of ETH"). */
+const WORTH_VERBS: ReadonlySet<string> = new Set(["buy", "purchase", "get", "get me"]);
+/** US dollar stablecoins for the worth phrase (listed symbols). */
+const USD_STABLES: ReadonlySet<string> = new Set(["USDC", "USDT", "PYUSD", "DAI", "USDBC", "USDT0", "USDS"]);
+
+const isUsdStable = (token: Token | undefined): boolean =>
+  (token?.t === "ASSET" && USD_STABLES.has(token.symbol.toUpperCase())) || (token?.t === "CLASS" && token.cls === "usd-stable");
+
+/**
+ * "buy 100 USDC of ETH", "get 50 USDT of SOL": after buy / purchase / get, an
+ * amount of a dollar stablecoin followed by "of" and another token means
+ * spending that many dollars on the token. Word order alone would read it in
+ * reverse (want 100 USDC, pay in ETH). Returns the token indexes of the
+ * stablecoin and of the wanted token.
+ */
+function worthPhrase(tokens: readonly Token[], verbIndex: number): { readonly stable: number; readonly wanted: number } | null {
+  const verb = tokens[verbIndex];
+  if (verb?.t !== "VERB" || !WORTH_VERBS.has(verb.raw.toLowerCase())) return null;
+  const amount = tokens[verbIndex + 1];
+  const of = tokens[verbIndex + 3];
+  const wanted = tokens[verbIndex + 4];
+  if (amount?.t !== "AMOUNT" || amount.sel.t !== "exact") return null;
+  if (!isUsdStable(tokens[verbIndex + 2]) || of?.t !== "CONN" || of.word !== "of") return null;
+  if (wanted?.t !== "ASSET" && wanted?.t !== "ASSET?") return null;
+  if (isUsdStable(wanted)) return null;
+  return { stable: verbIndex + 2, wanted: verbIndex + 4 };
+}
+
+/** The typed words a correction chip quotes: at most 16 characters (the thread's limit), cut with an ellipsis. */
+function chipWords(raw: string): string {
+  return raw.length <= 16 ? raw : `${raw.slice(0, 15).trimEnd()}…`;
+}
 
 function lendingCustody(venue: VenueReading, category: "lending" | "staking" | "any"): Custody {
   const protocol = venue.lending && getProtocol(venue.lending as ProtocolId) ? (venue.lending as ProtocolId) : undefined;
@@ -140,19 +184,24 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
   const other: Role = object === "spend" ? "want" : "spend";
   const side = (role: Role) => (role === "spend" ? spend : want);
   const spans: Span[] = [];
+  const worth = verbIndex >= 0 ? worthPhrase(tokens, verbIndex) : null;
+  // The worth reading is still confirmed before planning: it is not what the words say in order.
+  if (worth) orderOnly = true;
 
   const bindAmount = (role: Role, token: Extract<Token, { t: "AMOUNT" }>): boolean => {
     const target = side(role);
     if (target.amount) return false;
     target.amount = token.sel;
     if (token.sel.t === "exact") target.amountRaw = token.raw;
-    if (token.rewritten && token.sel.t === "exact") target.rewritten = { from: token.raw.slice(0, 16), to: token.sel.value };
+    if (token.rewritten && token.sel.t === "exact") target.rewritten = { from: chipWords(token.raw), to: token.readAs ?? token.sel.value };
     spans.push(token.span);
     return true;
   };
 
-  /** The role an asset (or class) takes after the current connector. */
-  const assetRole = (): Role | null => {
+  /** The role an asset (or class) takes after the current connector (`index`: its token). */
+  const assetRole = (index: number): Role | null => {
+    if (worth && index === worth.stable) return "spend";
+    if (worth && index === worth.wanted) return "want";
     if (conn === undefined || conn === "of") {
       if (!side(object).asset && !side(object).previous) return object;
       if (!side(other).asset) {
@@ -342,7 +391,7 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
           // "in SOL" / "from USDC" with no network reading: not a role the frames know.
           return null;
         }
-        const role = assetRole();
+        const role = assetRole(index);
         if (!role) return null;
         if (!placeAssetLike(role, { symbol: token.symbol }, token.span)) return null;
         if (token.venue && role === "want" && token.venue.provider) side(role).venue = token.venue;
@@ -350,7 +399,7 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
         continue;
       }
       case "ASSET?": {
-        const role = assetRole();
+        const role = assetRole(index);
         if (!role || typo) return null;
         if (!placeAssetLike(role, { symbol: token.raw }, token.span)) return null;
         typo = { side: role, raw: token.raw.slice(0, 16), candidates: token.candidates };
@@ -358,7 +407,7 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
         continue;
       }
       case "CLASS": {
-        const role = token.cls === "gas" ? "want" : assetRole();
+        const role = token.cls === "gas" ? "want" : assetRole(index);
         if (!role) return null;
         if (!placeAssetLike(role, { class: token.cls }, token.span)) return null;
         conn = undefined;
@@ -465,7 +514,7 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
   }
 
   // F9 without a word: "..., bridge to base" / "and earn yield" after a step continues with its output.
-  const implicit = ctx.previousExists && object === "spend" && !spend.asset && !spend.amount && !spend.venue && verb !== undefined;
+  const implicit = ctx.previousExists && ctx.chainable !== false && object === "spend" && !spend.asset && !spend.amount && !spend.venue && verb !== undefined;
   if (implicit) {
     spend.amount = { t: "previous" };
     spend.previous = true;
@@ -506,6 +555,7 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
       ...(typo ? { typo } : {}),
       ...(verbToken ? { verbWord: verbToken.raw.toLowerCase() } : {}),
       ofPrevious,
+      ...(worth ? { worthIdiom: true as const } : {}),
       spans,
     },
   };

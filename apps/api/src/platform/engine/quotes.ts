@@ -1,10 +1,12 @@
 /**
  * POST /v1/quotes: live routes for one asset movement (same- or
  * cross-network) from every adapter that can serve it, plus the best route.
- * Routes are ranked like the planner's venue auction (auction.ts): net
- * guaranteed output (minimum minus priced extra costs), then time, then
- * transactions; routes slower than `maxSeconds` (default 600) or with
- * unpriced extra costs rank last. Quotes are advisory; nothing is persisted.
+ * Routes are ranked exactly like the planner's venue auction (auction.ts,
+ * routing/score.ts): by expected value delivered after gas, extra costs,
+ * time, signatures and venue risk; a route is eligible as best only when it
+ * delivers the requested asset, its floor is within the slippage of its
+ * expected output, its extra costs can be priced and it settles within
+ * `maxSeconds` (default 600). Quotes are advisory; nothing is persisted.
  */
 import {
   CHAINS,
@@ -25,7 +27,7 @@ import { recipientForNetwork } from "./accounts.js";
 import { candidateAdapters } from "./adapters/registry.js";
 import type { AdapterAction, AdapterRoute } from "./adapters/types.js";
 import { assetAmount, resolveAsset, sameAsset } from "./assets.js";
-import { compareQuotes, DEFAULT_MAX_SECONDS, exclusionReason, venueQuote, type VenueQuote } from "./auction.js";
+import { collectRankedQuotes, DEFAULT_MAX_SECONDS, exclusionReason } from "./auction.js";
 import { looksLikeName, resolveRecipientName } from "./names.js";
 import { DEFAULT_SLIPPAGE_BPS } from "./planner.js";
 import { isRecord, roundUsd } from "./util.js";
@@ -199,25 +201,14 @@ export async function quoteRoutes(rawInput: unknown): Promise<QuoteRoutesResult>
       slippageBps: input.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
     };
     const maxSeconds = input.maxSeconds ?? DEFAULT_MAX_SECONDS;
-    const settled = await Promise.allSettled(adapters.map((adapter) => adapter.plan(action)));
-    const quotes: VenueQuote[] = [];
-    const unavailable: { protocol: ProtocolId; code: string; message: string }[] = [];
-    for (const [index, result] of settled.entries()) {
-      const adapter = adapters[index];
-      if (!adapter) continue;
-      if (result.status === "rejected") {
-        const error = toPlatformError(result.reason);
-        unavailable.push({ protocol: adapter.id, code: error.code, message: error.message });
-        continue;
-      }
-      quotes.push(await venueQuote(adapter, action, result.value, maxSeconds));
-    }
-    if (quotes.length === 0) {
-      const first = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
-      throw toPlatformError(first?.reason);
-    }
-    quotes.sort((a, b) => compareQuotes(a, b, [], adapters));
-    const routes = quotes.map((quote): QuoteRoute => {
+    const ranked = await collectRankedQuotes(adapters, action, {
+      maxSeconds,
+      explicitMaxSeconds: input.maxSeconds !== undefined,
+      explicitSlippage: input.slippageBps !== undefined,
+      prefer: [],
+    });
+    const unavailable = ranked.failures.map((failure) => ({ protocol: failure.protocol, code: failure.error.code, message: failure.error.message }));
+    const routes = ranked.quotes.map((quote): QuoteRoute => {
       const planned = quote.planned;
       const reason = exclusionReason(quote);
       const priced = quote.netMinimum !== null && sameAsset(planned.minimumOutput, to);
@@ -242,9 +233,7 @@ export async function quoteRoutes(rawInput: unknown): Promise<QuoteRoutesResult>
         eligible: quote.excluded === undefined,
       };
     });
-    // A lone route is still the best one, unless it delivers another asset or the caller's own time limit rules it out.
-    const fallback = routes.length === 1 && quotes[0]?.excluded !== "asset" && !(input.maxSeconds !== undefined && quotes[0]?.slow) ? routes[0] : null;
-    const best = routes.find((route) => route.eligible) ?? fallback ?? null;
+    const best = ranked.best ? routes[ranked.quotes.indexOf(ranked.best)] ?? null : null;
     return { routes, best, quotedAt: new Date().toISOString(), unavailable };
   } catch (error) {
     throw toPlatformError(error);

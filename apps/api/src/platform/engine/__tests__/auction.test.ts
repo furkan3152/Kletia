@@ -1,18 +1,24 @@
 /**
- * Cross-network venue auction: net guaranteed output (minimum minus priced
- * extra costs), time limit, preference, timeouts, loser evidence, the same
- * ranking in POST /v1/quotes and the prepare-time extra-cost guard.
+ * Cross-network venue auction: the route score (expected value
+ * after gas, priced extra costs, time, signatures, non-fill and tier risk),
+ * eligibility (time limit, priceable costs), preference, timeouts, loser
+ * evidence, the same ranking in POST /v1/quotes and the prepare-time
+ * extra-cost guard.
  */
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { findAssetBySymbol, type IntentStep } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { compareQuotes, configureVenueQuoteTimeout, netMinimumOutput, type VenueQuote } from "../auction.js";
+import { compareQuotes, configureAuctionSoftDeadline, configureVenueQuoteTimeout, netMinimumOutput, runVenueAuction, type VenueQuote } from "../auction.js";
+import { configurePlanDeadline, withDeadline } from "../routing/deadline.js";
+import { fullRequestKey, isNeutralAccount, neutralPrescreenAction, prescreenKey } from "../routing/quoteCache.js";
+import { configureScoreFacts } from "../routing/score.js";
 import { planIntent } from "../planner.js";
 import { quoteRoutes } from "../quotes.js";
 import { createIntent, prepareStep } from "../service.js";
-import { ACCOUNTS, EVM_ACCOUNT, EVM_ADDRESS, OTHER_SOL_ADDRESS, SOL_ADDRESS } from "./helpers.js";
-import { bridgeCalls, nativeCost, resetVenueEngine, venueScripts, type VenueScript } from "./venueStubs.js";
+import { bridgeAction } from "./crosschainFixtures.js";
+import { ACCOUNTS, EVM_ACCOUNT, EVM_ADDRESS, OTHER_EVM_ADDRESS, OTHER_SOL_ADDRESS, SOL_ADDRESS, TEST_SCORE_FACTS } from "./helpers.js";
+import { BRIDGE_STUBS, bridgeCalls, nativeCost, resetVenueEngine, venueScripts, type VenueScript } from "./venueStubs.js";
 
 const BRIDGE = { kind: "bridge", network: "base", from: "USDC", amount: "25", toNetwork: "arbitrum" } as const;
 
@@ -49,21 +55,27 @@ describe("venue auction (planner)", () => {
   });
   afterEach(() => configureVenueQuoteTimeout(null));
 
-  it("selects by net guaranteed output within the default 600 s and records every losing quote", async () => {
+  it("selects by value within the default 600 s and records every losing quote", async () => {
     const graph = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
     const step = graph.steps[0];
     assert.equal(step?.protocol, "relay", "LI.FI is slower than 600 s and DLN nets less after its fee");
     assert.equal(step?.minimumOutput?.amount, "24850000");
     const details = quoteDetails(step);
-    assert.match(details[0] ?? "", /^Quoted by Relay venue\. Selected over 2 other venue\(s\)/u);
-    assert.ok(details.some((detail) => /Also quoted: LI\.FI: 24\.9375 USDC guaranteed, ~18 min.*not selected \(slower than the time limit\)/u.test(detail)), details.join("\n"));
-    assert.ok(details.some((detail) => /Also quoted: deBridge DLN: 24\.67 USDC guaranteed \(net 22\.18 after 0\.001 ETH\)/u.test(detail)), details.join("\n"));
+    assert.match(details[0] ?? "", /^Quoted by Relay venue\. Selected over 2 other venue\(s\) by expected value/u);
+    // Stub floors are not enforced on-chain: "quoted minimum", never "guaranteed".
+    assert.ok(details.some((detail) => /Also quoted: LI\.FI: 25 USDC expected, 24\.9375 USDC quoted minimum, value \$[\d.]+, ~18 min.*not selected \(slower than the time limit\)/u.test(detail)), details.join("\n"));
+    assert.ok(details.some((detail) => /Also quoted: deBridge DLN: 24\.795 USDC expected, 24\.67 USDC quoted minimum \(net 22\.18 after 0\.001 ETH\)/u.test(detail)), details.join("\n"));
     // Provider ids of losing venues never become references (references of quote evidence bind deposits).
     const references = step?.evidence.filter((entry) => entry.kind === "quote" && entry.reference).map((entry) => entry.reference);
     assert.deepEqual(references, [`0x${"11".repeat(32)}`]);
   });
 
-  it("lets a slower venue win when constraints.maxSeconds allows it", async () => {
+  it("lets a slower venue win when constraints.maxSeconds allows it and it is worth the wait", async () => {
+    // 18 minutes cost about $2.16 at $0.002/s: LI.FI wins only against a Relay quote that much worse.
+    const close = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS, constraints: { maxSeconds: 1_200 } });
+    assert.equal(close.steps[0]?.protocol, "relay");
+    venueScripts.relay = { minimumBps: 9_000, seconds: 1, transactions: 2 };
+    venueScripts["debridge-dln"] = { minimumBps: 9_900, seconds: 1, fail: "AMOUNT_TOO_SMALL" };
     const graph = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS, constraints: { maxSeconds: 1_200 } });
     assert.equal(graph.steps[0]?.protocol, "lifi");
     assert.equal(graph.steps[0]?.estimatedSeconds, 1_080);
@@ -83,7 +95,7 @@ describe("venue auction (planner)", () => {
     assert.equal(tie.steps[0]?.protocol, "debridge-dln", "same net: 5 s beats 20 s, then 1 transaction beats 2");
   });
 
-  it("excludes a venue whose extra costs cannot be priced", async () => {
+  it("prices extra costs in any asset it can and excludes a venue whose costs stay unpriced", async () => {
     const aero = findAssetBySymbol("base", "AERO");
     assert.ok(aero);
     venueScripts.relay = { minimumBps: 9_000, seconds: 1 };
@@ -92,6 +104,10 @@ describe("venue auction (planner)", () => {
       seconds: 5,
       extraCosts: () => [{ asset: aero.id, symbol: "AERO", decimals: 18, amount: "1000000000000000000", formatted: "1" }],
     };
+    // AERO has a price: the 1 AERO fee is $1, and DLN's quote still wins after it.
+    const priced = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
+    assert.equal(priced.steps[0]?.protocol, "debridge-dln");
+    configureScoreFacts({ ...TEST_SCORE_FACTS, assetUsd: async () => null });
     const graph = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
     assert.equal(graph.steps[0]?.protocol, "relay");
     assert.ok(quoteDetails(graph.steps[0]).some((detail) => /deBridge DLN.*not selected \(its extra costs could not be priced\)/u.test(detail)));
@@ -177,6 +193,10 @@ describe("auction ranking: on-chain floors break ties", () => {
       protocol: id,
       netMinimum: BigInt(minimum),
       slow: false,
+      value: Number(minimum),
+      score: { valueUsd: Number(minimum), expectedUsd: Number(minimum), minimumUsd: Number(minimum), minimumKind: floor ?? "claimed", gasUsd: 0, feesUsd: 0, seconds, signatures: transactions, riskUsd: 0 },
+      haircutBps: 0,
+      pFill: 1,
       planned: { minimumOutput: { amount: minimum }, estimatedSeconds: seconds, transactionCount: transactions, ...(floor ? { floor } : {}) } as VenueQuote["planned"],
     };
   }
@@ -211,7 +231,8 @@ describe("POST /v1/quotes ranking", () => {
     assert.equal(dln?.extraCosts?.[0]?.symbol, "ETH");
     assert.ok(result.routes.find((route) => route.protocol === "lifi")?.warnings.some((warning) => /slower than the time limit/u.test(warning)));
     const slow = await quoteRoutes({ network: "base", from: "USDC", to: "USDC", toNetwork: "arbitrum", amount: "25", maxSeconds: 2_000 });
-    assert.equal(slow.best?.protocol, "lifi");
+    assert.equal(slow.routes.find((route) => route.protocol === "lifi")?.eligible, true, "eligible within the caller's limit");
+    assert.equal(slow.best?.protocol, "relay", "but 18 minutes of waiting cost more than its better floor");
   });
 
   it("validates maxSeconds", async () => {
@@ -226,7 +247,8 @@ describe("prepare holds extra costs to the plan", () => {
   });
 
   it("prepares with the planned fee and refuses a higher one", async () => {
-    const intent = await createIntent({ text: "bridge 25 USDC from base to arbitrum via debridge", accounts: ACCOUNTS });
+    // The $2.49 fixed fee is 10 % of 25 USDC: text requests need an explicit maxFeeUsd for that.
+    const intent = await createIntent({ text: "bridge 25 USDC from base to arbitrum via debridge", accounts: ACCOUNTS, constraints: { maxFeeUsd: 5 } });
     const step = intent.steps[0];
     assert.equal(step?.protocol, "debridge-dln");
     const prepared = await prepareStep(intent.id, "s1");
@@ -265,5 +287,156 @@ describe("destination account of cross-network steps", () => {
   it("leaves it unset when the intent has no account on the destination's VM", async () => {
     await planIntent({ actions: [{ ...BRIDGE, toNetwork: "solana", recipient: OTHER_SOL_ADDRESS, protocol: "debridge-dln" }], accounts: [EVM_ACCOUNT] });
     assert.equal(bridgeCalls.at(-1)?.destinationAccount, undefined);
+  });
+});
+
+describe("auction mechanics", () => {
+  beforeEach(() => {
+    resetVenueEngine({ bridges: true });
+    snapshot();
+  });
+  afterEach(() => {
+    configureAuctionSoftDeadline(null);
+    configurePlanDeadline(null);
+  });
+
+  it("ranks at the soft deadline once a complete quote has arrived, listing the venue still pending", async () => {
+    configureAuctionSoftDeadline(20);
+    venueScripts.relay = { minimumBps: 9_990, seconds: 1, delayMs: 400 };
+    const graph = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
+    assert.equal(graph.steps[0]?.protocol, "debridge-dln", "Relay would have won but did not answer in time");
+    const route = graph.interpretation.routes?.[0];
+    assert.deepEqual(route?.snapshot.cutByDeadline, ["relay"]);
+    assert.ok(route?.compared.some((entry) => entry.label === "Relay" && entry.excluded === "did not answer in time"), JSON.stringify(route?.compared));
+  });
+
+  it("waits past the soft deadline for the first complete quote", async () => {
+    configureAuctionSoftDeadline(10);
+    venueScripts.relay = { minimumBps: 9_940, seconds: 1, delayMs: 60 };
+    venueScripts["debridge-dln"] = { minimumBps: 9_990, seconds: 1, delayMs: 600 };
+    venueScripts.lifi = { minimumBps: 9_990, seconds: 1, fail: "AMOUNT_TOO_SMALL" };
+    const graph = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
+    assert.equal(graph.steps[0]?.protocol, "relay");
+    assert.deepEqual(graph.interpretation.routes?.[0]?.snapshot.cutByDeadline, ["debridge-dln"]);
+  });
+
+  it("skips a venue whose breaker opened on transport failures, and never on business refusals", async () => {
+    venueScripts.relay = { minimumBps: 9_940, seconds: 1, fail: "RELAY_UNAVAILABLE", failStatus: 502 };
+    for (let index = 0; index < 5; index += 1) await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
+    const before = bridgeCalls.length;
+    const graph = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
+    const asked = bridgeCalls.slice(before);
+    assert.equal(asked.length, 2, "Relay is not asked while its breaker is open");
+    const route = graph.interpretation.routes?.[0];
+    assert.deepEqual(route?.snapshot.breakerSkipped, ["relay"]);
+    assert.ok(route?.compared.some((entry) => entry.label === "Relay" && entry.excluded === "failing right now (skipped)"));
+
+    resetVenueEngine({ bridges: true });
+    snapshot();
+    venueScripts.relay = { minimumBps: 9_940, seconds: 1, fail: "AMOUNT_TOO_SMALL" };
+    for (let index = 0; index < 10; index += 1) await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
+    const count = bridgeCalls.length;
+    await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
+    assert.equal(bridgeCalls.length - count, 3, "business refusals never open the breaker");
+  });
+
+  it("retries a 429 once when it asks for at most 1 s and more than 2 s of budget remain", async () => {
+    venueScripts.relay = { minimumBps: 9_940, seconds: 1, rateLimited: { times: 1, retryAfterSeconds: 1 } };
+    const graph = await withDeadline(15_000, "test", () => planIntent({ actions: [BRIDGE], accounts: ACCOUNTS }));
+    assert.equal(graph.steps[0]?.protocol, "relay", "the retry quoted");
+
+    venueScripts.relay = { minimumBps: 9_940, seconds: 1, rateLimited: { times: 1, retryAfterSeconds: 1 } };
+    const short = await withDeadline(1_500, "test", () => planIntent({ actions: [BRIDGE], accounts: ACCOUNTS }));
+    assert.equal(short.steps[0]?.protocol, "debridge-dln", "no retry with 1.5 s left");
+    assert.ok(short.interpretation.routes?.[0]?.compared.some((entry) => entry.label === "Relay" && entry.excluded === "rate limited"));
+  });
+
+  it("shares one provider call between identical concurrent requests, never across accounts", async () => {
+    venueScripts.relay = { minimumBps: 9_940, seconds: 1, delayMs: 50 };
+    const before = bridgeCalls.length;
+    await Promise.all([planIntent({ actions: [BRIDGE], accounts: ACCOUNTS }), planIntent({ actions: [BRIDGE], accounts: ACCOUNTS })]);
+    const same = bridgeCalls.slice(before);
+    assert.equal(same.length, 3, "one call per venue for two identical requests");
+    const other = `eip155:8453:${OTHER_EVM_ADDRESS}`;
+    const start = bridgeCalls.length;
+    await Promise.all([planIntent({ actions: [BRIDGE], accounts: ACCOUNTS }), planIntent({ actions: [BRIDGE], accounts: [other] })]);
+    assert.equal(bridgeCalls.length - start, 6, "another account never shares a call");
+  });
+
+  it("records the route, its snapshot and every provider that saw the account", async () => {
+    const graph = await planIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
+    const route = graph.interpretation.routes?.[0];
+    assert.ok(route);
+    assert.deepEqual(route.steps, ["s1"]);
+    assert.equal(route.shape, "bridge");
+    assert.deepEqual(route.venues, ["relay"]);
+    assert.equal(route.score.minimumKind, "claimed");
+    assert.ok(route.score.valueUsd > 24 && route.score.valueUsd < 25, String(route.score.valueUsd));
+    assert.match(route.reason, /^Relay venue|^Relay: /u);
+    assert.match(route.reason, /quoted minimum/u, "a claimed floor is never called guaranteed");
+    assert.deepEqual(route.snapshot.quotes.map((quote) => quote.venue).sort(), ["debridge-dln", "lifi", "relay"]);
+    assert.ok(route.snapshot.gas.base, "the gas price used is part of the snapshot");
+    assert.deepEqual(route.alternatives, []);
+    assert.deepEqual(graph.interpretation.providersContacted, [
+      { provider: "relay", sawAccount: true },
+      { provider: "lifi", sawAccount: true },
+      { provider: "debridge-dln", sawAccount: true },
+    ]);
+  });
+});
+
+describe("pre-screen cache", () => {
+  beforeEach(() => {
+    resetVenueEngine({ bridges: true });
+    snapshot();
+  });
+
+  it("ranks cached quotes within 5 % of the size as estimates, re-quotes the top two fresh and never plans an estimate", async () => {
+    const action = bridgeAction("base", "arbitrum");
+    const options = { maxSeconds: 600, explicitMaxSeconds: false, prefer: [] };
+    await runVenueAuction(BRIDGE_STUBS, action, options);
+    const before = bridgeCalls.length;
+    const result = await runVenueAuction(BRIDGE_STUBS, { ...action, amount: "25400000" }, { ...options, prescreen: true });
+    const asked = bridgeCalls.slice(before);
+    assert.equal(asked.length, 2, "only the top two were asked again");
+    assert.ok(asked.every((call) => call.amount === "25400000"));
+    assert.equal(result.winner.estimate, undefined);
+    assert.equal(result.winner.protocol, "relay");
+    const lifi = result.losers.find((quote) => quote.protocol === "lifi");
+    assert.equal(lifi?.estimate, true, "the third stays a labelled estimate");
+    assert.equal(lifi?.score.estimate, true);
+    assert.equal(lifi?.planned.expectedOutput.amount, ((25_000_000n * 25_400_000n) / 25_000_000n).toString(), "scaled to the asked amount");
+    // Outside the 5 % bucket nothing is cached: every venue is asked (Relay and
+    // LI.FI with the neutral pre-screen address), then the leading neutral
+    // estimate is asked again with the account before it can win.
+    const start = bridgeCalls.length;
+    const fresh = await runVenueAuction(BRIDGE_STUBS, { ...action, amount: "40000000" }, { ...options, prescreen: true });
+    const calls = bridgeCalls.slice(start);
+    assert.equal(calls.length, 4);
+    assert.equal(calls.filter((call) => isNeutralAccount(call.account)).length, 2, "relay and lifi pre-screened without the account");
+    assert.equal(fresh.winner.estimate, undefined);
+    const last = calls.at(-1);
+    assert.ok(last && !isNeutralAccount(last.account), "the winner was re-quoted with the person's account");
+  });
+
+  it("keys the cache on every field but the amount: another recipient or slippage misses", () => {
+    const action = bridgeAction("base", "arbitrum");
+    const adapter = BRIDGE_STUBS[0] as (typeof BRIDGE_STUBS)[number];
+    assert.equal(prescreenKey(adapter, action), prescreenKey(adapter, { ...action, amount: "25100000" }));
+    assert.notEqual(prescreenKey(adapter, action), prescreenKey(adapter, { ...action, slippageBps: 30 }));
+    assert.notEqual(prescreenKey(adapter, action), prescreenKey(adapter, bridgeAction("base", "arbitrum", { recipient: OTHER_EVM_ADDRESS })));
+    assert.notEqual(prescreenKey(adapter, action), prescreenKey(adapter, { ...action, amount: "27000000" }));
+    assert.notEqual(fullRequestKey(adapter, action), fullRequestKey(adapter, { ...action, amount: "25000001" }));
+  });
+
+  it("pre-screens account-independent venues with the neutral address, and only when the recipient is the person's own", () => {
+    const action = bridgeAction("base", "arbitrum");
+    const relay = { id: "relay" } as const;
+    const neutral = neutralPrescreenAction(relay, action);
+    assert.ok(neutral);
+    assert.equal(isNeutralAccount(neutral.account), true);
+    assert.equal(isNeutralAccount(neutral.recipient), true);
+    assert.equal(neutralPrescreenAction({ id: "debridge-dln" }, action), null, "DLN's order authority needs the real account");
+    assert.equal(neutralPrescreenAction(relay, bridgeAction("base", "arbitrum", { recipient: OTHER_EVM_ADDRESS })), null, "a payment to someone else keeps its recipient");
   });
 });

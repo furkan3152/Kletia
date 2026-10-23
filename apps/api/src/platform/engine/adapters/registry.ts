@@ -36,6 +36,7 @@ import { mantleAdapter } from "./staking/mantle.js";
 import { rocketPoolAdapter } from "./staking/rocketPool.js";
 import { staderAdapter } from "./staking/stader.js";
 import type { AdapterRoute, ContractProtocolAdapter, ProtocolAdapter } from "./types.js";
+import { wrapAdapter } from "./wrap.js";
 
 /**
  * Adapters of integrator-registered contracts (call / action steps). Route
@@ -63,6 +64,8 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     solanaNativeStakeAdapter,
     solanaTransferAdapter,
     evmTransferAdapter,
+    // 1:1 wrap of the gas asset: serves ETH <-> WETH and POL <-> WPOL alone, never auctioned
+    wrapAdapter,
     uniswapV3Adapter,
     aerodromeAdapter,
     velodromeAdapter,

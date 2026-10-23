@@ -1,9 +1,12 @@
 /**
  * The cross-network auction with the real Relay, LI.FI, deBridge DLN, Across
  * and CCTP V2 adapters against mocked providers: every venue runs its full
- * quote checks and the winner is the highest guaranteed output net of extra
- * costs (DLN's fixed fee), within the time limit; on a tie, a floor the
- * venue's contracts enforce (Across, CCTP) beats a provider's claim (Relay).
+ * quote checks and the winner has the highest route score (expected
+ * output, a claimed floor counted at half its gap to the expected
+ * output, minus gas, extra costs such as DLN's fixed fee, time, extra
+ * signatures, the non-fill cost of solver-filled legs and the venue tier's
+ * risk cost), within the time limit; on a tie, a floor the venue's contracts
+ * enforce (Across, CCTP) beats a provider's claim (Relay).
  */
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -104,14 +107,17 @@ function dlnQuotes(action: AdapterAction, takeAmount: bigint) {
 }
 
 describe("cross-network auction across Relay, LI.FI and deBridge DLN", () => {
-  it("picks the highest guaranteed output net of DLN's fixed fee (Base -> Arbitrum, 25 USDC)", async () => {
+  it("ranks by value after costs, not by the floor (Base -> Arbitrum, 25 USDC)", async () => {
     const action = bridgeAction("base", "arbitrum");
     relayQuotes(action, "24849594");
     mock.lifiQuote = () => lifiQuoteBody(action);
     dlnQuotes(action, 24_669_417n);
     const result = await runVenueAuction(VENUES, action, OPTIONS);
-    assert.equal(result.winner.protocol, "lifi");
-    assert.deepEqual(result.losers.map((quote) => quote.protocol), ["relay", "debridge-dln"]);
+    // LI.FI's floor is the highest (24.915), but its 0.25 % fee, an approval and the extended tier's $1 risk cost
+    // leave Relay (24.974 quoted, 24.850 claimed floor) ahead on value; DLN pays its $2.50 fixed fee.
+    assert.equal(result.winner.protocol, "relay");
+    assert.deepEqual(result.losers.map((quote) => quote.protocol), ["lifi", "debridge-dln"]);
+    assert.ok(result.winner.value > (result.losers[0]?.value ?? Infinity));
     const dln = result.losers.find((quote) => quote.protocol === "debridge-dln");
     // 24.657082 USDC (24.669417 minus the 5 bps re-quote cushion) minus 0.001 ETH at $2,500 = 22.157082 USDC net
     // (USD values are rounded to cents, hence the tolerance).
@@ -131,7 +137,8 @@ describe("cross-network auction across Relay, LI.FI and deBridge DLN", () => {
     // 9,990 minus the 5 bps cushion (9,985.005) minus $2.50 = 9,982.505 USDC net.
     const net = result.winner.netMinimum ?? 0n;
     assert.ok(net > 9_982_400_000n && net < 9_982_600_000n, String(net));
-    assert.deepEqual(result.losers.map((quote) => quote.protocol), ["lifi", "relay"]);
+    // Relay quotes 10,000 (claimed floor 9,950: counted at 9,975); LI.FI keeps 0.25 % and carries the extended tier's 5 bps.
+    assert.deepEqual(result.losers.map((quote) => quote.protocol), ["relay", "lifi"]);
   });
 
   it("keeps planning when a venue fails its checks or is unreachable", async () => {
@@ -148,7 +155,7 @@ describe("cross-network auction across Relay, LI.FI and deBridge DLN", () => {
     ]);
   });
 
-  it("excludes LI.FI's 18-minute CCTP route under the default time limit and lets it win when allowed (Base -> Solana)", async () => {
+  it("excludes LI.FI's 18-minute CCTP route under the default time limit and lets it compete when allowed (Base -> Solana)", async () => {
     const action = bridgeAction("base", "solana");
     const [ata] = await findAssociatedTokenPda({ owner: address(SOL_ADDRESS), mint: address(USDC_SOL), tokenProgram: TOKEN_PROGRAM_ADDRESS });
     mock.solanaAccounts.set(String(ata), tokenAccountInfo(SOL_ADDRESS, USDC_SOL));
@@ -159,7 +166,13 @@ describe("cross-network auction across Relay, LI.FI and deBridge DLN", () => {
     assert.equal(fast.winner.protocol, "relay");
     assert.equal(fast.losers.find((quote) => quote.protocol === "lifi")?.excluded, "slow");
     const patient = await runVenueAuction(VENUES, action, { ...OPTIONS, maxSeconds: 3_600, explicitMaxSeconds: true });
-    assert.equal(patient.winner.protocol, "lifi");
+    // Eligible now, but 18 minutes of waiting cost about $2.17 at $0.002/s: Relay still delivers more value.
+    assert.equal(patient.losers.find((quote) => quote.protocol === "lifi")?.excluded, undefined);
+    assert.equal(patient.winner.protocol, "relay");
+    // A Relay quote that much worse lets the slow route win.
+    relayQuotes(action, "21500000");
+    const worse = await runVenueAuction(VENUES, action, { ...OPTIONS, maxSeconds: 3_600, explicitMaxSeconds: true });
+    assert.equal(worse.winner.protocol, "lifi");
   });
 
   it("excludes a DLN order whose fixed fee cannot be priced (Solana -> Base without a SOL price)", async () => {

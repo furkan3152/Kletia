@@ -83,7 +83,7 @@ import { assertContractAmount } from "./contracts/caps.js";
 import { contractDirectory, contractsEnabled, withActivationRetry, type ContractPhrase } from "./contracts/directory.js";
 import { contractOutputAsset, evmSnapshot, solanaSnapshot } from "./contracts/snapshot.js";
 import { assetAmount, assetFromRef, resolveAsset, resolvedFromDescriptor, sameAsset, type ResolvedAsset } from "./assets.js";
-import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult } from "./auction.js";
+import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult, type QuoteContact } from "./auction.js";
 import { pickFundedSource, resolveDeparture, type DepartureBalanceReader } from "./departure.js";
 import { knownAmount, readFacts } from "./holdings.js";
 import { estimateStepFee, gasPriceFrom, rentFrom, SOLANA_WALLET_RENT_FALLBACK } from "./journey/fees.js";
@@ -103,6 +103,10 @@ import { looksLikeName, normalizeName, resolveRecipientName, type NameResolution
 import { screenIntentRequest } from "./secretScreen.js";
 import { decodeStepRef, encodeStepRef } from "./stepRef.js";
 import { newIntentId, portionOf, roundUsd } from "./util.js";
+import { assertFeeSanity, assertSignatureCap, PlanBudget } from "./routing/caps.js";
+import { assertWithinDeadline } from "./routing/deadline.js";
+import { readAssetUsd } from "./routing/score.js";
+import { providersContacted, routeChoice } from "./routing/snapshot.js";
 
 export const DEFAULT_SLIPPAGE_BPS = 50;
 export const INTENT_TTL_MS = 30 * 60 * 1000;
@@ -237,6 +241,14 @@ export interface PlanOptions {
    * rules refuse here, so a provider failure never masks a policy refusal).
    */
   readonly beforeQuote?: (legs: readonly { readonly network: NetworkKey; readonly destinationNetwork: NetworkKey }[]) => Promise<void>;
+  /**
+   * Fee sanity: refuse fees above 5 % of the value moved for a
+   * text request without `maxFeeUsd` (FEE_LIMIT_EXCEEDED with details).
+   * Default: on for text requests, off for clarify turns (a request
+   * with `interpretation.thread`) until the decision layer turns the refusal
+   * into a FEE_HIGH question; the decision layer passes `true` once it does.
+   */
+  readonly feeSanity?: boolean;
 }
 
 /** What the clarify layer adds to `graph.interpretation`. */
@@ -832,6 +844,7 @@ async function planWithCandidates(
   candidates: readonly ProtocolAdapter[],
   action: AdapterAction,
   request: IntentRequest,
+  trace?: PlanTrace,
 ): Promise<CandidateSelection> {
   const crossNetwork = action.kind === "bridge" && action.network !== action.destinationNetwork;
   const swapAuction = action.kind === "swap" && action.network === action.destinationNetwork && candidates.length > 1;
@@ -839,16 +852,27 @@ async function planWithCandidates(
   // same LST): the venue that guarantees more of it wins.
   const stakeAuction = action.kind === "stake" && action.network === action.destinationNetwork && candidates.length > 1;
   if (crossNetwork || swapAuction || stakeAuction) {
+    trace?.budget.startAuction(`${action.kind} ${action.input.symbol} on ${CHAINS[action.network].name}${crossNetwork ? ` to ${CHAINS[action.destinationNetwork].name}` : ""}`);
     const maxSeconds = request.constraints?.maxSeconds;
-    const auction = await runVenueAuction(candidates, action, {
-      maxSeconds: maxSeconds ?? DEFAULT_MAX_SECONDS,
-      explicitMaxSeconds: maxSeconds !== undefined,
-      prefer: request.constraints?.preferProtocols ?? [],
-    });
-    return { adapter: auction.winner.adapter, planned: auction.winner.planned, auction };
+    const contacts: QuoteContact[] = [];
+    try {
+      const auction = await runVenueAuction(candidates, action, {
+        maxSeconds: maxSeconds ?? DEFAULT_MAX_SECONDS,
+        explicitMaxSeconds: maxSeconds !== undefined,
+        explicitSlippage: request.constraints?.maxSlippageBps !== undefined,
+        prefer: request.constraints?.preferProtocols ?? [],
+        ...(request.constraints?.routePreference ? { preference: request.constraints.routePreference } : {}),
+        contacts,
+      });
+      return { adapter: auction.winner.adapter, planned: auction.winner.planned, auction };
+    } finally {
+      trace?.contacts.push(...contacts);
+    }
   }
   let firstError: unknown = null;
   for (const adapter of candidates) {
+    assertWithinDeadline();
+    trace?.contacts.push({ protocol: effectiveProtocol(adapter, action), sawAccount: true });
     try {
       return { adapter, planned: await adapter.plan(action) };
     } catch (error) {
@@ -1005,6 +1029,14 @@ interface DraftContext {
   readonly reserved: ReadonlySet<string>;
   /** USD of destination gas this leg should deliver (constraints.gasOnArrival), when it is eligible. */
   readonly gasTopupUsd?: string;
+  /** What the whole plan has used so far: auctions (caps) and providers contacted. */
+  readonly trace?: PlanTrace;
+}
+
+/** Per-plan counters shared by every draft (failed merge attempts included). */
+interface PlanTrace {
+  readonly budget: PlanBudget;
+  readonly contacts: QuoteContact[];
 }
 
 const NO_DRAFT_CONTEXT: DraftContext = { later: [], reserved: new Set() };
@@ -1127,7 +1159,7 @@ async function draftStep(
     ...(destinationAccount ? { destinationAccount } : {}),
     ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}),
   };
-  const { adapter, planned, auction } = await planWithCandidates(candidates, adapterAction, request);
+  const { adapter, planned, auction } = await planWithCandidates(candidates, adapterAction, request, context.trace);
   if (gasTopupUsd !== undefined && !planned.gasTopup) {
     throw new PlatformError("PROVIDER_TRANSACTION_INVALID", `${adapter.label} planned the leg without the gas top-up it was asked for.`, 502);
   }
@@ -1389,7 +1421,7 @@ function quoteEvidence(draft: StepDraft, now: string): StepEvidence[] {
     network: action.network,
     observedAt: now,
     ...(planned.quoteId ? { reference: planned.quoteId } : {}),
-    detail: `Quoted by ${draft.adapter.label}.${competitors > 0 ? ` Selected over ${competitors} other venue(s) by net guaranteed output, then time.` : ""}`,
+    detail: `Quoted by ${draft.adapter.label}.${competitors > 0 ? ` Selected over ${competitors} other venue(s) by expected value after gas, fees and time.` : ""}`,
   };
   // Provider quote ids of other venues stay out of `reference`: references of quote evidence bind deposits.
   const losers: StepEvidence[] = (draft.auction?.losers ?? []).map((quote) => ({
@@ -1604,6 +1636,37 @@ async function contractPhrases(ownerKeyId: string | undefined): Promise<readonly
 }
 
 /** Plans an intent into a quote-backed IntentGraph (not persisted). */
+/** USD of every priced extra cost of the plan (fees paid on top of the inputs). */
+function extraCostsUsdOf(steps: readonly IntentStep[]): number {
+  return steps.reduce((total, step) => total + (step.extraCosts ?? []).reduce((sum, cost) => sum + (cost.usd !== undefined && Number.isFinite(cost.usd) ? cost.usd : 0), 0), 0);
+}
+
+/**
+ * USD value moved into the plan: the inputs of steps that do not spend a
+ * previous step's output, at their own `usd` or the score's prices; null
+ * when any of them cannot be priced (the fee sanity rule then does not apply).
+ */
+async function valueMovedUsd(steps: readonly IntentStep[]): Promise<number | null> {
+  let total = 0;
+  for (const step of steps) {
+    if (step.funding || !step.input) continue;
+    if (step.input.usd !== undefined && Number.isFinite(step.input.usd)) {
+      total += step.input.usd;
+      continue;
+    }
+    let asset: ResolvedAsset;
+    try {
+      asset = assetFromRef(step.input);
+    } catch {
+      return null;
+    }
+    const price = await readAssetUsd(asset);
+    if (price === null) return null;
+    total += Number(fromBaseUnits(step.input.amount, step.input.decimals)) * price;
+  }
+  return total > 0 ? total : null;
+}
+
 export async function planIntent(input: unknown, options: PlanOptions = {}): Promise<IntentGraph> {
   return (await planIntentWithPreviews(input, options)).graph;
 }
@@ -1694,6 +1757,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
 
   const drafts: StepDraft[] = [];
   const optimizations: string[] = [];
+  const trace: PlanTrace = { budget: new PlanBudget(), contacts: [] };
   let previous: PreviousStep | null = null;
   const steps: IntentStep[] = [];
   // Gas on arrival: networks still waiting for the first eligible leg that arrives there.
@@ -1705,7 +1769,8 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     const next = actions[index + 1];
     let draft: StepDraft | null = null;
     const gasTopupUsd = action.kind === "bridge" ? topups.get(action.destinationNetwork) : undefined;
-    const context = (later: readonly NormalizedAction[]): DraftContext => ({ later, reserved, ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}) });
+    const context = (later: readonly NormalizedAction[]): DraftContext => ({ later, reserved, trace, ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}) });
+    assertWithinDeadline();
     if (canMerge(action, next, request)) {
       const merged: NormalizedAction = {
         ...action,
@@ -1769,6 +1834,8 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
   }
   const warnings: string[] = [...new Set(plannerWarnings)];
   const signatures = drafts.reduce((total, draft) => total + draft.planned.transactionCount, 0);
+  // Plan size: wallet signatures counted exactly after expansion.
+  assertSignatureCap(signatures, trace.budget.auctions, steps.map((step) => step.title));
   if (steps.some((step) => step.settlement?.kind === "cross-network")) {
     warnings.push("Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed.");
   }
@@ -1791,7 +1858,12 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
       );
     }
     if (steps.some((step) => step.feesUsd === undefined)) warnings.push("Some step fees could not be estimated; maxFeeUsd was checked against known fees only.");
+  } else if (source === "grammar" && (options.feeSanity ?? options.interpretation?.thread === undefined) && steps.every((step) => CHAINS[step.network].environment === "mainnet")) {
+    // Fee sanity: text requests without maxFeeUsd refuse fees above 5 % of the value moved (testnet capital has no value).
+    assertFeeSanity({ feeUsd: totalFees + extraCostsUsdOf(steps), valueUsd: await valueMovedUsd(steps) });
   }
+  const routes = drafts.flatMap((draft, index) => (draft.auction && steps[index] ? [routeChoice(steps[index] as IntentStep, draft.auction)] : []));
+  const contacted = providersContacted(trace.contacts);
 
   const expiry = Math.min(
     nowMs + intentTtl(options.ttlMs),
@@ -1815,6 +1887,8 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
       ...(departure ? { departure } : {}),
       ...(options.interpretation?.assumptions ? { assumptions: options.interpretation.assumptions } : {}),
       ...(options.interpretation?.thread ? { thread: options.interpretation.thread } : {}),
+      ...(routes.length > 0 ? { routes } : {}),
+      ...(contacted.length > 0 ? { providersContacted: contacted } : {}),
     },
     steps,
     edges,

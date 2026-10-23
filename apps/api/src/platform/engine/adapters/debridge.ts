@@ -85,6 +85,7 @@ import {
 import { accountBytes, accountBytes32, cushionedMinimum } from "./lifi.js";
 import { cappedOutput } from "./relay.js";
 import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult, PlannedStepPreview } from "./types.js";
+import { crossNetworkSeconds } from "./timing.js";
 import {
   effectiveSolDelta,
   evmEvents,
@@ -680,7 +681,7 @@ export const debridgeDlnAdapter: ProtocolAdapter = {
       ...orderAmounts(action, order),
       ...(fees !== undefined ? { feesUsd: fees } : {}),
       extraCosts: [order.fixFee],
-      estimatedSeconds: seconds + 15,
+      estimatedSeconds: crossNetworkSeconds(action.network, seconds),
       settlement: { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: seconds },
       warnings: warnings(action, order),
       quoteId: order.quote.orderId,

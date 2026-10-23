@@ -97,7 +97,9 @@ export type ProtocolId =
   | "stader"
   | "mantle-lsp"
   | "frax-ether"
-  | "solana-stake";
+  | "solana-stake"
+  // native-token wrapping inside intent engine routes
+  | "wrap";
 
 /**
  * Intent-engine risk tier of a protocol: `core` venues are
@@ -660,6 +662,19 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://eips.ethereum.org/EIPS/eip-20",
     summary: "Standard ERC-20 transfers.",
     kinds: ["transfer"],
+  },
+  {
+    id: "wrap",
+    name: "Wrapped native token",
+    category: "token-program",
+    networks: [...EVM_PRODUCTION, "arbitrum-sepolia"],
+    capabilities: ["execute"],
+    website: "https://weth.io",
+    summary: "1:1 wrap and unwrap of the network's gas asset (ETH <-> WETH, POL <-> WPOL) on its canonical wrapped-native contract; never auctioned.",
+    // No `kinds` yet: the capability index has no rows for "this one pair only" swaps (an any-asset swap row would
+    // tell the clarify catalog and the coverage gate that it swaps everything). The adapter serves ETH <-> WETH
+    // and POL <-> WPOL by its own predicate, and route search reaches it there.
+    tier: "core",
   },
   {
     id: "arc-native",
@@ -1291,6 +1306,8 @@ export type VenueContractRole =
   | "locator"
   | "storage"
   | "liquidity-pool"
+  /** The network's canonical wrapped gas asset (WETH, WPOL): the wrap venue's only contract. */
+  | "wrapped-native"
   /** Bridges. */
   | "spoke-pool"
   | "spoke-program"
@@ -1387,6 +1404,11 @@ const WRAPPED_NATIVE: Readonly<Partial<Record<NetworkKey, string>>> = Object.fre
   base: "0x4200000000000000000000000000000000000006",
   "arbitrum-sepolia": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
 });
+
+/** The canonical wrapped gas asset of an EVM network (WETH9, WPOL), or null (Solana, Arc). */
+export function wrappedNativeAddress(network: NetworkKey): string | null {
+  return WRAPPED_NATIVE[network] ?? null;
+}
 
 function uniswapV3(network: NetworkKey, factory: string, router: string, quoter: string): DexDeployment {
   return {
@@ -1564,6 +1586,8 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   // ---- read back 2026-10-14
   // DEX deployments (Uniswap V3, Aerodrome and Velodrome Slipstream)
   ...dexContracts(DEX_DEPLOYMENTS),
+  // Wrap venue: the canonical wrapped gas asset of each EVM network (the same WETH9 / WPOL the DEX routers report)
+  ...(Object.entries(WRAPPED_NATIVE) as [NetworkKey, string][]).map(([network, address]): VenueContract => ({ protocol: "wrap", network, role: "wrapped-native", address })),
   // SparkLend (Aave V3 fork)
   { protocol: "sparklend", network: "ethereum", role: "addresses-provider", address: "0x02C3eA4e34C0cBd694D2adFa2c690EECbC1793eE" },
   // Fluid (same LendingFactory and Liquidity on every network)

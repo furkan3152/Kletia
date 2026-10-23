@@ -31,7 +31,7 @@ import {
 } from "@kletia/core";
 import { PlatformError, unsupported, type PlatformIssue } from "../errors.js";
 import type { ContractPhrase } from "./contracts/directory.js";
-import { readOnlyRates, readOnlyRatesRefusal } from "./readOnly.js";
+import { hasQuestionMark, questionRefusal, readOnlyRates, readOnlyRatesRefusal } from "./readOnly.js";
 
 export const GRAMMAR_EXAMPLES: readonly string[] = Object.freeze([
   "swap 1 SOL to USDC",
@@ -344,6 +344,35 @@ interface Draft {
   readonly warnings?: readonly string[];
 }
 
+/**
+ * Words that name both a listed token and a network: "op" is OP Mainnet or
+ * the OP token, "sol" Solana or SOL.
+ */
+export const ASSET_NETWORK_WORDS: Readonly<Record<string, { readonly network: NetworkKey; readonly symbol: string }>> = Object.freeze({
+  sol: { network: "solana", symbol: "SOL" },
+  op: { network: "optimism", symbol: "OP" },
+  arb: { network: "arbitrum", symbol: "ARB" },
+  matic: { network: "polygon", symbol: "POL" },
+});
+
+/** Verbs that say neither "change the token" nor "change the network": "move 10 USDC to op" can mean either. */
+export const NEUTRAL_MOVE_VERBS: readonly string[] = Object.freeze(["move", "send", "transfer", "ship"]);
+
+/**
+ * INTENT_UNSUPPORTED for a neutral verb whose destination names a token and
+ * a network ("move 10 USDC to op", "send 10 USDC to sol") with no source
+ * network said: both readings are given as examples, never one chosen.
+ * `what` is the amount and token as said ("10 USDC"), when the clause said both.
+ */
+export function assetOrNetworkRefusal(clause: string, verb: string, word: string, what?: string): PlatformError {
+  const entry = ASSET_NETWORK_WORDS[word.toLowerCase()] ?? { network: "optimism" as NetworkKey, symbol: word.toUpperCase() };
+  const spend = what ?? "10 USDC";
+  const bridge = `bridge ${spend} to ${entry.network}`;
+  const swap = `swap ${spend} to ${entry.symbol}`;
+  const message = `"${verb} ... to ${word.slice(0, 16)}" can mean ${CHAINS[entry.network].name} or the ${entry.symbol} token. To move it to ${CHAINS[entry.network].name}, say "${bridge}"; to change it into ${entry.symbol}, say "${swap}".`;
+  return unsupported(clauseMessage(clause, message), [bridge, swap, ...GRAMMAR_EXAMPLES.slice(0, 3)], [{ path: "text", message: "A token or a network: say which." }]);
+}
+
 /** Verbs that start a built-in sentence. */
 export const VERBS: readonly string[] = Object.freeze([
   "swap", "convert", "trade", "exchange", "sell", "buy", "bridge", "move", "send", "transfer", "pay", "port",
@@ -617,6 +646,12 @@ function matchClause(clause: string): Draft {
           explicit: network !== undefined,
         };
       case "bridge": {
+        // "move 10 USDC to op": a token or a network. Read as the network only after "from <network>" or with "as <token>".
+        const said = clause.split(/\s+/u)[0]?.toLowerCase() ?? "";
+        if (NEUTRAL_MOVE_VERBS.includes(said) && !groups.n1 && !groups.b && groups.n2 && Object.hasOwn(ASSET_NETWORK_WORDS, groups.n2.toLowerCase())) {
+          const what = groups.amt && groups.a && /^[\d.,$]+$/u.test(groups.amt) ? `${groups.amt} ${groups.a.toUpperCase()}` : undefined;
+          throw assetOrNetworkRefusal(clause, said, groups.n2, what);
+        }
         const source = networkFromGroup(groups.n1, clause);
         const destination = networkFromGroup(groups.n2, clause);
         return {
@@ -1084,6 +1119,8 @@ function toActionSpec(draft: Draft, network: NetworkKey, index: number, warnings
 export function compileIntentText(text: string, context: GrammarContext = {}): GrammarResult {
   const normalizedText = normalizeText(text);
   if (!normalizedText) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);
+  // A question is never planned as typed ("swap 0.01 ETH to USDC on base?"): normalizeText strips the mark, so check first.
+  if (hasQuestionMark(text)) throw questionRefusal(normalizedText, GRAMMAR_EXAMPLES);
   const matcher = context.contracts && context.contracts.length > 0 ? cachedMatcher(context.contracts) : null;
   const clauses = splitClauses(normalizedText, matcher ? matcher.phrases.flatMap((phrase) => phrase.verbs) : []);
   if (clauses.length === 0) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);

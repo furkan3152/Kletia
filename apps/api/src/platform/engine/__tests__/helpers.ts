@@ -30,6 +30,9 @@ import {
   type TransactionRequest,
 } from "@kletia/core";
 import { configureGasReserveReader, type GasReserveFacts } from "../planner.js";
+import { resetQuoteCache } from "../routing/quoteCache.js";
+import { configureScoreFacts, type ScoreFacts } from "../routing/score.js";
+import { resetVenueStats } from "../routing/venueStats.js";
 import { configurePlatform } from "../service.js";
 import { MemoryIntentStore } from "../store.js";
 import { assetAmount, sameAsset, type ResolvedAsset } from "../assets.js";
@@ -375,11 +378,42 @@ export const FUNDED_GAS_FACTS: GasReserveFacts = Object.freeze({
   tokenAccountRentLamports: 2_039_280n,
 });
 
+/** USD prices of the route score in engine tests (by symbol; USD stablecoins are at par without an entry). */
+export const TEST_USD_PRICES: Readonly<Record<string, number>> = Object.freeze({
+  ETH: 2_500, WETH: 2_500, STETH: 2_500, WSTETH: 3_000, RETH: 2_800, WEETH: 2_650, CBETH: 2_750,
+  CBBTC: 60_000, WBTC: 60_000, SOL: 150, JITOSOL: 180, MSOL: 190, JUPSOL: 170, POL: 0.25, WPOL: 0.25,
+  AERO: 1, ARB: 0.5, OP: 1.5, JUP: 0.8, BONK: 0.00002, WIF: 1.5, CRV: 0.5, EURC: 1.08,
+});
+
+/** Gas prices of the route score in engine tests (wei per gas). */
+export const TEST_GAS_PRICES: Readonly<Record<string, bigint>> = Object.freeze({
+  ethereum: 20_000_000_000n, base: 10_000_000n, optimism: 1_000_000n, arbitrum: 20_000_000n, polygon: 30_000_000_000n,
+});
+
+/** Score facts that never read a chain or a price API (deterministic auctions, I9). */
+export const TEST_SCORE_FACTS: ScoreFacts = {
+  gasPriceWei: async (network) => TEST_GAS_PRICES[network] ?? null,
+  nativeUsd: async (network) => {
+    const symbol = CHAINS[network].nativeAsset.symbol.toUpperCase();
+    if (CHAINS[network].environment === "testnet") return symbol === "USDC" ? 1 : 0;
+    return TEST_USD_PRICES[symbol] ?? null;
+  },
+  assetUsd: async (asset) => TEST_USD_PRICES[asset.symbol.toUpperCase()] ?? null,
+};
+
+/** Fresh route-score state: fixed facts, no venue statistics, no cached quotes. */
+export function resetRouting(): void {
+  configureScoreFacts(TEST_SCORE_FACTS);
+  resetVenueStats();
+  resetQuoteCache();
+}
+
 export function resetEngine(): MemoryIntentStore {
   Object.assign(stub, defaultControls());
   const store = new MemoryIntentStore();
   configurePlatform({ store, adapters: STUB_ADAPTERS });
   // Never read the chain while planning in tests; journeyPlanner sets an empty account to see the reserve.
   configureGasReserveReader(async () => FUNDED_GAS_FACTS);
+  resetRouting();
   return store;
 }

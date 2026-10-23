@@ -18,7 +18,7 @@ import {
   type ProtocolId,
   type TransactionRequest,
 } from "@kletia/core";
-import { PlatformError } from "../../errors.js";
+import { PlatformError, providerRateLimited } from "../../errors.js";
 import { configurePlatform } from "../service.js";
 import { MemoryIntentStore } from "../store.js";
 import { assetAmount, type ResolvedAsset } from "../assets.js";
@@ -138,8 +138,14 @@ export interface VenueScript {
   preparedCosts?: (action: AdapterAction) => AssetAmount[];
   /** Plan throws this code. */
   fail?: string;
+  /** HTTP status of `fail` (default 422, a business refusal; 5xx counts for the circuit breaker). */
+  failStatus?: 422 | 502 | 503 | 504;
   /** Plan never settles. */
   hang?: boolean;
+  /** Plan answers after this many milliseconds. */
+  delayMs?: number;
+  /** The next N plans answer 429 (PROVIDER_RATE_LIMITED with this Retry-After, seconds) before quoting. */
+  rateLimited?: { times: number; retryAfterSeconds: number };
   quoteId?: string;
 }
 
@@ -186,7 +192,12 @@ export function stubBridge(protocol: ProtocolId, label: string): ProtocolAdapter
       bridgeCalls.push(action);
       const script = venueScripts[protocol];
       if (script?.hang) await new Promise<never>(() => undefined);
-      if (script?.fail) throw new PlatformError(script.fail, `${label} refused the route.`, 422);
+      if (script?.delayMs) await new Promise((resolve) => setTimeout(resolve, script.delayMs));
+      if (script?.rateLimited && script.rateLimited.times > 0) {
+        script.rateLimited.times -= 1;
+        throw providerRateLimited(label, script.rateLimited.retryAfterSeconds);
+      }
+      if (script?.fail) throw new PlatformError(script.fail, `${label} refused the route.`, script.failStatus ?? 422);
       return venuePlan(protocol, action, false);
     },
     prepare: async ({ action }): Promise<PreparedPayload> => {

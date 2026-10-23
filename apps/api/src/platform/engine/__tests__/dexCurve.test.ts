@@ -302,7 +302,7 @@ describe("Curve calldata", () => {
 });
 
 describe("Curve in the same-network auction", () => {
-  it("wins against a DEX whose guaranteed output is lower, and loses to a better one", async () => {
+  it("wins against a DEX whose expected value is lower, and loses to a better one", async () => {
     mockCurve();
     const stub = (id: "uniswap-v3" | "pancakeswap-v3", out: bigint): ProtocolAdapter => ({
       id,
@@ -319,14 +319,17 @@ describe("Curve in the same-network auction", () => {
         estimatedSeconds: 15,
         settlement: { kind: "same-network" },
         warnings: [],
-        transactionCount: 1,
+        // An approval plus the swap, like Curve's own plan here (the comparison is by value, not by approvals).
+        transactionCount: 2,
         slippageBps: 50,
         floor: "onchain",
       }),
       prepare: async () => assert.fail("not prepared"),
       verify: async () => assert.fail("not verified"),
     });
-    configurePlatform({ store: new MemoryIntentStore(), adapters: [stub("uniswap-v3", 1_001_162_000n), stub("pancakeswap-v3", 1_001_149_000n), curve] });
+    // Curve quotes 1,001.1685 USDT and carries the curated tier's $0.25 risk cost; values within $0.05 of each other
+    // tie, so the stubs quote clearly less.
+    configurePlatform({ store: new MemoryIntentStore(), adapters: [stub("uniswap-v3", 1_000_500_000n), stub("pancakeswap-v3", 1_000_450_000n), curve] });
     assert.equal((await swap("USDC", "USDT", "1000")).steps[0]?.protocol, "curve");
     configurePlatform({ store: new MemoryIntentStore(), adapters: [stub("uniswap-v3", 1_002_000_000n), curve] });
     assert.equal((await swap("USDC", "USDT", "1000")).steps[0]?.protocol, "uniswap-v3");

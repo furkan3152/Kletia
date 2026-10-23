@@ -86,6 +86,9 @@ import {
   withTimeout,
   WRAP_GAS,
   wrapTransaction,
+  bestEffort,
+  indexGrowthApy,
+  tvlUsdOf,
   type LendingContext,
   type LendingMetrics,
   LENDING_PREVIEW_TTL_SECONDS,
@@ -471,11 +474,16 @@ function reserveRef(venue: AaveReserveVenue): ReserveRef {
 export async function aaveMetrics(venue: AaveReserveVenue): Promise<LendingMetrics> {
   const context = reserveRef(venue);
   const { network } = context;
-  const [state, supplied, liquidity] = await Promise.all([
+  const client = evmClient(network);
+  const [state, supplied, liquidity, smoothed] = await Promise.all([
     readReserve(context),
-    withTimeout(evmClient(network).readContract({ address: getAddress(venue.receipt.address), abi: erc20Abi, functionName: "totalSupply" })),
+    withTimeout(client.readContract({ address: getAddress(venue.receipt.address), abi: erc20Abi, functionName: "totalSupply" })),
     exitLiquidity(context),
+    // The liquidity index's growth over the last week (the realised supply rate).
+    bestEffort(() => indexGrowthApy(network, async (blockNumber) =>
+      (await client.readContract({ address: getAddress(venue.target), abi: POOL_ABI, functionName: "getReserveData", args: [context.token], blockNumber })).liquidityIndex), 8_000),
   ]);
+  const totalSupplied = underlyingAmount(context, supplied);
   const warnings = [
     ...(!state.active ? ["The reserve is inactive."] : []),
     ...(state.paused ? ["The reserve is paused."] : []),
@@ -489,7 +497,10 @@ export async function aaveMetrics(venue: AaveReserveVenue): Promise<LendingMetri
     asset: venue.asset,
     supplyApy: reserveApy(state),
     apySource: "rate",
-    totalSupplied: underlyingAmount(context, supplied),
+    apyWindowSeconds: smoothed?.window ?? null,
+    smoothedApy: smoothed?.apy ?? null,
+    tvlUsd: await tvlUsdOf(totalSupplied),
+    totalSupplied,
     exitLiquidity: underlyingAmount(context, liquidity),
     utilization: ratio(supplied > liquidity ? supplied - liquidity : 0n, supplied),
     observedAt: new Date().toISOString(),

@@ -145,7 +145,8 @@ export async function fetchAcrossQuote(request: AcrossFeesRequest): Promise<Acro
   if (typeof body.destinationSpokePoolAddress !== "string" || !isEvmAddress(body.destinationSpokePoolAddress)) throw invalid("destinationSpokePoolAddress");
   if (typeof body.exclusiveRelayer !== "string" || !isEvmAddress(body.exclusiveRelayer)) throw invalid("exclusiveRelayer");
   const exclusivity = finiteNumber(body.exclusivityDeadline);
-  if (exclusivity === null || !Number.isInteger(exclusivity) || exclusivity < 0) throw invalid("exclusivityDeadline");
+  // uint32 on the SpokePool: a period (seconds) or, above MAX_EXCLUSIVITY_PERIOD_SECONDS, a timestamp (across.ts).
+  if (exclusivity === null || !Number.isInteger(exclusivity) || exclusivity < 0 || exclusivity > 4_294_967_295) throw invalid("exclusivityDeadline");
   const timestamp = unixSeconds(body.timestamp);
   if (timestamp === null) throw invalid("timestamp");
   const fillDeadline = unixSeconds(body.fillDeadline);

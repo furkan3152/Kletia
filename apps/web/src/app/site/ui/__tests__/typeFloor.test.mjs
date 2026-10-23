@@ -11,7 +11,8 @@ import { fileURLToPath } from "node:url";
 import tailwindConfig from "../../../../../tailwind.config.js";
 
 const APP = fileURLToPath(new URL("../../../", import.meta.url));
-const SCANNED = ["site/ui", "pages/developers"];
+/** The desk's views are scanned too (round 9); console/legacy is the old engine UI and is not. */
+const SCANNED = ["site/ui", "pages/developers", ...["activity", "automations", "composer", "dashboard", "holdings", "orders", "perps", "shell", "tasks", "tools"].map((part) => `console/${part}`)];
 
 /**
  * Files that still print readable text under 12 px, each owned by the package
@@ -20,7 +21,6 @@ const SCANNED = ["site/ui", "pages/developers"];
  */
 const PENDING = {
   "pages/developers/components/MethodBadge.tsx": [1, "release"],
-  "site/ui/ApiErrorPanel.tsx": [2, "release"],
   "site/ui/CopyButton.tsx": [1, "release"],
   "site/ui/StatusDot.tsx": [1, "release"],
   "site/ui/Toaster.tsx": [1, "release"],
@@ -81,7 +81,7 @@ for (const directory of SCANNED) {
   }
 }
 
-test("no readable text under 12 px in site/ui and the developer portal, beyond the pending files", () => {
+test("no readable text under 12 px in site/ui, the developer portal and the desk views, beyond the pending files", () => {
   const problems = [];
   for (const [file, hits] of found) {
     const pending = PENDING[file];

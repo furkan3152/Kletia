@@ -37,6 +37,7 @@ export const AUTOMATION_COPY = Object.freeze({
   remove: "Delete",
   notify: "Notify me in this browser",
   notifyOn: "Browser notifications are on for this tab.",
+  loadingWallets: "Loading wallets...",
   notifyTitle: "A Kletia automation needs your signature",
   next: (when: string) => `Next run ${when}`,
   last: (when: string) => `Last run ${when}`,

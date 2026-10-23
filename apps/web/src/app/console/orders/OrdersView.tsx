@@ -7,11 +7,14 @@
  * comes from the protocol through /v1/orders.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CHAINS } from "@kletia/core";
 
 import { getKletiaClient, describePlatformError, toPlatformError } from "../../../shared/platform/kletiaClient";
 import { useWallets } from "../../../shared/wallet/useWallets";
-import { buttonClasses, cx, INK_BORDER, LABEL, SURFACE } from "../../site/ui/styles";
+import { buttonClasses, cx, FOCUS_RING, LABEL } from "../../site/ui/styles";
 import { DESK_COPY } from "../content/copy";
+import { ViewEmpty, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
+import { PANEL_TITLE, VIEW_FIELD, VIEW_PANEL } from "../shell/viewStyles";
 import { cancelOrder, listOrders, prepareOrder, quoteOrder, type OrderQuoteView } from "./ordersApi";
 import {
   EMPTY_ORDER_FORM,
@@ -34,8 +37,16 @@ import {
 import { useOrderRunner } from "./useOrderRunner";
 
 const copy = DESK_COPY.orders;
-const FIELD = "min-h-11 w-full border-2 border-control bg-surface px-3 text-base text-fg focus:outline focus:outline-4 focus:outline-offset-2 focus:outline-[var(--kl-focus)]";
-const TOGGLE = "min-h-11 border-2 border-control px-3 text-xs font-black uppercase tracking-wider aria-pressed:bg-[#1A1A1A] aria-pressed:text-white dark:aria-pressed:bg-white dark:aria-pressed:text-[#0B1120]";
+const FIELD = VIEW_FIELD;
+const TOGGLE = cx(
+  "min-h-11 border-[3px] border-control bg-surface px-4 text-xs font-black uppercase tracking-[0.12em] text-fg hover:bg-neutral-bg aria-pressed:bg-[#1A1A1A] aria-pressed:text-white dark:aria-pressed:bg-white dark:aria-pressed:text-[#0B1120]",
+  FOCUS_RING,
+);
+
+/** The registry's name of a network key; an unknown key is printed as it came. */
+function networkName(key: string): string {
+  return (CHAINS as Readonly<Record<string, { readonly name: string } | undefined>>)[key]?.name ?? key;
+}
 
 function errorText(error: unknown): string {
   return describePlatformError(toPlatformError(error));
@@ -44,7 +55,7 @@ function errorText(error: unknown): string {
 function Field({ label, children }: { readonly label: string; readonly children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className={cx(LABEL, "!text-[11px]")}>{label}</span>
+      <span className={LABEL}>{label}</span>
       {children}
     </label>
   );
@@ -62,8 +73,8 @@ function QuotePanel({ quote }: { readonly quote: OrderQuoteView }) {
   if (quote.expiresAt) rows.push([copy.expires, new Date(quote.expiresAt).toLocaleString()]);
   rows.push([copy.fees, quote.fees], [copy.custody, quote.custody]);
   return (
-    <section aria-label={copy.quoteHeading} className={cx("flex flex-col gap-2 p-4", INK_BORDER, SURFACE)}>
-      <h3 className="font-display text-lg font-bold">
+    <section aria-label={copy.quoteHeading} className={VIEW_PANEL}>
+      <h3 className={PANEL_TITLE}>
         {copy.quoteHeading} · {protocolName(quote.protocol)}
       </h3>
       <dl className="grid gap-1 text-sm sm:grid-cols-[max-content_1fr] sm:gap-x-4">
@@ -75,9 +86,9 @@ function QuotePanel({ quote }: { readonly quote: OrderQuoteView }) {
         ))}
       </dl>
       {quote.warnings.map((warning) => (
-        <p key={warning} className="text-sm font-bold">
+        <ViewNote key={warning} tone="warning">
           {warning}
-        </p>
+        </ViewNote>
       ))}
     </section>
   );
@@ -85,8 +96,8 @@ function QuotePanel({ quote }: { readonly quote: OrderQuoteView }) {
 
 function SafeSteps({ steps }: { readonly steps: readonly OrderStepView[] }) {
   return (
-    <section aria-label={copy.safeHeading} className={cx("flex flex-col gap-3 p-4", INK_BORDER, SURFACE)}>
-      <h3 className="font-display text-lg font-bold">{copy.safeHeading}</h3>
+    <section aria-label={copy.safeHeading} className={VIEW_PANEL}>
+      <h3 className={PANEL_TITLE}>{copy.safeHeading}</h3>
       <p className="text-sm">{copy.safeHint}</p>
       <ol className="flex list-decimal flex-col gap-3 pl-5">
         {steps.map((step, index) =>
@@ -110,10 +121,10 @@ function SafeSteps({ steps }: { readonly steps: readonly OrderStepView[] }) {
 function OrderRow({ order, canCancel, busy, onCancel }: { readonly order: NativeOrderView; readonly canCancel: boolean; readonly busy: boolean; readonly onCancel: () => void }) {
   const pct = filledPercent(order);
   return (
-    <li className={cx("flex flex-col gap-1 p-3 sm:flex-row sm:items-center sm:justify-between", INK_BORDER, SURFACE)}>
+    <li className={cx(VIEW_PANEL, "gap-1 p-3 sm:flex-row sm:items-center sm:justify-between")}>
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className="text-xs font-black uppercase tracking-wider">
-          {protocolName(order.protocol)} · {order.network}
+          {protocolName(order.protocol)} · {networkName(order.network)}
         </p>
         <p className="text-sm">{orderSummary(order)}</p>
         <p className="text-xs text-muted">
@@ -221,15 +232,10 @@ export function OrdersView() {
 
   return (
     <section aria-labelledby="desk-orders-heading" className="flex flex-col gap-6 pb-8">
-      <div className="flex flex-col gap-2">
-        <h2 id="desk-orders-heading" className="font-display text-2xl font-bold">
-          {copy.title}
-        </h2>
-        <p className="text-sm">{copy.intro}</p>
-      </div>
+      <ViewHeader id="desk-orders-heading" title={copy.title} intro={copy.intro} />
 
-      <form className={cx("flex flex-col gap-4 p-4", INK_BORDER, SURFACE)} onSubmit={(event) => event.preventDefault()} aria-labelledby="desk-orders-create">
-        <h3 id="desk-orders-create" className="font-display text-lg font-bold">
+      <form className={cx(VIEW_PANEL, "gap-4")} onSubmit={(event) => event.preventDefault()} aria-labelledby="desk-orders-create">
+        <h3 id="desk-orders-create" className={PANEL_TITLE}>
           {copy.createHeading}
         </h3>
         <div role="group" aria-label={copy.modeLabel} className="flex gap-2">
@@ -244,7 +250,7 @@ export function OrdersView() {
             <select className={FIELD} value={form.network} onChange={(event) => update({ network: event.target.value as OrderFormState["network"] })}>
               {ORDER_NETWORK_KEYS.map((key) => (
                 <option key={key} value={key}>
-                  {key}
+                  {networkName(key)}
                 </option>
               ))}
             </select>
@@ -292,7 +298,7 @@ export function OrdersView() {
             </>
           )}
         </div>
-        {"problem" in request ? <p className="text-sm font-bold">{request.problem}</p> : null}
+        {"problem" in request ? <ViewNote>{request.problem}</ViewNote> : null}
         <div className="flex flex-wrap gap-2">
           <button type="button" className={buttonClasses("secondary", "md")} disabled={busy || !("body" in request)} onClick={() => void onQuote()}>
             {copy.quote}
@@ -311,7 +317,7 @@ export function OrdersView() {
 
       <section aria-labelledby="desk-orders-list" className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 id="desk-orders-list" className="font-display text-lg font-bold">
+          <h3 id="desk-orders-list" className={PANEL_TITLE}>
             {copy.listHeading}
           </h3>
           {owners.length > 0 ? (
@@ -320,23 +326,23 @@ export function OrdersView() {
             </button>
           ) : null}
         </div>
-        {owners.length === 0 ? <p className="text-sm">{copy.connect}</p> : null}
-        {loading ? <p className="text-sm">{copy.loading}</p> : null}
+        {owners.length === 0 ? <ViewEmpty>{copy.connect}</ViewEmpty> : null}
+        {loading ? <ViewLoading>{copy.loading}</ViewLoading> : null}
         {failures.length > 0 ? (
-          <div className="text-sm">
-            <p className="font-bold">{copy.readFailed}</p>
-            <ul className="list-disc pl-5">
+          <ViewNote tone="danger">
+            <p>{copy.readFailed}</p>
+            <ul className="list-disc pl-5 font-normal">
               {failures.map((failure, index) => (
                 <li key={index}>{failureLine(failure)}</li>
               ))}
             </ul>
-          </div>
+          </ViewNote>
         ) : null}
-        {owners.length > 0 && !loading && orders.length === 0 && failures.length === 0 ? <p className="text-sm">{copy.empty}</p> : null}
+        {owners.length > 0 && !loading && orders.length === 0 && failures.length === 0 ? <ViewEmpty>{copy.empty}</ViewEmpty> : null}
         {(["open", "filled", "closed", "unknown"] as const).map((group) =>
           grouped[group].length > 0 ? (
             <div key={group} className="flex flex-col gap-2">
-              <h4 className="text-xs font-black uppercase tracking-[0.16em]">{copy.groups[group]}</h4>
+              <h4 className={cx(LABEL, "text-muted")}>{copy.groups[group]}</h4>
               <ul className="flex flex-col gap-2">
                 {grouped[group].map((order) => (
                   <OrderRow key={order.id} order={order} busy={busy} canCancel={order.cancellable && owners.some((entry) => entry.toLowerCase() === order.owner.toLowerCase())} onCancel={() => void onCancel(order)} />

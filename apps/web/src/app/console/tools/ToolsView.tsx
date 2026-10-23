@@ -122,7 +122,7 @@ export function ToolsView({ toolId }: ToolsViewProps) {
         />
       </label>
       <div role="group" aria-label={copy.networkFilter} className="flex flex-wrap items-center gap-2">
-        <span className={cx(LABEL, "!text-[11px]")}>{copy.networkFilter}</span>
+        <span className={cx(LABEL, "!text-xs")}>{copy.networkFilter}</span>
         <button type="button" className={FILTER} aria-pressed={network === "all"} onClick={() => setNetwork("all")}>
           {copy.all}
         </button>
@@ -133,7 +133,7 @@ export function ToolsView({ toolId }: ToolsViewProps) {
         ))}
       </div>
       <div role="group" aria-label={copy.kindFilter} className="flex flex-wrap items-center gap-2">
-        <span className={cx(LABEL, "!text-[11px]")}>{copy.kindFilter}</span>
+        <span className={cx(LABEL, "!text-xs")}>{copy.kindFilter}</span>
         <button type="button" className={FILTER} aria-pressed={kind === "all"} onClick={() => setKind("all")}>
           {copy.all}
         </button>

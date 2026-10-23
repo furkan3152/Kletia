@@ -52,10 +52,26 @@
   display: none;
 }
 
+/* The current section: a 3 px ink bar under the label (colour is not the only cue). */
+.kd-viewnav-tab[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: 0;
+  left: 6px;
+  height: 3px;
+  background: var(--kl-text);
+}
+
 @media (min-width: 1024px) {
   .kd-viewnav {
     display: none;
   }
+}
+
+/* Sub-tabs of a section with several views (Portfolio, Trade, More). */
+.kd-subnav {
+  margin-bottom: 16px;
 }
 
 /* --- Grid ---------------------------------------------------------------- */
@@ -240,7 +256,7 @@
   padding: 0 8px;
   background: #ffd60a;
   color: #1a1a1a;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.14em;
 }
@@ -255,7 +271,7 @@
   background: #ffd60a;
   color: #1a1a1a;
   font-family: "JetBrains Mono Variable", ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
@@ -283,7 +299,7 @@
 .kd-board__legend {
   padding: 12px 16px 6px;
   color: #ffd60a;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -358,7 +374,7 @@
   border: 1px solid #4a4a4a;
   background: #0f0f0f;
   color: #f4f1ea;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   white-space: nowrap;

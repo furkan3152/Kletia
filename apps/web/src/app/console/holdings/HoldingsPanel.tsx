@@ -28,6 +28,8 @@ export interface HoldingsPanelProps {
   readonly perAccount: boolean;
   readonly onRefresh: () => void;
   readonly headingLevel?: 2 | 3;
+  /** The full Holdings view: the heading reads like every other view's title (the rail keeps the small label). */
+  readonly asView?: boolean;
 }
 
 const LINK =
@@ -37,7 +39,7 @@ function laneNetworks(lane: Lane): NetworkKey[] {
   return NETWORK_KEYS.filter((key) => (CHAINS[key].lane === "testnet" ? "testnet" : "production") === lane);
 }
 
-export function HoldingsPanel({ lane, snapshot, loading, failed, perAccount, onRefresh, headingLevel = 2 }: HoldingsPanelProps) {
+export function HoldingsPanel({ lane, snapshot, loading, failed, perAccount, onRefresh, headingLevel = 2, asView = false }: HoldingsPanelProps) {
   const actions = useDeskActions();
   const connected = actions.accounts.connected.evm || actions.accounts.connected.solana;
   const Heading = headingLevel === 2 ? "h2" : "h3";
@@ -60,7 +62,7 @@ export function HoldingsPanel({ lane, snapshot, loading, failed, perAccount, onR
   return (
     <section aria-label={copy.asideLabel} className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <Heading className="text-xs font-black uppercase tracking-[0.16em] text-muted">{copy.title}</Heading>
+        <Heading className={asView ? "font-display text-2xl font-bold" : "text-xs font-black uppercase tracking-[0.16em] text-muted"}>{copy.title}</Heading>
         {connected ? (
           <button
             type="button"

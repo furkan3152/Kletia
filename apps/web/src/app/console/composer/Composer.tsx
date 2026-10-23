@@ -243,7 +243,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             {/* Phones: "Examples" shares the chip row, so the docked composer stays two rows tall. */}
             <StarterMenu departure={departure} actions={actions} onPick={pickStarter} variant="inline" className="ml-auto md:hidden" />
             {yard ? (
-              <span className="kd-yard-ribbon inline-flex min-h-8 items-center px-2 text-[11px] font-black uppercase tracking-wider text-fg">
+              <span className="kd-yard-ribbon inline-flex min-h-8 items-center px-2 text-xs font-black uppercase tracking-wider text-fg">
                 {copy.testYardBadge}
               </span>
             ) : null}

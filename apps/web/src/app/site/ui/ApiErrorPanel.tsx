@@ -31,7 +31,7 @@ export function ApiErrorPanel({ error, title = "Request failed", message, onRetr
             <p className="mt-1 text-sm">{message ?? describePlatformError(error)}</p>
           </div>
         </div>
-        <p className="flex flex-wrap gap-1.5 font-code text-[11px]">
+        <p className="flex flex-wrap gap-1.5 font-code text-xs">
           <span className="border-2 border-current px-1.5 py-0.5">{error.code}</span>
           {error.status > 0 ? <span className="border-2 border-current px-1.5 py-0.5">HTTP {error.status}</span> : null}
         </p>
@@ -51,7 +51,7 @@ export function ApiErrorPanel({ error, title = "Request failed", message, onRetr
       ) : null}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         {error.requestId ? (
-          <p className="font-code text-[11px] opacity-80">request id: {error.requestId}</p>
+          <p className="font-code text-xs opacity-80">request id: {error.requestId}</p>
         ) : (
           <span />
         )}

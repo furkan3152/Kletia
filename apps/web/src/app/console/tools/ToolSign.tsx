@@ -27,7 +27,7 @@ export function ToolSign({ tool, onOpen }: ToolSignProps) {
         <span className="font-code text-sm font-bold" aria-hidden="true">
           {String(tool.number).padStart(2, "0")}
         </span>
-        <span className="border-2 border-current px-1.5 text-[11px] font-black uppercase tracking-wider">{copy.kinds[tool.kind]}</span>
+        <span className="border-2 border-current px-1.5 text-xs font-black uppercase tracking-wider">{copy.kinds[tool.kind]}</span>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-4">
         <h3 className="font-display text-base font-bold">{tool.title}</h3>
@@ -39,7 +39,7 @@ export function ToolSign({ tool, onOpen }: ToolSignProps) {
           </p>
         ) : null}
         <p className="text-sm">{tool.summary}</p>
-        <p className={cx(LABEL, "!text-[11px] text-muted")}>{copy.needs[tool.needs]}</p>
+        <p className={cx(LABEL, "!text-xs text-muted")}>{copy.needs[tool.needs]}</p>
         <button
           type="button"
           onClick={onOpen}

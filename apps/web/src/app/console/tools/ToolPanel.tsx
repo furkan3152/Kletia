@@ -75,7 +75,7 @@ function NetworkChoice({
 }) {
   return (
     <div role="group" aria-label={TOOL_COPY.networkChoice} className="flex flex-wrap items-center gap-2">
-      <span className={cx(LABEL, "!text-[11px]")}>{TOOL_COPY.networkChoice}</span>
+      <span className={cx(LABEL, "!text-xs")}>{TOOL_COPY.networkChoice}</span>
       {networks.map((network) => (
         <button
           key={network}

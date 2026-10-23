@@ -17,6 +17,7 @@ import { CHAINS, type DataAllocationSlice, type DataFailure, type LendingHealth 
 import { ActivityFeed } from "../../../shared/sync/ActivityFeed";
 import { DESK_COPY } from "../content/copy";
 import { useDeskActions } from "../shell/deskContext";
+import { ViewEmpty, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
 import { clockOf } from "../tasks/taskModel";
 import {
   allocationBars,
@@ -125,11 +126,12 @@ export default function DashboardView({ lane }: { readonly lane: DashboardLane }
 
   return (
     <section aria-labelledby="desk-dashboard-heading" className="kdb flex flex-col gap-6 pb-8">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="desk-dashboard-heading" className="font-display text-2xl font-bold">
-          {copy.title}
-        </h2>
-        {connected ? (
+      <ViewHeader
+        id="desk-dashboard-heading"
+        title={copy.title}
+        intro={copy.intro}
+        action={
+          connected ? (
           <button
             type="button"
             onClick={refresh}
@@ -140,18 +142,18 @@ export default function DashboardView({ lane }: { readonly lane: DashboardLane }
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin motion-reduce:animate-none" : ""}`} aria-hidden="true" />
             {portfolio ? <span>{copy.readAt(clockOf(portfolio.asOf))}</span> : null}
           </button>
-        ) : null}
-      </div>
-      <p className="text-sm">{copy.intro}</p>
+          ) : null
+        }
+      />
 
-      {!connected ? <p className="border-2 border-dashed border-control p-3 text-sm font-semibold">{copy.connect}</p> : null}
+      {!connected ? <ViewEmpty>{copy.connect}</ViewEmpty> : null}
       {connected && error ? (
-        <p role="alert" className="kdb-card text-sm font-bold">
+        <ViewNote role="alert" tone="danger">
           {copy.unavailable} {error}{" "}
           <button type="button" className={LINK} onClick={refresh}>{copy.retry}</button>
-        </p>
+        </ViewNote>
       ) : null}
-      {connected && loading && !portfolio ? <p className="text-sm font-bold" aria-live="polite">{copy.loading}</p> : null}
+      {connected && loading && !portfolio ? <ViewLoading>{copy.loading}</ViewLoading> : null}
 
       {connected && portfolio ? (
         <>

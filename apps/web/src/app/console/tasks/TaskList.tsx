@@ -20,9 +20,11 @@ export interface TaskListProps {
   readonly onOpenTask: (taskId: string) => void;
   readonly onNewTask: () => void;
   readonly headingLevel?: 2 | 3;
+  /** The full Tasks view: the heading reads like every other view's title (the rail keeps the small label). */
+  readonly asView?: boolean;
 }
 
-export function TaskList({ onOpenTask, onNewTask, headingLevel = 2 }: TaskListProps) {
+export function TaskList({ onOpenTask, onNewTask, headingLevel = 2, asView = false }: TaskListProps) {
   const all = useDeskStore((state) => state.tasks);
   // A selector must return a stable value: sort the stored list, not a fresh one per read.
   const tasks = useMemo(() => tasksNewestFirst({ tasks: all }), [all]);
@@ -31,7 +33,7 @@ export function TaskList({ onOpenTask, onNewTask, headingLevel = 2 }: TaskListPr
   const Heading = headingLevel === 2 ? "h2" : "h3";
   return (
     <div className="flex flex-col gap-3">
-      <Heading className="text-xs font-black uppercase tracking-[0.16em] text-muted">{copy.railTitle}</Heading>
+      <Heading className={asView ? "font-display text-2xl font-bold" : "text-xs font-black uppercase tracking-[0.16em] text-muted"}>{asView ? copy.viewTitle : copy.railTitle}</Heading>
       <button
         type="button"
         onClick={onNewTask}

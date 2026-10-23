@@ -18,14 +18,17 @@ const COPY = {
   },
   markets: {
     heading: "Markets",
+    market: "Market",
     mark: "Mark price",
-    funding: "Funding per hour (long)",
+    /** Funding a long pays (positive) or earns (negative) per hour. */
+    fundingShort: "Long funding /h",
     openInterest: "Open interest",
     loading: "Reading venue prices...",
     empty: "No venue price could be read right now. Kletia never shows a guessed price.",
     unavailable: (venue: string, reason: string) => `${venue} is unavailable: ${reason}`,
     disabled: (venue: string) => `${venue} is read-only in Kletia.`,
     choose: (market: string, venue: string) => `Trade ${market} on ${venue}`,
+    trade: "Trade",
     refresh: "Refresh prices",
   },
   ticket: {

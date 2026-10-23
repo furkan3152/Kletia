@@ -6,8 +6,10 @@
  * only when one is needed.
  *
  * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools, /app/perps,
- * /app/orders, /app/dashboard, /app/automations) are the same desk (Perps, Dashboard and Automations load as their own chunks): the thread stays mounted under every view, because unmounting a
- * task's execution would cancel its run. One task signs at a time (the
+ * /app/orders, /app/dashboard, /app/automations) are the same desk, grouped
+ * into six nav sections with sub-tabs (state/deskNav.ts); Perps, Dashboard
+ * and Automations load as their own chunks. The thread stays mounted under
+ * every view, because unmounting a task's execution would cancel its run. One task signs at a time (the
  * store's signing lock, enforced by the execution hook).
  */
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -33,7 +35,7 @@ import { DeskActionsContext, type DeskActions } from "./shell/deskContext";
 import { DeskEmptyState } from "./shell/DeskEmptyState";
 import { DeskHeader } from "./shell/DeskHeader";
 import { DeskShell } from "./shell/DeskShell";
-import { DeskViewNav } from "./shell/DeskViewNav";
+import { DeskSubNav, DeskViewNav } from "./shell/DeskViewNav";
 import { SubagentNotice } from "./shell/SubagentNotice";
 import {
   departureCaption,
@@ -44,6 +46,7 @@ import {
   type DeskView,
   type LegacyNetwork,
 } from "./state/deskModel";
+import { rememberView, sectionTarget, type DeskSection, type SectionMemory } from "./state/deskNav";
 import { getDeskStore, useDeskStore } from "./state/deskStore";
 import { formatUsd, mostFunded } from "./state/holdings";
 import { EngineHosts } from "./tasks/EngineHosts";
@@ -155,6 +158,12 @@ export default function DeskApp() {
 
   const url = useDeskUrlState(submit);
   const openView = url.openView;
+  // Each section reopens on the view the user last had open in it.
+  const sectionMemory = useRef<SectionMemory>({});
+  useEffect(() => {
+    sectionMemory.current = rememberView(sectionMemory.current, view);
+  }, [view]);
+  const openSection = useCallback((section: DeskSection) => openView(sectionTarget(section, view, sectionMemory.current)), [openView, view]);
 
   const actions = useMemo<DeskActions>(
     () => ({
@@ -224,7 +233,7 @@ export default function DeskApp() {
     chipRef.current?.focus();
   }, []);
 
-  const holdingsPanel = (level: 2 | 3) => (
+  const holdingsPanel = (level: 2 | 3, asView = false) => (
     <HoldingsPanel
       lane={lane}
       snapshot={holdings.snapshot}
@@ -233,6 +242,7 @@ export default function DeskApp() {
       perAccount={holdings.perAccount}
       onRefresh={holdings.refresh}
       headingLevel={level}
+      asView={asView}
     />
   );
 
@@ -244,7 +254,7 @@ export default function DeskApp() {
         header={
           <DeskHeader
             view={view}
-            onView={(next: DeskView) => openView(next)}
+            onSection={openSection}
             taskCount={tasks.length}
             onOpenTask={openTask}
             onNewTask={newTask}
@@ -252,7 +262,7 @@ export default function DeskApp() {
             onToggleTheme={toggle}
           />
         }
-        viewNav={<DeskViewNav view={view} onView={(next) => openView(next)} taskCount={tasks.length} />}
+        viewNav={<DeskViewNav view={view} onSection={openSection} taskCount={tasks.length} />}
         leftRail={<TaskRail onOpenTask={openTask} onNewTask={newTask} />}
         rightRail={
           <>
@@ -266,12 +276,13 @@ export default function DeskApp() {
           {announcement}
         </p>
         {emptyDesk ? null : <h1 className="sr-only">{copy.page.title}</h1>}
+        <DeskSubNav view={view} onView={(next: DeskView) => openView(next)} />
         {view === "tasks" ? (
           <section className="pb-8">
-            <TaskList onOpenTask={openTask} onNewTask={newTask} />
+            <TaskList onOpenTask={openTask} onNewTask={newTask} asView />
           </section>
         ) : null}
-        {view === "holdings" ? <section className="pb-8">{holdingsPanel(2)}</section> : null}
+        {view === "holdings" ? <section className="pb-8">{holdingsPanel(2, true)}</section> : null}
         {view === "tools" ? <ToolsView toolId={toolId} /> : null}
         {view === "activity" ? <ActivityView /> : null}
         {view === "dashboard" ? (

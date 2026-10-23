@@ -64,7 +64,7 @@ export function DeskEmptyState({ departure, actions, health, healthAt, onPick }:
                 onClick={() => onPick(sentenceOf(starter.sentence))}
                 className="flex min-h-12 w-full flex-wrap items-center gap-3 border-2 border-control bg-surface px-3 py-2 text-left text-fg hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] motion-reduce:hover:translate-y-0"
               >
-                <span className="inline-flex min-w-16 justify-center border-2 border-[#1A1A1A] bg-[#FFD60A] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-[#1A1A1A]">
+                <span className="inline-flex min-w-16 justify-center border-2 border-[#1A1A1A] bg-[#FFD60A] px-2 py-0.5 text-xs font-black uppercase tracking-wider text-[#1A1A1A]">
                   {label(starter.capability)}
                 </span>
                 <span className="min-w-0 flex-1 break-words font-code text-sm">{sentenceOf(starter.sentence)}</span>
@@ -73,7 +73,7 @@ export function DeskEmptyState({ departure, actions, health, healthAt, onPick }:
                     <LineBullet key={network} line={LINES[network]} />
                   ))}
                   {starter.networks.some((network) => CHAINS[network].lane === "testnet") ? (
-                    <span className="kd-yard-ribbon ml-1 px-1.5 text-[11px] font-black uppercase">{copy.testYard}</span>
+                    <span className="kd-yard-ribbon ml-1 px-1.5 text-xs font-black uppercase">{copy.testYard}</span>
                   ) : null}
                 </span>
               </button>

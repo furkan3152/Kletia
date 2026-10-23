@@ -12,8 +12,10 @@ import type { AutomationView } from "@kletia/core";
 import { useAccountSession } from "../../pages/developers/keys/accountSession";
 import { isPlatformError } from "../../pages/developers/keys/accountClient";
 import { Button } from "../../site/ui/Button";
-import { cx, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
+import { cx, LABEL, TEXT_MUTED } from "../../site/ui/styles";
 import { useDeskActions } from "../shell/deskContext";
+import { ViewEmpty, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
+import { PANEL_TITLE, VIEW_FIELD, VIEW_PANEL } from "../shell/viewStyles";
 import { getDeskStore } from "../state/deskStore";
 import { automationApi } from "./automationClient";
 import {
@@ -31,7 +33,7 @@ import {
 const AccountSignIn = React.lazy(() => import("../../pages/developers/keys/AccountSignIn"));
 
 const POLL_MS = 60_000;
-const PANEL = cx("flex min-w-0 flex-col gap-3 p-4", INK_BORDER, HARD_SHADOW, SURFACE);
+const PANEL = VIEW_PANEL;
 const browserZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const failureText = (failure: unknown) => (isPlatformError(failure) ? failure.message : "Something went wrong. Try again.");
 
@@ -109,19 +111,17 @@ export default function AutomationsView() {
 
   return (
     <section aria-labelledby="desk-automations-heading" className="flex flex-col gap-5 pb-8">
-      <h2 id="desk-automations-heading" className="font-display text-2xl font-bold">
-        {copy.title}
-      </h2>
-      <p className="border-l-4 border-[var(--kl-line)] pl-3 text-sm font-semibold">{copy.signatureNote}</p>
+      <ViewHeader id="desk-automations-heading" title={copy.title} />
+      <ViewNote tone="info">{copy.signatureNote}</ViewNote>
       {error ? (
-        <p role="alert" className="border-l-4 border-[var(--kl-danger)] bg-[var(--kl-danger-bg)] px-3 py-2 text-sm font-bold text-[var(--kl-danger)]">
+        <ViewNote role="alert" tone="danger">
           {error}
-        </p>
+        </ViewNote>
       ) : null}
       {!session ? (
         <div className={PANEL}>
           <p className="text-sm">{copy.signIn}</p>
-          <Suspense fallback={<p className={cx("text-sm", TEXT_MUTED)}>Loading wallets…</p>}>
+          <Suspense fallback={<ViewLoading>{copy.loadingWallets}</ViewLoading>}>
             <AccountSignIn onCancel={() => actions.openView("desk")} />
           </Suspense>
         </div>
@@ -129,7 +129,7 @@ export default function AutomationsView() {
         <>
           <section aria-labelledby="automation-inbox" className={PANEL}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 id="automation-inbox" className="font-display text-lg font-bold">
+              <h3 id="automation-inbox" className={PANEL_TITLE}>
                 {copy.inbox} ({inbox.length})
               </h3>
               {notificationsAvailable() && !notify ? (
@@ -140,7 +140,7 @@ export default function AutomationsView() {
               ) : null}
               {notify ? <p className={cx("text-xs", TEXT_MUTED)}>{copy.notifyOn}</p> : null}
             </div>
-            {inbox.length === 0 ? <p className={cx("text-sm", TEXT_MUTED)}>{copy.inboxEmpty}</p> : null}
+            {inbox.length === 0 ? <ViewEmpty>{copy.inboxEmpty}</ViewEmpty> : null}
             <ul className="flex flex-col gap-2">
               {inbox.map((run) => (
                 <li key={run.id} className="flex flex-wrap items-center justify-between gap-2 border-t-2 border-[var(--kl-line)] pt-2">
@@ -160,10 +160,10 @@ export default function AutomationsView() {
             </ul>
           </section>
           <section aria-labelledby="automation-list" className={PANEL}>
-            <h3 id="automation-list" className="font-display text-lg font-bold">
+            <h3 id="automation-list" className={PANEL_TITLE}>
               {copy.list}
             </h3>
-            {automations.length === 0 ? <p className={cx("text-sm", TEXT_MUTED)}>{copy.listEmpty}</p> : null}
+            {automations.length === 0 ? <ViewEmpty>{copy.listEmpty}</ViewEmpty> : null}
             <ul className="flex flex-col gap-3">
               {automations.map((view) => {
                 const row = automationRow(view, now);
@@ -226,11 +226,11 @@ function TemplateForm({ busy, onCreate }: { readonly busy: boolean; readonly onC
 
   return (
     <section aria-labelledby="automation-create" className={PANEL}>
-      <h3 id="automation-create" className="font-display text-lg font-bold">
+      <h3 id="automation-create" className={PANEL_TITLE}>
         {copy.create}
       </h3>
       <fieldset className="flex flex-wrap gap-2">
-        <legend className={cx(LABEL, "mb-2 text-xs")}>{copy.templates}</legend>
+        <legend className={cx(LABEL, "mb-2")}>{copy.templates}</legend>
         {AUTOMATION_TEMPLATES.map((entry) => (
           <Button
             key={entry.id}
@@ -255,10 +255,10 @@ function TemplateForm({ busy, onCreate }: { readonly busy: boolean; readonly onC
         }}
       >
         {Object.keys(template.defaults).map((field) => (
-          <label key={field} className="flex min-w-0 flex-col gap-1 text-sm font-semibold">
-            {TEMPLATE_FIELD_LABELS[field] ?? field}
+          <label key={field} className="flex min-w-0 flex-col gap-1">
+            <span className={LABEL}>{TEMPLATE_FIELD_LABELS[field] ?? field}</span>
             <input
-              className={cx("min-h-11 px-2 font-code", INK_BORDER, SURFACE)}
+              className={cx(VIEW_FIELD, "font-code")}
               value={values[field] ?? ""}
               onChange={(event) => setValues({ ...values, [field]: event.target.value })}
             />

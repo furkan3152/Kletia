@@ -4,15 +4,14 @@
  */
 import { ActivityFeed } from "../../../shared/sync/ActivityFeed";
 import { DESK_COPY } from "../content/copy";
+import { ViewHeader } from "../shell/ViewParts";
 
 const copy = DESK_COPY.activity;
 
 export function ActivityView() {
   return (
     <section aria-labelledby="desk-activity-heading" className="flex flex-col gap-4 pb-8">
-      <h2 id="desk-activity-heading" className="font-display text-2xl font-bold">
-        {copy.title}
-      </h2>
+      <ViewHeader id="desk-activity-heading" title={copy.title} />
       <ActivityFeed compact limit={50} title={copy.title} emptyHint={copy.empty} />
     </section>
   );

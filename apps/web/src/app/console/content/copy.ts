@@ -32,8 +32,16 @@ const COPY = {
       automations: "Automations",
       perps: "Perps",
     },
-    /** The view nav under 1024 px: short labels where the full name would crowd the bar. */
-    viewNavShort: { dashboard: "Data", automations: "Automate" } as Readonly<Record<string, string>>,
+    /** The six sections of the nav (state/deskNav.ts); views with siblings get sub-tabs. */
+    sections: {
+      desk: "Desk",
+      tasks: "Tasks",
+      portfolio: "Portfolio",
+      trade: "Trade",
+      automate: "Automate",
+      more: "More",
+    },
+    subNavLabel: (section: string) => `${section} views`,
     tasksButton: (count: number) => `Tasks (${count})`,
     tasksView: (count: number) => `Tasks ${count}`,
     skipToComposer: "Skip to the composer",
@@ -193,6 +201,8 @@ const COPY = {
 
   tasks: {
     railTitle: "Tasks · this tab",
+    /** The Tasks view's title; the list is still this tab's tasks only. */
+    viewTitle: "Tasks in this tab",
     regionLabel: "Tasks in this tab",
     listLabel: "Tasks in this tab, newest first",
     newTask: "New task",

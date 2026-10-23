@@ -49,7 +49,7 @@ export function TaskTicket({ task, ends, departureLine, lineAction, children, an
         <>
           <TicketHead icon="ticket" title={copy.kicker} serial={serial} />
           {engine || yard ? (
-            <p className="mb-2 flex flex-wrap gap-2 text-[11px] font-black uppercase tracking-wider">
+            <p className="mb-2 flex flex-wrap gap-2 text-xs font-black uppercase tracking-wider">
               {engine ? (
                 <span className="inline-flex items-center gap-1.5 border-2 border-[#1A1A1A] px-1.5 py-0.5">
                   <LineBullet line={LINES[engine]} decorative />

@@ -4,7 +4,7 @@ Round 9 adds venues on the five production EVM networks (Base, Arbitrum One,
 Ethereum, OP Mainnet and Polygon PoS). Every address was read back on-chain
 on 2026-10-23 with read-only calls (`eth_call`, `eth_getStorageAt`); the
 results are in
-[`packages/core/test/fixtures/protocols-2026-10-23.json`](../../packages/core/test/fixtures/protocols-2026-10-23.json)
+[`packages/core/test/fixtures/protocols-2026-10-23-evm.json`](../../packages/core/test/fixtures/protocols-2026-10-23-evm.json)
 and `packages/core/test/round9.test.mjs` fails if any pin is missing from it.
 Adapters read addresses only from the registry (`YIELD_VENUES`,
 `VENUE_CONTRACTS`, `CURVE_POOLS`); they never take one from a provider.

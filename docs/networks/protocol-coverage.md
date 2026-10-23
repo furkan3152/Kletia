@@ -32,7 +32,7 @@ On-chain read-backs of every new pin (public RPCs, chain id checked,
 | Arbitrum One | Uniswap V3, PancakeSwap V3, Camelot V3, Curve USDC / USDT0 (round 9) | Aave V3 (+USDT0, wstETH), Compound V3 (+USDT0), Morpho (round 9: +USDT0), Spark Savings, Fluid | buy wstETH, or bridge and stake | - |
 | OP Mainnet | Uniswap V3, Velodrome | Aave V3 (+USDT, wstETH), Compound V3 (+USDT), Moonwell, Spark Savings, Morpho (round 9: +Re7 WETH) | buy wstETH (price guard decides), or bridge and stake | - |
 | Polygon PoS | Uniswap V3 ("ETH" is WETH) | Aave V3 (+USDT0, wstETH), Fluid, Compound V3 USDT0, Morpho (USDC, USDT0; round 9: WETH) | buy wstETH with WETH | - |
-| Solana | Jupiter (+ named Raydium, Orca, Meteora) | Kamino, Jupiter Lend | Jito and JupSOL stake pools, Marinade (each competes with the Jupiter route), native staking | - |
+| Solana | Jupiter (+ named Raydium, Orca, Meteora; venue filter `dexes:` / `avoid:`) | Kamino (+ JLP / Altcoins reserves for discovery), Jupiter Lend, Save main pool (structured actions) | Jito, JupSOL, hSOL, dSOL, bonkSOL and bSOL stake pools, Marinade (each competes with the Jupiter route), native staking | Solana Pay transfers (named) |
 | Arc Testnet | - | - | - | USDC / EURC transfers, CCTP V2 |
 | Arbitrum Sepolia | Uniswap V3 (test tokens) | Aave V3 USDC | - | swap, deposit, CCTP V2 |
 | Solana Devnet | - | - | native staking | stake, CCTP V2 arrivals |

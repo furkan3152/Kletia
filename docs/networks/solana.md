@@ -70,3 +70,5 @@ Solana is a first-class Kletia network. It is served by two layers:
 ## Round 7 coverage
 
 Round 7 made the Jito and JupSOL stake pools (SPL stake pool program) and Marinade executable as direct deposits that compete with the Jupiter route in a stake auction, and added native SOL staking (`solana-stake`: a seed-derived stake account delegated to a validator, on Solana and Solana Devnet; "stake 2 SOL natively" or "... with validator <vote account>"). The cell-by-cell table, its offline and live gates and the on-chain evidence are in [protocol coverage](protocol-coverage.md).
+
+Round 9 added Save (ex-Solend) main-pool deposits and withdrawals, the Sanctum hSOL, dSOL and bonkSOL pools and BlazeStake bSOL, the Kamino JLP and Altcoins reserves (discovery), Jupiter venue filters and Solana Pay transfer requests: see [Solana venues](../platform/solana-venues.md).

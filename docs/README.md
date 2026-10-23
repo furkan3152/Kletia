@@ -27,6 +27,7 @@ This index separates current product truth from deployment procedure, network-sp
 
 - [Architecture overview](architecture/overview.md) — components, lanes, custody, execution, evidence, and failure model.
 - [Repository structure](architecture/repository-structure.md) — module ownership, path stability, and extension rules.
+- [Test coverage](architecture/test-coverage.md) — line and branch coverage per area and how to measure it.
 - [Platform API v1](platform/api-v1.md) — public integration contract (REST, events, webhooks, keys, idempotency, usage).
 - [Quickstart](platform/quickstart.md) — three paths (static site, server, agent) from nothing to a working integration, on the sandbox or dry runs.
 - [Projects, publishable keys and flows](platform/projects.md) — project settings, domain verification, browser-safe `kl_pub_` keys, stored flows and the logo.

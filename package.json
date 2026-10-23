@@ -41,6 +41,7 @@
     "test:api": "npm test -w @kletia/api",
     "test:web": "node --test \"apps/web/src/**/__tests__/*.test.mjs\" \"apps/web/scripts/__tests__/*.test.mjs\"",
     "test:tooling": "node --test \"tooling/__tests__/*.test.mjs\"",
+    "test:coverage": "node tooling/test-coverage.mjs",
     "start:api": "npm run start -w @kletia/api",
     "postinstall": "node tooling/postinstall-packages.mjs",
     "check:packages": "node tooling/verify-packages.mjs",

@@ -15,6 +15,7 @@ on-chain action in the browser.
 - Owner management (direct or as Safe proposals with chain-derived hashes), fee and revenue view with x402 gateway claims, Render status and redeploy (server-side `RENDER_API_KEY`), env readiness (booleans only) and a persistent audit log.
 - Every admin write (deploy records, reverify, Safe proposals, fee rescans, redeploys, settings) needs a fresh wallet confirmation signed by the session's own wallet (single-use, 5 minutes): a stolen session cookie can only read. "Verified" deployments must be admin-controlled; others are "foreign", never exported or used as dependencies.
 - Intent engine: whole-balance readings for stake, deposit and withdraw ("stake my SOL", "withdraw my USDC from aave"), the single position when a venue and network are named, leading labels ("rent: send 500 USDC to …") kept as notes, and "fund my <network> wallet" goals. Eval: 97.9% correct on the original 338 prompts (was 95.9%), 0 wrong plans.
+- `npm run test:coverage` prints line and branch coverage per area (informational, not a gate); numbers in [test coverage](docs/architecture/test-coverage.md).
 
 ### Fixed
 
@@ -23,7 +24,9 @@ on-chain action in the browser.
 - Desk stamps: a task waiting on a question has no stamp, a refused task reads "Not planned"; redacted amounts in reloaded titles show as •••.
 - Text fields focus with the ink border and a deeper offset shadow instead of a blue ring; network counts come from the registry everywhere; the status board marks a network delayed above 3 s.
 - `/admin` has its own shell page on static hosts without rewrites.
-
+- Relay quotes whose EVM calls together carry more native value than the step amount are refused (each call was only checked alone).
+- The prompt secret screen (API and web) also refuses Solana keypairs: a 64-byte base58 secret key or the Solana CLI's JSON byte array.
+- The MCP `create_signing_link` tool screens its text for secrets before putting it in the Studio link's query string.
 ## Round 7
 
 Round 7: an intent engine that solves goals from what you hold, and ten more

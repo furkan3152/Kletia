@@ -14,6 +14,10 @@ export interface JupiterQuoteRequest {
   readonly amount: string;
   readonly slippageBps?: number;
   readonly restrictIntermediateTokens?: boolean;
+  /** Route only through these Jupiter AMM labels (`dexes`). */
+  readonly dexes?: readonly string[];
+  /** Never route through these Jupiter AMM labels (`excludeDexes`). */
+  readonly excludeDexes?: readonly string[];
   /**
    * Skip the short-lived quote cache (a quote about to become a signed
    * transaction is always fresh). The fresh quote still refreshes the cache.
@@ -122,7 +126,10 @@ export function configureJupiterQuoteCache(options: { readonly ttlMs?: number } 
  * Fewer calls keep keyless deployments under Jupiter's rate limit.
  */
 export async function quoteJupiterSwap(request: JupiterQuoteRequest): Promise<JupiterQuote> {
-  const key = [request.inputMint, request.outputMint, request.amount, request.slippageBps ?? SOLANA_DEFAULT_SLIPPAGE_BPS, request.restrictIntermediateTokens ?? true].join("|");
+  const key = [
+    request.inputMint, request.outputMint, request.amount, request.slippageBps ?? SOLANA_DEFAULT_SLIPPAGE_BPS, request.restrictIntermediateTokens ?? true,
+    (request.dexes ?? []).join(","), (request.excludeDexes ?? []).join(","),
+  ].join("|");
   const now = Date.now();
   if (quoteCacheTtlMs > 0 && !request.fresh) {
     const hit = quoteCache.get(key);
@@ -162,6 +169,8 @@ async function fetchJupiterQuote(request: JupiterQuoteRequest): Promise<JupiterQ
     swapMode: "ExactIn",
     restrictIntermediateTokens: String(request.restrictIntermediateTokens ?? true),
   });
+  if (request.dexes && request.dexes.length > 0) params.set("dexes", request.dexes.join(","));
+  if (request.excludeDexes && request.excludeDexes.length > 0) params.set("excludeDexes", request.excludeDexes.join(","));
   const body = await fetchProviderJson<unknown>(`${JUPITER_API_URL}/swap/v1/quote?${params}`, {
     provider: "Jupiter",
     headers: headers(),

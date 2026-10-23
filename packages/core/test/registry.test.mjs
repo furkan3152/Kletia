@@ -218,9 +218,9 @@ const ROUND6_PROTOCOLS = [
   "velodrome", "sparklend", "spark-savings", "fluid", "yearn-v3", "lido", "rocket-pool", "etherfi", "raydium", "orca", "meteora", "chainlink", "pyth",
 ];
 
-test("registry: 51 entries, 49 real protocols, execution surfaces and routed venues", () => {
-  assert.equal(PROTOCOLS.length, 51);
-  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 49);
+  // Round 7 adds seven ids (protocols design 3.0), round 9 three (blazestake, save, solana-pay): 54 entries, 52 real protocols.
+  assert.equal(PROTOCOLS.length, 54);
+  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 52);
   for (const id of ROUND6_PROTOCOLS) assert.ok(getProtocol(id), id);
   assert.equal(getProtocol("spark"), null, "no bare spark id: Spark Savings and SparkLend are separate");
   assert.deepEqual(AMBIGUOUS_VENUE_WORDS.spark, ["spark-savings", "sparklend"]);

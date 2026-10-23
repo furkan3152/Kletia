@@ -48,7 +48,9 @@ const ROUND7_ASSETS = [
 
 const evidence = JSON.parse(readFileSync(new URL("./fixtures/protocols-2026-10-15.json", import.meta.url), "utf8"));
 const key = (network, address) => `${network}:${CHAINS[network].vm === "evm" ? address.toLowerCase() : address}`;
-const verified = new Set(evidence.entries.filter((entry) => entry.verified).map((entry) => key(entry.network, entry.address)));
+/** Pools added 2026-10-23 to these protocols (Sanctum hSOL, dSOL, bonkSOL) are read back in the 2026-10-23 evidence. */
+const round9 = JSON.parse(readFileSync(new URL("./fixtures/protocols-2026-10-23.json", import.meta.url), "utf8"));
+const verified = new Set([...evidence.entries, ...round9.entries].filter((entry) => entry.verified).map((entry) => key(entry.network, entry.address)));
 
 test("registry: seven newer ids with words and tiers; Solana LSTs execute stake", () => {
   for (const id of NEW_IDS) {

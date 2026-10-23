@@ -20,6 +20,7 @@ on-chain action in the browser.
 - Solana: Kamino JLP and Altcoins market reserves pinned (discovery until sentences can name a Kamino venue by slug).
 - Solana: Jupiter swaps take a venue filter (`params.provider` `dexes:raydium,orca` or `avoid:phoenix`), re-checked against every quoted route.
 - Solana Pay transfer requests (`protocol: "solana-pay"`): a per-step reference key on the transfer, `solana:` URL helpers, verification by reference.
+- Perps at `/v1/perps` and in the desk (`/app/perps`): GMX v2 and Hyperliquid markets, positions, quotes with liquidation estimates and venue scoring, unsigned payloads (GMX ExchangeRouter multicalls, Hyperliquid Bridge2 deposits and EIP-712 actions relayed only after the signature recovers to the account), a Rule Book `perps` section (agent keys off by default, leverage cap 20 unless set), Drift v2 read-only while halted ([perps](docs/platform/perps.md)).
 - Intent engine: whole-balance readings for stake, deposit and withdraw ("stake my SOL", "withdraw my USDC from aave"), the single position when a venue and network are named, leading labels ("rent: send 500 USDC to …") kept as notes, and "fund my <network> wallet" goals. Eval: 97.9% correct on the original 338 prompts (was 95.9%), 0 wrong plans.
 - `npm run test:coverage` prints line and branch coverage per area (informational, not a gate); numbers in [test coverage](docs/architecture/test-coverage.md).
 

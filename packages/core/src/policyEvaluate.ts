@@ -11,6 +11,7 @@ import { formatAssetId, parseAccountId, parseAssetId, sameAddressAccount, type A
 import { canonicalJson } from "./contracts.js";
 import { sha256Hex } from "./hash.js";
 import type { AssetAmount, IntentActionKind, IntentConstraints, IntentGraph, IntentRequest, PolicyChainLink } from "./intent.js";
+import { PERPS_LIMITS, PERPS_VENUE_IDS, type PerpsVenueId } from "./perps.js";
 import { PROTOCOLS, YIELD_VENUES, protocolDependencies, type ProtocolId } from "./protocols.js";
 import {
   accountMatchesPattern,
@@ -934,6 +935,42 @@ export function effectiveExecution(chain: readonly Pick<PolicyChainEntry, "polic
   return {
     pinNonce: chain.some((entry) => entry.policy?.execution?.pinNonce ?? (entry.defaults === "agent" ? AGENT_POLICY_DEFAULTS.pinNonce : false)),
   };
+}
+
+/** What a chain allows on /v1/perps (perps.* of every level, plus mode and protocol lists). */
+export interface PerpsPolicyView {
+  /** False when any level disables perps (agents by default), pauses or only dry-runs. */
+  readonly enabled: boolean;
+  /** Lowest perps.maxLeverage the chain sets (PERPS_LIMITS.defaultMaxLeverage when none sets one). */
+  readonly maxLeverage: number;
+  /** Venues every level allows (perps.venues and protocols.allow / deny). */
+  readonly venues: readonly PerpsVenueId[];
+  /** Why perps are disabled, when they are. */
+  readonly reason: string | null;
+}
+
+/** Perps rights of a chain: AND of every level, the lowest leverage cap, the intersection of venues. */
+export function effectivePerps(chain: readonly Pick<PolicyChainEntry, "policy" | "defaults">[]): PerpsPolicyView {
+  let maxLeverage: number | null = null;
+  let venues: PerpsVenueId[] = [...PERPS_VENUE_IDS];
+  let reason: string | null = null;
+  for (const entry of chain) {
+    const agent = entry.defaults === "agent";
+    const document = entry.policy ?? (agent ? OBSERVER_POLICY : null);
+    if (!document) continue;
+    if (!(document.perps?.enabled ?? (agent ? AGENT_POLICY_DEFAULTS.perpsEnabled : true))) {
+      reason ??= agent ? "Agent keys trade perps only when their rule book sets perps.enabled." : "A rule book of this key disables perps.";
+    }
+    const mode = document.mode ?? "live";
+    if (mode !== "live") reason ??= `A rule book of this key is ${mode}.`;
+    const cap = document.perps?.maxLeverage;
+    if (cap !== undefined) maxLeverage = Math.min(maxLeverage ?? cap, cap);
+    const allowed = document.perps?.venues;
+    const protocolAllow = document.protocols?.allow;
+    const protocolDeny = document.protocols?.deny ?? [];
+    venues = venues.filter((venue) => (!allowed || allowed.includes(venue)) && (!protocolAllow || protocolAllow.includes(venue)) && !protocolDeny.includes(venue));
+  }
+  return { enabled: reason === null, maxLeverage: maxLeverage ?? PERPS_LIMITS.defaultMaxLeverage, venues, reason };
 }
 
 /**

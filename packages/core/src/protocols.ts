@@ -35,6 +35,8 @@ export type ProtocolCategory =
   | "security"
   | "data"
   | "token-program"
+  /** Perpetual futures venues, executed through /v1/perps (not the intent engine). */
+  | "perps"
   /** Integrator-registered contracts and Solana Actions (bring your own contract). */
   | "custom";
 
@@ -110,7 +112,11 @@ export type ProtocolId =
   // round 9: native protocol orders (/v1/orders)
   | "jupiter-trigger"
   | "jupiter-recurring"
-  | "cow-protocol";
+  | "cow-protocol"
+  // round 9: perpetual futures (/v1/perps)
+  | "gmx-v2"
+  | "hyperliquid"
+  | "drift-v2";
 
 /**
  * Intent-engine risk tier of a protocol (engine design 4.2): `core` venues
@@ -848,6 +854,36 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     capabilities: ["discover"],
     website: "https://pyth.network",
     summary: "Solana push price feeds (owner-, feed-id- and freshness-checked) as a second source for SOL and Solana LST prices.",
+  },
+  {
+    id: "gmx-v2",
+    name: "GMX v2",
+    category: "perps",
+    networks: ["arbitrum"],
+    capabilities: ["execute", "quote", "discover"],
+    website: "https://gmx.io",
+    summary: "Oracle-priced perpetuals on Arbitrum: ExchangeRouter market orders with USDC collateral, executed by GMX keepers. Through /v1/perps.",
+    execution: "service",
+  },
+  {
+    id: "hyperliquid",
+    name: "Hyperliquid",
+    category: "perps",
+    networks: ["arbitrum"],
+    capabilities: ["execute", "quote", "discover"],
+    website: "https://hyperliquid.xyz",
+    summary: "Order-book perpetuals on Hyperliquid L1: USDC deposits through Bridge2 on Arbitrum, orders signed as EIP-712 by the user's wallet. Through /v1/perps.",
+    execution: "service",
+  },
+  {
+    id: "drift-v2",
+    name: "Drift v2",
+    category: "perps",
+    networks: ["solana"],
+    capabilities: ["discover"],
+    website: "https://www.drift.trade",
+    summary: "Solana perpetuals. Halted since the April 1, 2026 exploit: Kletia reads positions and builds nothing (see PERPS_VENUES).",
+    execution: "service",
   },
   {
     id: "custom-call",

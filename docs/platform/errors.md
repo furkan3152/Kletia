@@ -119,6 +119,17 @@ lost. The clarifying-question codes (`QUESTION_NOT_OPEN`, `ANSWER_INVALID`,
 `FEATURE_ERROR_CODES` in `@kletia/core` lists the codes each feature
 introduced.
 
+## Perps
+
+`/v1/perps` refuses before anything is built: `PERPS_VENUE_DISABLED` (the
+venue is read-only, today Drift v2), `PERPS_POLICY_DENIED` (the key's rule
+book: agent keys need `perps.enabled`), `PERPS_LEVERAGE_TOO_HIGH` (the rule
+book's `perps.maxLeverage`, default 20, or the venue's cap),
+`PERPS_COLLATERAL_TOO_LOW`, `PERPS_MARKET_UNSUPPORTED` and
+`PERPS_PRICE_UNAVAILABLE` (a missing or stale mark: it never guesses).
+`PERPS_SIGNATURE_INVALID` and `PERPS_RELAY_REJECTED` answer the Hyperliquid
+relay. See [perps.md](perps.md).
+
 ## Catalog
 
 ### Request
@@ -143,6 +154,7 @@ introduced.
 | <a id="error-ORDER_INVALID"></a>`ORDER_INVALID` | 400 | no | Invalid order | Fix the fields listed in error.issues: kind, sell, buy, amount, price (limit) or period and count (DCA). |
 | <a id="error-ORDER_SIGNATURE_MISMATCH"></a>`ORDER_SIGNATURE_MISMATCH` | 422 | no | Signed payload differs from the prepared one | Sign exactly the transaction or typed data returned by prepare, with the owner wallet, and submit it unchanged. |
 | <a id="error-PAYLOAD_TOO_LARGE"></a>`PAYLOAD_TOO_LARGE` | 413 | no | Request body too large | Keep request bodies under 64 KB. |
+| <a id="error-PERPS_SIGNATURE_INVALID"></a>`PERPS_SIGNATURE_INVALID` | 400 | no | Perps action or signature invalid | Send back the action and nonce exactly as prepare returned them, with the 65-byte signature from the account that prepared them. |
 | <a id="error-POLICY_INVALID"></a>`POLICY_INVALID` | 400 | no | Invalid rule book | Fix the fields listed in error.issues. validatePolicy in @kletia/core reports the same issues locally. |
 | <a id="error-PROJECT_SETTINGS_INVALID"></a>`PROJECT_SETTINGS_INVALID` | 400 | no | Invalid project settings | Fix the fields listed in error.issues and send the change again. |
 | <a id="error-RECEIPT_ANCHOR_INVALID"></a>`RECEIPT_ANCHOR_INVALID` | 422 | no | Anchor transaction refused | The reported transaction is not a successful EAS timestamp(batchDigest) call for this batch on Base. Report the transaction that timestamped it. |
@@ -185,6 +197,7 @@ introduced.
 | <a id="error-KEY_SECRET_ROTATED"></a>`KEY_SECRET_ROTATED` | 403 | no | Rotated key secret | This secret still authenticates during its grace window but cannot manage keys. Use the current secret. |
 | <a id="error-LINK_POLICY_CONFLICT"></a>`LINK_POLICY_CONFLICT` | 422 | no | Link outside the key's rule book | The link reaches networks, assets, recipients, contracts or amounts the publisher key's rule book refuses (rule ids in error.issues). Tighten the link or use another key. |
 | <a id="error-MCP_ORIGIN_FORBIDDEN"></a>`MCP_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for MCP | Call /v1/mcp without an Origin header (server-side agents) or from an allowed HTTPS origin. |
+| <a id="error-PERPS_POLICY_DENIED"></a>`PERPS_POLICY_DENIED` | 403 | no | Perps refused by the rule book | The key's rule book disables perps (agent keys by default), pauses, or does not allow this venue. Ask a project key to set perps.enabled and perps.venues. |
 | <a id="error-POLICY_APPROVAL_REJECTED"></a>`POLICY_APPROVAL_REJECTED` | 403 | no | Approval rejected | An approver rejected this intent and it was cancelled. Plan a new intent if appropriate. |
 | <a id="error-POLICY_APPROVAL_REQUIRED"></a>`POLICY_APPROVAL_REQUIRED` | 403 | yes | Approval required | The intent is on hold for an approver. Share error.policy.approval.url with an approver; retry after Retry-After once it is approved. |
 | <a id="error-POLICY_OWNER_REVOKED"></a>`POLICY_OWNER_REVOKED` | 403 | no | Intent owner key revoked | The key that owns this intent, or one of its ancestors, is revoked or expired, so nothing more is prepared. Steps already submitted keep settling. |
@@ -340,6 +353,12 @@ introduced.
 | <a id="error-LINK_PUBLISHER_MISMATCH"></a>`LINK_PUBLISHER_MISMATCH` | 422 | no | Publisher does not match the contract | The publisher name and website must match the integrator of every contract registration the link calls. |
 | <a id="error-LINK_SOURCE_NOT_ALLOWED"></a>`LINK_SOURCE_NOT_ALLOWED` | 422 | no | Funding source not allowed | Fund the link from one of its networks and assets (error.issues lists them). On the destination network a deliver link takes only the delivered asset. |
 | <a id="error-NETWORK_UNSUPPORTED"></a>`NETWORK_UNSUPPORTED` | 422 / 500 | no | Network not supported | Use a network from GET /v1/networks that supports this action. |
+| <a id="error-PERPS_COLLATERAL_TOO_LOW"></a>`PERPS_COLLATERAL_TOO_LOW` | 422 | no | Collateral below the venue minimum | Add collateral: the venue refuses (or, for a Hyperliquid deposit under 5 USDC, loses) smaller amounts. |
+| <a id="error-PERPS_LEVERAGE_TOO_HIGH"></a>`PERPS_LEVERAGE_TOO_HIGH` | 422 | no | Leverage above the cap | Lower the leverage to the venue's or the rule book's cap (error message), or add collateral. |
+| <a id="error-PERPS_MARKET_UNSUPPORTED"></a>`PERPS_MARKET_UNSUPPORTED` | 422 | no | Perps market not supported | Use a market and collateral the venue lists in GET /v1/perps/markets (USDC collateral; ETH, BTC, SOL). |
+| <a id="error-PERPS_POSITION_NOT_FOUND"></a>`PERPS_POSITION_NOT_FOUND` | 422 | no | No such position | decrease and close need an open position on that venue, market and side for the account. Read GET /v1/perps/positions. |
+| <a id="error-PERPS_RELAY_REJECTED"></a>`PERPS_RELAY_REJECTED` | 422 | no | Venue refused the signed action | The venue refused the order (margin, price band, size or nonce): the message says why. Prepare again after fixing it. |
+| <a id="error-PERPS_VENUE_DISABLED"></a>`PERPS_VENUE_DISABLED` | 422 | no | Perps venue disabled | The venue is listed for reading only (GET /v1/perps/markets says why). Choose another venue. |
 | <a id="error-PLAN_INVALID"></a>`PLAN_INVALID` | 422 / 502 | no | Plan invalid | Simplify the intent; at most 8 steps are planned. |
 | <a id="error-POSITION_UNAVAILABLE"></a>`POSITION_UNAVAILABLE` | 502 | yes | Position not readable | Kletia could not read this venue position right now, or does not list positions for this venue yet. The funds are unaffected; check the venue directly or retry later. |
 | <a id="error-POSITION_EMPTY"></a>`POSITION_EMPTY` | 422 | no | No position to withdraw | There is nothing deposited at this venue for the account. |
@@ -460,6 +479,7 @@ introduced.
 | <a id="error-LINKS_DISABLED"></a>`LINKS_DISABLED` | 503 | yes | Links unavailable | Intent links are switched off on this deployment. Retry later. |
 | <a id="error-LINK_PAGE_UNAVAILABLE"></a>`LINK_PAGE_UNAVAILABLE` | 503 | yes | Link page unavailable | The page shell could not be loaded. Retry shortly; the link itself is unaffected. |
 | <a id="error-NAME_RESOLUTION_UNAVAILABLE"></a>`NAME_RESOLUTION_UNAVAILABLE` | 503 | yes | Name records unavailable | The name's records could not be read. Retry shortly, or use an address. |
+| <a id="error-PERPS_PRICE_UNAVAILABLE"></a>`PERPS_PRICE_UNAVAILABLE` | 503 | yes | Perps price unavailable | The venue's mark or oracle price is missing or stale, so Kletia neither quotes nor builds (fail closed). Retry shortly. |
 | <a id="error-POLICY_PRICE_UNAVAILABLE"></a>`POLICY_PRICE_UNAVAILABLE` | 503 | yes | Price unavailable for a USD rule | A USD rule of the rule book needs an amount no fresh price source covers, so it fails closed. Retry shortly, or use a listed asset. |
 | <a id="error-RECEIPTS_DISABLED"></a>`RECEIPTS_DISABLED` | 503 | yes | Receipts unavailable | Receipts are switched off or no signing key is configured on this deployment. Retry later; reads of existing receipts keep working. |
 | <a id="error-SIMULATION_UNAVAILABLE"></a>`SIMULATION_UNAVAILABLE` | 503 | yes | Simulation unavailable | No configured endpoint can simulate on this network now, and Kletia never prepares a custom contract step unsimulated. Retry shortly. |

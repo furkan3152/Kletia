@@ -403,7 +403,7 @@ export function departureLine({
 /** Longest sentence the composer sends. */
 export const COMPOSER_LIMIT = 500;
 
-export type DeskView = "desk" | "tasks" | "holdings" | "tools" | "orders" | "activity" | "dashboard" | "automations";
+export type DeskView = "desk" | "tasks" | "holdings" | "tools" | "perps" | "orders" | "activity" | "dashboard" | "automations";
 
 export type ComposerVerdict =
   | { readonly kind: "empty" }

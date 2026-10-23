@@ -255,6 +255,17 @@ export const ERROR_CATALOG = {
   POLICY_APPROVAL_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Approval expired", remedy: "Nobody decided the approval in time. Plan a new intent to ask again." },
   LINK_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Link expired or withdrawn", remedy: "The link expired or its publisher withdrew it. Ask the publisher for a new link." },
 
+  /* --------------------------------------------------------------- perps */
+  PERPS_MARKET_UNSUPPORTED: intent("Perps market not supported", "Use a market and collateral the venue lists in GET /v1/perps/markets (USDC collateral; ETH, BTC, SOL)."),
+  PERPS_VENUE_DISABLED: intent("Perps venue disabled", "The venue is listed for reading only (GET /v1/perps/markets says why). Choose another venue."),
+  PERPS_LEVERAGE_TOO_HIGH: intent("Leverage above the cap", "Lower the leverage to the venue's or the rule book's cap (error message), or add collateral."),
+  PERPS_COLLATERAL_TOO_LOW: intent("Collateral below the venue minimum", "Add collateral: the venue refuses (or, for a Hyperliquid deposit under 5 USDC, loses) smaller amounts."),
+  PERPS_POSITION_NOT_FOUND: intent("No such position", "decrease and close need an open position on that venue, market and side for the account. Read GET /v1/perps/positions."),
+  PERPS_POLICY_DENIED: { status: 403, category: "permission", retryable: false, title: "Perps refused by the rule book", remedy: "The key's rule book disables perps (agent keys by default), pauses, or does not allow this venue. Ask a project key to set perps.enabled and perps.venues." },
+  PERPS_PRICE_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Perps price unavailable", remedy: "The venue's mark or oracle price is missing or stale, so Kletia neither quotes nor builds (fail closed). Retry shortly." },
+  PERPS_SIGNATURE_INVALID: request("Perps action or signature invalid", "Send back the action and nonce exactly as prepare returned them, with the 65-byte signature from the account that prepared them."),
+  PERPS_RELAY_REJECTED: intent("Venue refused the signed action", "The venue refused the order (margin, price band, size or nonce): the message says why. Prepare again after fixing it."),
+
   /* -------------------------------------------------------------- intent */
   INTENT_UNSUPPORTED: intent("Intent not supported", "Rephrase using one of the examples in error.hints, or send structured actions."),
   ACCOUNT_REQUIRED: intent("Account missing", "Add a CAIP-10 account for every network the intent touches."),

@@ -1,0 +1,206 @@
+{
+ "recordedAt": "2026-10-23T15:52:58.418Z",
+ "metaAndAssetCtxs": [
+  {
+   "universe": [
+    {
+     "szDecimals": 5,
+     "name": "BTC",
+     "maxLeverage": 40,
+     "marginTableId": 56
+    },
+    {
+     "szDecimals": 4,
+     "name": "ETH",
+     "maxLeverage": 25,
+     "marginTableId": 55
+    },
+    {
+     "szDecimals": 2,
+     "name": "ATOM",
+     "maxLeverage": 5,
+     "marginTableId": 5
+    },
+    {
+     "szDecimals": 1,
+     "name": "MATIC",
+     "maxLeverage": 20,
+     "marginTableId": 20,
+     "isDelisted": true
+    },
+    {
+     "szDecimals": 1,
+     "name": "DYDX",
+     "maxLeverage": 5,
+     "marginTableId": 5
+    },
+    {
+     "szDecimals": 2,
+     "name": "SOL",
+     "maxLeverage": 20,
+     "marginTableId": 54
+    }
+   ],
+   "marginTables": [],
+   "collateralToken": 0
+  },
+  [
+   {
+    "funding": "0.0000125",
+    "openInterest": "45080.53476",
+    "prevDayPx": "81690.0",
+    "dayNtlVlm": "2334716807.9978880882",
+    "premium": "0.0000245179",
+    "oraclePx": "81573.0",
+    "markPx": "81573.0",
+    "midPx": "81575.5",
+    "impactPxs": [
+     "81575.0",
+     "81581.9"
+    ],
+    "dayBaseVlm": "28630.4988"
+   },
+   {
+    "funding": "0.0000125",
+    "openInterest": "1087733.6162000007",
+    "prevDayPx": "2398.3",
+    "dayNtlVlm": "680339832.5088398457",
+    "premium": "-0.0004074166",
+    "oraclePx": "2405.4",
+    "markPx": "2404.4",
+    "midPx": "2404.35",
+    "impactPxs": [
+     "2404.3",
+     "2404.42"
+    ],
+    "dayBaseVlm": "284241.820299999"
+   },
+   {
+    "funding": "0.0000125",
+    "openInterest": "2221769.52",
+    "prevDayPx": "1.7008",
+    "dayNtlVlm": "970770.2981319998",
+    "premium": "0.0",
+    "oraclePx": "1.7901",
+    "markPx": "1.7886",
+    "midPx": "1.789",
+    "impactPxs": [
+     "1.7868",
+     "1.7901"
+    ],
+    "dayBaseVlm": "548591.1300000001"
+   },
+   {
+    "funding": "0.0",
+    "openInterest": "0.0",
+    "prevDayPx": "0.37621",
+    "dayNtlVlm": "0.0",
+    "premium": null,
+    "oraclePx": "0.3754",
+    "markPx": "0.37621",
+    "midPx": null,
+    "impactPxs": null,
+    "dayBaseVlm": "0.0"
+   },
+   {
+    "funding": "0.0000125",
+    "openInterest": "13238193.0000000019",
+    "prevDayPx": "0.11488",
+    "dayNtlVlm": "139817.185799",
+    "premium": "0.0",
+    "oraclePx": "0.11628",
+    "markPx": "0.11628",
+    "midPx": "0.11628",
+    "impactPxs": [
+     "0.11604",
+     "0.11642"
+    ],
+    "dayBaseVlm": "1208453.4000000004"
+   },
+   {
+    "funding": "0.0000125",
+    "openInterest": "5477356.080000001",
+    "prevDayPx": "104.61",
+    "dayNtlVlm": "124395730.4300999194",
+    "premium": "-0.0002055652",
+    "oraclePx": "104.5897",
+    "markPx": "104.55",
+    "midPx": "104.555",
+    "impactPxs": [
+     "104.55",
+     "104.5682"
+    ],
+    "dayBaseVlm": "1195952.2999999989"
+   }
+  ]
+ ],
+ "clearinghouseState": {
+  "user": "0x1111111111111111111111111111111111111111",
+  "state": {
+   "marginSummary": {
+    "accountValue": "254255.921326",
+    "totalNtlPos": "1538714.096986",
+    "totalRawUsd": "1792970.018312",
+    "totalMarginUsed": "187746.235639"
+   },
+   "crossMarginSummary": {
+    "accountValue": "254255.921326",
+    "totalNtlPos": "1538714.096986",
+    "totalRawUsd": "1792970.018312",
+    "totalMarginUsed": "187746.235639"
+   },
+   "crossMaintenanceMarginUsed": "93873.117819",
+   "withdrawable": "0.0",
+   "assetPositions": [
+    {
+     "type": "oneWay",
+     "position": {
+      "coin": "ETH",
+      "szi": "-461.0276",
+      "leverage": {
+       "type": "cross",
+       "value": 25
+      },
+      "entryPx": "2753.55",
+      "positionValue": "1108494.76144",
+      "unrealizedPnl": "160971.640264",
+      "returnOnEquity": "3.1700649983",
+      "liquidationPx": "5655.6885996949",
+      "marginUsed": "44339.790457",
+      "maxLeverage": 25,
+      "cumFunding": {
+       "allTime": "-14838.997738",
+       "sinceOpen": "-18645.42813",
+       "sinceChange": "0.0"
+      }
+     }
+    },
+    {
+     "type": "oneWay",
+     "position": {
+      "coin": "PURR",
+      "szi": "-4417127.0",
+      "leverage": {
+       "type": "cross",
+       "value": 3
+      },
+      "entryPx": "0.129513",
+      "positionValue": "430219.335546",
+      "unrealizedPnl": "141857.276305",
+      "returnOnEquity": "0.7439070574",
+      "liquidationPx": "0.3940832415",
+      "marginUsed": "143406.445182",
+      "maxLeverage": 3,
+      "cumFunding": {
+       "allTime": "-53041.918698",
+       "sinceOpen": "-53041.918698",
+       "sinceChange": "-619.455675"
+      }
+     }
+    }
+   ],
+   "time": 1792770778125
+  },
+  "note": "A trader account read on 2026-10-23, address replaced."
+ }
+}

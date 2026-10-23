@@ -30,6 +30,7 @@ const COPY = {
       activity: "Activity",
       dashboard: "Dashboard",
       automations: "Automations",
+      perps: "Perps",
     },
     /** The view nav under 1024 px: short labels where the full name would crowd the bar. */
     viewNavShort: { dashboard: "Data", automations: "Automate" } as Readonly<Record<string, string>>,
@@ -47,6 +48,10 @@ const COPY = {
     },
     themeToDark: "Use dark theme",
     themeToLight: "Use light theme",
+  },
+
+  perps: {
+    loading: "Opening Perps...",
   },
 
   wallets: {

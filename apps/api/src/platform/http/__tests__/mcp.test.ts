@@ -262,6 +262,10 @@ describe("POST /v1/mcp (2026-07-28)", () => {
     assert.match(String(link.structuredContent.instructions), /own connected wallets/u);
     const control = await callTool("create_signing_link", { text: "swap\u0007 1 SOL" });
     assert.equal(control.isError, true);
+    // Secret material is refused before it can land in a URL (query strings reach logs and history).
+    const secret = await callTool("create_signing_link", { text: "swap 1 SOL with abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about" });
+    assert.equal(secret.isError, true);
+    assert.doesNotMatch(JSON.stringify(secret), /abandon about|studio\?q=/u);
   });
 
   it("rejects a mismatched Mcp-Name header and JSON-RPC batches", async () => {

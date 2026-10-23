@@ -16,6 +16,7 @@ import {
   type JourneyVenueFacts,
   type NetworkKey,
   type VenuePosition,
+  YIELD_VENUES,
 } from "@kletia/core";
 import { TurnFacts } from "../clarify/facts.js";
 import type { WalletFacts } from "../holdings.js";
@@ -306,7 +307,7 @@ describe("solver snapshot: prices and APY", () => {
     assert.ok(reads > count, "fetched more than 60 s ago: read again");
   });
 
-  it("reads APY for at most 6 candidate venues of an earn goal, safest tier first", async () => {
+  it("reads APY and S8 metrics for every candidate venue of an earn goal (WP8: no cut before the ranking)", async () => {
     const read: string[] = [];
     configureSnapshotReaders(readers({
       venue: async (venue): Promise<JourneyVenueFacts> => {
@@ -314,14 +315,20 @@ describe("solver snapshot: prices and APY", () => {
         if (venue.protocol === "morpho") throw new Error("down");
         return { name: venue.name, apy: 0.041, utilization: null, exitLiquidity: null, capRemaining: null, paused: false, frozen: false, shareRate: null, at: new Date(T0).toISOString() };
       },
+      metrics: async (venue) => (venue.protocol === "aave-v3" ? { smoothedApy: 0.04, apyWindowSeconds: 604_800, tvlUsd: 300_000_000 } : { smoothedApy: null, apyWindowSeconds: null, tvlUsd: null }),
     }));
     const snapshot = await readSnapshot(ACCOUNTS, [goal({ kind: "earn", spend: { asset: { symbol: "USDC" }, amount: { t: "exact", value: "100" }, from: { network: "base", custody: { kind: "wallet" } } } })], { now: T0 });
-    assert.ok(read.length > 0 && read.length <= 6, `read ${read.length}`);
+    const listed = YIELD_VENUES.filter((venue) => venue.network === "base" && venue.asset === "USDC" && venue.actions.includes("deposit")).map((venue) => venue.id);
+    assert.ok(listed.length > 6, `Base lists ${listed.length} USDC venues`);
+    assert.deepEqual([...read].sort(), [...listed].sort(), "every Base USDC venue is read, none cut");
     assert.ok(read.every((id) => id.startsWith("base:")));
-    assert.ok(read.includes("base:aave-v3:usdc"));
     const aave = snapshot.apy.get("base:aave-v3:usdc");
     assert.equal(aave?.status, "known");
     assert.equal(aave?.apy, 0.041);
+    assert.equal(aave?.smoothedApy, 0.04);
+    assert.equal(aave?.tvlUsd, 300_000_000);
+    const compound = snapshot.apy.get("base:compound-v3:usdc");
+    assert.equal(compound?.smoothedApy, null, "an unread smoothed rate is unknown, never zero");
     for (const [id, entry] of snapshot.apy) if (id.includes(":morpho:")) assert.ok(entry.status === "unknown" && entry.apy === null);
     // Known readings are cached for 60 s; failed ones are read again.
     const before = read.length;

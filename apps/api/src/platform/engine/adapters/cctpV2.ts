@@ -29,8 +29,27 @@
  * the recipient at least `amount - maxFee`. There is no refund once burned
  * (journey refund path "none"): a forward that fails or never comes keeps the
  * leg settling with the attested message hash as its tracking id, and the
- * settlement timeout moves it to manual review (indeterminate); a
- * destination `receiveMessage` claim step is the documented follow-up.
+ * settlement timeout moves it to manual review (indeterminate) unless the
+ * person completes the mint with the destination claim step.
+ *
+ * Destination claim (intent design B.1, red-team D4): `cctpClaimTransaction`
+ * builds the unsigned `MessageTransmitterV2.receiveMessage(message,
+ * attestation)` call on the destination's pinned transmitter for a burn whose
+ * message Circle attested but whose forward has not minted. The message is
+ * decoded and held to the step's proven burn first; a message already
+ * received on the destination (its nonce used) is refused. Anyone may submit
+ * it (no destination caller), and the USDC is minted to the step's recipient
+ * whoever signs; it needs gas on the destination.
+ *
+ * Standard Transfer (finality 2000, no Fast Transfer fee): offered only with
+ * Circle's forwarding (the mint needs no gas on the destination), only once
+ * the claim step exists (it does), only when the server enables it
+ * (KLETIA_CCTP_STANDARD=on) and only when the request sets an explicit time
+ * budget long enough for the source chain's finality and does not ask for
+ * the fastest route. It replaces Fast Transfer for that request only when the
+ * fee saved beats the time cost of the B.1 score by more than the B.1 tie
+ * margin, max($0.05, 0.5 bps) (same signatures either way). The step records the choice (`provider: "standard"`), so prepare
+ * encodes the same finality.
  */
 import { address as solanaAddress } from "@solana/kit";
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
@@ -55,7 +74,18 @@ import { assetAmount, assetFromRef } from "../assets.js";
 import { evmChainId, evmClient, isEvmNetwork, observeEvmTransaction, readAllowance, type EvmNetworkKey } from "../chains/evm.js";
 import { isRecord } from "../util.js";
 import { isRegistryUsdc } from "./across.js";
-import { assertCctpLane, CCTP_FAST_FINALITY, cctpProtocolFee, fetchCctpFastFees, fetchCctpMessages, type CctpEndpoint, type CctpMessage } from "./cctpClient.js";
+import { LAMBDA_T_USD_PER_SECOND, TIE_MARGIN } from "../routing/score.js";
+import {
+  assertCctpLane,
+  CCTP_FAST_FINALITY,
+  CCTP_STANDARD_FINALITY,
+  cctpProtocolFee,
+  fetchCctpFeeTable,
+  fetchCctpMessages,
+  type CctpEndpoint,
+  type CctpFastFees,
+  type CctpMessage,
+} from "./cctpClient.js";
 import { assertEvmBalance } from "./evmTransfer.js";
 import { accountBytes32 } from "./lifi.js";
 import { cappedOutput, destinationCredit, type DestinationCheck } from "./relay.js";
@@ -75,7 +105,11 @@ export const TOKEN_MESSENGER_V2_ABI = parseAbi([
   "function depositForBurnWithHook(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, address burnToken, bytes32 destinationCaller, uint256 maxFee, uint32 minFinalityThreshold, bytes hookData)",
   "event DepositForBurn(address indexed burnToken, uint256 amount, address indexed depositor, bytes32 mintRecipient, uint32 destinationDomain, bytes32 destinationTokenMessenger, bytes32 destinationCaller, uint256 maxFee, uint32 indexed minFinalityThreshold, bytes hookData)",
 ]);
-export const MESSAGE_TRANSMITTER_V2_ABI = parseAbi(["event MessageSent(bytes message)"]);
+export const MESSAGE_TRANSMITTER_V2_ABI = parseAbi([
+  "event MessageSent(bytes message)",
+  "function receiveMessage(bytes message, bytes attestation) returns (bool success)",
+  "function usedNonces(bytes32 nonce) view returns (uint256)",
+]);
 const TOKEN_MINTER_V2_ABI = parseAbi(["function burnLimitsPerMessage(address token) view returns (uint256)"]);
 
 function pinned(network: NetworkKey, role: "token-messenger" | "message-transmitter" | "token-minter" | "token-messenger-minter"): string | null {
@@ -184,7 +218,43 @@ async function burnLimit(network: EvmNetworkKey, usdc: string): Promise<bigint> 
 
 /* ------------------------------------------------------------- quoting */
 
+/** The provider tag a step records when it burns with Standard finality. */
+export const CCTP_STANDARD_PROVIDER = "standard";
+/** Seconds a Standard Transfer waits for the source chain's finality (Ethereum finality, also for L2 batches). */
+export const CCTP_STANDARD_SECONDS = 1_200;
+
+/** True when the server enables Standard Transfer (default off until the live route audit passes). */
+export function cctpStandardEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.KLETIA_CCTP_STANDARD?.trim().toLowerCase() === "on";
+}
+
+/**
+ * Whether a burn of `amount` (USDC base units, 6 decimals) uses Standard
+ * Transfer instead of Fast (see the header): the fee it saves must beat the
+ * extra time at the B.1 time value by more than the B.1 tie margin.
+ */
+export function preferStandard(
+  action: Pick<AdapterAction, "amount" | "timeBudget" | "input">,
+  fast: CctpFastFees,
+  standard: CctpFastFees | null,
+  fastSeconds: number,
+  enabled = cctpStandardEnabled(),
+): boolean {
+  if (!enabled || !standard || !action.timeBudget || action.timeBudget.fastest) return false;
+  if (action.timeBudget.maxSeconds < CCTP_STANDARD_SECONDS) return false;
+  const amount = BigInt(action.amount);
+  const fastFee = cctpProtocolFee(amount, fast.protocolFeeCentiBps) + fast.forwardFeeHigh;
+  const standardFee = cctpProtocolFee(amount, standard.protocolFeeCentiBps) + standard.forwardFeeHigh;
+  const savedUsd = Number(fromBaseUnits(fastFee - standardFee, action.input.decimals));
+  const amountUsd = Number(fromBaseUnits(amount, action.input.decimals));
+  const timeCost = LAMBDA_T_USD_PER_SECOND * (CCTP_STANDARD_SECONDS - fastSeconds);
+  const margin = Math.max(TIE_MARGIN.minUsd, (amountUsd * TIE_MARGIN.bps) / 10_000);
+  return savedUsd - timeCost > margin;
+}
+
 interface CheckedBurn {
+  /** CCTP_FAST_FINALITY or CCTP_STANDARD_FINALITY. */
+  readonly finality: number;
   readonly messenger: string;
   readonly maxFee: bigint;
   readonly protocolFee: bigint;
@@ -208,7 +278,17 @@ async function checkedBurn(action: AdapterAction, stage: "plan" | "prepare"): Pr
   if (action.recipient.chain.namespace !== CHAINS[destination].namespace) {
     throw new PlatformError("RECIPIENT_INVALID", `CCTP pays a recipient address on ${CHAINS[destination].name}.`, 422);
   }
-  const fees = await fetchCctpFastFees(endpoint(network), endpoint(destination));
+  const table = await fetchCctpFeeTable(endpoint(network), endpoint(destination));
+  if (!table.fast) throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "Circle returned a fee table Kletia refuses (no Fast Transfer row).", 502);
+  // Prepare keeps the finality the plan chose (step ref provider); plan chooses by the rule in the header.
+  const standard = stage === "prepare"
+    ? action.provider === CCTP_STANDARD_PROVIDER
+    : preferStandard(action, table.fast, table.standard, estimatedSeconds(network));
+  if (standard && !table.standard) {
+    throw new PlatformError("ROUTE_UNAVAILABLE", "Circle no longer forwards Standard Transfers on this route; plan the bridge again.", 422);
+  }
+  const fees = standard ? (table.standard as CctpFastFees) : table.fast;
+  const finality = standard ? CCTP_STANDARD_FINALITY : CCTP_FAST_FINALITY;
   const protocolFee = cctpProtocolFee(amount, fees.protocolFeeCentiBps);
   const maxFee = protocolFee + fees.forwardFeeHigh;
   if (maxFee >= amount) {
@@ -236,11 +316,11 @@ async function checkedBurn(action: AdapterAction, stage: "plan" | "prepare"): Pr
   }
   const read = readAllowance(network, action.input.address as string, action.account.address, messenger);
   const allowance = stage === "plan" ? await read.catch(() => 0n) : await read;
-  return { messenger, maxFee, protocolFee, forwardFee: fees.forwardFeeHigh, mintRecipient, solanaAccount, allowance };
+  return { finality, messenger, maxFee, protocolFee, forwardFee: fees.forwardFeeHigh, mintRecipient, solanaAccount, allowance };
 }
 
 /** The depositForBurnWithHook call Kletia encodes for a checked burn. */
-export function cctpBurnData(action: AdapterAction, burn: Pick<CheckedBurn, "mintRecipient" | "maxFee">): Hex {
+export function cctpBurnData(action: AdapterAction, burn: Pick<CheckedBurn, "mintRecipient" | "maxFee"> & { readonly finality?: number }): Hex {
   return encodeFunctionData({
     abi: TOKEN_MESSENGER_V2_ABI,
     functionName: "depositForBurnWithHook",
@@ -251,7 +331,7 @@ export function cctpBurnData(action: AdapterAction, burn: Pick<CheckedBurn, "min
       getAddress(action.input.address as string),
       ZERO_BYTES32,
       burn.maxFee,
-      CCTP_FAST_FINALITY,
+      burn.finality ?? CCTP_FAST_FINALITY,
       CCTP_FORWARD_HOOK,
     ],
   });
@@ -325,8 +405,9 @@ function warnings(action: AdapterAction, burn: CheckedBurn): string[] {
   const fee = `${fromBaseUnits(burn.maxFee, action.input.decimals)} ${action.input.symbol}`;
   const minted = `${fromBaseUnits(BigInt(action.amount) - burn.maxFee, action.output.decimals)} ${action.output.symbol}`;
   const destination = CHAINS[action.destinationNetwork].name;
+  const kind = burn.finality === CCTP_STANDARD_FINALITY ? "Standard Transfer (waits for the source network's finality, about 20 minutes; no Fast Transfer fee)" : "Fast Transfer";
   const notes = [
-    `Route: Circle CCTP Fast Transfer with Circle's Forwarding Service; Circle keeps up to ${fee} (fee plus forwarding gas) and mints at least ${minted} on ${destination}. Burned USDC is not refunded; if forwarding stalls, the mint can be completed on ${destination} with Circle's attestation.`,
+    `Route: Circle CCTP ${kind} with Circle's Forwarding Service; Circle keeps up to ${fee} (fee plus forwarding gas) and mints at least ${minted} on ${destination}. Burned USDC is not refunded; if forwarding stalls, the mint can be completed on ${destination} with Circle's attestation (a claim you sign there, which needs gas on ${destination}).`,
   ];
   if (burn.solanaAccount) notes.push(`USDC is minted into the recipient's USDC token account ${burn.solanaAccount}.`);
   // A third party, not the user's own account on the destination (the departure rule's bridge-to-recipient leg).
@@ -469,7 +550,7 @@ async function provenBurn(
     burn.destinationDomain !== cctpDomain(destination) ||
     burn.mintRecipient.toLowerCase() !== mintRecipient ||
     burn.destinationCaller !== ZERO_BYTES32 ||
-    burn.minFinalityThreshold !== CCTP_FAST_FINALITY ||
+    (burn.minFinalityThreshold !== CCTP_FAST_FINALITY && burn.minFinalityThreshold !== CCTP_STANDARD_FINALITY) ||
     burn.hookData.toLowerCase() !== CCTP_FORWARD_HOOK ||
     burn.maxFee >= burn.amount
   ) {
@@ -498,6 +579,97 @@ async function provenBurn(
   return null;
 }
 
+/* ------------------------------------------------------ destination claim */
+
+/** The nonce of an attested CCTP V2 message (header bytes 12..44). */
+function messageNonce(message: Hex): Hex {
+  return `0x${message.slice(2 + 24, 2 + 24 + 64)}` as Hex;
+}
+
+/** True when the destination's pinned transmitter already received `message` (its nonce is used). Throws on a failed read. */
+async function messageReceived(destination: EvmNetworkKey, message: Hex): Promise<boolean> {
+  const transmitter = pinned(destination, "message-transmitter");
+  if (!transmitter) return false;
+  const used = await evmClient(destination).readContract({ address: getAddress(transmitter), abi: MESSAGE_TRANSMITTER_V2_ABI, functionName: "usedNonces", args: [messageNonce(message)] });
+  return used !== 0n;
+}
+
+export interface CctpClaim {
+  /** The unsigned receiveMessage call on the destination's pinned MessageTransmitter. */
+  readonly transaction: TransactionRequest;
+  /** keccak256 of the attested message (the settlement tracking id). */
+  readonly messageHash: string;
+  readonly destination: NetworkKey;
+  /** At least this much USDC (base units) is minted to the step's recipient. */
+  readonly minimum: bigint;
+}
+
+/**
+ * The destination claim of a CCTP leg whose forward has not minted (see the
+ * header): `receiveMessage(message, attestation)` on the destination's
+ * pinned MessageTransmitterV2, sent by `claimant` (the person's own account
+ * there, which pays the gas). Refuses a step that is not a CCTP burn to an EVM
+ * network, a burn not proven on-chain, a message not attested yet, one the
+ * Forwarding Service already minted and one already received on the
+ * destination. Read-only: nothing is signed or sent.
+ */
+export async function cctpClaimTransaction(step: IntentStep, claimant: string): Promise<CctpClaim> {
+  const destination = step.settlement?.destinationNetwork;
+  const reference = step.references?.[step.references.length - 1];
+  if (step.protocol !== "cctp-v2" || !destination || !isEvmNetwork(step.network)) {
+    throw new PlatformError("STEP_NOT_PREPARABLE", "Only a Circle CCTP bridge leg has a destination claim.", 409);
+  }
+  if (!isEvmNetwork(destination)) {
+    throw new PlatformError("STEP_NOT_PREPARABLE", `A claim on ${CHAINS[destination].name} is not built by Kletia yet; Circle's forwarding mints there.`, 409);
+  }
+  const transmitter = pinned(destination, "message-transmitter");
+  if (!transmitter) throw new PlatformError("STEP_NOT_PREPARABLE", `CCTP has no pinned MessageTransmitter on ${CHAINS[destination].name}.`, 409);
+  if (!reference) throw new PlatformError("STEP_NOT_READY", "The burn has not been submitted yet.", 409);
+  if (!/^0x[0-9a-fA-F]{40}$/u.test(claimant)) throw new PlatformError("STEP_NOT_PREPARABLE", "The claim is sent from an EVM account.", 409);
+  const landed = await observeEvmTransaction(step.network, reference);
+  if (landed.state !== "landed" || landed.status !== "success") throw new PlatformError("STEP_NOT_READY", "The burn transaction has not landed successfully yet.", 409);
+  const proven = await provenBurn(step, [landed]);
+  if (!proven) throw new PlatformError("STEP_NOT_PREPARABLE", "The landed transaction is not this step's CCTP burn.", 409);
+  const messenger = pinned(step.network, "token-messenger") as string;
+  const messages = await fetchCctpMessages(endpoint(step.network), reference);
+  const attested = messages.find((message) => {
+    const fields = message.message ? decodeCctpMessage(message.message) : null;
+    return fields !== null && messageMatches(fields, proven.burn, step, messenger);
+  });
+  if (!attested?.message) throw new PlatformError("STEP_NOT_READY", "Circle has not published this burn's message yet. Try again in a minute.", 409);
+  if (attested.status !== "complete" || !attested.attestation) {
+    throw new PlatformError("STEP_NOT_READY", "Circle has not attested this burn yet (Fast Transfers take seconds, Standard Transfers wait for finality).", 409);
+  }
+  if (attested.forwardState?.toUpperCase() === "COMPLETE") {
+    throw new PlatformError("STEP_NOT_PREPARABLE", "Circle's Forwarding Service already minted this transfer; there is nothing to claim.", 409);
+  }
+  const message = attested.message as Hex;
+  let used: boolean;
+  try {
+    used = await messageReceived(destination, message);
+  } catch {
+    throw new PlatformError("RPC_UNAVAILABLE", `Whether ${CHAINS[destination].name} already received this transfer could not be read. Try again shortly.`, 502);
+  }
+  if (used) throw new PlatformError("STEP_NOT_PREPARABLE", `This transfer was already received on ${CHAINS[destination].name}; there is nothing to claim.`, 409);
+  const fields = decodeCctpMessage(message) as CctpMessageFields;
+  const decimals = step.minimumOutput?.decimals ?? 6;
+  return {
+    transaction: {
+      vm: "evm",
+      network: destination,
+      chainId: evmChainId(destination),
+      from: getAddress(claimant),
+      to: getAddress(transmitter),
+      data: encodeFunctionData({ abi: MESSAGE_TRANSMITTER_V2_ABI, functionName: "receiveMessage", args: [message, attested.attestation as Hex] }),
+      value: "0",
+      description: `Claim at least ${fromBaseUnits(fields.amount - fields.maxFee, decimals)} USDC on ${CHAINS[destination].name} with Circle's attestation`,
+    },
+    messageHash: keccak256(message),
+    destination,
+    minimum: fields.amount - fields.maxFee,
+  };
+}
+
 /* -------------------------------------------------------------- adapter */
 
 export const cctpV2Adapter: ProtocolAdapter = {
@@ -518,9 +690,11 @@ export const cctpV2Adapter: ProtocolAdapter = {
   async plan(action): Promise<PlannedStep> {
     const burn = await checkedBurn(action, "plan");
     const network = action.network as EvmNetworkKey;
-    const seconds = estimatedSeconds(action.network);
+    const standard = burn.finality === CCTP_STANDARD_FINALITY;
+    const seconds = standard ? CCTP_STANDARD_SECONDS : estimatedSeconds(action.network);
     return {
       protocol: "cctp-v2",
+      ...(standard ? { provider: CCTP_STANDARD_PROVIDER } : {}),
       title: title(action),
       mode: "wallet",
       ...burnAmounts(action, burn),
@@ -609,7 +783,24 @@ export const cctpV2Adapter: ProtocolAdapter = {
     // From here the message hash is the reference a manual claim on the destination needs.
     const tracking = attested.hash !== step.settlement?.trackingId ? { trackingId: attested.hash } : {};
     const { message, fields } = attested;
-    if (message.forwardState?.toUpperCase() !== "COMPLETE" || !message.forwardTxHash) return { status: "settling", evidence: [], ...tracking };
+    if (message.forwardState?.toUpperCase() !== "COMPLETE" || !message.forwardTxHash) {
+      // A destination claim (cctpClaimTransaction) may have received the message instead of the forward: the used
+      // nonce on the pinned transmitter proves the mint to the message's recipient of at least amount - maxFee.
+      const received = isEvmNetwork(destination) && message.message ? await messageReceived(destination, message.message as Hex).catch(() => false) : false;
+      if (!received) return { status: "settling", evidence: [], ...tracking };
+      const floor = fields.amount - fields.maxFee;
+      return {
+        status: "settled",
+        evidence: [{
+          kind: "settlement",
+          network: destination,
+          reference: attested.hash,
+          observedAt: new Date().toISOString(),
+          detail: `Circle's message ${attested.hash.slice(0, 12)}… was received on ${CHAINS[destination].name} by a claim (its nonce is used); at least ${fromBaseUnits(floor, output.decimals)} ${output.symbol} minted to the recipient.`,
+        }],
+        actualOutput: assetAmount(output, floor.toString()),
+      };
+    }
     const floor = fields.amount - fields.maxFee;
     const check = await destinationCredit(destination, message.forwardTxHash, output, recipient.address, fillNotBefore(step)).catch(
       (): DestinationCheck => ({ confirmed: false, credited: null }),

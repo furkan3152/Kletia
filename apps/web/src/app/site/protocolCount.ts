@@ -142,7 +142,7 @@ export function countRoutes(rows: readonly CapabilityRowLike[]): RouteCount {
   return { protocols: all.size, byNetwork: Object.fromEntries([...byNetwork].map(([network, set]) => [network, set.size])) };
 }
 
-/** "49 protocols, 38 of them executable through the API" (registry entries and capability index). */
+/** "51 protocols, 38 of them executable through the API" (registry entries and capability index). */
 export function registryHeadline(entries: readonly Categorized[], rows: readonly CapabilityRowLike[]): string {
   const { protocols } = countProtocols(entries as readonly Countable[]);
   return `${protocolNoun(protocols)}, ${countRoutes(rows).protocols} of them executable through the API`;

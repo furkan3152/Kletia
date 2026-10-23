@@ -191,12 +191,18 @@ describe("goal solver: decision table", () => {
 
   it("D7: the same asset on several networks: the cheaper source is chosen and shown", () => {
     const { goals, reads } = text("pay vitalik.eth 5 USDC from whatever network is cheapest");
-    const result = solve("full", goals, { reads });
+    // I13 (A.6 cheapest-path payment): where vitalik.eth receives is purpose, asked with each network's cost, cheapest first.
+    const asked = solve("full", goals, { reads });
+    assert.equal(asked.questions[0]?.reason, "TRANSFER_NETWORK");
+    assert.equal(asked.questions[0]?.options[0]?.id, "base", "the cheapest receiving network first");
+    assert.match(asked.questions[0]?.options[0]?.detail ?? "", /^From your USDC there · /u);
+    const answered = goals.map((goal) => ({ ...goal, want: { ...goal.want, at: { network: "base" as const, custody: { kind: "wallet" as const } } } }));
+    const result = solve("full", answered, { reads });
     assert.equal(planned("full", result.steps), "transfer@base 5 USDC to vitalik.eth");
     const chip = result.assumptions.find((entry) => entry.field === "actions[0].network");
     assert.equal(chip?.label, "From Base");
     assert.deepEqual(chip?.alternatives.map((option) => option.value.source), ["arbitrum", "solana"], "every other network holding enough USDC");
-    assert.equal(result.steps[0]?.network?.by, "derived", "the policy keeps the solver's network");
+    assert.equal(result.steps[0]?.network?.by, "user", "the receiving network is the answered one");
   });
 
   it("D8: a bridge the person did not ask for is shown once its source is answered, and never pinned to a venue", () => {

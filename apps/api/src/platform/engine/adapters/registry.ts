@@ -1,6 +1,7 @@
 import { protocolDependencies, type IntentConstraints, type IntentStep, type ProtocolId } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { aaveV3Adapter } from "./aaveV3.js";
+import { aggregatorEnabled, kyberswapAdapter } from "./aggregator/kyberswap.js";
 import { acrossAdapter } from "./across.js";
 import { cctpV2Adapter } from "./cctpV2.js";
 import { contractCallAdapter } from "./contractCall.js";
@@ -74,6 +75,8 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     pancakeswapV3Adapter,
     camelotAdapter,
     curveAdapter,
+    // optional EVM aggregator (intent design B.4 RC5, O5): listed only when the server enables it
+    aggregatorEnabled() ? kyberswapAdapter : null,
     relayAdapter,
     acrossAdapter,
     cctpV2Adapter,

@@ -65,7 +65,8 @@ describe("hard corpus (U2, reviewed)", () => {
 
   it("the ledger seeds U2's failures with a root class and the package that clears them", () => {
     const hard = ledger.entries.filter((entry) => entry.corpus === "hard" && entry.mode === "decide");
-    assert.ok(hard.length >= 150, `${hard.length} decide entries`);
+    // Seeded with 157 decide entries (P1); the ratchet only lets the ledger shrink as packages clear them.
+    assert.ok(hard.length > 0 && hard.length <= 157, `${hard.length} decide entries`);
     for (const entry of ledger.entries) {
       assert.match(entry.clears, /^P[2-5]/u, `${entry.corpus}/${entry.mode}/${entry.id} clears`);
       assert.ok(entry.root.length > 1, `${entry.id} root`);

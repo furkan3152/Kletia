@@ -129,6 +129,12 @@ export interface VenueQuote {
   readonly score: RouteScore;
   readonly haircutBps: number;
   readonly pFill: number;
+  /**
+   * USD expected to arrive before costs (expectedEff x (1 - haircut) x price;
+   * B.1's first term), or null in units mode. `arrivingUsd - value` is what
+   * the leg costs; the composer (routing/composer.ts) chains it across legs.
+   */
+  readonly arrivingUsd: number | null;
   /** A cached pre-screen quote scaled to this amount: ranked, never planned. */
   readonly estimate?: true;
 }
@@ -494,22 +500,47 @@ async function scoreOutcomes(outcomes: readonly Outcome[], action: AdapterAction
       }),
       strandCostUsd: 0,
     });
-    const excluded: ExclusionReason | undefined = !assetOk ? "asset" : unpriced ? "unpriced" : !floorOk ? "floor" : slow ? "slow" : undefined;
+    // D2: a declared fallback asset ranks the quote at the lower of the two values; an unpriceable one excludes it.
+    const fallback = step.fallbackOutput && !sameAsset(step.fallbackOutput, outputAsset) ? await fallbackValue(step.fallbackOutput, scored, priceOut) : null;
+    const fallbackOk = !step.fallbackOutput || sameAsset(step.fallbackOutput, outputAsset) || fallback !== null;
+    const value = fallback !== null ? Math.min(scored.value, fallback) : scored.value;
+    const excluded: ExclusionReason | undefined = !assetOk || !fallbackOk ? "asset" : unpriced ? "unpriced" : !floorOk ? "floor" : slow ? "slow" : undefined;
     quotes.push({
       adapter: outcome.adapter,
       protocol: outcome.protocol,
       planned: step,
       netMinimum,
       slow,
-      value: scored.value,
-      score: { ...scored.score, ...(outcome.estimate ? { estimate: true as const } : {}) },
+      value,
+      score: { ...scored.score, ...(value !== scored.value ? { valueUsd: Math.round(value * 10_000) / 10_000 } : {}), ...(outcome.estimate ? { estimate: true as const } : {}) },
       haircutBps: scored.haircutBps,
       pFill: scored.pFill,
+      arrivingUsd: scored.mode === "usd" && priceOut !== null ? scored.expectedEffUnits * (1 - scored.haircutBps / 10_000) * priceOut : null,
       ...(outcome.estimate ? { estimate: true as const } : {}),
       ...(excluded ? { excluded } : {}),
     });
   }
   return { quotes, inputUsd, priceIn, priceOut, mode, gas };
+}
+
+/**
+ * The value of a quote if it delivers its declared fallback instead (D2):
+ * the fallback's USD worth minus what the leg costs. Null when the fallback
+ * or the leg cannot be priced in USD.
+ */
+async function fallbackValue(fallback: AssetAmount, scored: { readonly value: number; readonly mode: "usd" | "units"; readonly expectedEffUnits: number; readonly haircutBps: number }, priceOut: number | null): Promise<number | null> {
+  if (scored.mode !== "usd" || priceOut === null || !/^\d+$/u.test(fallback.amount)) return null;
+  let asset: ResolvedAsset;
+  try {
+    asset = assetFromRef(fallback);
+  } catch {
+    return null;
+  }
+  const price = fallback.usd !== undefined && Number.isFinite(fallback.usd) ? null : await readAssetUsd(asset);
+  const usd = fallback.usd !== undefined && Number.isFinite(fallback.usd) ? fallback.usd : price === null ? null : wholeUnits(fallback.amount, fallback.decimals) * price;
+  if (usd === null || !Number.isFinite(usd)) return null;
+  const arriving = scored.expectedEffUnits * (1 - scored.haircutBps / 10_000) * priceOut;
+  return usd - (arriving - scored.value);
 }
 
 function rankEntries(quotes: readonly VenueQuote[], options: AuctionOptions, order: readonly ProtocolAdapter[], mode: "usd" | "units"): RankEntry<VenueQuote>[] {

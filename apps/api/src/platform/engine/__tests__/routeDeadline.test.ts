@@ -21,7 +21,9 @@ import {
 } from "../routing/deadline.js";
 import { createIntent } from "../service.js";
 import { ACCOUNTS } from "./helpers.js";
-import { resetVenueEngine, venueScripts } from "./venueStubs.js";
+import { resetRouteEngine, resetVenueEngine, routeScripts, stubRouteVenue, venueScripts } from "./venueStubs.js";
+import { COMPOSER_MIN_BUDGET_MS } from "../routing/composer.js";
+import { configureRouteShapes } from "../routing/shapes.js";
 
 const BRIDGE = { kind: "bridge", network: "base", from: "USDC", amount: "25", toNetwork: "arbitrum" } as const;
 
@@ -91,5 +93,54 @@ describe("POST /v1/intents under the planning budget", () => {
     configurePlanDeadline(5_000);
     const graph = await createIntent({ actions: [BRIDGE], accounts: ACCOUNTS });
     assert.equal(graph.steps.length, 1);
+  });
+});
+
+describe("composer under the planning budget (C.6)", () => {
+  const NETWORKS = ["base", "arbitrum", "solana"] as const;
+  const USDC_TO_SOL = { actions: [{ kind: "swap" as const, network: "base" as const, toNetwork: "solana" as const, from: "USDC", to: "SOL", amount: "1000" }], accounts: ACCOUNTS };
+
+  beforeEach(() => {
+    resetRouteEngine([
+      stubRouteVenue("relay", { kind: "bridge", networks: NETWORKS }),
+      stubRouteVenue("cctp-v2", { kind: "bridge", networks: NETWORKS, sameFamilyOnly: true }),
+      stubRouteVenue("jupiter", { kind: "swap", networks: ["solana"] }),
+    ]);
+    routeScripts.relay = { bps: 9_900 };
+    routeScripts["cctp-v2"] = { bps: 9_990 };
+    routeScripts.jupiter = { bps: 9_990 };
+    configureRouteShapes("compare");
+  });
+  afterEach(() => {
+    configureRouteShapes(null);
+    configurePlanDeadline(null);
+    configureAuctionSoftDeadline(null);
+  });
+
+  it("pre-screens composites only while enough budget remains", async () => {
+    assert.ok(COMPOSER_MIN_BUDGET_MS <= 5_000);
+    configurePlanDeadline(COMPOSER_MIN_BUDGET_MS - 1_000);
+    const short = await createIntent(USDC_TO_SOL);
+    assert.equal(short.steps.length, 1, "the one-shot alone");
+    configurePlanDeadline(null);
+    const full = await createIntent(USDC_TO_SOL);
+    assert.equal(full.steps.length, 2, "the cheaper composite with the full budget");
+  });
+
+  it("cuts a composite whose leg answers too late, keeping budget to plan the one-shot", async () => {
+    // 5.5 s budget: composites get at most 1.5 s before the 4 s planning reserve; the Solana leg takes 3 s.
+    configurePlanDeadline(COMPOSER_MIN_BUDGET_MS + 500);
+    routeScripts.jupiter = { bps: 9_990, delayMs: 3_000 };
+    const started = Date.now();
+    const graph = await createIntent(USDC_TO_SOL);
+    assert.equal(graph.steps.length, 1, "the one-shot");
+    assert.ok(Date.now() - started < 2_900, `took ${Date.now() - started} ms`);
+    assert.ok(graph.interpretation.routes?.[0]?.compared.some((entry) => entry.excluded === "did not answer in time"), JSON.stringify(graph.interpretation.routes?.[0]?.compared));
+  });
+
+  it("fails closed with PLAN_TIMEOUT when no shape answers", async () => {
+    configurePlanDeadline(COMPOSER_MIN_BUDGET_MS + 300);
+    for (const protocol of ["relay", "cctp-v2", "jupiter"]) routeScripts[protocol] = { bps: 9_990, delayMs: 20_000 };
+    await assert.rejects(createIntent(USDC_TO_SOL), isTimeout);
   });
 });

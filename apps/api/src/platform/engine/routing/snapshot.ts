@@ -131,6 +131,7 @@ const PROVIDER_OF: Readonly<Partial<Record<ProtocolId, { readonly provider: Prot
   meteora: { provider: "jupiter", account: true },
   "jupiter-lend": { provider: "jupiter-lend", account: true },
   kamino: { provider: "kamino", account: true },
+  kyberswap: { provider: "kyberswap", account: true },
 });
 
 /** `interpretation.providersContacted` from every quote request of a plan (deduplicated, in first-contact order). */

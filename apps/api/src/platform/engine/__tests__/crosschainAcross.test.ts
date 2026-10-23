@@ -13,6 +13,7 @@ import { PlatformError } from "../../errors.js";
 import {
   acrossAdapter,
   acrossSpokePool,
+  acrossWeth,
   ACROSS_FILL_DEADLINE_BUFFER_SECONDS,
   ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS,
   exclusivityWindowSeconds,
@@ -26,6 +27,7 @@ import {
   asset,
   bridgeAction,
   bridgeFixture,
+  ETH_PROXY_MINT,
   evmBridgeStep,
   fundsDepositedLog,
   installCrossChainMock,
@@ -113,7 +115,11 @@ describe("Across routes it serves", () => {
     assert.equal(acrossAdapter.supports(bridgeAction("base", "arbitrum")), true);
     assert.equal(acrossAdapter.supports(bridgeAction("ethereum", "polygon")), true);
     assert.equal(acrossAdapter.supports(bridgeAction("optimism", "base")), true);
-    assert.equal(acrossAdapter.supports(bridgeAction("base", "optimism", { symbol: "ETH" })), false, "ETH routes come later");
+    assert.equal(acrossAdapter.supports(bridgeAction("base", "optimism", { symbol: "ETH" })), true, "ETH both ways (RC6)");
+    assert.equal(acrossAdapter.supports(bridgeAction("base", "polygon", { symbol: "ETH", out: "WETH" })), true, "ETH to Polygon's WETH");
+    assert.equal(acrossAdapter.supports(bridgeAction("base", "arbitrum", { symbol: "WETH" })), true);
+    assert.equal(acrossAdapter.supports(bridgeAction("base", "arbitrum", { symbol: "ETH", out: "USDC" })), false, "no token change");
+    assert.equal(acrossAdapter.supports(bridgeAction("polygon", "base", { symbol: "POL", out: "ETH" })), false, "POL is not ETH");
     assert.equal(acrossAdapter.supports(bridgeAction("base", "solana")), false, "no Solana spoke pinned");
     assert.equal(acrossAdapter.supports(bridgeAction("solana", "base")), false);
     assert.equal(acrossAdapter.supports({ ...bridgeAction("base", "arbitrum"), destinationNetwork: "base", output: asset("base", "USDC") }), false);
@@ -340,5 +346,111 @@ describe("Across verification and settlement", () => {
     assert.match(expired?.status === "failed" ? expired.failure.message : "", /refunds it to the sending account on Base/u);
     status({ status: "refunded", fillTx: null, fillTxnRef: null, depositRefundTxHash: randomEvmHash() });
     assert.equal(code(await poll()), "SETTLEMENT_REFUNDED");
+  });
+});
+
+describe("Across ETH and WETH: the delivered form follows the recipient's code (RC6, D2, seam S6)", () => {
+  const WETH_BASE = "0x4200000000000000000000000000000000000006";
+  const WETH_ARBITRUM = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
+  const ONE_ETH = 10n ** 18n;
+  const OUT = 999_400_000_000_000_000n;
+  const DELEGATION = `0xef0100${"ab".repeat(20)}`;
+
+  function ethQuote(action: AdapterAction, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return acrossQuoteBody(action, {
+      inputToken: { address: acrossWeth(action.network), symbol: "WETH", decimals: 18, chainId: 8453 },
+      outputToken: { address: acrossWeth(action.destinationNetwork), symbol: "WETH", decimals: 18, chainId: 42161 },
+      outputAmount: OUT.toString(),
+      totalRelayFee: { pct: "600000000000000", total: (ONE_ETH - OUT).toString() },
+      limits: { minDeposit: "1000000000000000", maxDeposit: (10n ** 22n).toString(), maxDepositInstant: (10n ** 21n).toString() },
+      ...overrides,
+    });
+  }
+
+  function ethAction(options: { symbol?: string; out?: string; recipient?: string } = {}): AdapterAction {
+    return bridgeAction("base", "arbitrum", { symbol: options.symbol ?? "ETH", out: options.out ?? options.symbol ?? "ETH", amount: ONE_ETH.toString(), ...(options.recipient ? { recipient: options.recipient } : {}) });
+  }
+
+  it("wraps native ETH through the SpokePool: WETH on both sides of the quote and the deposit, msg.value = amount, no approval", async () => {
+    const action = ethAction();
+    let query: URLSearchParams | null = null;
+    mock.prices.set(ETH_PROXY_MINT, 2_400);
+    mock.acrossQuote = (params) => {
+      query = params;
+      return ethQuote(action);
+    };
+    const planned = await acrossAdapter.plan(action);
+    const sent = query as unknown as URLSearchParams;
+    assert.equal(sent.get("inputToken"), WETH_BASE);
+    assert.equal(sent.get("outputToken"), WETH_ARBITRUM);
+    assert.equal(planned.expectedOutput.amount, OUT.toString());
+    assert.equal(planned.expectedOutput.symbol, "ETH", "native ETH is what an account without code receives");
+    assert.equal(planned.transactionCount, 1, "no approval for native ETH");
+    assert.ok(planned.feesUsd !== undefined && Math.abs(planned.feesUsd - 0.0006 * 2_400) < 1e-6, `fee priced in USD: ${planned.feesUsd}`);
+    assert.ok(planned.warnings.some((warning) => /delivers native ETH because the recipient has no code/u.test(warning)), planned.warnings.join(" | "));
+    const prepared = await acrossAdapter.prepare(prepareContext(action));
+    assert.equal(prepared.transactions.length, 1);
+    const deposit = prepared.transactions[0];
+    assert.ok(deposit?.vm === "evm");
+    assert.equal(deposit.to, ACROSS_SPOKE_BASE);
+    assert.equal(deposit.value, ONE_ETH.toString());
+    assert.ok(deposit.data.includes(WETH_BASE.slice(2).toLowerCase()), "input token WETH");
+    assert.ok(deposit.data.includes(WETH_ARBITRUM.slice(2).toLowerCase()), "output token WETH (unwrapped by the SpokePool for an account without code)");
+  });
+
+  it("refuses native ETH to an account with code (contract or EIP-7702 delegation) and when the code cannot be read", async () => {
+    const action = ethAction({ recipient: OTHER_EVM_ADDRESS });
+    mock.acrossQuote = () => ethQuote(action);
+    mock.accountCodes.set(OTHER_EVM_ADDRESS.toLowerCase(), DELEGATION);
+    assert.match(await errorOf(() => acrossAdapter.plan(action)), /^ROUTE_UNAVAILABLE.*WETH, not ETH.*EIP-7702 delegation/u);
+    assert.match(await errorOf(() => acrossAdapter.prepare(prepareContext(action))), /^ROUTE_UNAVAILABLE.*WETH, not ETH/u, "checked again at prepare");
+    mock.accountCodes.set(OTHER_EVM_ADDRESS.toLowerCase(), "0x6080604052");
+    assert.match(await errorOf(() => acrossAdapter.plan(action)), /^ROUTE_UNAVAILABLE.*WETH, not ETH.*a contract/u);
+    mock.accountCodes.set(OTHER_EVM_ADDRESS.toLowerCase(), "error");
+    assert.match(await errorOf(() => acrossAdapter.plan(action)), /^ROUTE_UNAVAILABLE.*could not be checked/u);
+    assert.ok(!mock.calls.some((url) => url.pathname === "/api/suggested-fees"), "no quote is asked for an ineligible output form");
+  });
+
+  it("delivers WETH only to an account with code; an account without code would receive ETH", async () => {
+    const eoa = ethAction({ symbol: "WETH" });
+    mock.acrossQuote = () => ethQuote(eoa);
+    assert.match(await errorOf(() => acrossAdapter.plan(eoa)), /^ROUTE_UNAVAILABLE.*native ETH, not WETH/u);
+    const contract = ethAction({ symbol: "WETH", recipient: OTHER_EVM_ADDRESS });
+    mock.accountCodes.set(OTHER_EVM_ADDRESS.toLowerCase(), DELEGATION);
+    mock.acrossQuote = () => ethQuote(contract);
+    const planned = await acrossAdapter.plan(contract);
+    assert.equal(planned.expectedOutput.symbol, "WETH");
+    assert.equal(planned.transactionCount, 2, "WETH input needs the exact approval");
+    const prepared = await acrossAdapter.prepare(prepareContext(contract));
+    assert.equal(prepared.transactions[1]?.vm === "evm" ? prepared.transactions[1].value : null, "0");
+  });
+
+  it("delivers WETH on Polygon as the token itself (no code check: POL is the gas asset there)", async () => {
+    const action = bridgeAction("base", "polygon", { symbol: "ETH", out: "WETH", amount: ONE_ETH.toString() });
+    mock.accountCodes.set(EVM_ADDRESS.toLowerCase(), "error");
+    mock.acrossQuote = () => ethQuote(action, {
+      outputToken: { address: acrossWeth("polygon"), symbol: "WETH", decimals: 18, chainId: 137 },
+      destinationSpokePoolAddress: acrossSpokePool("polygon"),
+    });
+    const planned = await acrossAdapter.plan(action);
+    assert.equal(planned.expectedOutput.symbol, "WETH");
+  });
+
+  it("fails a native fill that arrived as WETH (the recipient gained code) instead of settling it as ETH", async () => {
+    const action = ethAction();
+    mock.acrossQuote = () => ethQuote(action);
+    const prepared = await acrossAdapter.prepare(prepareContext(action));
+    const data = (prepared.transactions[0] as { data: Hex }).data;
+    const references = landPrepared(mock.rpc, prepared.transactions, [fundsDepositedLog(ACROSS_SPOKE_BASE, data, 77n)]);
+    const step = evmBridgeStep(action, "across", prepared.transactions, { minimum: OUT.toString(), references });
+    const fill = randomEvmHash();
+    mock.acrossStatus.set("8453:77", { status: "filled", depositTxHash: references.at(-1), fillTx: fill, originChainId: 8453, depositId: "77" });
+    mock.rpc.evm.set(fill, {
+      hash: fill, from: "0x3333333333333333333333333333333333333333", to: ACROSS_SPOKE_ARBITRUM, input: "0x", value: 0n, chainId: 42161, status: "success",
+      blockNumber: 9_300n, timestamp: seconds(PREPARED_AT) + 40, logs: [transferLog(WETH_ARBITRUM, EVM_ADDRESS, OUT)],
+    });
+    const result = await acrossAdapter.poll?.(step, Date.now());
+    assert.equal(code(result), "SETTLEMENT_MISMATCH");
+    assert.match(result?.status === "failed" ? result.failure.message : "", /WETH instead of ETH/u);
   });
 });

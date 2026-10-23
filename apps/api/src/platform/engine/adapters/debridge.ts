@@ -19,6 +19,17 @@
  *   (maker, state PDA, mint, amounts, receiver, authorities) and the fixed fee
  *   must equal the program state's `fixed_fee`. Kletia re-assembles the
  *   transaction from the validated instructions with a fresh blockhash.
+ * - EVM source swaps (intent design RC6, red-team D8): when the input is not
+ *   one of DLN's reserve assets the API routes the order through its pinned
+ *   forwarder, `strictlySwapAndCall`. It is accepted only when the call goes
+ *   to the pinned forwarder (also the exact-approval spender), sells exactly
+ *   the step's input and amount, carries no permit, calls a pinned swap router
+ *   whose decoded calldata pays the forwarder itself (recipient, tokens,
+ *   amount and on-chain minimum checked), names the pinned surplus recipient
+ *   (or the user) for output above the order, and calls the pinned DlnSource
+ *   with an order that passes every check above, giving exactly the swap's
+ *   expected output of the intermediary token. The forwarder reverts unless
+ *   the swap yields at least that output, so the order is fixed on-chain.
  * The destination order authority is the user's account (the origin address
  * on another EVM network; for cross-VM routes the recipient, with a warning).
  *
@@ -82,6 +93,7 @@ import {
   fetchDlnOrderStatus,
   type DlnOrderQuote,
 } from "./debridgeClient.js";
+import { checkKyberSwap } from "./aggregator/kyberCalldata.js";
 import { accountBytes, accountBytes32, cushionedMinimum } from "./lifi.js";
 import { cappedOutput } from "./relay.js";
 import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult, PlannedStepPreview } from "./types.js";
@@ -112,6 +124,11 @@ export const DLN_SOURCE_ABI = parseAbi([
   "function globalFixedNativeFee() view returns (uint88)",
 ]);
 
+/** deBridge's forwarder (`DeBridgeRouter` in deBridge's contract list): source swap, then the target call. */
+export const DLN_FORWARDER_ABI = parseAbi([
+  "function strictlySwapAndCall(address _srcTokenIn, uint256 _srcAmountIn, bytes _srcTokenInPermitEnvelope, address _srcSwapRouter, bytes _srcSwapCalldata, address _srcTokenOut, uint256 _srcTokenExpectedAmountOut, address _srcTokenRefundRecipient, address _target, bytes _targetData) payable",
+]);
+
 const DLN_EVENTS_ABI = parseAbi([
   "struct Order { uint64 makerOrderNonce; bytes makerSrc; uint256 giveChainId; bytes giveTokenAddress; uint256 giveAmount; uint256 takeChainId; bytes takeTokenAddress; uint256 takeAmount; bytes receiverDst; bytes givePatchAuthoritySrc; bytes orderAuthorityAddressDst; bytes allowedTakerDst; bytes allowedCancelBeneficiarySrc; bytes externalCall; }",
   "event CreatedOrder(Order order, bytes32 orderId, bytes affiliateFee, uint256 nativeFixFee, uint256 percentFee, uint32 referralCode, bytes metadata)",
@@ -128,7 +145,7 @@ function dlnChainId(network: NetworkKey): number {
   return id;
 }
 
-function pinned(network: NetworkKey, role: "dln-source" | "dln-destination"): string | null {
+function pinned(network: NetworkKey, role: "dln-source" | "dln-destination" | "dln-forwarder" | "dln-surplus-recipient"): string | null {
   const contracts = venueContracts("debridge-dln", network, role);
   return contracts.length === 1 ? (contracts[0] as string) : null;
 }
@@ -220,6 +237,11 @@ interface OrderExpectations {
   readonly action: AdapterAction;
   readonly quote: DlnOrderQuote;
   readonly dstAuthority: string;
+  /**
+   * What the order gives when a forwarder source swap precedes it: the swap's
+   * output token and exact expected amount (default: the step's input and amount).
+   */
+  readonly give?: { readonly token: string; readonly amount: bigint };
 }
 
 /** Decodes and checks an EVM createSaltedOrder call; returns the salt (order nonce). */
@@ -234,9 +256,9 @@ export function checkEvmOrder(data: string, expect: OrderExpectations): bigint {
   if (decoded.functionName !== "createSaltedOrder") reject("the transaction is not createSaltedOrder");
   const [order, salt, affiliateFee, , permitEnvelope] = decoded.args;
   const destination = action.destinationNetwork;
-  const giveToken = action.input.isNative ? "0x0000000000000000000000000000000000000000" : (action.input.address as string);
+  const giveToken = expect.give?.token ?? (action.input.isNative ? "0x0000000000000000000000000000000000000000" : (action.input.address as string));
   if (!sameEvm(order.giveTokenAddress, giveToken)) reject("the order gives another token");
-  if (order.giveAmount !== BigInt(action.amount)) reject("the order gives another amount than the step");
+  if (order.giveAmount !== (expect.give?.amount ?? BigInt(action.amount))) reject("the order gives another amount than the step");
   if (order.takeChainId !== BigInt(dlnChainId(destination))) reject("the order takes on another chain");
   if (order.takeTokenAddress.toLowerCase() !== tokenBytes(action.output)) reject("the order takes another token");
   if (order.takeAmount !== BigInt(quote.takeAmount) || order.takeAmount === 0n) reject("the order takes another amount than quoted");
@@ -251,6 +273,64 @@ export function checkEvmOrder(data: string, expect: OrderExpectations): bigint {
   if (affiliateFee !== "0x") reject("the order carries an affiliate fee");
   if (permitEnvelope !== "0x") reject("the order carries a permit");
   return salt;
+}
+
+export interface ForwardedOrder {
+  /** The order's salt (as checkEvmOrder returns it). */
+  readonly salt: bigint;
+  /** The intermediary token the swap buys and the order gives. */
+  readonly intermediary: string;
+  /** The swap's expected output: exactly what the order gives (the forwarder reverts below it). */
+  readonly giveAmount: bigint;
+  /** Where the forwarder sends swap output above `giveAmount`. */
+  readonly surplusRecipient: string;
+}
+
+/**
+ * Decodes and checks a forwarder `strictlySwapAndCall` (intent design RC6,
+ * red-team D8): the step's exact input, no permit, a pinned swap router whose
+ * decoded call pays the forwarder, the pinned surplus recipient (or the user),
+ * and the pinned DlnSource called with an order that passes `checkEvmOrder`
+ * for the intermediary token and the exact expected amount.
+ */
+export function checkForwarderCall(data: string, expect: OrderExpectations): ForwardedOrder {
+  const { action } = expect;
+  const network = action.network;
+  const forwarder = pinned(network, "dln-forwarder");
+  const source = pinned(network, "dln-source");
+  if (!forwarder || !source) reject("no pinned forwarder or DlnSource on this network");
+  let decoded;
+  try {
+    decoded = decodeFunctionData({ abi: DLN_FORWARDER_ABI, data: data as Hex });
+  } catch {
+    reject("the forwarder call cannot be decoded");
+  }
+  const [tokenIn, amountIn, permit, router, swapData, tokenOut, expectedOut, surplus, target, targetData] = decoded.args;
+  const input = action.input.isNative ? "0x0000000000000000000000000000000000000000" : (action.input.address as string);
+  if (!sameEvm(tokenIn, input)) reject("the forwarder sells another token");
+  if (amountIn !== BigInt(action.amount)) reject("the forwarder sells another amount than the step");
+  if (permit !== "0x") reject("the forwarder call carries a permit");
+  if (!venueContracts("debridge-dln", network, "dln-swap-router").some((entry) => sameEvm(entry, router))) {
+    reject(`the source swap calls ${router}, which is not an allowlisted router`);
+  }
+  if (expectedOut <= 0n) reject("the source swap has no expected output");
+  if (sameEvm(tokenOut, input)) reject("the source swap does not change the token");
+  // The router call must pay the forwarder itself (which then funds the order), the step's exact input.
+  checkKyberSwap(swapData, {
+    srcToken: action.input.isNative ? null : input,
+    dstToken: sameEvm(tokenOut, "0x0000000000000000000000000000000000000000") ? null : tokenOut,
+    amount: amountIn,
+    recipient: forwarder,
+    // The router's own minimum may sit one unit under the forwarder's strict check, which is what binds.
+    minReturn: expectedOut > 1n ? expectedOut - 1n : 1n,
+  }, "deBridge order");
+  const surplusPin = pinned(network, "dln-surplus-recipient");
+  if (!sameEvm(surplus, action.account.address) && !(surplusPin && sameEvm(surplus, surplusPin))) {
+    reject("swap surplus would go to an unpinned account");
+  }
+  if (!sameEvm(target, source)) reject("the forwarder calls a contract other than the pinned DlnSource");
+  const salt = checkEvmOrder(targetData, { ...expect, give: { token: tokenOut, amount: expectedOut } });
+  return { salt, intermediary: tokenOut, giveAmount: expectedOut, surplusRecipient: surplus };
 }
 
 /** Little-endian borsh reader for the DLN instruction arguments. */
@@ -407,6 +487,10 @@ interface CheckedOrder {
   readonly fixFeeUsd: number | null;
   readonly dstAuthority: { readonly address: string; readonly crossVm: boolean };
   readonly source: string;
+  /** Call target and approval spender: the DlnSource, or the forwarder when a source swap comes first. */
+  readonly spender: string;
+  /** Present when the order goes through the forwarder's source swap. */
+  readonly forwarded?: ForwardedOrder;
   readonly solana?: DecodedSolanaOrder;
   readonly allowance: bigint | null;
 }
@@ -443,14 +527,23 @@ async function checkedOrder(action: AdapterAction, stage: "plan" | "prepare"): P
   const expect = { action, quote, dstAuthority: dstAuthority.address };
   let solana: DecodedSolanaOrder | undefined;
   let allowance: bigint | null = null;
+  let spender = source;
+  let forwarded: ForwardedOrder | undefined;
   if (isEvmNetwork(action.network)) {
-    if (quote.tx.to === null || !sameEvm(quote.tx.to, source)) reject("the transaction does not target the pinned DlnSource");
+    const forwarder = pinned(action.network, "dln-forwarder");
+    const viaForwarder = quote.tx.to !== null && forwarder !== null && sameEvm(quote.tx.to, forwarder);
+    if (quote.tx.to === null || (!sameEvm(quote.tx.to, source) && !viaForwarder)) reject("the transaction targets neither the pinned DlnSource nor the pinned forwarder");
     const value = BigInt(quote.tx.value ?? "0");
     const expected = fee + (action.input.isNative ? BigInt(action.amount) : 0n);
     if (value !== expected) reject("the transaction value is not exactly the fixed fee (plus a native amount)");
-    checkEvmOrder(quote.tx.data, expect);
+    if (viaForwarder) {
+      forwarded = checkForwarderCall(quote.tx.data, expect);
+      spender = forwarder as string;
+    } else {
+      checkEvmOrder(quote.tx.data, expect);
+    }
     if (!action.input.isNative) {
-      const read = readAllowance(action.network, action.input.address as string, action.account.address, source);
+      const read = readAllowance(action.network, action.input.address as string, action.account.address, spender);
       allowance = stage === "plan" ? await read.catch(() => 0n) : await read;
     }
   } else if (isSolanaNetworkKey(action.network)) {
@@ -468,6 +561,8 @@ async function checkedOrder(action: AdapterAction, stage: "plan" | "prepare"): P
     fixFeeUsd,
     dstAuthority,
     source,
+    spender,
+    ...(forwarded ? { forwarded } : {}),
     ...(solana ? { solana } : {}),
     allowance,
   };
@@ -486,7 +581,7 @@ function dlnEvmTransactions(action: AdapterAction, network: EvmNetworkKey, order
       chainId,
       from,
       to: getAddress(action.input.address as string),
-      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(order.source), amount] }),
+      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(order.spender), amount] }),
       value: "0",
       gas: APPROVE_GAS,
       description: `Approve ${formatAmount(fromBaseUnits(action.amount, action.input.decimals))} ${action.input.symbol} for deBridge`,
@@ -497,7 +592,7 @@ function dlnEvmTransactions(action: AdapterAction, network: EvmNetworkKey, order
     network,
     chainId,
     from,
-    to: getAddress(order.source),
+    to: getAddress(order.spender),
     data: order.quote.tx.data,
     value: order.quote.tx.value ?? "0",
     description: title(action),
@@ -514,7 +609,7 @@ function dlnPreview(action: AdapterAction, order: CheckedOrder): PlannedStepPrev
   const protocolFee = order.quote.protocolFeeUsd;
   return {
     transactions: dlnEvmTransactions(action, action.network, order),
-    approvalSpender: order.source.toLowerCase(),
+    approvalSpender: order.spender.toLowerCase(),
     ...(protocolFee !== null && protocolFee > 0
       ? { venueFees: [{ kind: "venue" as const, label: "deBridge protocol fee", usd: Math.round(protocolFee * 1e6) / 1e6, paid: "deducted" as const, certainty: "quoted" as const }] }
       : {}),
@@ -531,6 +626,11 @@ function title(action: Pick<AdapterAction, "network" | "destinationNetwork" | "i
 function warnings(action: AdapterAction, order: CheckedOrder): string[] {
   const rent = isSolanaNetworkKey(action.network) ? " plus order account rent" : "";
   const notes = [`Route: deBridge DLN order; ${order.fixFee.formatted} ${order.fixFee.symbol} fixed fee${rent} on top of the amount.`];
+  if (order.forwarded) {
+    notes.push(
+      `Route: deBridge first swaps the ${action.input.symbol} on ${CHAINS[action.network].name} into the token its solvers take (on-chain minimum enforced); any swap output above the order goes to ${sameEvm(order.forwarded.surplusRecipient, action.account.address) ? "your account" : "deBridge"}, not to the order.`,
+    );
+  }
   if (order.dstAuthority.crossVm) {
     notes.push(
       `If no solver fills the order, it can be cancelled only from ${order.dstAuthority.address} on ${CHAINS[action.destinationNetwork].name}; the refund goes back to the sending account.`,
@@ -590,18 +690,30 @@ function createdOrder(
 ): { orderId: string; order: DlnEventOrder } | null {
   if (!isEvmNetwork(step.network)) return null;
   const source = pinned(step.network, "dln-source");
+  const forwarder = pinned(step.network, "dln-forwarder");
   const deposit = receipts[receipts.length - 1];
-  if (!source || !deposit || !sameEvm(deposit.to ?? "", source)) return null;
+  if (!source || !deposit) return null;
+  const viaForwarder = forwarder !== null && sameEvm(deposit.to ?? "", forwarder);
+  if (!viaForwarder && !sameEvm(deposit.to ?? "", source)) return null;
   let creation;
   try {
-    const decoded = decodeFunctionData({ abi: DLN_SOURCE_ABI, data: deposit.input as Hex });
+    let orderData = deposit.input as Hex;
+    if (viaForwarder) {
+      // The forwarder calls the pinned DlnSource with the order; it is the order's maker on-chain.
+      const outer = decodeFunctionData({ abi: DLN_FORWARDER_ABI, data: deposit.input as Hex });
+      if (!sameEvm(outer.args[8], source)) return null;
+      orderData = outer.args[9];
+    }
+    const decoded = decodeFunctionData({ abi: DLN_SOURCE_ABI, data: orderData });
     if (decoded.functionName !== "createSaltedOrder") return null;
     creation = { order: decoded.args[0], salt: decoded.args[1] };
   } catch {
     return null;
   }
   const quoted = dlnOrderIds(step);
-  const maker = accountBytes(step.network, stepOwner(step));
+  const maker = accountBytes(step.network, viaForwarder ? (forwarder as string) : stepOwner(step));
+  // Through the forwarder the person keeps the patch right on the source network.
+  if (viaForwarder && !sameEvm(creation.order.givePatchAuthoritySrc, stepOwner(step))) return null;
   for (const event of evmEvents(receipts, { address: source, abi: DLN_EVENTS_ABI, eventName: "CreatedOrder" })) {
     const { order, orderId, percentFee } = event.args;
     const id = orderId.toLowerCase();

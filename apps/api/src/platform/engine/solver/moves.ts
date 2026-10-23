@@ -1,9 +1,10 @@
 /**
  * Moves confirms (intent design A.3 moves row, red-team C10): one goal that
  * expands into more than one move (deliver-all, a multi-holding relocate or
- * consolidation, exit-all, a dust sweep, a rebalance), a target amount Kletia
- * computed that moves more than half of what one network holds by USD (the
- * solver marks the step), or a payment of a whole holding (or a share of it)
+ * consolidation, exit-all, a dust sweep, a rebalance), a move of such an
+ * abstract goal even when it is the only one, a target amount Kletia computed
+ * that moves more than half of what one network holds by USD (the solver
+ * marks the step), or a payment of a whole holding (or a share of it)
  * to someone else is confirmed with every move listed and its amount, never
  * planned on a chip.
  *
@@ -11,6 +12,15 @@
  */
 import type { NetworkKey } from "@kletia/core";
 import type { ResolvedAction, WorkStep } from "../clarify/types.js";
+
+/**
+ * Exact delivery to a recipient across networks (seam S10, `receiveExact`):
+ * offered by the policy's DELIVERY_AMOUNT question once switched on. Off: a
+ * payment that crosses networks delivers what arrives after bridge fees,
+ * which the person accepts in that question, and an "exactly" goal is only
+ * planned from funds already on the receiving network.
+ */
+export const EXACT_DELIVERY_PLANNED = false;
 
 /** Where an action comes from (analysis layout): a state step, and whether it is a goal step's expansion. */
 export interface MoveOrigin {
@@ -52,8 +62,10 @@ export function movesReason(input: {
     if (input.thirdParty(action) && amount && amount.by !== "answer" && amount.v.t === "balance") {
       return { kind: "holding-to-third-party", action: index, recipient: action.recipient ?? "" };
     }
-    // A target amount Kletia computed that moves more than half of what the network holds (the solver marks it).
-    if ((step as (WorkStep & { movesMajority?: true }) | undefined)?.movesMajority) {
+    // A target amount Kletia computed that moves more than half of what the network holds, or a move of an abstract
+    // goal (a rebalance, an exit-all, a dust sweep, a top-up): the solver marks it.
+    const flags = step as (WorkStep & { movesMajority?: true; movesConfirm?: true }) | undefined;
+    if (flags?.movesMajority || flags?.movesConfirm) {
       return { kind: "computed", action: index, network: action.network, symbol: action.from };
     }
   }

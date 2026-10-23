@@ -209,7 +209,8 @@
    "wallet": "full",
    "accept": [
     "P:^transfer@optimism 5 USDC to vitalik\\.eth",
-    "A:recipient"
+    "A:recipient",
+    "A:^actions\\[0\\]\\.amount:AMOUNT_EXCEEDS_BALANCE$"
    ],
    "tags": []
   },
@@ -543,9 +544,11 @@
    "say": "hey could you move 25 USDC from base over to solana",
    "wallet": "full",
    "accept": [
-    "P:bridge@base->solana 25 USDC"
+    "A:INTERPRETATION_CONFIRM$",
+    "C:^bridge@base->solana 25 USDC"
    ],
-   "tags": []
+   "tags": [],
+   "why": "Design A.3 (P4-M3 question form, P2-M1 confirm mechanics): an interrogative/modal opener ('could you ...') is a polite command, a one-click confirm of the solved plan, never ready. Confirming gives the same bridge."
   },
   {
    "id": "CAS013",
@@ -623,7 +626,8 @@
    "say": "yo send vitalik.eth 5 USDC on optimism",
    "wallet": "full",
    "accept": [
-    "P:transfer@optimism 5 USDC to vitalik\\.eth"
+    "P:transfer@optimism 5 USDC to vitalik\\.eth",
+    "A:^actions\\[0\\]\\.amount:AMOUNT_EXCEEDS_BALANCE$"
    ],
    "tags": []
   },
@@ -933,7 +937,8 @@
    "say": "5 usdc -> vitalik.eth op",
    "wallet": "full",
    "accept": [
-    "P:transfer@optimism 5 USDC to vitalik\\.eth"
+    "P:transfer@optimism 5 USDC to vitalik\\.eth",
+    "A:^actions\\[0\\]\\.amount:AMOUNT_EXCEEDS_BALANCE$"
    ],
    "tags": []
   },
@@ -1614,7 +1619,7 @@
    "say": "send all my USDC on arbitrum to vitalik.eth",
    "wallet": "full",
    "accept": [
-    "P:^transfer@arbitrum 30 USDC to vitalik"
+    "C:^transfer@arbitrum 30 USDC to vitalik"
    ],
    "tags": []
   },
@@ -1624,7 +1629,7 @@
    "say": "send half my SOL to toly.sns",
    "wallet": "full",
    "accept": [
-    "P:^transfer@solana 1\\.25 SOL to toly"
+    "C:^transfer@solana 1\\.25 SOL to toly"
    ],
    "tags": []
   },
@@ -1982,7 +1987,8 @@
    "wallet": "full",
    "accept": [
     "P:bridge@\\w+->polygon",
-    "A:amount"
+    "A:amount",
+    "A:^actions\\[0\\]\\.network:FUNDS_ELSEWHERE$"
    ],
    "tags": []
   },
@@ -3574,7 +3580,7 @@
    "say": "send a quarter of my SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
    "wallet": "full",
    "accept": [
-    "P:^transfer@solana 0\\.625 SOL to 9WzD"
+    "C:^transfer@solana 0\\.625 SOL to 9WzD"
    ],
    "tags": [
     "round8"

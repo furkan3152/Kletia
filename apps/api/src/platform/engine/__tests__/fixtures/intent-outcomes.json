@@ -8,12 +8,12 @@
      "d": "swap@base 0.25 ETH->USDC [aerodrome]"
     },
     "CON002": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 100 USDC->WETH [uniswap-v3]"
     },
     "CON003": {
      "o": "ready",
-     "d": "deposit@base 50 USDC [aave-v3]"
+     "d": "swap@base 50 USDC->ETH [pancakeswap-v3]"
     },
     "CON004": {
      "o": "ready",
@@ -64,8 +64,8 @@
      "d": "swap@polygon 10 POL->USDC"
     },
     "CON016": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 2 SOL->USDC [jupiter]"
     },
     "CON017": {
      "o": "ready",
@@ -112,7 +112,7 @@
      "d": "swap@arbitrum 172.8498 USDC->ETH"
     },
     "CON028": {
-     "o": "confirm",
+     "o": "ready",
      "d": "swap@solana 100 USDC->SOL"
     },
     "CON029": {
@@ -220,8 +220,8 @@
      "d": "withdraw@base 100 USDC [aave-v3]"
     },
     "CON055": {
-     "o": "asked",
-     "d": "actions[0].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "withdraw@base max USDC [morpho:steakhouse-prime-usdc]"
     },
     "CON056": {
      "o": "ready",
@@ -232,8 +232,8 @@
      "d": "withdraw@solana 20 USDC [kamino]"
     },
     "CON058": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "withdraw@base 125 USDC [aave-v3]"
     },
     "CON059": {
      "o": "ready",
@@ -256,11 +256,11 @@
      "d": "stake@ethereum 1 ETH->wstETH {lido}"
     },
     "CON064": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@ethereum 0.5 ETH->rETH {rocket-pool}"
     },
     "CON065": {
-     "o": "ready",
+     "o": "confirm",
      "d": "stake@ethereum 0.5 ETH->weETH {etherfi}"
     },
     "CON066": {
@@ -288,12 +288,12 @@
      "d": "transfer@optimism 10 USDT to alice.eth"
     },
     "CON072": {
-     "o": "ready",
-     "d": "transfer@polygon 3 POL to alice.eth"
+     "o": "asked",
+     "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "CON073": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@ethereum 0.01 ETH to alice.eth"
     },
     "CON074": {
      "o": "ready",
@@ -381,47 +381,47 @@
     },
     "CON095": {
      "o": "ready",
-     "d": "deposit@solana 1 SOL [kamino]"
+     "d": "swap@solana 1 SOL->USDC [meteora]"
     },
     "XNT001": {
      "o": "asked",
-     "d": "actions[0].to:COUNTERPART_MISSING"
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "XNT002": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->solana 0.1 ETH->SOL"
     },
     "XNT003": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@arbitrum->solana 50 USDC->SOL"
     },
     "XNT004": {
-     "o": "asked",
-     "d": "actions[0].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "bridge@base->solana 100 USDC->SOL"
     },
     "XNT005": {
      "o": "ready",
      "d": "bridge@arbitrum->base 0.2 ETH->USDC"
     },
     "XNT006": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
+     "o": "ready",
+     "d": "bridge@solana->base 1 SOL->ETH"
     },
     "XNT007": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
+     "o": "ready",
+     "d": "bridge@solana->arbitrum 1 SOL->USDC"
     },
     "XNT008": {
      "o": "ready",
      "d": "bridge@base->polygon 0.5 ETH->POL"
     },
     "XNT009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@optimism->solana 100 USDC->SOL"
     },
     "XNT010": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->arbitrum 200 USDC->ETH"
     },
     "XNT011": {
      "o": "ready",
@@ -432,32 +432,32 @@
      "d": "bridge@arbitrum->optimism 345.007508 USDC->ETH"
     },
     "XNT013": {
-     "o": "asked",
-     "d": "actions[0].to:COUNTERPART_MISSING"
+     "o": "ready",
+     "d": "bridge@arbitrum->solana 0.4995 ETH->SOL"
     },
     "XNT014": {
-     "o": "ready",
-     "d": "bridge@solana->base 90 USDC | deposit@base max USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "XNT015": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@arbitrum->solana 50 USDC->SOL"
     },
     "XNT016": {
-     "o": "ready",
-     "d": "bridge@optimism->base 60 USDT->USDC"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "XNT017": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@ethereum->polygon 0.05 ETH->USDC"
     },
     "XNT018": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->solana 0.044743 ETH->SOL"
     },
     "XNT019": {
-     "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "o": "ready",
+     "d": "bridge@polygon->solana 30 USDC->JitoSOL"
     },
     "XNT020": {
      "o": "asked",
@@ -484,8 +484,8 @@
      "d": "bridge@arbitrum->polygon 20 USDT0"
     },
     "XNT026": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@solana->base 1 SOL->USDC"
     },
     "XNT027": {
      "o": "ready",
@@ -501,19 +501,19 @@
     },
     "XNT030": {
      "o": "ready",
-     "d": "bridge@base->solana 100 USDC | stake@solana max USDC->JitoSOL {jito}"
+     "d": "bridge@base->solana 100 USDC->SOL | stake@solana max SOL->JitoSOL {jito}"
     },
     "XNT031": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
+     "o": "ready",
+     "d": "bridge@solana->arbitrum 1 SOL->ETH"
     },
     "XNT032": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "XNT033": {
-     "o": "ready",
-     "d": "swap@solana 20 USDC->eth"
+     "o": "refused",
+     "d": "TOKEN_UNKNOWN"
     },
     "MUL001": {
      "o": "ready",
@@ -548,12 +548,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "MUL009": {
-     "o": "ready",
-     "d": "swap@solana 1 SOL->USDC | stake@solana max USDC->JitoSOL {jito}"
+     "o": "confirm",
+     "d": "swap@solana 1 SOL->USDC | stake@solana 4.99 SOL->JitoSOL {jito}"
     },
     "MUL010": {
-     "o": "asked",
-     "d": "actions[1].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@base 200 USDC->ETH | bridge@base->arbitrum 0.05 ETH"
     },
     "MUL011": {
      "o": "ready",
@@ -568,16 +568,16 @@
      "d": "deposit@base 100 USDC [aave-v3] | deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "MUL014": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 10 USDC to alice.eth | transfer@base 10 USDC to bob.base.eth"
     },
     "MUL015": {
      "o": "ready",
      "d": "swap@solana 1 SOL->USDC | bridge@solana->arbitrum max USDC | deposit@arbitrum max USDC [compound-v3]"
     },
     "MUL016": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].amount:AMOUNT_MISSING"
     },
     "MUL017": {
      "o": "ready",
@@ -604,8 +604,8 @@
      "d": "bridge@arbitrum->base 50 USDC | deposit@base max USDC [moonwell]"
     },
     "MUL023": {
-     "o": "asked",
-     "d": "actions[1].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | transfer@solana 20 USDC to carol.sns"
     },
     "MUL024": {
      "o": "ready",
@@ -636,12 +636,12 @@
      "d": "swap@base 500 USDC->ETH | transfer@base max(5000) ETH to alice.eth"
     },
     "MUL031": {
-     "o": "asked",
-     "d": "actions[1].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "bridge@base->arbitrum 100 USDC | deposit@arbitrum 60 USDC [aave-v3]"
     },
     "MUL032": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "MUL033": {
      "o": "ready",
@@ -652,8 +652,8 @@
      "d": "stake@solana 2 SOL->JitoSOL {jito} | stake@solana 1 SOL->mSOL {marinade}"
     },
     "MUL035": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | deposit@solana 10 USDC [kamino] | stake@solana 2 SOL->JitoSOL {jito}"
     },
     "MUL036": {
      "o": "refused",
@@ -672,8 +672,8 @@
      "d": "actions[1].protocol:VENUE_MISSING"
     },
     "MUL040": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@arbitrum->base 30 USDC | swap@base 10 USDC->ETH"
     },
     "ABS001": {
      "o": "refused",
@@ -696,12 +696,12 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS006": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@arbitrum 39.6875 USDC->ETH"
     },
     "ABS007": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "ABS008": {
      "o": "refused",
@@ -725,11 +725,11 @@
     },
     "ABS013": {
      "o": "ready",
-     "d": "deposit@base 500 USDC [aave-v3]"
+     "d": "deposit@base 500 USDC [morpho:steakhouse-prime-usdc]"
     },
     "ABS014": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].protocol:VENUE_MISSING"
     },
     "ABS015": {
      "o": "asked",
@@ -756,8 +756,8 @@
      "d": "swap@solana 3 SOL->USDC"
     },
     "ABS021": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 300 USDC"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS022": {
      "o": "refused",
@@ -773,11 +773,11 @@
     },
     "ABS025": {
      "o": "ready",
-     "d": "withdraw@base max USDC [aave-v3] | deposit@base max USDC [aave-v3]"
+     "d": "withdraw@base max USDC [aave-v3] | deposit@base max USDC [morpho:steakhouse-prime-usdc]"
     },
     "ABS026": {
-     "o": "refused",
-     "d": "POSITION_EMPTY"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS027": {
      "o": "asked",
@@ -797,15 +797,15 @@
     },
     "ABS031": {
      "o": "asked",
-     "d": "actions[0].to:OUTPUT_ASSET_MISSING"
+     "d": "actions[0].protocol:VENUE_MISSING"
     },
     "ABS032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS033": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 300 USDC"
+     "o": "asked",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS034": {
      "o": "refused",
@@ -848,8 +848,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "ABS044": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 240 USDC->ETH"
     },
     "ABS045": {
      "o": "ready",
@@ -889,10 +889,10 @@
     },
     "ABS054": {
      "o": "asked",
-     "d": "actions[0].amount:AMOUNT_MISSING"
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS055": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 250 USDC | bridge@solana->base 90 USDC"
     },
     "ABS056": {
@@ -929,7 +929,7 @@
     },
     "ABS064": {
      "o": "ready",
-     "d": "deposit@base 100 USDC [aave-v3]"
+     "d": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "PAY001": {
      "o": "asked",
@@ -964,12 +964,12 @@
      "d": "transfer@solana 15 USDC to carol.sns"
     },
     "PAY009": {
-     "o": "ready",
-     "d": "transfer@solana 100 USDC to carol.sns"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "PAY010": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "PAY011": {
      "o": "ready",
@@ -1009,15 +1009,15 @@
     },
     "PAY020": {
      "o": "asked",
-     "d": "actions[0].network:TRANSFER_NETWORK"
+     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
     },
     "PAY021": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "PAY022": {
-     "o": "ready",
-     "d": "transfer@solana 10 USDC to 0x1111111111111111111111111111111111111111"
+     "o": "asked",
+     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
     },
     "PAY023": {
      "o": "ready",
@@ -1072,16 +1072,16 @@
      "d": "transfer@arbitrum 100 USDC to alice.eth"
     },
     "PAY036": {
-     "o": "ready",
-     "d": "transfer@arbitrum 300 USDC to alice.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "PAY037": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@solana 0.1 SOL to toly.sns | transfer@base 1 USDC to vitalik.eth"
     },
     "PAY038": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "PAY039": {
      "o": "ready",
@@ -1092,16 +1092,16 @@
      "d": "transfer@polygon 2 POL to alice.eth"
     },
     "PAY041": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@ethereum 0.01 ETH to vitalik.eth"
     },
     "PAY042": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 5 USDC to bob.base.eth"
     },
     "PAY043": {
-     "o": "ready",
-     "d": "bridge@arbitrum->base 250 USDC | bridge@solana->base 90 USDC"
+     "o": "confirm",
+     "d": "transfer@base 800 USDC to alice.eth | transfer@base 0.2 WETH to alice.eth | transfer@base 0.3995 ETH to alice.eth"
     },
     "PAY044": {
      "o": "ready",
@@ -1120,8 +1120,8 @@
      "d": "actions[0].recipient:RECIPIENT_CHECKSUM"
     },
     "PAY046": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 3 USDC to vitalik.eth | transfer@base 4 USDC to jesse.base.eth | transfer@base 5 USDC to alice.eth"
     },
     "AMT001": {
      "o": "ready",
@@ -1180,8 +1180,8 @@
      "d": "swap@solana 299.99 SOL->USDC"
     },
     "AMT015": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@solana 75 SOL->JitoSOL {jito}"
     },
     "AMT016": {
      "o": "ready",
@@ -1192,36 +1192,36 @@
      "d": "actions[0].to:OUTPUT_ASSET_MISSING"
     },
     "AMT018": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "AMT019": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "AMT020": {
      "o": "asked",
      "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "AMT021": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "AMT022": {
-     "o": "asked",
-     "d": "actions[0].to:OUTPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@solana 1.5 SOL->USDC"
     },
     "AMT023": {
-     "o": "asked",
-     "d": "actions[0].to:OUTPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@solana 1.5 SOL->USDC"
     },
     "AMT024": {
      "o": "ready",
      "d": "swap@base 0.029304 ETH->USDC"
     },
     "AMT025": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 0.331081 SOL->USDC"
     },
     "AMT026": {
      "o": "ready",
@@ -1240,20 +1240,20 @@
      "d": "swap@solana 1000 USDC->SOL"
     },
     "AMT030": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1000 USDC->SOL"
     },
     "AMT031": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 1.000 USDC"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "AMT032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 15 USDC to alice.eth"
     },
     "AMT033": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 7.5 ETH->USDC"
     },
     "AMT034": {
      "o": "ready",
@@ -1264,8 +1264,8 @@
      "d": "swap@solana 30 SOL->USDC"
     },
     "AMT036": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "deposit@arbitrum 1500 USDC [aave-v3]"
     },
     "AMT037": {
      "o": "ready",
@@ -1276,12 +1276,12 @@
      "d": "bridge@base->solana 2500 USDC"
     },
     "AMT039": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@solana 0.5 SOL to carol.sns"
     },
     "AMT040": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 298 SOL->USDC"
     },
     "AMT041": {
      "o": "ready",
@@ -1300,24 +1300,24 @@
      "d": "swap@solana 0.013243 SOL->USDC"
     },
     "AMT045": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1500 USDC->SOL"
     },
     "AMT046": {
      "o": "ready",
      "d": "swap@solana 1500 USDC->SOL"
     },
     "AMT047": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "AMT048": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 100 USDC->ETH"
     },
     "AMT049": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@solana 0.5 SOL to carol.sns"
     },
     "AMT050": {
      "o": "ready",
@@ -1340,7 +1340,7 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "AMT055": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@base 1000 USDC to alice.eth"
     },
     "AMT056": {
@@ -1348,12 +1348,12 @@
      "d": "swap@solana 0.25 SOL->USDC"
     },
     "AMT057": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@arbitrum 1.5 ETH->USDC"
     },
     "AMT058": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "stake@solana 150 SOL->JitoSOL {jito}"
     },
     "QUE001": {
      "o": "refused",
@@ -1372,12 +1372,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "QUE005": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "QUE006": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "bridge@base->arbitrum 20 USDC"
     },
     "QUE007": {
      "o": "refused",
@@ -1416,12 +1416,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "QUE016": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "QUE017": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 5 USDC to alice.eth"
     },
     "QUE018": {
      "o": "refused",
@@ -1456,8 +1456,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "QUE026": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "QUE027": {
      "o": "refused",
@@ -1533,7 +1533,7 @@
     },
     "REF010": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF011": {
      "o": "asked",
@@ -1545,7 +1545,7 @@
     },
     "REF013": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF014": {
      "o": "refused",
@@ -1581,11 +1581,11 @@
     },
     "REF022": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF023": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF024": {
      "o": "ready",
@@ -1616,16 +1616,16 @@
      "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF031": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF033": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF034": {
      "o": "refused",
@@ -1640,8 +1640,8 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "REF037": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF038": {
      "o": "asked",
@@ -1684,20 +1684,20 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF048": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 3 SOL->USDC"
     },
     "REF049": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 0.5 SOL->USDC"
     },
     "REF050": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "REF051": {
-     "o": "ready",
-     "d": "swap@solana 5.99 SOL->USDC | stake@solana max USDC->JitoSOL {jito}"
+     "o": "asked",
+     "d": "actions[1].amount:SPEND_CONFLICT"
     },
     "REF052": {
      "o": "refused",
@@ -1796,8 +1796,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI001": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "NOI002": {
      "o": "refused",
@@ -1828,51 +1828,51 @@
      "d": "swap@solana 1 SOL->USDC"
     },
     "NOI009": {
-     "o": "confirm",
-     "d": "swap@solana 1 SOL->USDC"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "NOI010": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@solana 2 SOL->JitoSOL {jito}"
     },
     "NOI011": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 0.1 ETH to alice.eth"
     },
     "NOI012": {
      "o": "ready",
      "d": "bridge@base->arbitrum 50 USDC"
     },
     "NOI013": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->solana 50 USDC"
     },
     "NOI014": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_LOOKALIKE"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI015": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI016": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "deposit@base 100 USDC [aave-v3]"
     },
     "NOI017": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI018": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@solana 2 SOL->mSOL {marinade}"
     },
     "NOI019": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "bridge@arbitrum->base 25 USDC"
     },
     "NOI020": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@arbitrum 0.05 ETH->USDC"
     },
     "NOI021": {
@@ -1884,7 +1884,7 @@
      "d": "actions[0].from:ASSET_LOOKALIKE"
     },
     "NOI023": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@base 100 USDC->ETH"
     },
     "NOI024": {
@@ -1892,20 +1892,20 @@
      "d": "transfer@base 10 USDC to alice.eth"
     },
     "NOI025": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->arbitrum 20 USDC | swap@arbitrum max USDC->ETH"
     },
     "NOI026": {
      "o": "ready",
      "d": "swap@solana 1 SOL->USDC"
     },
     "NOI027": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI028": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI029": {
      "o": "ready",
@@ -1916,44 +1916,44 @@
      "d": "swap@solana 1 SOL->USDC [orca]"
     },
     "NOI031": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | transfer@solana 10 USDC to carol.sns"
     },
     "NOI032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI033": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@base 0.1 ETH->USDC"
     },
     "NOI034": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI035": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 5 USDC to alice.eth"
     },
     "NOI036": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI037": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 0.5 SOL->USDC"
     },
     "NOI038": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI039": {
      "o": "ready",
      "d": "bridge@base->solana 25 USDC"
     },
     "NOI040": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "NOI041": {
      "o": "asked",
@@ -1973,19 +1973,19 @@
     },
     "DEP001": {
      "o": "ready",
-     "d": "deposit@base 100 USDC [aave-v3]"
+     "d": "bridge@arbitrum->base 100 USDC | deposit@base max USDC [aave-v3]"
     },
     "DEP002": {
      "o": "ready",
-     "d": "swap@base 50 USDC->ETH"
+     "d": "bridge@solana->base 50 USDC | swap@base max USDC->ETH"
     },
     "DEP003": {
-     "o": "ready",
-     "d": "bridge@base->solana 20 USDC to carol.sns"
+     "o": "asked",
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "DEP004": {
      "o": "ready",
-     "d": "deposit@arbitrum 500 USDC [aave-v3]"
+     "d": "bridge@base->arbitrum 500 USDC | deposit@arbitrum max USDC [aave-v3]"
     },
     "DEP005": {
      "o": "ready",
@@ -1997,23 +1997,23 @@
     },
     "DEP007": {
      "o": "ready",
-     "d": "deposit@base 50 USDC [moonwell]"
+     "d": "bridge@optimism->base 50 USDC | deposit@base max USDC [moonwell]"
     },
     "DEP008": {
      "o": "ready",
      "d": "bridge@solana->arbitrum 50 USDC | deposit@arbitrum max USDC [aave-v3]"
     },
     "DEP009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "DEP010": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->ethereum 0.2 ETH | stake@ethereum max ETH->wstETH {lido}"
     },
     "DEP011": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC | deposit@base max USDC [aave-v3]"
     },
     "DEP012": {
      "o": "confirm",
@@ -2028,8 +2028,8 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "DEP015": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@arbitrum->ethereum 0.1 ETH | stake@ethereum max ETH->rETH {rocket-pool}"
     },
     "DEP016": {
      "o": "ready",
@@ -2044,32 +2044,32 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "DEP019": {
-     "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "o": "ready",
+     "d": "bridge@base->solana 50 USDC->JitoSOL"
     },
     "DEP020": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "DEP021": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "DEP022": {
      "o": "asked",
      "d": "actions[1].protocol:VENUE_MISSING"
     },
     "DEP023": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->solana 50 USDC | deposit@solana max USDC [jupiter-lend]"
     },
     "DEP024": {
      "o": "ready",
      "d": "bridge@solana->base 20 USDC"
     },
     "DEP025": {
-     "o": "ready",
-     "d": "deposit@base 50 USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "DEP026": {
      "o": "ready",
@@ -2084,12 +2084,12 @@
      "d": "swap@base 0.1 ETH->USDC"
     },
     "DEP029": {
-     "o": "ready",
-     "d": "transfer@arbitrum 25 USDC to alice.eth"
+     "o": "asked",
+     "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "DEP030": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC to bob.base.eth"
     }
    },
    "plan": {
@@ -2098,12 +2098,12 @@
      "d": "swap@base 0.25 ETH->USDC [aerodrome]"
     },
     "CON002": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 100 USDC->WETH [uniswap-v3]"
     },
     "CON003": {
      "o": "ready",
-     "d": "deposit@base 50 USDC [aave-v3]"
+     "d": "swap@base 50 USDC->ETH [pancakeswap-v3]"
     },
     "CON004": {
      "o": "ready",
@@ -2154,8 +2154,8 @@
      "d": "swap@polygon 10 POL->USDC"
     },
     "CON016": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 2 SOL->USDC [jupiter]"
     },
     "CON017": {
      "o": "ready",
@@ -2202,7 +2202,7 @@
      "d": "swap@arbitrum 172.8498 USDC->ETH"
     },
     "CON028": {
-     "o": "confirm",
+     "o": "ready",
      "d": "swap@solana 100 USDC->SOL"
     },
     "CON029": {
@@ -2310,8 +2310,8 @@
      "d": "withdraw@base 100 USDC [aave-v3]"
     },
     "CON055": {
-     "o": "asked",
-     "d": "actions[0].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "withdraw@base max USDC [morpho:steakhouse-prime-usdc]"
     },
     "CON056": {
      "o": "ready",
@@ -2322,8 +2322,8 @@
      "d": "withdraw@solana 20 USDC [kamino]"
     },
     "CON058": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "withdraw@base 125 USDC [aave-v3]"
     },
     "CON059": {
      "o": "ready",
@@ -2346,11 +2346,11 @@
      "d": "stake@ethereum 1 ETH->wstETH {lido}"
     },
     "CON064": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@ethereum 0.5 ETH->rETH {rocket-pool}"
     },
     "CON065": {
-     "o": "ready",
+     "o": "confirm",
      "d": "stake@ethereum 0.5 ETH->weETH {etherfi}"
     },
     "CON066": {
@@ -2378,12 +2378,12 @@
      "d": "transfer@optimism 10 USDT to alice.eth"
     },
     "CON072": {
-     "o": "ready",
-     "d": "transfer@polygon 3 POL to alice.eth"
+     "o": "asked",
+     "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "CON073": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@ethereum 0.01 ETH to alice.eth"
     },
     "CON074": {
      "o": "ready",
@@ -2471,47 +2471,47 @@
     },
     "CON095": {
      "o": "ready",
-     "d": "deposit@solana 1 SOL [kamino]"
+     "d": "swap@solana 1 SOL->USDC [meteora]"
     },
     "XNT001": {
      "o": "asked",
-     "d": "actions[0].to:COUNTERPART_MISSING"
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "XNT002": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->solana 0.1 ETH->SOL"
     },
     "XNT003": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@arbitrum->solana 50 USDC->SOL"
     },
     "XNT004": {
-     "o": "asked",
-     "d": "actions[0].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "bridge@base->solana 100 USDC->SOL"
     },
     "XNT005": {
      "o": "ready",
      "d": "bridge@arbitrum->base 0.2 ETH->USDC"
     },
     "XNT006": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
+     "o": "ready",
+     "d": "bridge@solana->base 1 SOL->ETH"
     },
     "XNT007": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
+     "o": "ready",
+     "d": "bridge@solana->arbitrum 1 SOL->USDC"
     },
     "XNT008": {
      "o": "ready",
      "d": "bridge@base->polygon 0.5 ETH->POL"
     },
     "XNT009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@optimism->solana 100 USDC->SOL"
     },
     "XNT010": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->arbitrum 200 USDC->ETH"
     },
     "XNT011": {
      "o": "ready",
@@ -2522,32 +2522,32 @@
      "d": "bridge@arbitrum->optimism 345.007508 USDC->ETH"
     },
     "XNT013": {
-     "o": "asked",
-     "d": "actions[0].to:COUNTERPART_MISSING"
+     "o": "ready",
+     "d": "bridge@arbitrum->solana 0.4995 ETH->SOL"
     },
     "XNT014": {
-     "o": "ready",
-     "d": "bridge@solana->base 90 USDC | deposit@base max USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "XNT015": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@arbitrum->solana 50 USDC->SOL"
     },
     "XNT016": {
-     "o": "ready",
-     "d": "bridge@optimism->base 60 USDT->USDC"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "XNT017": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@ethereum->polygon 0.05 ETH->USDC"
     },
     "XNT018": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->solana 0.044743 ETH->SOL"
     },
     "XNT019": {
-     "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "o": "ready",
+     "d": "bridge@polygon->solana 30 USDC->JitoSOL"
     },
     "XNT020": {
      "o": "asked",
@@ -2574,8 +2574,8 @@
      "d": "bridge@arbitrum->polygon 20 USDT0"
     },
     "XNT026": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@solana->base 1 SOL->USDC"
     },
     "XNT027": {
      "o": "ready",
@@ -2591,19 +2591,19 @@
     },
     "XNT030": {
      "o": "ready",
-     "d": "bridge@base->solana 100 USDC | stake@solana max USDC->JitoSOL {jito}"
+     "d": "bridge@base->solana 100 USDC->SOL | stake@solana max SOL->JitoSOL {jito}"
     },
     "XNT031": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
+     "o": "ready",
+     "d": "bridge@solana->arbitrum 1 SOL->ETH"
     },
     "XNT032": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "XNT033": {
-     "o": "ready",
-     "d": "swap@solana 20 USDC->eth"
+     "o": "refused",
+     "d": "TOKEN_UNKNOWN"
     },
     "MUL001": {
      "o": "ready",
@@ -2638,12 +2638,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "MUL009": {
-     "o": "ready",
-     "d": "swap@solana 1 SOL->USDC | stake@solana max USDC->JitoSOL {jito}"
+     "o": "confirm",
+     "d": "swap@solana 1 SOL->USDC | stake@solana 4.99 SOL->JitoSOL {jito}"
     },
     "MUL010": {
-     "o": "asked",
-     "d": "actions[1].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@base 200 USDC->ETH | bridge@base->arbitrum 0.05 ETH"
     },
     "MUL011": {
      "o": "ready",
@@ -2658,16 +2658,16 @@
      "d": "deposit@base 100 USDC [aave-v3] | deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "MUL014": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 10 USDC to alice.eth | transfer@base 10 USDC to bob.base.eth"
     },
     "MUL015": {
      "o": "ready",
      "d": "swap@solana 1 SOL->USDC | bridge@solana->arbitrum max USDC | deposit@arbitrum max USDC [compound-v3]"
     },
     "MUL016": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].amount:AMOUNT_MISSING"
     },
     "MUL017": {
      "o": "ready",
@@ -2694,8 +2694,8 @@
      "d": "bridge@arbitrum->base 50 USDC | deposit@base max USDC [moonwell]"
     },
     "MUL023": {
-     "o": "asked",
-     "d": "actions[1].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | transfer@solana 20 USDC to carol.sns"
     },
     "MUL024": {
      "o": "ready",
@@ -2726,12 +2726,12 @@
      "d": "swap@base 500 USDC->ETH | transfer@base max(5000) ETH to alice.eth"
     },
     "MUL031": {
-     "o": "asked",
-     "d": "actions[1].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "bridge@base->arbitrum 100 USDC | deposit@arbitrum 60 USDC [aave-v3]"
     },
     "MUL032": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "MUL033": {
      "o": "ready",
@@ -2742,8 +2742,8 @@
      "d": "stake@solana 2 SOL->JitoSOL {jito} | stake@solana 1 SOL->mSOL {marinade}"
     },
     "MUL035": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | deposit@solana 10 USDC [kamino] | stake@solana 2 SOL->JitoSOL {jito}"
     },
     "MUL036": {
      "o": "refused",
@@ -2762,8 +2762,8 @@
      "d": "actions[1].protocol:VENUE_MISSING"
     },
     "MUL040": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@arbitrum->base 30 USDC | swap@base 10 USDC->ETH"
     },
     "ABS001": {
      "o": "refused",
@@ -2786,12 +2786,12 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS006": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@arbitrum 39.6875 USDC->ETH"
     },
     "ABS007": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "ABS008": {
      "o": "refused",
@@ -2815,11 +2815,11 @@
     },
     "ABS013": {
      "o": "ready",
-     "d": "deposit@base 500 USDC [aave-v3]"
+     "d": "deposit@base 500 USDC [morpho:steakhouse-prime-usdc]"
     },
     "ABS014": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].protocol:VENUE_MISSING"
     },
     "ABS015": {
      "o": "asked",
@@ -2846,8 +2846,8 @@
      "d": "swap@solana 3 SOL->USDC"
     },
     "ABS021": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 300 USDC"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS022": {
      "o": "refused",
@@ -2863,11 +2863,11 @@
     },
     "ABS025": {
      "o": "ready",
-     "d": "withdraw@base max USDC [aave-v3] | deposit@base max USDC [aave-v3]"
+     "d": "withdraw@base max USDC [aave-v3] | deposit@base max USDC [morpho:steakhouse-prime-usdc]"
     },
     "ABS026": {
-     "o": "refused",
-     "d": "POSITION_EMPTY"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS027": {
      "o": "asked",
@@ -2887,15 +2887,15 @@
     },
     "ABS031": {
      "o": "asked",
-     "d": "actions[0].to:OUTPUT_ASSET_MISSING"
+     "d": "actions[0].protocol:VENUE_MISSING"
     },
     "ABS032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS033": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 300 USDC"
+     "o": "asked",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS034": {
      "o": "refused",
@@ -2938,8 +2938,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "ABS044": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 240 USDC->ETH"
     },
     "ABS045": {
      "o": "ready",
@@ -2979,10 +2979,10 @@
     },
     "ABS054": {
      "o": "asked",
-     "d": "actions[0].amount:AMOUNT_MISSING"
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS055": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 250 USDC | bridge@solana->base 90 USDC"
     },
     "ABS056": {
@@ -3019,7 +3019,7 @@
     },
     "ABS064": {
      "o": "ready",
-     "d": "deposit@base 100 USDC [aave-v3]"
+     "d": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "PAY001": {
      "o": "asked",
@@ -3054,12 +3054,12 @@
      "d": "transfer@solana 15 USDC to carol.sns"
     },
     "PAY009": {
-     "o": "ready",
-     "d": "transfer@solana 100 USDC to carol.sns"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "PAY010": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "PAY011": {
      "o": "ready",
@@ -3099,15 +3099,15 @@
     },
     "PAY020": {
      "o": "asked",
-     "d": "actions[0].network:TRANSFER_NETWORK"
+     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
     },
     "PAY021": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "PAY022": {
-     "o": "ready",
-     "d": "transfer@solana 10 USDC to 0x1111111111111111111111111111111111111111"
+     "o": "asked",
+     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
     },
     "PAY023": {
      "o": "ready",
@@ -3162,16 +3162,16 @@
      "d": "transfer@arbitrum 100 USDC to alice.eth"
     },
     "PAY036": {
-     "o": "ready",
-     "d": "transfer@arbitrum 300 USDC to alice.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "PAY037": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@solana 0.1 SOL to toly.sns | transfer@base 1 USDC to vitalik.eth"
     },
     "PAY038": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "PAY039": {
      "o": "ready",
@@ -3182,16 +3182,16 @@
      "d": "transfer@polygon 2 POL to alice.eth"
     },
     "PAY041": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@ethereum 0.01 ETH to vitalik.eth"
     },
     "PAY042": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 5 USDC to bob.base.eth"
     },
     "PAY043": {
-     "o": "ready",
-     "d": "bridge@arbitrum->base 250 USDC | bridge@solana->base 90 USDC"
+     "o": "confirm",
+     "d": "transfer@base 800 USDC to alice.eth | transfer@base 0.2 WETH to alice.eth | transfer@base 0.3995 ETH to alice.eth"
     },
     "PAY044": {
      "o": "ready",
@@ -3210,8 +3210,8 @@
      "d": "actions[0].recipient:RECIPIENT_CHECKSUM"
     },
     "PAY046": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 3 USDC to vitalik.eth | transfer@base 4 USDC to jesse.base.eth | transfer@base 5 USDC to alice.eth"
     },
     "AMT001": {
      "o": "ready",
@@ -3270,8 +3270,8 @@
      "d": "swap@solana 299.99 SOL->USDC"
     },
     "AMT015": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@solana 75 SOL->JitoSOL {jito}"
     },
     "AMT016": {
      "o": "ready",
@@ -3282,36 +3282,36 @@
      "d": "actions[0].to:OUTPUT_ASSET_MISSING"
     },
     "AMT018": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "AMT019": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "AMT020": {
      "o": "asked",
      "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "AMT021": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "AMT022": {
-     "o": "asked",
-     "d": "actions[0].to:OUTPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@solana 1.5 SOL->USDC"
     },
     "AMT023": {
-     "o": "asked",
-     "d": "actions[0].to:OUTPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@solana 1.5 SOL->USDC"
     },
     "AMT024": {
      "o": "ready",
      "d": "swap@base 0.029304 ETH->USDC"
     },
     "AMT025": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 0.331081 SOL->USDC"
     },
     "AMT026": {
      "o": "ready",
@@ -3330,20 +3330,20 @@
      "d": "swap@solana 1000 USDC->SOL"
     },
     "AMT030": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1000 USDC->SOL"
     },
     "AMT031": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 1.000 USDC"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "AMT032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 15 USDC to alice.eth"
     },
     "AMT033": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 7.5 ETH->USDC"
     },
     "AMT034": {
      "o": "ready",
@@ -3354,8 +3354,8 @@
      "d": "swap@solana 30 SOL->USDC"
     },
     "AMT036": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "deposit@arbitrum 1500 USDC [aave-v3]"
     },
     "AMT037": {
      "o": "ready",
@@ -3366,12 +3366,12 @@
      "d": "bridge@base->solana 2500 USDC"
     },
     "AMT039": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@solana 0.5 SOL to carol.sns"
     },
     "AMT040": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 298 SOL->USDC"
     },
     "AMT041": {
      "o": "ready",
@@ -3390,24 +3390,24 @@
      "d": "swap@solana 0.013243 SOL->USDC"
     },
     "AMT045": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1500 USDC->SOL"
     },
     "AMT046": {
      "o": "ready",
      "d": "swap@solana 1500 USDC->SOL"
     },
     "AMT047": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "AMT048": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 100 USDC->ETH"
     },
     "AMT049": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@solana 0.5 SOL to carol.sns"
     },
     "AMT050": {
      "o": "ready",
@@ -3430,7 +3430,7 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "AMT055": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@base 1000 USDC to alice.eth"
     },
     "AMT056": {
@@ -3438,12 +3438,12 @@
      "d": "swap@solana 0.25 SOL->USDC"
     },
     "AMT057": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@arbitrum 1.5 ETH->USDC"
     },
     "AMT058": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "stake@solana 150 SOL->JitoSOL {jito}"
     },
     "QUE001": {
      "o": "refused",
@@ -3462,12 +3462,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "QUE005": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "QUE006": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "bridge@base->arbitrum 20 USDC"
     },
     "QUE007": {
      "o": "refused",
@@ -3506,12 +3506,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "QUE016": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "QUE017": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 5 USDC to alice.eth"
     },
     "QUE018": {
      "o": "refused",
@@ -3546,8 +3546,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "QUE026": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "QUE027": {
      "o": "refused",
@@ -3623,7 +3623,7 @@
     },
     "REF010": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF011": {
      "o": "asked",
@@ -3635,7 +3635,7 @@
     },
     "REF013": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF014": {
      "o": "refused",
@@ -3671,11 +3671,11 @@
     },
     "REF022": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF023": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF024": {
      "o": "ready",
@@ -3706,16 +3706,16 @@
      "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF031": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF033": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF034": {
      "o": "refused",
@@ -3730,8 +3730,8 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "REF037": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "REF038": {
      "o": "asked",
@@ -3774,20 +3774,20 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF048": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 3 SOL->USDC"
     },
     "REF049": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 0.5 SOL->USDC"
     },
     "REF050": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "REF051": {
-     "o": "ready",
-     "d": "swap@solana 5.99 SOL->USDC | stake@solana max USDC->JitoSOL {jito}"
+     "o": "asked",
+     "d": "actions[1].amount:SPEND_CONFLICT"
     },
     "REF052": {
      "o": "refused",
@@ -3886,8 +3886,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI001": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "NOI002": {
      "o": "refused",
@@ -3918,51 +3918,51 @@
      "d": "swap@solana 1 SOL->USDC"
     },
     "NOI009": {
-     "o": "confirm",
-     "d": "swap@solana 1 SOL->USDC"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "NOI010": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@solana 2 SOL->JitoSOL {jito}"
     },
     "NOI011": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 0.1 ETH to alice.eth"
     },
     "NOI012": {
      "o": "ready",
      "d": "bridge@base->arbitrum 50 USDC"
     },
     "NOI013": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->solana 50 USDC"
     },
     "NOI014": {
-     "o": "asked",
-     "d": "actions[0].from:ASSET_LOOKALIKE"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI015": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI016": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "deposit@base 100 USDC [aave-v3]"
     },
     "NOI017": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI018": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@solana 2 SOL->mSOL {marinade}"
     },
     "NOI019": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "bridge@arbitrum->base 25 USDC"
     },
     "NOI020": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@arbitrum 0.05 ETH->USDC"
     },
     "NOI021": {
@@ -3974,7 +3974,7 @@
      "d": "actions[0].from:ASSET_LOOKALIKE"
     },
     "NOI023": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@base 100 USDC->ETH"
     },
     "NOI024": {
@@ -3982,20 +3982,20 @@
      "d": "transfer@base 10 USDC to alice.eth"
     },
     "NOI025": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->arbitrum 20 USDC | swap@arbitrum max USDC->ETH"
     },
     "NOI026": {
      "o": "ready",
      "d": "swap@solana 1 SOL->USDC"
     },
     "NOI027": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI028": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI029": {
      "o": "ready",
@@ -4006,44 +4006,44 @@
      "d": "swap@solana 1 SOL->USDC [orca]"
     },
     "NOI031": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | transfer@solana 10 USDC to carol.sns"
     },
     "NOI032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI033": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@base 0.1 ETH->USDC"
     },
     "NOI034": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI035": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 5 USDC to alice.eth"
     },
     "NOI036": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI037": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 0.5 SOL->USDC"
     },
     "NOI038": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI039": {
      "o": "ready",
      "d": "bridge@base->solana 25 USDC"
     },
     "NOI040": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "NOI041": {
      "o": "asked",
@@ -4063,19 +4063,19 @@
     },
     "DEP001": {
      "o": "ready",
-     "d": "deposit@base 100 USDC [aave-v3]"
+     "d": "bridge@arbitrum->base 100 USDC | deposit@base max USDC [aave-v3]"
     },
     "DEP002": {
      "o": "ready",
-     "d": "swap@base 50 USDC->ETH"
+     "d": "bridge@solana->base 50 USDC | swap@base max USDC->ETH"
     },
     "DEP003": {
-     "o": "ready",
-     "d": "bridge@base->solana 20 USDC to carol.sns"
+     "o": "asked",
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "DEP004": {
      "o": "ready",
-     "d": "deposit@arbitrum 500 USDC [aave-v3]"
+     "d": "bridge@base->arbitrum 500 USDC | deposit@arbitrum max USDC [aave-v3]"
     },
     "DEP005": {
      "o": "ready",
@@ -4087,23 +4087,23 @@
     },
     "DEP007": {
      "o": "ready",
-     "d": "deposit@base 50 USDC [moonwell]"
+     "d": "bridge@optimism->base 50 USDC | deposit@base max USDC [moonwell]"
     },
     "DEP008": {
      "o": "ready",
      "d": "bridge@solana->arbitrum 50 USDC | deposit@arbitrum max USDC [aave-v3]"
     },
     "DEP009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "DEP010": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->ethereum 0.2 ETH | stake@ethereum max ETH->wstETH {lido}"
     },
     "DEP011": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC | deposit@base max USDC [aave-v3]"
     },
     "DEP012": {
      "o": "confirm",
@@ -4118,8 +4118,8 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "DEP015": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@arbitrum->ethereum 0.1 ETH | stake@ethereum max ETH->rETH {rocket-pool}"
     },
     "DEP016": {
      "o": "ready",
@@ -4134,32 +4134,32 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "DEP019": {
-     "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "o": "ready",
+     "d": "bridge@base->solana 50 USDC->JitoSOL"
     },
     "DEP020": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "DEP021": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "DEP022": {
      "o": "asked",
      "d": "actions[1].protocol:VENUE_MISSING"
     },
     "DEP023": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "bridge@base->solana 50 USDC | deposit@solana max USDC [jupiter-lend]"
     },
     "DEP024": {
      "o": "ready",
      "d": "bridge@solana->base 20 USDC"
     },
     "DEP025": {
-     "o": "ready",
-     "d": "deposit@base 50 USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "DEP026": {
      "o": "ready",
@@ -4174,12 +4174,12 @@
      "d": "swap@base 0.1 ETH->USDC"
     },
     "DEP029": {
-     "o": "ready",
-     "d": "transfer@arbitrum 25 USDC to alice.eth"
+     "o": "asked",
+     "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "DEP030": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC to bob.base.eth"
     }
    },
    "strict": {
@@ -4241,7 +4241,7 @@
     },
     "CON015": {
      "o": "refused",
-     "d": "TOKEN_UNVERIFIED"
+     "d": "TOKEN_UNKNOWN"
     },
     "CON016": {
      "o": "refused",
@@ -4692,8 +4692,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "XNT033": {
-     "o": "ready",
-     "d": "swap@solana 20 USDC->eth"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "MUL001": {
      "o": "ready",
@@ -5189,7 +5189,7 @@
     },
     "PAY020": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "PAY021": {
      "o": "refused",
@@ -5713,7 +5713,7 @@
     },
     "REF010": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF011": {
      "o": "refused",
@@ -5725,7 +5725,7 @@
     },
     "REF013": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF014": {
      "o": "refused",
@@ -5761,15 +5761,15 @@
     },
     "REF022": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF023": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "REF024": {
-     "o": "ready",
-     "d": "swap@solana 1 SOL->pepe"
+     "o": "refused",
+     "d": "TOKEN_UNKNOWN"
     },
     "REF025": {
      "o": "refused",
@@ -5857,7 +5857,7 @@
     },
     "REF046": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "REF047": {
      "o": "refused",
@@ -6061,7 +6061,7 @@
     },
     "NOI022": {
      "o": "refused",
-     "d": "TOKEN_UNVERIFIED"
+     "d": "TOKEN_UNKNOWN"
     },
     "NOI023": {
      "o": "refused",
@@ -6116,8 +6116,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "NOI036": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "NOI037": {
      "o": "refused",
@@ -6192,8 +6192,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "DEP011": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC | deposit@base max USDC [aave-v3]"
     },
     "DEP012": {
      "o": "ready",
@@ -6392,40 +6392,40 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT030": {
-     "o": "ready",
-     "d": "bridge@base->solana 25 USDC"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT031": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT033": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 0.5 USDC to vitalik.eth"
     },
     "RT034": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT035": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT036": {
-     "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT037": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 0.000005 ETH->USDC"
     },
     "RT038": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT039": {
      "o": "asked",
@@ -6440,24 +6440,24 @@
      "d": "swap@solana 0.5 SOL->USDC"
     },
     "RT042": {
-     "o": "ready",
-     "d": "swap@solana 3 SOL->USDC"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "RT043": {
      "o": "ready",
      "d": "swap@solana 0.25 SOL->USDC"
     },
     "RT044": {
-     "o": "asked",
-     "d": "actions[0].to:OUTPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@solana 1.5 SOL->USDC"
     },
     "RT045": {
      "o": "asked",
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT046": {
-     "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_MISSING"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT047": {
      "o": "asked",
@@ -6468,12 +6468,12 @@
      "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "RT049": {
-     "o": "ready",
-     "d": "transfer@base 2.500 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "RT050": {
-     "o": "ready",
-     "d": "swap@solana 1.000 USDC->SOL"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "RT051": {
      "o": "ready",
@@ -6492,8 +6492,8 @@
      "d": "swap@arbitrum 20 USDC->ETH"
     },
     "RT055": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "RT056": {
      "o": "refused",
@@ -6529,43 +6529,43 @@
     },
     "RT064": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT065": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT066": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT067": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT068": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT069": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT070": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT071": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT072": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT073": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT074": {
      "o": "ready",
@@ -6604,8 +6604,8 @@
      "d": "actions[0].to:ASSET_LOOKALIKE"
     },
     "RT083": {
-     "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "o": "asked",
+     "d": "actions[0].from:ASSET_LOOKALIKE"
     },
     "RT084": {
      "o": "asked",
@@ -6616,12 +6616,12 @@
      "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
     },
     "RT086": {
-     "o": "asked",
-     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT087": {
      "o": "asked",
-     "d": "actions[0].from:ASSET_AMBIGUOUS"
+     "d": "actions[0].from:ASSET_LOOKALIKE"
     },
     "RT088": {
      "o": "asked",
@@ -6632,44 +6632,44 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT090": {
-     "o": "ready",
-     "d": "swap@solana 1 SOL->usdc.e"
+     "o": "asked",
+     "d": "actions[0].to:ASSET_LOOKALIKE"
     },
     "RT091": {
      "o": "refused",
      "d": "POSITION_EMPTY"
     },
     "RT092": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].network:NETWORK_CONTRADICTION"
     },
     "RT093": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].network:NETWORK_CONTRADICTION"
     },
     "RT094": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].network:NETWORK_CONTRADICTION"
     },
     "RT095": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].network:NETWORK_CONTRADICTION"
     },
     "RT096": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC | deposit@base max USDC [aave-v3]"
     },
     "RT097": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT098": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 5 USDC to bob.base.eth"
     },
     "RT099": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 3 SOL->USDC"
     },
     "RT100": {
      "o": "refused",
@@ -6680,28 +6680,28 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT102": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 10 USDC to alice.eth | transfer@base 20 USDC to bob.base.eth"
     },
     "RT103": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT104": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "deposit@base 800 USDC [morpho:steakhouse-prime-usdc]"
     },
     "RT105": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@base 0.01 ETH->USDC"
     },
     "RT106": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@arbitrum 39.6875 USDC->ETH"
     },
     "RT107": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 0.5 SOL->USDC"
     },
     "RT108": {
      "o": "refused",
@@ -6712,12 +6712,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT110": {
-     "o": "ready",
-     "d": "swap@base 5 USDC->ETH | transfer@base max ETH to 0x1111111111111111111111111111111111111111"
+     "o": "asked",
+     "d": "actions[1].amount:REFERENCE_AMBIGUOUS"
     },
     "RT111": {
-     "o": "ready",
-     "d": "bridge@polygon->arbitrum 30 USDC | deposit@arbitrum max USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[1].network:GAS_ON_ARRIVAL"
     },
     "RT112": {
      "o": "asked",
@@ -6725,7 +6725,7 @@
     },
     "RT113": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "RT114": {
      "o": "asked",
@@ -6736,8 +6736,8 @@
      "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "RT116": {
-     "o": "asked",
-     "d": "actions[1].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "bridge@base->solana 100 USDC | swap@solana 50 USDC->JitoSOL"
     },
     "RT117": {
      "o": "refused",
@@ -6745,11 +6745,11 @@
     },
     "RT118": {
      "o": "ready",
-     "d": "deposit@base 50 USDC [aave-v3]"
+     "d": "bridge@solana->base 50 USDC | deposit@base max USDC [aave-v3]"
     },
     "RT119": {
-     "o": "ready",
-     "d": "bridge@arbitrum->base 250 USDC | bridge@solana->base 90 USDC"
+     "o": "confirm",
+     "d": "transfer@base 800 USDC to alice.eth | transfer@base 0.2 WETH to alice.eth | transfer@base 0.3995 ETH to alice.eth"
     },
     "RT120": {
      "o": "refused",
@@ -6768,12 +6768,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT124": {
-     "o": "ready",
-     "d": "transfer@base 20 USDC to vitalik.eth"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT125": {
-     "o": "ready",
-     "d": "transfer@base 50 USDC to 0x1111111111111111111111111111111111111111"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     }
    },
    "plan": {
@@ -6894,40 +6894,40 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT030": {
-     "o": "ready",
-     "d": "bridge@base->solana 25 USDC"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT031": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT033": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 0.5 USDC to vitalik.eth"
     },
     "RT034": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT035": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT036": {
-     "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT037": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 0.000005 ETH->USDC"
     },
     "RT038": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT039": {
      "o": "asked",
@@ -6942,24 +6942,24 @@
      "d": "swap@solana 0.5 SOL->USDC"
     },
     "RT042": {
-     "o": "ready",
-     "d": "swap@solana 3 SOL->USDC"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "RT043": {
      "o": "ready",
      "d": "swap@solana 0.25 SOL->USDC"
     },
     "RT044": {
-     "o": "asked",
-     "d": "actions[0].to:OUTPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "swap@solana 1.5 SOL->USDC"
     },
     "RT045": {
      "o": "asked",
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "RT046": {
-     "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_MISSING"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT047": {
      "o": "asked",
@@ -6970,12 +6970,12 @@
      "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "RT049": {
-     "o": "ready",
-     "d": "transfer@base 2.500 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "RT050": {
-     "o": "ready",
-     "d": "swap@solana 1.000 USDC->SOL"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "RT051": {
      "o": "ready",
@@ -6994,8 +6994,8 @@
      "d": "swap@arbitrum 20 USDC->ETH"
     },
     "RT055": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "RT056": {
      "o": "refused",
@@ -7031,43 +7031,43 @@
     },
     "RT064": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT065": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT066": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT067": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT068": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT069": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT070": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT071": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT072": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT073": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT074": {
      "o": "ready",
@@ -7106,8 +7106,8 @@
      "d": "actions[0].to:ASSET_LOOKALIKE"
     },
     "RT083": {
-     "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "o": "asked",
+     "d": "actions[0].from:ASSET_LOOKALIKE"
     },
     "RT084": {
      "o": "asked",
@@ -7118,12 +7118,12 @@
      "d": "actions[0].from:ASSET_NOT_ON_NETWORK"
     },
     "RT086": {
-     "o": "asked",
-     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT087": {
      "o": "asked",
-     "d": "actions[0].from:ASSET_AMBIGUOUS"
+     "d": "actions[0].from:ASSET_LOOKALIKE"
     },
     "RT088": {
      "o": "asked",
@@ -7134,44 +7134,44 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT090": {
-     "o": "ready",
-     "d": "swap@solana 1 SOL->usdc.e"
+     "o": "asked",
+     "d": "actions[0].to:ASSET_LOOKALIKE"
     },
     "RT091": {
      "o": "refused",
      "d": "POSITION_EMPTY"
     },
     "RT092": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].network:NETWORK_CONTRADICTION"
     },
     "RT093": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].network:NETWORK_CONTRADICTION"
     },
     "RT094": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].network:NETWORK_CONTRADICTION"
     },
     "RT095": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[1].network:NETWORK_CONTRADICTION"
     },
     "RT096": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC | deposit@base max USDC [aave-v3]"
     },
     "RT097": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT098": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "transfer@base 5 USDC to bob.base.eth"
     },
     "RT099": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 3 SOL->USDC"
     },
     "RT100": {
      "o": "refused",
@@ -7182,28 +7182,28 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT102": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 10 USDC to alice.eth | transfer@base 20 USDC to bob.base.eth"
     },
     "RT103": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT104": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "deposit@base 800 USDC [morpho:steakhouse-prime-usdc]"
     },
     "RT105": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@base 0.01 ETH->USDC"
     },
     "RT106": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@arbitrum 39.6875 USDC->ETH"
     },
     "RT107": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 0.5 SOL->USDC"
     },
     "RT108": {
      "o": "refused",
@@ -7214,12 +7214,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT110": {
-     "o": "ready",
-     "d": "swap@base 5 USDC->ETH | transfer@base max ETH to 0x1111111111111111111111111111111111111111"
+     "o": "asked",
+     "d": "actions[1].amount:REFERENCE_AMBIGUOUS"
     },
     "RT111": {
-     "o": "ready",
-     "d": "bridge@polygon->arbitrum 30 USDC | deposit@arbitrum max USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[1].network:GAS_ON_ARRIVAL"
     },
     "RT112": {
      "o": "asked",
@@ -7227,7 +7227,7 @@
     },
     "RT113": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "RT114": {
      "o": "asked",
@@ -7238,8 +7238,8 @@
      "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "RT116": {
-     "o": "asked",
-     "d": "actions[1].from:INPUT_ASSET_MISSING"
+     "o": "ready",
+     "d": "bridge@base->solana 100 USDC | swap@solana 50 USDC->JitoSOL"
     },
     "RT117": {
      "o": "refused",
@@ -7247,11 +7247,11 @@
     },
     "RT118": {
      "o": "ready",
-     "d": "deposit@base 50 USDC [aave-v3]"
+     "d": "bridge@solana->base 50 USDC | deposit@base max USDC [aave-v3]"
     },
     "RT119": {
-     "o": "ready",
-     "d": "bridge@arbitrum->base 250 USDC | bridge@solana->base 90 USDC"
+     "o": "confirm",
+     "d": "transfer@base 800 USDC to alice.eth | transfer@base 0.2 WETH to alice.eth | transfer@base 0.3995 ETH to alice.eth"
     },
     "RT120": {
      "o": "refused",
@@ -7270,12 +7270,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT124": {
-     "o": "ready",
-     "d": "transfer@base 20 USDC to vitalik.eth"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT125": {
-     "o": "ready",
-     "d": "transfer@base 50 USDC to 0x1111111111111111111111111111111111111111"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     }
    },
    "strict": {
@@ -7533,43 +7533,43 @@
     },
     "RT064": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT065": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT066": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT067": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT068": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT069": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT070": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT071": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT072": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT073": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "NETWORK_UNSUPPORTED"
     },
     "RT074": {
      "o": "ready",
@@ -7597,27 +7597,27 @@
     },
     "RT080": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT081": {
-     "o": "ready",
-     "d": "swap@solana 1 wsol->USDC"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT082": {
-     "o": "ready",
-     "d": "swap@solana 10 USDC->wsol"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT083": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT084": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT085": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT086": {
      "o": "refused",
@@ -7625,11 +7625,11 @@
     },
     "RT087": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT088": {
-     "o": "ready",
-     "d": "transfer@solana 1 wsol to carol.sns"
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT089": {
      "o": "refused",
@@ -7637,7 +7637,7 @@
     },
     "RT090": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "RT091": {
      "o": "refused",
@@ -7660,8 +7660,8 @@
      "d": "RECIPIENT_NAME_UNRESOLVED"
     },
     "RT096": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC | deposit@base max USDC [aave-v3]"
     },
     "RT097": {
      "o": "refused",
@@ -7720,8 +7720,8 @@
      "d": "swap@base 5 USDC->ETH | transfer@base max ETH to 0x1111111111111111111111111111111111111111"
     },
     "RT111": {
-     "o": "ready",
-     "d": "bridge@polygon->arbitrum 30 USDC | deposit@arbitrum max USDC [aave-v3]"
+     "o": "refused",
+     "d": "GAS_TOPUP_UNAVAILABLE"
     },
     "RT112": {
      "o": "ready",
@@ -7864,8 +7864,8 @@
      "d": "bridge@base->ethereum 20 USDC [lifi]"
     },
     "EXP021": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "EXP022": {
      "o": "ready",
@@ -7952,8 +7952,8 @@
      "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC"
     },
     "CAS001": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "CAS002": {
      "o": "ready",
@@ -7996,7 +7996,7 @@
      "d": "swap@solana 1 SOL->USDC"
     },
     "CAS012": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC"
     },
     "CAS013": {
@@ -8028,8 +8028,8 @@
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "CAS020": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "CAS021": {
      "o": "ready",
@@ -8152,8 +8152,8 @@
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "TER010": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "TER011": {
      "o": "ready",
@@ -8241,7 +8241,7 @@
     },
     "GAP012": {
      "o": "ready",
-     "d": "deposit@base 100 USDC [aave-v3]"
+     "d": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GAP013": {
      "o": "asked",
@@ -8249,7 +8249,7 @@
     },
     "GAP014": {
      "o": "asked",
-     "d": "actions[0].from:INPUT_ASSET_MISSING"
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "GAP015": {
      "o": "asked",
@@ -8416,11 +8416,11 @@
      "d": "bridge@base->arbitrum 0.007326 ETH"
     },
     "AMO026": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@arbitrum 30 USDC to vitalik.eth"
     },
     "AMO027": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@solana 1.25 SOL to toly.sns"
     },
     "AMO028": {
@@ -8440,8 +8440,8 @@
      "d": "stake@solana 2.49 SOL->JitoSOL {jito}"
     },
     "AMO032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "stake@solana 1 SOL->JitoSOL {jito}"
     },
     "AMO033": {
      "o": "ready",
@@ -8480,8 +8480,8 @@
      "d": "swap@solana 1.5 SOL->USDC"
     },
     "AMO042": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "AMO043": {
      "o": "ready",
@@ -8497,23 +8497,23 @@
     },
     "GOA001": {
      "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA002": {
-     "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "GOA003": {
      "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA004": {
      "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA005": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA006": {
      "o": "asked",
@@ -8540,20 +8540,20 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "GOA012": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 0.01 ETH"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA013": {
-     "o": "ready",
-     "d": "bridge@base->solana 100 USDC"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA014": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 20 USDC"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA015": {
      "o": "asked",
-     "d": "actions[0].amount:AMOUNT_MISSING"
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA016": {
      "o": "asked",
@@ -8561,7 +8561,7 @@
     },
     "GOA017": {
      "o": "asked",
-     "d": "actions[0].amount:AMOUNT_MISSING"
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA018": {
      "o": "asked",
@@ -8572,11 +8572,11 @@
      "d": "bridge@base->polygon 5 USDC"
     },
     "GOA020": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 30 USDC | bridge@polygon->base 0.004 WETH | bridge@solana->base 12 USDC"
     },
     "GOA021": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 30 USDC | bridge@solana->base 12 USDC"
     },
     "GOA022": {
@@ -8604,8 +8604,8 @@
      "d": "swap@solana 2.49 SOL->USDC"
     },
     "GOA028": {
-     "o": "ready",
-     "d": "swap@base 0.0495 ETH->USDC"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "GOA029": {
      "o": "asked",
@@ -8613,7 +8613,7 @@
     },
     "GOA030": {
      "o": "refused",
-     "d": "SWAP_SAME_ASSET"
+     "d": "INTENT_UNSUPPORTED"
     },
     "GOA031": {
      "o": "asked",
@@ -8656,12 +8656,12 @@
      "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "GOA041": {
-     "o": "ready",
-     "d": "transfer@solana 20 USDC to toly.sns"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "GOA042": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "GOA043": {
      "o": "asked",
@@ -8689,7 +8689,7 @@
     },
     "GOA049": {
      "o": "ready",
-     "d": "deposit@base 100 USDC [aave-v3]"
+     "d": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA050": {
      "o": "asked",
@@ -8796,7 +8796,7 @@
      "d": "swap@solana 1 SOL->USDC | deposit@solana 5 USDC [kamino]"
     },
     "TYP001": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@solana 1 SOL->USDC"
     },
     "TYP002": {
@@ -8812,31 +8812,31 @@
      "d": "actions[0].to:ASSET_LOOKALIKE"
     },
     "TYP005": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC"
     },
     "TYP006": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC"
     },
     "TYP007": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC"
     },
     "TYP008": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "TYP009": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "TYP010": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@ethereum 0.001 ETH->USDC"
     },
     "TYP011": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@polygon 1 POL->USDC"
     },
     "TYP012": {
@@ -8844,59 +8844,59 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "TYP013": {
-     "o": "ready",
+     "o": "confirm",
      "d": "deposit@base 100 USDC [aave-v3]"
     },
     "TYP014": {
-     "o": "ready",
+     "o": "confirm",
      "d": "deposit@base 100 USDC [aave-v3]"
     },
     "TYP015": {
-     "o": "ready",
+     "o": "confirm",
      "d": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "TYP016": {
-     "o": "ready",
+     "o": "confirm",
      "d": "deposit@solana 10 USDC [kamino]"
     },
     "TYP017": {
-     "o": "ready",
+     "o": "confirm",
      "d": "withdraw@base 50 USDC [aave-v3]"
     },
     "TYP018": {
-     "o": "ready",
+     "o": "confirm",
      "d": "stake@solana 1 SOL->JitoSOL {jito}"
     },
     "TYP019": {
-     "o": "ready",
+     "o": "confirm",
      "d": "stake@solana 1 SOL->JitoSOL {jito}"
     },
     "TYP020": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "TYP021": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "TYP022": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@solana 1 SOL->USDC"
     },
     "TYP023": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC [across]"
     },
     "TYP024": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@base 10 USDC->ETH [uniswap-v3]"
     },
     "TYP025": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@base 10 USDC->ETH [aerodrome]"
     },
     "TYP026": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "TYP027": {
@@ -8925,7 +8925,7 @@
     },
     "REC003": {
      "o": "asked",
-     "d": "actions[0].network:TRANSFER_NETWORK"
+     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
     },
     "REC004": {
      "o": "asked",
@@ -8985,7 +8985,7 @@
     },
     "WAL003": {
      "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "WAL004": {
      "o": "asked",
@@ -9004,8 +9004,8 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "WAL008": {
-     "o": "ready",
-     "d": "bridge@solana->base 100 USDC | deposit@base max USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "WAL009": {
      "o": "ready",
@@ -9028,8 +9028,8 @@
      "d": "actions[0].amount:AMOUNT_BALANCE_UNKNOWN"
     },
     "WAL014": {
-     "o": "ready",
-     "d": "bridge@solana->arbitrum 20 USDC"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "WAL015": {
      "o": "asked",
@@ -9144,7 +9144,7 @@
      "d": "bridge@arbitrum->base 0.0095 ETH"
     },
     "AMO048": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@solana 0.625 SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
     },
     "AMO049": {
@@ -9294,8 +9294,8 @@
      "d": "bridge@base->ethereum 20 USDC [lifi]"
     },
     "EXP021": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "EXP022": {
      "o": "ready",
@@ -9382,8 +9382,8 @@
      "d": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC"
     },
     "CAS001": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@solana 1 SOL->USDC"
     },
     "CAS002": {
      "o": "ready",
@@ -9426,7 +9426,7 @@
      "d": "swap@solana 1 SOL->USDC"
     },
     "CAS012": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC"
     },
     "CAS013": {
@@ -9458,8 +9458,8 @@
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "CAS020": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "CAS021": {
      "o": "ready",
@@ -9582,8 +9582,8 @@
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "TER010": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "TER011": {
      "o": "ready",
@@ -9671,7 +9671,7 @@
     },
     "GAP012": {
      "o": "ready",
-     "d": "deposit@base 100 USDC [aave-v3]"
+     "d": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GAP013": {
      "o": "asked",
@@ -9679,7 +9679,7 @@
     },
     "GAP014": {
      "o": "asked",
-     "d": "actions[0].from:INPUT_ASSET_MISSING"
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "GAP015": {
      "o": "asked",
@@ -9846,11 +9846,11 @@
      "d": "bridge@base->arbitrum 0.007326 ETH"
     },
     "AMO026": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@arbitrum 30 USDC to vitalik.eth"
     },
     "AMO027": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@solana 1.25 SOL to toly.sns"
     },
     "AMO028": {
@@ -9870,8 +9870,8 @@
      "d": "stake@solana 2.49 SOL->JitoSOL {jito}"
     },
     "AMO032": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "stake@solana 1 SOL->JitoSOL {jito}"
     },
     "AMO033": {
      "o": "ready",
@@ -9910,8 +9910,8 @@
      "d": "swap@solana 1.5 SOL->USDC"
     },
     "AMO042": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"
     },
     "AMO043": {
      "o": "ready",
@@ -9927,23 +9927,23 @@
     },
     "GOA001": {
      "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA002": {
-     "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "GOA003": {
      "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA004": {
      "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA005": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA006": {
      "o": "asked",
@@ -9970,20 +9970,20 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "GOA012": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 0.01 ETH"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA013": {
-     "o": "ready",
-     "d": "bridge@base->solana 100 USDC"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA014": {
-     "o": "ready",
-     "d": "bridge@base->arbitrum 20 USDC"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA015": {
      "o": "asked",
-     "d": "actions[0].amount:AMOUNT_MISSING"
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA016": {
      "o": "asked",
@@ -9991,7 +9991,7 @@
     },
     "GOA017": {
      "o": "asked",
-     "d": "actions[0].amount:AMOUNT_MISSING"
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "GOA018": {
      "o": "asked",
@@ -10002,11 +10002,11 @@
      "d": "bridge@base->polygon 5 USDC"
     },
     "GOA020": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 30 USDC | bridge@polygon->base 0.004 WETH | bridge@solana->base 12 USDC"
     },
     "GOA021": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 30 USDC | bridge@solana->base 12 USDC"
     },
     "GOA022": {
@@ -10034,8 +10034,8 @@
      "d": "swap@solana 2.49 SOL->USDC"
     },
     "GOA028": {
-     "o": "ready",
-     "d": "swap@base 0.0495 ETH->USDC"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "GOA029": {
      "o": "asked",
@@ -10043,7 +10043,7 @@
     },
     "GOA030": {
      "o": "refused",
-     "d": "SWAP_SAME_ASSET"
+     "d": "INTENT_UNSUPPORTED"
     },
     "GOA031": {
      "o": "asked",
@@ -10086,12 +10086,12 @@
      "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "GOA041": {
-     "o": "ready",
-     "d": "transfer@solana 20 USDC to toly.sns"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "GOA042": {
      "o": "asked",
-     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
+     "d": "actions[0].amount:DELIVERY_AMOUNT"
     },
     "GOA043": {
      "o": "asked",
@@ -10119,7 +10119,7 @@
     },
     "GOA049": {
      "o": "ready",
-     "d": "deposit@base 100 USDC [aave-v3]"
+     "d": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "GOA050": {
      "o": "asked",
@@ -10226,7 +10226,7 @@
      "d": "swap@solana 1 SOL->USDC | deposit@solana 5 USDC [kamino]"
     },
     "TYP001": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@solana 1 SOL->USDC"
     },
     "TYP002": {
@@ -10242,31 +10242,31 @@
      "d": "actions[0].to:ASSET_LOOKALIKE"
     },
     "TYP005": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC"
     },
     "TYP006": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC"
     },
     "TYP007": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC"
     },
     "TYP008": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "TYP009": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "TYP010": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@ethereum 0.001 ETH->USDC"
     },
     "TYP011": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@polygon 1 POL->USDC"
     },
     "TYP012": {
@@ -10274,59 +10274,59 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "TYP013": {
-     "o": "ready",
+     "o": "confirm",
      "d": "deposit@base 100 USDC [aave-v3]"
     },
     "TYP014": {
-     "o": "ready",
+     "o": "confirm",
      "d": "deposit@base 100 USDC [aave-v3]"
     },
     "TYP015": {
-     "o": "ready",
+     "o": "confirm",
      "d": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]"
     },
     "TYP016": {
-     "o": "ready",
+     "o": "confirm",
      "d": "deposit@solana 10 USDC [kamino]"
     },
     "TYP017": {
-     "o": "ready",
+     "o": "confirm",
      "d": "withdraw@base 50 USDC [aave-v3]"
     },
     "TYP018": {
-     "o": "ready",
+     "o": "confirm",
      "d": "stake@solana 1 SOL->JitoSOL {jito}"
     },
     "TYP019": {
-     "o": "ready",
+     "o": "confirm",
      "d": "stake@solana 1 SOL->JitoSOL {jito}"
     },
     "TYP020": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "TYP021": {
-     "o": "ready",
-     "d": "transfer@optimism 5 USDC to vitalik.eth"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "TYP022": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@solana 1 SOL->USDC"
     },
     "TYP023": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@base->solana 25 USDC [across]"
     },
     "TYP024": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@base 10 USDC->ETH [uniswap-v3]"
     },
     "TYP025": {
-     "o": "ready",
+     "o": "confirm",
      "d": "swap@base 10 USDC->ETH [aerodrome]"
     },
     "TYP026": {
-     "o": "ready",
+     "o": "confirm",
      "d": "bridge@arbitrum->base 10 USDC"
     },
     "TYP027": {
@@ -10355,7 +10355,7 @@
     },
     "REC003": {
      "o": "asked",
-     "d": "actions[0].network:TRANSFER_NETWORK"
+     "d": "actions[0].recipient:RECIPIENT_NETWORK_MISMATCH"
     },
     "REC004": {
      "o": "asked",
@@ -10415,7 +10415,7 @@
     },
     "WAL003": {
      "o": "ready",
-     "d": "deposit@base 120.4 USDC [aave-v3]"
+     "d": "deposit@base 120.4 USDC [morpho:steakhouse-prime-usdc]"
     },
     "WAL004": {
      "o": "asked",
@@ -10434,8 +10434,8 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "WAL008": {
-     "o": "ready",
-     "d": "bridge@solana->base 100 USDC | deposit@base max USDC [aave-v3]"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "WAL009": {
      "o": "ready",
@@ -10458,8 +10458,8 @@
      "d": "actions[0].amount:AMOUNT_BALANCE_UNKNOWN"
     },
     "WAL014": {
-     "o": "ready",
-     "d": "bridge@solana->arbitrum 20 USDC"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "WAL015": {
      "o": "asked",
@@ -10574,7 +10574,7 @@
      "d": "bridge@arbitrum->base 0.0095 ETH"
     },
     "AMO048": {
-     "o": "ready",
+     "o": "confirm",
      "d": "transfer@solana 0.625 SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
     },
     "AMO049": {
@@ -11665,11 +11665,11 @@
     },
     "TYP003": {
      "o": "refused",
-     "d": "TOKEN_UNVERIFIED"
+     "d": "TOKEN_UNKNOWN"
     },
     "TYP004": {
      "o": "refused",
-     "d": "TOKEN_UNVERIFIED"
+     "d": "TOKEN_UNKNOWN"
     },
     "TYP005": {
      "o": "refused",
@@ -11785,7 +11785,7 @@
     },
     "REC003": {
      "o": "refused",
-     "d": "TOKEN_UNKNOWN"
+     "d": "INTENT_UNSUPPORTED"
     },
     "REC004": {
      "o": "ready",
@@ -11992,8 +11992,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF025": {
-     "o": "ready",
-     "d": "swap@solana 1 SOL->DOGE"
+     "o": "refused",
+     "d": "TOKEN_UNKNOWN"
     },
     "AMO046": {
      "o": "refused",

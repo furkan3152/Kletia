@@ -192,6 +192,17 @@ test("venue contracts are pinned per network and role", () => {
   assert.ok(!isVenueContract("relay", "base", "0x4cd00e387622c35bddb9b4c962c136462338bc31", "approval-proxy"));
   assert.ok(!isVenueContract("lifi", "solana", "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"));
   assert.deepEqual(venueContracts("debridge-dln", "solana", "dln-source"), ["src5qyZHqTqecJV4aY6Cb6zDZLMDzrDKKezs22MPHr4"]);
+  // deBridge source swaps and the optional aggregator (intent design RC6, RC5, red-team D8): EVM only, one pin per role.
+  for (const network of ["base", "arbitrum", "ethereum", "optimism", "polygon"]) {
+    assert.deepEqual(venueContracts("debridge-dln", network, "dln-forwarder"), ["0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251"]);
+    assert.deepEqual(venueContracts("debridge-dln", network, "dln-swap-router"), ["0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"]);
+    assert.equal(venueContracts("debridge-dln", network, "dln-surplus-recipient").length, 1);
+    assert.deepEqual(venueContracts("kyberswap", network, "aggregator-router"), ["0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"]);
+  }
+  assert.deepEqual(venueContracts("debridge-dln", "solana", "dln-forwarder"), []);
+  const kyber = getProtocol("kyberswap");
+  assert.equal(kyber.kinds, undefined, "optional venue: no capability rows while it is off by default");
+  assert.equal(kyber.words, undefined, "optional venue: no reader vocabulary");
 });
 
 test("request validation bounds maxSeconds and venue params", () => {
@@ -220,9 +231,10 @@ const ROUND6_PROTOCOLS = [
 ];
 
 test("round 6 registry: 44 entries, 42 real protocols, execution surfaces and routed venues", () => {
-  // Round 7 adds seven ids (protocols design 3.0) and the routing design the wrap venue (B.3, D10): 52 entries, 50 real protocols.
-  assert.equal(PROTOCOLS.length, 52);
-  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 50);
+  // Round 7 adds seven ids (protocols design 3.0), the routing design the wrap venue (B.3, D10) and the optional
+  // aggregator venue (B.4 RC5, O5): 53 entries, 51 real protocols.
+  assert.equal(PROTOCOLS.length, 53);
+  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 51);
   for (const id of ROUND6_PROTOCOLS) assert.ok(getProtocol(id), id);
   assert.equal(getProtocol("spark"), null, "no bare spark id: Spark Savings and SparkLend are separate");
   assert.deepEqual(AMBIGUOUS_VENUE_WORDS.spark, ["spark-savings", "sparklend"]);

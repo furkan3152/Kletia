@@ -191,3 +191,35 @@ describe("class spends (WP9): every holding of the class, never one", () => {
     assert.ok(run.decision.state.steps.every((step) => step.goal === undefined));
   });
 });
+
+describe("keep constraints (A.2, C.1 rule 9): subtracted before a share of the holding", () => {
+  async function withKeep(text: string, keep: unknown[]): Promise<{ decision?: TurnDecision; error?: { code: string; message: string } }> {
+    const plain = await first(text);
+    const thread = JSON.parse(JSON.stringify(plain.decision!.thread)) as { steps: Record<string, unknown>[] };
+    thread.steps[0]!.keep = keep;
+    installWallet(corpus, "full");
+    return runTurn(thread as never, { none: true }, contextFor(corpus, { id: "t", category: "test", title: "t", wallet: "full", turns: [] } as CorpusCase));
+  }
+
+  it("'all my SOL' after keeping 1 SOL spends the rest (fee reserve kept too), shown on a material chip", async () => {
+    const run = await withKeep("swap all my SOL to USDC", [{ amount: { t: "exact", value: "1" } }]);
+    assert.equal(shape(run.decision?.actions ?? []), "swap@solana 1.49 SOL->USDC");
+    const chip = run.decision?.assumptions.find((entry) => entry.field === "actions[0].amount");
+    assert.equal(chip?.label, "All your SOL after keeping 1: 1.49");
+    assert.ok(chip?.material);
+  });
+
+  it("an exact amount that does not fit beside what is kept is asked; a keep that leaves nothing refuses", async () => {
+    const asked = await withKeep("swap 2 SOL to USDC", [{ amount: { t: "exact", value: "1" } }]);
+    assert.equal(asked.decision?.questions[0]?.reason, "AMOUNT_EXCEEDS_BALANCE");
+    assert.deepEqual(asked.decision?.questions[0]?.options.map((option) => option.id), ["rest", "cancel"]);
+    const nothing = await withKeep("swap all my SOL to USDC", [{ amount: { t: "exact", value: "3" } }]);
+    assert.equal(nothing.error?.code, "AMOUNT_TOO_SMALL");
+  });
+
+  it("a keep this step cannot apply (another asset) asks the amount, never plans around it", async () => {
+    const run = await withKeep("swap all my SOL to USDC", [{ amount: { t: "exact", value: "1" }, asset: "USDC" }]);
+    assert.equal(run.decision?.status, "needs_input");
+    assert.equal(run.decision?.questions[0]?.reason, "AMOUNT_MISSING");
+  });
+});

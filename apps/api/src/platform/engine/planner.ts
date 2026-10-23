@@ -73,6 +73,10 @@ import {
   type StepEvidence,
   type YieldVenue,
   type YieldVenueAction,
+  ROUTE_PREFERENCES,
+  type RouteChoice,
+  type RoutePreference,
+  type RouteScore,
 } from "@kletia/core";
 import { PlatformError, toPlatformError, unsupported } from "../errors.js";
 import { accountForNetwork, ownAccountOn, parseAccounts, recipientForNetwork, sameAddress } from "./accounts.js";
@@ -85,7 +89,7 @@ import { contractOutputAsset, evmSnapshot, solanaSnapshot } from "./contracts/sn
 import { assetAmount, assetFromRef, resolveAsset, resolvedFromDescriptor, sameAsset, type ResolvedAsset } from "./assets.js";
 import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult, type QuoteContact } from "./auction.js";
 import { pickFundedSource, resolveDeparture, type DepartureBalanceReader } from "./departure.js";
-import { knownAmount, readFacts } from "./holdings.js";
+import { knownAmount, onlyPreviewAccounts, readFacts } from "./holdings.js";
 import { estimateStepFee, gasPriceFrom, rentFrom, SOLANA_WALLET_RENT_FALLBACK } from "./journey/fees.js";
 import {
   compileIntentText,
@@ -102,11 +106,17 @@ import {
 import { looksLikeName, normalizeName, resolveRecipientName, type NameResolution } from "./names.js";
 import { screenIntentRequest } from "./secretScreen.js";
 import { decodeStepRef, encodeStepRef } from "./stepRef.js";
-import { newIntentId, portionOf, roundUsd } from "./util.js";
+import { isRecord, newIntentId, portionOf, roundUsd } from "./util.js";
 import { assertFeeSanity, assertSignatureCap, PlanBudget } from "./routing/caps.js";
-import { assertWithinDeadline } from "./routing/deadline.js";
+import { assertWithinDeadline, remainingMs } from "./routing/deadline.js";
 import { readAssetUsd } from "./routing/score.js";
+import { rankedByRate, rankYieldVenues } from "./solver/yieldRank.js";
 import { providersContacted, routeChoice } from "./routing/snapshot.js";
+import { compareShapes, RUNNER_UP_MIN_BUDGET_MS, shouldPlanRunnerUp, type LegQuoter, type ShapeEvaluation } from "./routing/composer.js";
+import { currentRoutePin, legPinKey, sizeExactDelivery } from "./routing/deliverExact.js";
+import { compositeRouteChoice } from "./routing/explain.js";
+import { arrivalGasState, gasShortfallError, gasUnknownWarning, planGas, type GasPlanFacts, type GasPlanReader, type GasPlanStep } from "./routing/gasPlan.js";
+import { compositesAllowed, enumerateShapes, sameFamily, type LegSpec, type ShapeCandidate } from "./routing/shapes.js";
 
 export const DEFAULT_SLIPPAGE_BPS = 50;
 export const INTENT_TTL_MS = 30 * 60 * 1000;
@@ -202,6 +212,12 @@ export interface NormalizedAction {
   readonly contract?: string;
   readonly entry?: string;
   readonly params?: Readonly<Record<string, string | number | boolean>>;
+  /** A payment whose recipient receives exactly `amount` (seam S10): the input is sized by inverse quoting. */
+  readonly receiveExact?: true;
+  /** The venue this leg is planned with (a composed shape's pre-screen winner); not a named venue. */
+  readonly pin?: ProtocolId;
+  /** A crossing leg the planner inserted between dependent steps on different networks (design C.5). */
+  readonly inserted?: true;
 }
 
 export interface PlanOptions {
@@ -327,6 +343,27 @@ function normalizeContractAction(spec: IntentActionSpec, index: number): Normali
   };
 }
 
+/**
+ * `receiveExact` (seam S10): only `true`, only on a payment (a transfer, or a
+ * bridge that pays a recipient) with an exact amount. A same-network
+ * transfer delivers its amount by construction; a crossing payment is sized
+ * by inverse quoting (routing/deliverExact.ts).
+ */
+function exactDelivery(spec: IntentActionSpec, kind: IntentActionKind, amount: AmountSpec, path: string): true | undefined {
+  const raw = (spec as { readonly receiveExact?: unknown }).receiveExact;
+  if (raw === undefined || raw === false) return undefined;
+  if (raw !== true) {
+    throw new PlatformError("INVALID_REQUEST", "receiveExact must be true when set.", 400, issue(`${path}.receiveExact`, "Must be true."));
+  }
+  if ((kind !== "transfer" && kind !== "bridge") || !spec.recipient) {
+    throw new PlatformError("INVALID_REQUEST", "receiveExact applies to payments only: a transfer or a bridge with a recipient.", 400, issue(`${path}.receiveExact`, "Not a payment."));
+  }
+  if (amount.type !== "exact") {
+    throw new PlatformError("INVALID_REQUEST", "receiveExact needs an exact amount (the amount the recipient receives).", 400, issue(`${path}.amount`, "Must be a decimal amount."));
+  }
+  return true;
+}
+
 /** Normalises structured or grammar-produced actions and enforces one capital lane. */
 export function normalizeActions(actions: readonly IntentActionSpec[], request: IntentRequest): NormalizedAction[] {
   const normalized = actions.map((spec, index): NormalizedAction => {
@@ -445,6 +482,7 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
     if (venue && !lending) {
       throw unsupported("params.venue applies to deposit and withdraw actions only.", GRAMMAR_EXAMPLES, issue(`${path}.params.venue`, "Unsupported."));
     }
+    const receiveExact = exactDelivery(spec, kind, amount, path);
     return {
       index,
       kind,
@@ -457,6 +495,7 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
       ...(protocol ? { protocol } : {}),
       ...(provider ? { provider } : {}),
       ...(venue ? { venue } : {}),
+      ...(receiveExact ? { receiveExact } : {}),
     };
   });
   const lane = normalized[0]?.network;
@@ -626,7 +665,7 @@ async function resolveInput(action: NormalizedAction, previous: PreviousStep | n
     }
     if (previous.network !== action.network) {
       throw unsupported(
-        `Step ${action.index + 1} spends funds on ${CHAINS[action.network].name}, but step ${action.index} delivers them on ${CHAINS[previous.network].name}.`,
+        `Step ${action.index + 1} spends funds on ${CHAINS[action.network].name}, but step ${action.index} delivers them on ${CHAINS[previous.network].name}. Add a bridge step between them (structured actions may set constraints.allowCrossings).`,
         GRAMMAR_EXAMPLES,
       );
     }
@@ -746,12 +785,59 @@ function namedVenue(action: NormalizedAction, reference: string, input: Resolved
   return sharing.find((entry) => entry.actions.includes(kind)) ?? sharing[0] ?? venue;
 }
 
+/** Refusals of the strict grammar itself (not of planning): what the strict Goal-reader fallback may read instead. */
+const GRAMMAR_REFUSALS = new WeakSet<object>();
+
+/** True when `error` is the strict grammar's own INTENT_UNSUPPORTED for the request text (design C.5). */
+export function isGrammarRefusal(error: unknown): boolean {
+  return typeof error === "object" && error !== null && GRAMMAR_REFUSALS.has(error);
+}
+
+/** Bound of the earn ranking's reads inside a plan (design B.3; the reads are cached a minute). */
+const VENUE_RANK_DEADLINE_MS = 1_500;
+
+/**
+ * The deposit venue chosen by rate (design B.3, seam S3, U3 RC10): the first
+ * venue `rankYieldVenues` compared on its 7-day rate (or kept as the only or
+ * the named protocol's default venue) among `eligible`, with its reason; null
+ * when the ranking compared none (the registry default then applies, said in
+ * a warning) or the reads failed. Never makes an ineligible venue eligible.
+ */
+async function rankedDepositVenue(
+  action: NormalizedAction,
+  input: ResolvedAsset,
+  eligible: readonly YieldVenue[],
+): Promise<{ readonly venue: YieldVenue; readonly why: string } | null> {
+  if (eligible.length < 2 && !action.protocol) return null;
+  const deadlineMs = Math.min(VENUE_RANK_DEADLINE_MS, Math.max(1, remainingMs() - 1_000));
+  let ranked: Awaited<ReturnType<typeof rankYieldVenues>>;
+  try {
+    ranked = await rankYieldVenues({
+      network: action.network,
+      symbol: input.symbol,
+      ...(action.protocol ? { protocol: action.protocol } : {}),
+      deadlineMs,
+    });
+  } catch {
+    return null;
+  }
+  const allowed = new Set(eligible.map((venue) => venue.id));
+  const pick = ranked.find((entry) => entry.compared && allowed.has(entry.venue.id));
+  if (!pick) return null;
+  const venue = eligible.find((entry) => entry.id === pick.venue.id) as YieldVenue;
+  return { venue, why: rankedByRate(pick) ? `Chose ${venue.name} by rate: ${pick.why}` : `Chose ${venue.name}: ${pick.why}` };
+}
+
 /**
  * Resolves and validates the registry venue of a deposit / withdraw: the
- * named venue (`params.venue`), else the default venue of the named protocol,
- * else the first lending protocol (preferred first) with a live adapter.
+ * named venue (`params.venue`), else, for a deposit, a preferred protocol's
+ * venue, else the venue ranked best by rate among the eligible ones (design
+ * B.3, `rankYieldVenues`; a named protocol's vaults are ranked the same way,
+ * Q8), else the registry default (the first lending protocol with a live
+ * adapter, or the named protocol's first venue). Withdraws keep the
+ * registry default: the venue is the position's.
  */
-function resolveVenue(action: NormalizedAction, input: ResolvedAsset, route: AdapterRoute, request: IntentRequest): VenueChoice {
+async function resolveVenue(action: NormalizedAction, input: ResolvedAsset, route: AdapterRoute, request: IntentRequest): Promise<VenueChoice> {
   const kind = action.kind as YieldVenueAction;
   const chain = CHAINS[action.network];
   const path = `actions[${action.index}]`;
@@ -783,6 +869,8 @@ function resolveVenue(action: NormalizedAction, input: ResolvedAsset, route: Ada
     venue.network === action.network && venue.actions.includes(kind) && venueAssetMatches(venue, input) &&
     (!action.protocol || venue.protocol === action.protocol) && !avoid.has(venue.protocol));
   let venue: YieldVenue | undefined;
+  const rankWarnings: string[] = [];
+  const prefer = (request.constraints?.preferProtocols ?? []).filter((id) => LENDING_PROTOCOLS.includes(id));
   if (action.protocol) {
     venue = venues[0];
     if (!venue) {
@@ -796,18 +884,33 @@ function resolveVenue(action: NormalizedAction, input: ResolvedAsset, route: Ada
       );
     }
   } else {
-    const prefer = (request.constraints?.preferProtocols ?? []).filter((id) => LENDING_PROTOCOLS.includes(id));
     const order = [...prefer, ...LENDING_PROTOCOLS.filter((id) => !prefer.includes(id))];
     venue = order
       .map((protocol) => venues.find((entry) => entry.protocol === protocol))
       .find((entry): entry is YieldVenue => entry !== undefined && candidateAdapters(route, request.constraints, entry.protocol).length > 0);
     if (!venue) throw unsupportedRoute(route);
   }
-  const alternatives = venues.filter((entry) => entry.protocol === venue.protocol && entry !== venue);
-  const warnings = alternatives.length > 0
-    ? [`Using ${venue.name}; name another ${getProtocol(venue.protocol)?.name ?? venue.protocol} venue with params.venue (${alternatives.map((entry) => entry.slug).join(", ")}).`]
-    : [];
-  return { venue, warnings };
+  // Design B.3 (seam S3): a deposit with no preferred protocol goes to the venue ranked best by its 7-day rate among
+  // the executable ones (a named protocol's vaults are ranked the same way, Q8). The registry default above stays when
+  // the ranking compared none; a preferred protocol keeps the preference (B.1: preferred protocols first).
+  const preferred = !action.protocol && prefer.some((protocol) => venues.some((entry) => entry.protocol === protocol));
+  if (kind === "deposit" && !preferred) {
+    const executable = venues.filter((entry) => candidateAdapters(route, request.constraints, entry.protocol).length > 0);
+    const ranked = await rankedDepositVenue(action, input, executable);
+    if (ranked && ranked.venue.id !== venue.id) {
+      venue = ranked.venue;
+      rankWarnings.push(ranked.why);
+    }
+  }
+  const chosen = venue;
+  const alternatives = venues.filter((entry) => entry.protocol === chosen.protocol && entry !== chosen);
+  const warnings = [
+    ...rankWarnings,
+    ...(alternatives.length > 0
+      ? [`Using ${chosen.name}; name another ${getProtocol(chosen.protocol)?.name ?? chosen.protocol} venue with params.venue (${alternatives.map((entry) => entry.slug).join(", ")}).`]
+      : []),
+  ];
+  return { venue: chosen, warnings };
 }
 
 function baseUnits(value: string, asset: ResolvedAsset, index: number): string {
@@ -1100,7 +1203,7 @@ async function draftStep(
     output,
   };
   const lending = action.kind === "deposit" || action.kind === "withdraw";
-  const choice = lending ? resolveVenue(action, input, route, request) : null;
+  const choice = lending ? await resolveVenue(action, input, route, request) : null;
   const requested = choice ? choice.venue.protocol : action.protocol === "jupiter" && action.kind === "stake" ? undefined : action.protocol;
   if (requested && !choice) {
     // A named venue is never replaced: an avoided venue, or one routed through an avoided protocol, refuses the step.
@@ -1119,6 +1222,14 @@ async function draftStep(
   }
   let candidates = candidateAdapters(route, request.constraints, requested);
   if (candidates.length === 0) throw noCandidates(route, requested);
+  // A composed shape's leg runs on the venue its pre-screen chose; an exact-delivery or link sizing run 2-3 on run 1's.
+  const pinKey = legPinKey(route);
+  const pinned = action.pin ?? currentRoutePin()?.venue(pinKey);
+  if (pinned && !requested) {
+    const kept = candidates.filter((adapter) => effectiveProtocol(adapter, route) === pinned);
+    if (kept.length > 0) candidates = kept;
+  }
+  candidates = await dlnEligible(candidates, route, accounts, request, context);
   // Gas on arrival: an eligible leg (own recipient, output not the destination's gas asset) is served only by
   // venues that deliver gas with the fill.
   const gasTopupUsd = context.gasTopupUsd !== undefined && gasTopupEligible(route, recipient, accounts) ? context.gasTopupUsd : undefined;
@@ -1158,8 +1269,12 @@ async function draftStep(
     ...(closePosition ? { closePosition: true } : {}),
     ...(destinationAccount ? { destinationAccount } : {}),
     ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}),
+    ...(request.constraints?.maxSeconds !== undefined
+      ? { timeBudget: { maxSeconds: request.constraints.maxSeconds, fastest: request.constraints.routePreference === "fastest" } }
+      : {}),
   };
   const { adapter, planned, auction } = await planWithCandidates(candidates, adapterAction, request, context.trace);
+  currentRoutePin()?.recordVenue(pinKey, planned.protocol);
   if (gasTopupUsd !== undefined && !planned.gasTopup) {
     throw new PlatformError("PROVIDER_TRANSACTION_INVALID", `${adapter.label} planned the leg without the gas top-up it was asked for.`, 502);
   }
@@ -1184,6 +1299,10 @@ async function draftStep(
       ...(auction?.warnings ?? []),
       ...(gasReserve ? [reserveWarning(gasReserve, action.network)] : []),
       ...(gasTopupUsd !== undefined && planned.gasTopup ? [topupWarning(planned.gasTopup, route.destinationNetwork, adapter)] : []),
+      // D2: a declared fallback asset is shown with the plan.
+      ...(planned.fallbackOutput && !sameAsset(planned.fallbackOutput, output)
+        ? [`If the swap on ${CHAINS[route.destinationNetwork].name} fails, you receive ${planned.fallbackOutput.formatted} ${planned.fallbackOutput.symbol} on ${CHAINS[route.destinationNetwork].name} instead.`]
+        : []),
     ],
     output: sameAsset(plannedOutput, output) ? output : assetFromRef(plannedOutput),
     funded: action.amount.type === "previous",
@@ -1218,6 +1337,60 @@ function gasTopupUnavailable(network: NetworkKey, request: IntentRequest): Platf
     422,
     issue(`constraints.gasOnArrival.${network}`, "No venue delivers gas with this leg."),
   );
+}
+
+/** Gas of a deBridge DLN cancel on the destination (typical, x1.5 headroom). */
+const DLN_CANCEL_GAS_UNITS = 225_000n;
+/** Lamports of a DLN cancel on Solana (signature plus priority fee). */
+const DLN_CANCEL_LAMPORTS = 105_000n;
+
+/**
+ * deBridge DLN eligibility (design B.1, red-team D3). An unfilled DLN order
+ * is cancelled only by its destination authority, with a transaction on the
+ * destination network:
+ * - across VMs without the person's own account on the destination, the
+ *   authority would be the recipient: DLN is not eligible;
+ * - a DLN leg needs gas on the destination for a possible cancel, or a gas
+ *   top-up on the leg: a balance known to be short excludes DLN.
+ * When DLN was the only venue, the step is refused (fail closed).
+ */
+async function dlnEligible(
+  candidates: ProtocolAdapter[],
+  route: AdapterRoute,
+  accounts: readonly ParsedAccountId[],
+  request: IntentRequest,
+  context: DraftContext,
+): Promise<ProtocolAdapter[]> {
+  if (route.kind !== "bridge" || route.network === route.destinationNetwork) return candidates;
+  const isDln = (adapter: ProtocolAdapter) => effectiveProtocol(adapter, route) === "debridge-dln";
+  if (!candidates.some(isDln)) return candidates;
+  const own = ownAccountOn(accounts, route.destinationNetwork);
+  const crossVm = CHAINS[route.network].namespace !== CHAINS[route.destinationNetwork].namespace;
+  let reason: string | null = null;
+  let gasShort: { needUnits: bigint; haveUnits: bigint } | null = null;
+  if (crossVm && !own) {
+    reason = `deBridge DLN needs your own account on ${CHAINS[route.destinationNetwork].name} to cancel an order no solver fills; add it to accounts.`;
+  } else if (own && context.gasTopupUsd === undefined) {
+    const facts = await gasReserveReader(route.destinationNetwork, own, request.accounts).catch(() => null);
+    if (facts && facts.balance !== null) {
+      const evm = CHAINS[route.destinationNetwork].vm === "evm";
+      const price = facts.gasPriceWei ?? FALLBACK_GAS_PRICE_WEI[route.destinationNetwork] ?? FALLBACK_GAS_PRICE_DEFAULT_WEI;
+      const need = evm ? DLN_CANCEL_GAS_UNITS * price : DLN_CANCEL_LAMPORTS;
+      if (facts.balance < need) {
+        gasShort = { needUnits: need, haveUnits: facts.balance };
+        reason = `deBridge DLN needs ${CHAINS[route.destinationNetwork].nativeAsset.symbol} on ${CHAINS[route.destinationNetwork].name} to cancel an order no solver fills, and your account holds too little there.`;
+      }
+    }
+  }
+  if (!reason) return candidates;
+  const kept = candidates.filter((adapter) => !isDln(adapter));
+  if (kept.length > 0) return kept;
+  if (gasShort) {
+    throw new PlatformError("GAS_TOPUP_UNAVAILABLE", `${reason} Bring gas there first, or set constraints.gasOnArrival.${route.destinationNetwork}.`, 422,
+      issue(`constraints.gasOnArrival.${route.destinationNetwork}`, "No gas for a possible cancel."), [],
+      { network: route.destinationNetwork, needUnits: gasShort.needUnits.toString(), haveUnits: gasShort.haveUnits.toString() });
+  }
+  throw new PlatformError("ROUTE_UNSUPPORTED", reason, 422);
 }
 
 /** The network's native asset as a placeholder input of non-spending call / action steps. */
@@ -1629,10 +1802,322 @@ export function summarize(
 }
 
 /** Phrases of the registrations the key may use (none without a key, a directory or with the kill switch on). */
-async function contractPhrases(ownerKeyId: string | undefined): Promise<readonly ContractPhrase[]> {
+export async function contractPhrases(ownerKeyId: string | undefined): Promise<readonly ContractPhrase[]> {
   const directory = contractDirectory();
   if (!ownerKeyId || !directory || !contractsEnabled()) return [];
   return directory.phrases(ownerKeyId);
+}
+
+/* ---------------------------------------------------- composer helpers */
+
+/** The shape a route pin records for a crossing ("swap-bridge-swap:USDC"). */
+function shapePinValue(candidate: Pick<ShapeCandidate, "shape" | "carrier" | "asWritten">): string {
+  return `${candidate.shape}:${candidate.asWritten ? "written" : candidate.carrier ?? ""}`;
+}
+
+/** The base units a crossing moves (its exact amount, or its share of the previous step's minimum); null when unknown. */
+function crossingAmount(action: NormalizedAction, input: ResolvedAsset, previous: PreviousStep | null): bigint | null {
+  if (action.amount.type === "exact") {
+    try {
+      return BigInt(toBaseUnits(action.amount.value, input.decimals));
+    } catch {
+      return null;
+    }
+  }
+  if (action.amount.type === "previous" && previous?.step.minimumOutput) return BigInt(portionOf(previous.step.minimumOutput.amount, action.amount.portionBps));
+  return null;
+}
+
+/**
+ * The resolved input and output of a crossing the composer may compare, or
+ * null when the step is not composable (its own draft then plans or refuses
+ * it as before): the previous output belongs to someone else, a
+ * transfer-only asset, or a resolution failure.
+ */
+async function crossingAssets(action: NormalizedAction, previous: PreviousStep | null, accounts: readonly ParsedAccountId[]): Promise<{ readonly input: ResolvedAsset; readonly output: ResolvedAsset } | null> {
+  try {
+    if (action.amount.type === "previous" && previous && !sameAddress(previous.recipient, accountForNetwork(accounts, action.network))) return null;
+    const input = await resolveInput(action, previous);
+    const output = await resolveOutput(action, input);
+    if (input.transferOnly || output.transferOnly || sameAsset(input, output)) return null;
+    return { input, output };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The legs of a composed shape as planner actions: the first spends the
+ * crossing's amount, every later one the previous leg's whole output (its
+ * guaranteed minimum: chained floors, D5); assets by exact id (carriers by
+ * address, A10); each leg on the venue its pre-screen chose; the last pays
+ * the crossing's recipient.
+ */
+function shapeActions(evaluation: ShapeEvaluation, base: NormalizedAction): NormalizedAction[] {
+  const legs = evaluation.candidate.legs;
+  return legs.map((leg, position): NormalizedAction => {
+    const pin = evaluation.legs[position]?.winner.protocol;
+    return {
+      index: base.index,
+      kind: leg.kind,
+      network: leg.input.network,
+      destinationNetwork: leg.output.network,
+      amount: position === 0 ? base.amount : { type: "previous", portionBps: 10_000 },
+      from: leg.input.id,
+      to: leg.output.id,
+      ...(position === legs.length - 1 && base.recipient ? { recipient: base.recipient } : {}),
+      ...(pin ? { pin } : {}),
+      ...(base.inserted ? { inserted: true as const } : {}),
+    };
+  });
+}
+
+/** The planned route's own value, score and chained minimum (the pre-screen's costs, the real outputs). */
+function realRoute(evaluation: ShapeEvaluation, built: readonly IntentStep[]): { value: number | null; score: RouteScore | null; minimum: bigint | null } {
+  const last = built[built.length - 1];
+  const minimumOut = last?.minimumOutput;
+  const expectedOut = last?.expectedOutput;
+  const minimum = minimumOut ? BigInt(minimumOut.amount) : null;
+  if (!evaluation.score || !minimumOut || !expectedOut || minimum === null) return { value: evaluation.value, score: evaluation.score, minimum };
+  const { estimate: _estimate, ...score } = evaluation.score;
+  const priceOut = evaluation.legs[evaluation.legs.length - 1]?.snapshot.prices.out ?? null;
+  if (priceOut === null || evaluation.value === null || evaluation.expected === null) return { value: evaluation.value, score, minimum };
+  const expected = BigInt(expectedOut.amount);
+  const units = (amount: bigint) => Number(amount) / 10 ** expectedOut.decimals;
+  const value = evaluation.value + units(expected - evaluation.expected) * priceOut;
+  const round = (amount: number) => Math.round(amount * 10_000) / 10_000;
+  return {
+    value,
+    minimum,
+    score: { ...score, valueUsd: round(value), expectedUsd: round(units(expected) * priceOut), minimumUsd: round((Number(minimum) / 10 ** minimumOut.decimals) * priceOut) },
+  };
+}
+
+/**
+ * A payment whose recipient receives exactly the stated amount (seam S10):
+ * the input is sized by inverse quoting (routing/deliverExact.ts), at most
+ * three plans, runs 2-3 on run 1's venue. The delivered token must be the
+ * same family as the spent one (the stated amount names both). A failure
+ * refuses with `details { exactDelivery, statedAmount, quotedReceive }`
+ * (seam S7: the decision layer asks DELIVERY_AMOUNT).
+ */
+async function exactDeliveryDraft(
+  action: NormalizedAction,
+  previous: PreviousStep | null,
+  draft: (action: NormalizedAction, later: readonly NormalizedAction[]) => Promise<StepDraft>,
+  later: readonly NormalizedAction[],
+): Promise<StepDraft> {
+  if (action.amount.type !== "exact") {
+    throw new PlatformError("INVALID_REQUEST", "receiveExact needs an exact amount.", 400, issue(`actions[${action.index}].amount`, "Must be a decimal amount."));
+  }
+  const input = await resolveInput(action, previous);
+  const output = await resolveOutput(action, input);
+  if (!sameFamily(input, output)) {
+    throw unsupported(
+      `receiveExact delivers the token that is sent: ${input.symbol} arrives as ${output.symbol}, so the stated amount would name two tokens. Remove receiveExact, or send ${input.symbol} to receive ${input.symbol}.`,
+      GRAMMAR_EXAMPLES,
+      issue(`actions[${action.index}].receiveExact`, "Different tokens."),
+    );
+  }
+  const stated = action.amount.value;
+  const target = BigInt(baseUnits(stated, output, action.index));
+  const sized = await sizeExactDelivery({
+    targetUnits: target,
+    targetDecimals: output.decimals,
+    inputDecimals: input.decimals,
+    plan: async (units, check) => {
+      const planned = await draft({ ...action, amount: { type: "exact", value: fromBaseUnits(units, input.decimals) } }, later);
+      check(BigInt(planned.planned.minimumOutput?.amount ?? "0"));
+      return planned;
+    },
+    unquotable: (detail, last) => new PlatformError(
+      "ROUTE_UNSUPPORTED",
+      `No quote delivers ${stated} ${output.symbol} to the recipient on ${CHAINS[output.network].name} (${detail}). Send ${stated} ${input.symbol} and let the recipient receive what arrives, or retry shortly.`,
+      422,
+      issue(`actions[${action.index}].receiveExact`, "Exact delivery could not be quoted."),
+      [],
+      { exactDelivery: true, statedAmount: stated, quotedReceive: last ? fromBaseUnits(last.minimumUnits, output.decimals) : null },
+    ),
+  });
+  const sent = fromBaseUnits(sized.inputUnits, input.decimals);
+  return { ...sized.value, notes: [...sized.value.notes, `The recipient receives at least ${stated} ${output.symbol}; ${sent} ${input.symbol} is sent to cover the crossing's fees.`] };
+}
+
+/** The gas plan's reader: the F6 reserve reader on the person's own account there (one read per network and plan). */
+function gasPlanReader(accounts: readonly ParsedAccountId[], ids: readonly AccountId[]): GasPlanReader {
+  const reads = new Map<NetworkKey, Promise<GasPlanFacts>>();
+  return (network) => {
+    let read = reads.get(network);
+    if (!read) {
+      const account = ownAccountOn(accounts, network);
+      read = account
+        ? gasReserveReader(network, account, ids).then((facts) => ({ balance: facts.balance, gasPriceWei: facts.gasPriceWei, tokenAccountRentLamports: facts.tokenAccountRentLamports }))
+        : Promise.resolve({ balance: null, gasPriceWei: null, tokenAccountRentLamports: null });
+      read.catch(() => undefined);
+      reads.set(network, read);
+    }
+    return read;
+  };
+}
+
+/** One planned step as the gas plan sees it (C.3). */
+function gasPlanStep(draft: StepDraft, step: IntentStep, position: number, accounts: readonly ParsedAccountId[]): GasPlanStep {
+  const destination = draft.action.destinationNetwork;
+  const own = accounts.some((account) => sameAddress(account, draft.recipient));
+  const topup = draft.gasTopupUsd !== undefined ? (draft.planned as PlannedStep).gasTopup : undefined;
+  return {
+    index: position,
+    network: draft.action.network,
+    kind: draft.action.kind,
+    protocol: draft.planned.protocol,
+    ...(step.input ? { inputAsset: step.input.asset } : {}),
+    transactions: draft.planned.transactionCount,
+    ...(destination !== draft.action.network && own
+      ? { arrives: { network: destination, native: draft.output?.isNative === true, ...(topup ? { topupUnits: BigInt(topup.amount) } : {}) } }
+      : {}),
+  };
+}
+
+/* ------------------------------------------- route options and crossings */
+
+/** Route options of a request (design D.1), read strictly. */
+interface RouteOptions {
+  readonly routePreference?: RoutePreference;
+  readonly routeShapes?: "auto" | "single";
+  readonly allowCrossings: boolean;
+}
+
+/**
+ * `constraints.routePreference`, `routeShapes` and `allowCrossings`: from the
+ * validated request, else from the raw input with strict types (the request
+ * validator does not carry them yet; a wrong type is ignored, never guessed).
+ */
+function routeOptionsOf(input: unknown, request: IntentRequest): RouteOptions {
+  const validated = (request.constraints ?? {}) as Record<string, unknown>;
+  const raw = isRecord(input) && isRecord(input.constraints) ? input.constraints : {};
+  const pick = (key: string): unknown => (validated[key] !== undefined ? validated[key] : raw[key]);
+  const preference = pick("routePreference");
+  const shapes = pick("routeShapes");
+  return {
+    ...(typeof preference === "string" && (ROUTE_PREFERENCES as readonly string[]).includes(preference) ? { routePreference: preference as RoutePreference } : {}),
+    ...(shapes === "auto" || shapes === "single" ? { routeShapes: shapes } : {}),
+    allowCrossings: pick("allowCrossings") === true,
+  };
+}
+
+/** The request the planner plans with: the validated request plus its route options. */
+function withRouteOptions(request: IntentRequest, options: RouteOptions): IntentRequest {
+  if (!options.routePreference && !options.routeShapes && !options.allowCrossings) return request;
+  return {
+    ...request,
+    constraints: {
+      ...(request.constraints ?? {}),
+      ...(options.routePreference ? { routePreference: options.routePreference } : {}),
+      ...(options.routeShapes ? { routeShapes: options.routeShapes } : {}),
+      ...(options.allowCrossings ? { allowCrossings: true } : {}),
+    },
+  };
+}
+
+/** True when a raw recipient is one of the request's own accounts. */
+function ownRecipient(raw: string, accounts: readonly ParsedAccountId[]): boolean {
+  const parsed = parseAccountId(raw);
+  const address = (parsed?.address ?? raw).trim().toLowerCase();
+  return accounts.some((account) => account.address.toLowerCase() === address);
+}
+
+/**
+ * Strict-path safety net (design C.5, I6): a step that spends the previous
+ * step's output on another network gets a crossing leg (a bridge, or a
+ * cross-network convert chosen like any other crossing) that carries the
+ * step's share of that output, and an `interpretation.optimizations` note.
+ * It never spends other funds on the step's own network instead.
+ *
+ * Only a step whose network was said (text) or given (structured actions)
+ * gets a crossing; payments to someone else (their receiving network is
+ * purpose, I13) and dependent bridges never do.
+ *
+ * Refused instead of bridged, in this order:
+ * - the previous output is paid to someone else (the recipient guard runs
+ *   before any crossing is inserted: a third party's output is never
+ *   replaced by the person's own funds; red-team A7);
+ * - the previous step is a bridge, whose destination the person said, or the
+ *   crossing would return the funds to a network they already left (C.1
+ *   rule 6: a contradiction, never a round trip);
+ * - call / action steps (registrations run where they are registered).
+ * Structured `actions[]` keep refusing a network mismatch unless the request
+ * sets `constraints.allowCrossings` (red-team C6).
+ */
+function insertCrossings(
+  actions: readonly NormalizedAction[],
+  source: "structured" | "grammar",
+  allowCrossings: boolean,
+  accounts: readonly ParsedAccountId[],
+  explicitNetwork: readonly boolean[],
+): { readonly actions: NormalizedAction[]; readonly notes: string[] } {
+  const out: NormalizedAction[] = [];
+  const notes: string[] = [];
+  let path: NetworkKey[] = [];
+  for (const action of actions) {
+    const previous = out[out.length - 1];
+    if (action.amount.type !== "previous" || !previous) {
+      path = [action.network, ...(action.destinationNetwork !== action.network ? [action.destinationNetwork] : [])];
+      out.push(action);
+      continue;
+    }
+    const landed = previous.destinationNetwork;
+    // Only a step whose own network was said (or is explicit in structured actions) is bridged to; a payment to
+    // someone else, whose receiving network is purpose (I13), and a dependent bridge from another network keep
+    // the refusal (resolveInput), never a crossing chosen for them.
+    const said = source === "structured" || explicitNetwork[action.index] === true;
+    if (landed === action.network || (source === "structured" && !allowCrossings) || !said ||
+      action.kind === "transfer" || action.kind === "bridge" ||
+      CONTRACT_KINDS.includes(action.kind) || CONTRACT_KINDS.includes(previous.kind)) {
+      if (action.destinationNetwork !== action.network) path.push(action.destinationNetwork);
+      out.push(action);
+      continue;
+    }
+    const step = action.index + 1;
+    const here = CHAINS[action.network].name;
+    const there = CHAINS[landed].name;
+    if (previous.kind === "transfer" || (previous.recipient !== undefined && !ownRecipient(previous.recipient, accounts))) {
+      throw unsupported(
+        `Step ${step} spends the output of step ${action.index}, but that output is paid to ${previous.recipient ?? "another account"}, not to your account. Give step ${step} an explicit amount.`,
+        GRAMMAR_EXAMPLES,
+        issue(`actions[${action.index}].amount`, "The previous step pays another account."),
+      );
+    }
+    if (previous.kind === "bridge") {
+      throw unsupported(
+        `Step ${step} runs on ${here}, but step ${action.index} bridges the funds to ${there}. Kletia will not bridge them again or use other funds on ${here}. Say one network: run step ${step} on ${there}, or bridge to ${here} in step ${action.index}.`,
+        GRAMMAR_EXAMPLES,
+        issue(`actions[${action.index}].network`, "Contradicts the previous step's destination."),
+      );
+    }
+    if (path.includes(action.network) || (action.destinationNetwork !== action.network && [...path, landed].includes(action.destinationNetwork))) {
+      throw unsupported(
+        `Step ${step} runs on ${here}, a network these funds already left. Kletia will not move them back and forth; rewrite the request with one route.`,
+        GRAMMAR_EXAMPLES,
+        issue(`actions[${action.index}].network`, "A round trip."),
+      );
+    }
+    out.push(
+      {
+        index: action.index,
+        kind: "bridge",
+        network: landed,
+        destinationNetwork: action.network,
+        amount: { type: "previous", portionBps: action.amount.portionBps },
+        ...(action.from ? { to: action.from } : {}),
+        inserted: true,
+      },
+      { ...action, amount: { type: "previous", portionBps: 10_000 } },
+    );
+    notes.push(`Added a bridge from ${there} to ${here} between steps ${action.index} and ${step}: step ${step} runs on ${here}.`);
+    path.push(action.network);
+    if (action.destinationNetwork !== action.network) path.push(action.destinationNetwork);
+  }
+  return { actions: out, notes };
 }
 
 /** Plans an intent into a quote-backed IntentGraph (not persisted). */
@@ -1729,13 +2214,19 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     const defaultNetwork = request.defaultNetwork ?? fixedSource;
     let compiled: GrammarResult;
     try {
-      compiled = compile(defaultNetwork);
+      try {
+        compiled = compile(defaultNetwork);
+      } catch (error) {
+        // auto: a bridge whose sentence names no source starts on the best-funded network.
+        if (sourceNetwork !== "auto" || !(error instanceof MissingSourceError)) throw error;
+        const picked = await pickFundedSource(error.missing, request.accounts, request, readBalance);
+        compiled = compile(picked.network);
+        departure = picked.departure;
+      }
     } catch (error) {
-      // auto: a bridge whose sentence names no source starts on the best-funded network.
-      if (sourceNetwork !== "auto" || !(error instanceof MissingSourceError)) throw error;
-      const picked = await pickFundedSource(error.missing, request.accounts, request, readBalance);
-      compiled = compile(picked.network);
-      departure = picked.departure;
+      // The strict grammar could not read the text (the strict Goal-reader fallback in service.ts may take it).
+      if (error instanceof PlatformError && error.code === "INTENT_UNSUPPORTED") GRAMMAR_REFUSALS.add(error);
+      throw error;
     }
     source = "grammar";
     specs = compiled.actions;
@@ -1747,60 +2238,262 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
   if (sourceNetwork !== undefined && departure === undefined) {
     const resolved = await resolveDeparture(specs, explicitNetwork, request, request.accounts, readBalance);
     specs = resolved.actions;
+    // Kept aligned with the actions (a departure bridge is prepended unsaid): the safety net reads it.
+    explicitNetwork = resolved.explicitNetwork.length === specs.length ? resolved.explicitNetwork : specs.map(() => false);
     departure = resolved.departure;
     plannerWarnings.push(...resolved.warnings);
   }
-  const actions = normalizeActions(specs, request);
+  // Route options (D.1): routePreference, routeShapes and allowCrossings shape every choice below.
+  const routeOptions = routeOptionsOf(input, request);
+  const planning = withRouteOptions(request, routeOptions);
+  const normalized = normalizeActions(specs, planning);
+  // Strict-path safety net (C.5): dependent steps on another network get a crossing leg, or are refused.
+  const crossed = insertCrossings(normalized, source, routeOptions.allowCrossings, accounts, explicitNetwork);
+  const actions = crossed.actions;
   await options.beforeQuote?.(actions.map((action) => ({ network: action.network, destinationNetwork: action.destinationNetwork })));
   // Registrations resolve against the contract authority (a flow's saver) when one is given.
   const contractKeyId = options.contractAuthorityKeyId ?? options.ownerKeyId;
 
   const drafts: StepDraft[] = [];
-  const optimizations: string[] = [];
+  const optimizations: string[] = [...crossed.notes];
   const trace: PlanTrace = { budget: new PlanBudget(), contacts: [] };
   let previous: PreviousStep | null = null;
   const steps: IntentStep[] = [];
+  /** Crossings the composer compared (design C.2): their steps and route explanation (B.5). */
+  const composedRoutes: { readonly stepIds: readonly string[]; readonly choice: RouteChoice }[] = [];
   // Gas on arrival: networks still waiting for the first eligible leg that arrives there.
   const topups = new Map(Object.entries(request.constraints?.gasOnArrival ?? {}) as [NetworkKey, string][]);
   const arrivals = new Map<NetworkKey, "native" | "third-party">();
   const reserved = new Set<string>();
-  for (let index = 0; index < actions.length; index += 1) {
-    const action = actions[index] as NormalizedAction;
-    const next = actions[index + 1];
-    let draft: StepDraft | null = null;
-    const gasTopupUsd = action.kind === "bridge" ? topups.get(action.destinationNetwork) : undefined;
-    const context = (later: readonly NormalizedAction[]): DraftContext => ({ later, reserved, trace, ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}) });
-    assertWithinDeadline();
-    if (canMerge(action, next, request)) {
-      const merged: NormalizedAction = {
-        ...action,
-        to: next.to as string,
-        ...(next.provider ? { provider: next.provider } : {}),
-      };
-      try {
-        const candidate = await draftStep(merged, previous, accounts, request, contractKeyId, context(actions.slice(index + 2)));
-        const venue = getProtocol(candidate.planned.protocol)?.name ?? candidate.adapter.label;
-        draft = { ...candidate, merged: `Merged ${action.kind} (action ${index + 1}) and ${next.kind} on ${CHAINS[next.network].name} (action ${index + 2}) into one ${venue} cross-network swap into ${candidate.output?.symbol ?? next.to}; saves a signature and a settlement wait.` };
-        index += 1;
-      } catch (error) {
-        // Name resolution failures are the user's input, not a missing merged route: report them.
-        const code = toPlatformError(error).code;
-        if (code.startsWith("RECIPIENT_") || code === "NAME_RESOLUTION_UNAVAILABLE") throw error;
-        draft = null;
-      }
-    }
-    draft ??= await draftStep(action, previous, accounts, request, contractKeyId, context(actions.slice(index + 1)));
+  const gasRead = gasPlanReader(accounts, request.accounts);
+
+  const topupFor = (action: NormalizedAction): string | undefined => (action.kind === "bridge" ? topups.get(action.destinationNetwork) : undefined);
+  const draftAction = (action: NormalizedAction, later: readonly NormalizedAction[]): Promise<StepDraft> => {
+    const gasTopupUsd = topupFor(action);
+    return draftStep(action, previous, accounts, planning, contractKeyId, { later, reserved, trace, ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}) });
+  };
+  const commit = (action: NormalizedAction, draft: StepDraft): IntentStep => {
     if (draft.merged) optimizations.push(draft.merged);
     if (draft.gasReserve) reserved.add(`${draft.action.network}|${draft.account.id.toLowerCase()}`);
-    if (gasTopupUsd !== undefined) {
+    if (topupFor(action) !== undefined) {
       if (draft.gasTopupUsd !== undefined) topups.delete(action.destinationNetwork);
       else if (!arrivals.has(action.destinationNetwork)) arrivals.set(action.destinationNetwork, draft.output?.isNative ? "native" : "third-party");
     }
     const step = buildStep(draft, steps.length, previous, now);
     steps.push(step);
     drafts.push(draft);
-    previous = { step, output: draft.output, network: action.destinationNetwork, recipient: draft.recipient };
+    previous = { step, output: draft.output, network: draft.action.destinationNetwork, recipient: draft.recipient };
+    return step;
+  };
+  const saveState = () => ({
+    steps: steps.length, drafts: drafts.length, previous, optimizations: optimizations.length,
+    reserved: new Set(reserved), topups: new Map(topups), arrivals: new Map(arrivals),
+  });
+  const restoreState = (state: ReturnType<typeof saveState>) => {
+    steps.length = state.steps;
+    drafts.length = state.drafts;
+    previous = state.previous;
+    optimizations.length = state.optimizations;
+    reserved.clear();
+    state.reserved.forEach((key) => reserved.add(key));
+    topups.clear();
+    state.topups.forEach((usd, network) => topups.set(network, usd));
+    arrivals.clear();
+    state.arrivals.forEach((kind, network) => arrivals.set(network, kind));
+  };
+  /** Plans a shape the composer chose: its legs in order, each funded by the previous leg's minimum (chained floors, D5). */
+  const planShape = async (evaluation: ShapeEvaluation, base: NormalizedAction, later: readonly NormalizedAction[], written?: readonly NormalizedAction[]): Promise<IntentStep[]> => {
+    const legs = written ?? shapeActions(evaluation, base);
+    const built: IntentStep[] = [];
+    for (const [position, leg] of legs.entries()) {
+      assertWithinDeadline();
+      const pinnedLeg = written && evaluation.legs[position] ? { ...leg, pin: evaluation.legs[position].winner.protocol } : leg;
+      built.push(commit(pinnedLeg, await draftAction(pinnedLeg, [...legs.slice(position + 1), ...later])));
+    }
+    return built;
+  };
+  /**
+   * Composes one crossing (C.2): pre-screens its shapes, plans the winner for
+   * real, plans the runner-up instead when the winner's real value fell more
+   * than 10 bps below it (once, with budget left), and records the route
+   * explanation. Returns false when the crossing is not composed (the caller
+   * plans it as today).
+   */
+  const composeCrossing = async (
+    base: NormalizedAction,
+    input: ResolvedAsset,
+    output: ResolvedAsset,
+    later: readonly NormalizedAction[],
+    asWritten?: { readonly legs: readonly LegSpec[]; readonly actions: readonly NormalizedAction[]; readonly merged: NormalizedAction },
+  ): Promise<boolean> => {
+    let candidates = enumerateShapes(input, output, { composites: true, ...(asWritten ? { asWritten: asWritten.legs } : {}) });
+    const crossKey = legPinKey({ kind: "bridge", network: input.network, destinationNetwork: output.network, input, output });
+    const pinnedShape = currentRoutePin()?.shape(crossKey);
+    if (pinnedShape) candidates = candidates.filter((candidate) => shapePinValue(candidate) === pinnedShape);
+    if (candidates.length < 2 && !asWritten) return false;
+    if (candidates.length === 0) return false;
+    const amount = crossingAmount(base, input, previous);
+    if (amount === null || amount <= 0n) return false;
+    const arrivalGas = await arrivalGasState(output.network, gasRead, topups.has(output.network) && !output.isNative);
+    const maxSeconds = planning.constraints?.maxSeconds ?? DEFAULT_MAX_SECONDS;
+    const quote: LegQuoter = async (leg, units) => {
+      const route: AdapterRoute = { kind: leg.kind, network: leg.input.network, destinationNetwork: leg.output.network, input: leg.input, output: leg.output };
+      const crossing = route.network !== route.destinationNetwork;
+      const gasTopupUsd = crossing && !route.output.isNative ? topups.get(route.destinationNetwork) : undefined;
+      let venues = candidateAdapters(route, planning.constraints);
+      if (crossing) venues = await dlnEligible(venues, route, accounts, planning, { later: [], reserved, ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}) });
+      if (gasTopupUsd !== undefined) venues = venues.filter((adapter) => adapter.supportsGasTopup?.(route) === true);
+      if (venues.length === 0) throw noCandidates(route, undefined);
+      const account = accountForNetwork(accounts, route.network);
+      const destinationAccount = crossing ? ownAccountOn(accounts, route.destinationNetwork) : undefined;
+      const contacts: QuoteContact[] = [];
+      try {
+        return await runVenueAuction(venues, {
+          ...route,
+          amount: units.toString(),
+          account,
+          recipient: crossing ? accountForNetwork(accounts, route.destinationNetwork) : account,
+          slippageBps: planning.constraints?.maxSlippageBps ?? DEFAULT_SLIPPAGE_BPS,
+          ...(destinationAccount ? { destinationAccount } : {}),
+          ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}),
+        }, {
+          maxSeconds,
+          explicitMaxSeconds: planning.constraints?.maxSeconds !== undefined,
+          explicitSlippage: planning.constraints?.maxSlippageBps !== undefined,
+          prefer: planning.constraints?.preferProtocols ?? [],
+          ...(planning.constraints?.routePreference ? { preference: planning.constraints.routePreference } : {}),
+          prescreen: true,
+          contacts,
+        });
+      } finally {
+        trace.contacts.push(...contacts);
+      }
+    };
+    const result = await compareShapes({
+      candidates,
+      amount,
+      quote,
+      preference: planning.constraints?.routePreference ?? "value",
+      maxSeconds,
+      arrivalGas,
+      priceOf: (asset) => readAssetUsd(asset),
+    });
+    if (!result.winner) return false;
+    const tried = new Set<ShapeEvaluation>();
+    let chosen: ShapeEvaluation = result.winner;
+    let built: IntentStep[] = [];
+    let real: { value: number | null; score: RouteScore | null; minimum: bigint | null } = { value: null, score: null, minimum: null };
+    for (;;) {
+      tried.add(chosen);
+      const state = saveState();
+      const before = steps.length;
+      try {
+        if (chosen.candidate.asWritten && asWritten) {
+          built = await planShape(chosen, base, later, asWritten.actions);
+        } else if (chosen.candidate.legs.length === 1 && asWritten) {
+          const draft = await draftAction({ ...asWritten.merged, ...(chosen.legs[0] ? { pin: chosen.legs[0].winner.protocol } : {}) }, later);
+          const venue = getProtocol(draft.planned.protocol)?.name ?? draft.adapter.label;
+          const parts = base.inserted ? "the added bridge and the swap" : `the bridge (action ${base.index + 1}) and the swap (action ${(asWritten.actions[1]?.index ?? base.index + 1) + 1})`;
+          built = [commit(asWritten.merged, { ...draft, merged: `Merged ${parts} into one ${venue} cross-network swap into ${draft.output?.symbol ?? output.symbol}; it delivers the most after costs.` })];
+        } else {
+          built = await planShape(chosen, base, later);
+        }
+      } catch (error) {
+        // A shape that fails to plan for real gives way to the next eligible one, else to the plan as written.
+        restoreState(state);
+        const code = toPlatformError(error).code;
+        if (code === "PLAN_TIMEOUT" || code === "PLAN_TOO_LARGE" || code.startsWith("RECIPIENT_") || code === "NAME_RESOLUTION_UNAVAILABLE") throw error;
+        const fallback = result.ranked.find((evaluation) => !tried.has(evaluation) && evaluation.excluded === undefined && evaluation.value !== null);
+        if (fallback && tried.size < 2 && remainingMs() >= RUNNER_UP_MIN_BUDGET_MS) {
+          chosen = fallback;
+          continue;
+        }
+        return false;
+      }
+      real = realRoute(chosen, steps.slice(before));
+      const runnerUp = result.ranked.find((evaluation) => !tried.has(evaluation) && evaluation.excluded === undefined && evaluation.value !== null);
+      if (tried.size === 1 && shouldPlanRunnerUp(real.value, runnerUp, chosen.inputUsd) && runnerUp) {
+        restoreState(state);
+        chosen = runnerUp;
+        continue;
+      }
+      break;
+    }
+    currentRoutePin()?.recordShape(crossKey, shapePinValue(chosen.candidate));
+    if (chosen.candidate.legs.length > 1 && !chosen.candidate.asWritten) {
+      optimizations.push(`Routed ${input.symbol} on ${CHAINS[input.network].name} to ${output.symbol} on ${CHAINS[output.network].name} ${chosen.candidate.carrier && chosen.candidate.carrier !== "input" ? `via ${chosen.candidate.carrier} ` : ""}in ${chosen.candidate.legs.length} steps: it delivers the most after costs (one cross-network swap is the alternative).`);
+    }
+    composedRoutes.push({
+      stepIds: built.map((step) => step.id),
+      choice: compositeRouteChoice(built.map((step) => step.id), chosen, result.ranked, real.score ? { score: real.score, minimum: real.minimum } : undefined),
+    });
+    return true;
+  };
+
+  for (let index = 0; index < actions.length; index += 1) {
+    const action = actions[index] as NormalizedAction;
+    const next = actions[index + 1];
+    const later = (from: number) => actions.slice(from);
+    assertWithinDeadline();
+
+    // Exact delivery (S10): the recipient receives the stated amount; the input is sized by inverse quoting.
+    if (action.receiveExact && action.kind === "bridge") {
+      commit(action, await exactDeliveryDraft(action, previous, draftAction, later(index + 1)));
+      continue;
+    }
+
+    const composable = compositesAllowed(planning.constraints) && action.kind === "bridge" && action.network !== action.destinationNetwork &&
+      !action.protocol && !action.receiveExact && (!action.recipient || ownRecipient(action.recipient, accounts));
+    if (canMerge(action, next, planning)) {
+      if (composable && next.kind === "swap") {
+        const sides = await crossingAssets(action, previous, accounts);
+        const finalOut = sides ? await resolveAsset(next.network, next.to as string).catch(() => null) : null;
+        if (sides && finalOut && !finalOut.transferOnly) {
+          const merged: NormalizedAction = { ...action, to: finalOut.id, ...(next.provider ? { provider: next.provider } : {}) };
+          const legs: LegSpec[] = [
+            { kind: "bridge", input: sides.input, output: sides.output },
+            { kind: "swap", input: sides.output, output: finalOut },
+          ];
+          if (await composeCrossing(action, sides.input, finalOut, later(index + 2), { legs, actions: [action, next], merged })) {
+            index += 1;
+            continue;
+          }
+        }
+      }
+      // Single shapes (KLETIA_ROUTE_SHAPES=single): one cross-network swap when a venue quotes it, else the steps as written.
+      const merged: NormalizedAction = {
+        ...action,
+        to: next.to as string,
+        ...(next.provider ? { provider: next.provider } : {}),
+      };
+      try {
+        const candidate = await draftAction(merged, later(index + 2));
+        const venue = getProtocol(candidate.planned.protocol)?.name ?? candidate.adapter.label;
+        const parts = action.inserted
+          ? `the added bridge and ${next.kind} on ${CHAINS[next.network].name} (action ${next.index + 1})`
+          : `${action.kind} (action ${action.index + 1}) and ${next.kind} on ${CHAINS[next.network].name} (action ${next.index + 1})`;
+        commit(action, { ...candidate, merged: `Merged ${parts} into one ${venue} cross-network swap into ${candidate.output?.symbol ?? next.to}; saves a signature and a settlement wait.` });
+        index += 1;
+        continue;
+      } catch (error) {
+        // Name resolution failures are the user's input, not a missing merged route: report them.
+        const code = toPlatformError(error).code;
+        if (code.startsWith("RECIPIENT_") || code === "NAME_RESOLUTION_UNAVAILABLE") throw error;
+      }
+    } else if (composable) {
+      // A token-changing crossing: the composer compares the one-shot with carrier composites (C.2).
+      const sides = await crossingAssets(action, previous, accounts);
+      if (sides && !sameFamily(sides.input, sides.output) && await composeCrossing(action, sides.input, sides.output, later(index + 1))) continue;
+    }
+    commit(action, await draftAction(action, later(index + 1)));
   }
+
+  // Gas on every network that signs later (C.3): a known shortfall refuses; an unreadable balance warns.
+  const gas = await planGas(drafts.map((draft, position) => gasPlanStep(draft, steps[position] as IntentStep, position, accounts)), gasRead);
+  const shortfall = gas.shortfalls[0];
+  if (shortfall) throw gasShortfallError(shortfall, CHAINS[shortfall.network].vm === "evm");
+  // Preview (demo) accounts are never read: no warning about balances nobody holds.
+  if (!onlyPreviewAccounts(request.accounts)) for (const entry of gas.unknown) plannerWarnings.push(gasUnknownWarning(entry));
 
   const edges: IntentEdge[] = steps.flatMap((step, index) =>
     step.dependsOn.map((dependency) => ({
@@ -1862,7 +2555,16 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     // Fee sanity (design C.7): text requests without maxFeeUsd refuse fees above 5 % of the value moved (testnet capital has no value).
     assertFeeSanity({ feeUsd: totalFees + extraCostsUsdOf(steps), valueUsd: await valueMovedUsd(steps) });
   }
-  const routes = drafts.flatMap((draft, index) => (draft.auction && steps[index] ? [routeChoice(steps[index] as IntentStep, draft.auction)] : []));
+  // Route explanations (B.5): one entry per composed crossing, one per other auctioned step.
+  const composedSteps = new Set(composedRoutes.flatMap((entry) => entry.stepIds));
+  const routes: RouteChoice[] = [];
+  drafts.forEach((draft, index) => {
+    const step = steps[index];
+    if (!step) return;
+    const composed = composedRoutes.find((entry) => entry.stepIds[0] === step.id);
+    if (composed) routes.push(composed.choice);
+    else if (draft.auction && !composedSteps.has(step.id)) routes.push(routeChoice(step, draft.auction));
+  });
   const contacted = providersContacted(trace.contacts);
 
   const expiry = Math.min(

@@ -1,4 +1,1485 @@
 {
  "spec": "kletia.intent-transitions/v1",
- "transitions": []
+ "transitions": [
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON055",
+   "from": "asked",
+   "to": "ready",
+   "why": "P2-M1 AQ4: the only Morpho position across the networks Kletia reads is withdrawn in full (exactly the corpus plan); it was asked only because positions on other networks were not read."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON055",
+   "from": "asked",
+   "to": "ready",
+   "why": "P2-M1 AQ4: the only Morpho position across the networks Kletia reads is withdrawn in full (exactly the corpus plan); it was asked only because positions on other networks were not read."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP011",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1 C.1 rule 2: the deposit spends the swap output, so a crossing leg carries it from Solana to Base (a material chip); the plan equals the corpus accept, which P2-M0 refused."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP011",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1 C.1 rule 2: the deposit spends the swap output, so a crossing leg carries it from Solana to Base (a material chip); the plan equals the corpus accept, which P2-M0 refused."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP030",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1 C.1 rule 4: the payment spends the swap output and bob.base.eth receives on Base, so one bridge leg pays the recipient there; the plan equals the corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP030",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1 C.1 rule 4: the payment spends the swap output and bob.base.eth receives on Base, so one bridge leg pays the recipient there; the plan equals the corpus accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT096",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1 C.1 rule 2: the deposit spends the swap output, so a crossing leg carries it from Solana to Base (a material chip); the plan equals the red-team accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT096",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1 C.1 rule 2: the deposit spends the swap output, so a crossing leg carries it from Solana to Base (a material chip); the plan equals the red-team accept."
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "CAS001",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "AMO032",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading ('1 SOL worth $150' cross-checks the amount against its stated value) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA005",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "CAS001",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "AMO032",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading ('1 SOL worth $150' cross-checks the amount against its stated value) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA005",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON002",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('w/' read as 'with' before a venue): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON016",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('on jupiter' read as the venue): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON028",
+   "from": "confirm",
+   "to": "ready",
+   "why": "P4 reader ('100 usdc worth of sol' spends 100 USDC on SOL, the reviewed exact reading): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON058",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('redeem' is a withdraw verb; the only Aave position is on Base, half of it): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON064",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('w' read as 'with' before a provider): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON073",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('mainnet' is a network word for Ethereum): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT002",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT003",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT004",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT006",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT007",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT009",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT010",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT013",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT015",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT017",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT018",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT019",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT026",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT031",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL010",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL014",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading ('the same' copies the first payment's amount) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL023",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL031",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL035",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL040",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS006",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 moves (P2-M3 abstract goals, C10): a rebalance moves amounts Kletia computed, so it is a one-click confirm listing every move; confirming gives the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS044",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('diversify 30% of my base usdc into eth' is a share of the holding): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY037",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (parallel payment list with one network per payment): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY041",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('mainnet' is a network word for Ethereum): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY042",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('gift' is a payment verb; bob.base.eth receives on Base): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY046",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (parallel payment list, each payment complete): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT015",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (own-account fraction 1/4 of the balance): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT022",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4 reader ('1 sol and a half' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT023",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4 reader ('one and a half sol' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT025",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('usd 50 of sol' is a USD amount of SOL at the fixed price, own account): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT030",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('1 000' with a space thousands separator is 1000): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT032",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (arithmetic the person wrote, 10 + 5) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT033",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (own-account fraction 3/4 of the Base ETH): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT036",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('half of my arbitrum usdc' is a share of the holding): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT040",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('all my sol except 2' keeps 2 SOL): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT045",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('1.5 k' multiplier on an own-account amount, material chip): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT048",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('keep 20 usdc' is a keep constraint the balance satisfies): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT049",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (a payment to someone else with a token-unit fraction, 1/2 SOL) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT057",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('three quarters of my arbitrum eth' is a share of the holding): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT058",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (commentary '(half my stack)' cross-checked against the balance) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "QUE005",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "QUE006",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "QUE016",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "QUE017",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF048",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF049",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI010",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed fillers 'i wanna', 'pls' and 'w' before a provider): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI011",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (digit-as-word '2' read as 'to') is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI013",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (the arrow between two networks is a bridge): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI014",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4 reader (cashtags $SOL/$USDC are symbols): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI016",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('in2' is a reviewed connector spelling of 'into'): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI018",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (emoji are ignored, 'w/' read as 'with'): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI019",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (keyword corrections brigde, 4rm, bsae) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI025",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (an ellipsis is a clause break): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI027",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed filler 'lol' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI028",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed filler 'rn' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI031",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed fillers 'ok so first', 'and thats it'; '10 usdc of it' binds to the swap output): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI032",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed filler 'thx in advance' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI033",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI035",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (digit-as-word '2' read as 'to') is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI036",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (emoji are ignored): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI037",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed filler 'gm' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI038",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (elongated 'pleaseeee' is the reviewed filler 'please'): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP010",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1/P2-M3 placement (C.1, C.4): funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP015",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1/P2-M3 placement (C.1, C.4): funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP019",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1/P2-M3 placement (C.1, C.4): funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP023",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1/P2-M3 placement (C.1, C.4): funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON002",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('w/' read as 'with' before a venue): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON016",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('on jupiter' read as the venue): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON028",
+   "from": "confirm",
+   "to": "ready",
+   "why": "P4 reader ('100 usdc worth of sol' spends 100 USDC on SOL, the reviewed exact reading): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON058",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('redeem' is a withdraw verb; the only Aave position is on Base, half of it): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON064",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('w' read as 'with' before a provider): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON073",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('mainnet' is a network word for Ethereum): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT002",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT003",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT004",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT006",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT007",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT009",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT010",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT013",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT015",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT017",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT018",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT019",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT026",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT031",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 cross-network convert (RF3/AQ1/AQ11, C11) with P2-M1 crossing placement (C.1): the spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL010",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL014",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading ('the same' copies the first payment's amount) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL023",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL031",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL035",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL040",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS006",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 moves (P2-M3 abstract goals, C10): a rebalance moves amounts Kletia computed, so it is a one-click confirm listing every move; confirming gives the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS044",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('diversify 30% of my base usdc into eth' is a share of the holding): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY037",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (parallel payment list with one network per payment): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY041",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('mainnet' is a network word for Ethereum): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY042",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('gift' is a payment verb; bob.base.eth receives on Base): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY046",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (parallel payment list, each payment complete): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT015",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (own-account fraction 1/4 of the balance): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT022",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4 reader ('1 sol and a half' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT023",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4 reader ('one and a half sol' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT025",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('usd 50 of sol' is a USD amount of SOL at the fixed price, own account): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT030",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('1 000' with a space thousands separator is 1000): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT032",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (arithmetic the person wrote, 10 + 5) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT033",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (own-account fraction 3/4 of the Base ETH): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT036",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('half of my arbitrum usdc' is a share of the holding): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT040",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('all my sol except 2' keeps 2 SOL): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT045",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('1.5 k' multiplier on an own-account amount, material chip): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT048",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('keep 20 usdc' is a keep constraint the balance satisfies): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT049",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (a payment to someone else with a token-unit fraction, 1/2 SOL) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT057",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('three quarters of my arbitrum eth' is a share of the holding): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT058",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (commentary '(half my stack)' cross-checked against the balance) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "QUE005",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "QUE006",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "QUE016",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "QUE017",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF048",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF049",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI010",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed fillers 'i wanna', 'pls' and 'w' before a provider): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI011",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (digit-as-word '2' read as 'to') is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI013",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (the arrow between two networks is a bridge): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI014",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4 reader (cashtags $SOL/$USDC are symbols): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI016",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('in2' is a reviewed connector spelling of 'into'): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI018",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (emoji are ignored, 'w/' read as 'with'): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI019",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (keyword corrections brigde, 4rm, bsae) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI025",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (an ellipsis is a clause break): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI027",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed filler 'lol' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI028",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed filler 'rn' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI031",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed fillers 'ok so first', 'and thats it'; '10 usdc of it' binds to the swap output): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI032",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed filler 'thx in advance' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI033",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI035",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (digit-as-word '2' read as 'to') is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI036",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (emoji are ignored): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI037",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (reviewed filler 'gm' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI038",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (elongated 'pleaseeee' is the reviewed filler 'please'): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP010",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1/P2-M3 placement (C.1, C.4): funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP015",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1/P2-M3 placement (C.1, C.4): funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP019",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1/P2-M3 placement (C.1, C.4): funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP023",
+   "from": "refused",
+   "to": "ready",
+   "why": "P2-M1/P2-M3 placement (C.1, C.4): funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI036",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (emoji are ignored): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP011",
+   "from": "refused",
+   "to": "ready",
+   "why": "Strict-path safety net (P3-M2, design C.5) inserts the crossing leg that carries the swap output from Solana to Base before the deposit; the strict-mode shape now shows that leg (lead: evalHarness strictShape) and the end state equals the corpus accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT033",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (a payment to someone else with a unit, 50 cents read as 0.5 USDC) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT037",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('5000 gwei of eth' is a unit on an own-account amount, material chip): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT044",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4 reader ('one and a half sol' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT098",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (an in-message correction of the only recipient; alice.eth is never paid) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT099",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT102",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (parallel payment list, each payment complete): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT104",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT105",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT106",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 moves (P2-M3 abstract goals, C10): a rebalance moves amounts Kletia computed, so it is a one-click confirm listing every move; confirming gives the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT107",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('1/2 sol' is 0.5 SOL (token-unit fraction), own account): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT116",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT033",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (a payment to someone else with a unit, 50 cents read as 0.5 USDC) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT037",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('5000 gwei of eth' is a unit on an own-account amount, material chip): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT044",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4 reader ('one and a half sol' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT098",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (an in-message correction of the only recipient; alice.eth is never paid) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT099",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 source C (P4-M1/M3 reader, P2-M1 confirm mechanics): a derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT102",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader (parallel payment list, each payment complete): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT104",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT105",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 question form (P4-M3 reader, P2-M1 confirm mechanics): a question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT106",
+   "from": "refused",
+   "to": "confirm",
+   "why": "Design A.3 moves (P2-M3 abstract goals, C10): a rebalance moves amounts Kletia computed, so it is a one-click confirm listing every move; confirming gives the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT107",
+   "from": "refused",
+   "to": "ready",
+   "why": "P4 reader ('1/2 sol' is 0.5 SOL (token-unit fraction), own account): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT116",
+   "from": "asked",
+   "to": "ready",
+   "why": "P4-M3 binding (AQ2/RF8/RF11): a share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT096",
+   "from": "refused",
+   "to": "ready",
+   "why": "Strict-path safety net (P3-M2, design C.5) inserts the crossing leg that carries the swap output from Solana to Base before the deposit; the strict-mode shape now shows that leg (lead: evalHarness strictShape) and the end state equals the corpus accept."
+  }
+ ]
 }

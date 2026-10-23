@@ -100,7 +100,8 @@ describe("funded steps: funding record and the F6 gas reserve", () => {
   });
 
   it("E2: records the share of a split ('half') and keeps no reserve for a token input", async () => {
-    configureGasReserveReader(async () => EMPTY);
+    // Empty everywhere but Solana, where the later swap is signed (design C.3 refuses a plan that cannot pay its fees there).
+    configureGasReserveReader(async (network) => (network === "solana" ? FUNDED_GAS_FACTS : EMPTY));
     const graph = await planIntent({ text: "bridge 50 USDC from base to solana then swap half to JitoSOL", accounts: ACCOUNTS });
     const s2 = step(graph, "s2");
     assert.deepEqual(s2.funding, { from: "s1", portionBps: 5_000 });

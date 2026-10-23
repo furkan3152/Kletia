@@ -11,7 +11,8 @@
  * "all but 0.1", a whole-wallet sweep) is not lowered: null.
  */
 import type { AmountSel, AssetSel, Goal } from "@kletia/core";
-import { family, isUsdWord, lane, NETWORK_ORDER, providerFromWord, recipientFamily, stakeProvider, USD_ORDER } from "../clarify/catalog.js";
+import { canonicalOn, family, isUsdWord, lane, NETWORK_ORDER, providerFromWord, recipientFamily, stakeProvider, USD_ORDER, venueNetworks } from "../clarify/catalog.js";
+import type { NetworkKey } from "@kletia/core";
 import type { Kind, Slot, WorkStep } from "../clarify/types.js";
 import { toThreadAmount } from "./amounts.js";
 import { sameSel, type ReadGoal } from "./frames.js";
@@ -213,8 +214,13 @@ function lowerEarn(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
     Object.assign(step, chained(kind));
     step.network = slot(destination);
   } else {
-    const network = destination ?? source;
+    // RF4, F-1 (design A.2 lowering): "stake 0.2 eth from base with lido" says where the money is (fundFrom), not
+    // where the stake runs: the step keeps both, and runs on the venue's network when the venue is not on the
+    // source (the policy inserts the crossing, C.1 rule 2).
+    const fund = !destination && notes.fundFrom !== undefined && notes.fundFrom === source ? source : undefined;
+    const network = destination ?? (fund && !venueOn(read, kind, fund) ? undefined : source);
     if (network) step.network = slot(network);
+    if (fund) step.fundFrom = slot(fund);
     if (!putAmount(step, goal.spend.amount, read, ctx, shareOf(read))) return null;
   }
   if (kind === "stake") {
@@ -230,6 +236,18 @@ function lowerEarn(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
   }
   typoFlag(steps[0] ?? step, read);
   return [...steps, step];
+}
+
+/** Whether the named venue (or provider) of an earn runs on `network` for the spent token; true when none is named. */
+function venueOn(read: ReadGoal, kind: "stake" | "deposit", network: NetworkKey): boolean {
+  const venue = read.notes.wantVenue;
+  const spend = symbolOf(read.goal.spend.asset);
+  if (kind === "stake") {
+    const provider = (venue?.provider ? stakeProvider(venue.provider) : undefined) ?? (symbolOf(read.goal.want.asset) ? providerFromWord(symbolOf(read.goal.want.asset) as string) : undefined);
+    return !provider || provider.network === network;
+  }
+  if (!venue?.lending || !spend) return true;
+  return venueNetworks("deposit", venue.lending, (at) => canonicalOn(at, spend)).includes(network);
 }
 
 function lowerExit(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
@@ -321,6 +339,16 @@ export function lowerGoal(read: ReadGoal, ctx: LowerContext): WorkStep[] | null 
       steps = null;
   }
   if (!steps) return null;
+  const home = read.notes.homeNetwork;
+  if (home) {
+    // The network came from the token's only home ("turn 1 sol into eth on base"): its provenance says so (A.4).
+    for (const step of steps) {
+      for (const key of ["network", "toNetwork"] as const) {
+        const said = step[key];
+        if (said && said.v === home.network && said.by === "user") step[key] = { ...said, prov: { ...said.prov, rule: "home-network" } };
+      }
+    }
+  }
   for (const step of steps) {
     step.goalRead = { lowered: true, ...(read.notes.orderOnly ? { orderOnly: true as const } : {}), ...(read.notes.possessive ? { possessive: true as const } : {}) };
   }

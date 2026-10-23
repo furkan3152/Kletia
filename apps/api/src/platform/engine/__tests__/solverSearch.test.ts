@@ -63,7 +63,7 @@ describe("goal solver: golden routes", () => {
     assert.equal(step.amount?.why?.code, "solver.target-amount");
   });
 
-  it("get me 0.01 ETH on arbitrum with only USDC: asks the source, then swaps into ETH across, back-solved with the stub prices (D3 chip)", () => {
+  it("get me 0.01 ETH on arbitrum with only USDC: asks the source, then converts into ETH across in one crossing leg, back-solved with the stub prices (D3 chip)", () => {
     assert.ok(sourceAsked(solveText("evm_base", "get me 0.01 ETH on arbitrum", { balances: { "base:ETH": "0" } })).length > 0);
     const result = solveText("evm_base", "get me 0.01 ETH on arbitrum", { balances: { "base:ETH": "0" } }, [{ source: "base" }]);
     assert.deepEqual(result.questions, []);
@@ -84,9 +84,12 @@ describe("goal solver: golden routes", () => {
     assert.match(source.label, /USDC on Base/u);
     const target = result.assumptions.find((entry) => entry.field === "actions[0].amount");
     assert.ok(target?.material, "a priced target amount is a material chip");
-    // The wallet holds no ETH anywhere (base:ETH 0): the policy asks how a step there pays its network fee (C.1 rule 8).
+    // RC1: the token-changing crossing is one abstract leg (USDC on Base -> ETH on Arbitrum One); the planner compares its
+    // shapes on live quotes. It delivers ETH itself and nothing else signs on Arbitrum One, so no gas question (C.1 rule 8).
+    assert.equal(route.hops.length, 1);
+    assert.equal(result.steps[0]?.to?.v, "ETH");
     const run = runPolicy("evm_base", result.steps);
-    assert.deepEqual(run.analysis.questions.map((question) => question.reason), ["GAS_ON_ARRIVAL"]);
+    assert.deepEqual(run.analysis.questions.map((question) => question.reason), []);
   });
 
   it("consolidate to Base (two_usdc): bridges Arbitrum's 150 USDC; gas tokens stay", () => {

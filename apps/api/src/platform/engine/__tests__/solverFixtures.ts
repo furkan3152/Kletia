@@ -61,6 +61,8 @@ function priceFor(network: NetworkKey, symbol: string, overrides: Readonly<Recor
 export interface SnapshotOptions {
   /** APY per YIELD_VENUES id (fraction); venues not listed are unknown. */
   readonly apy?: Readonly<Record<string, number | null>>;
+  /** S8 overrides per venue id (default: the fixture rate is also the smoothed rate, TVL $1B). */
+  readonly metrics?: Readonly<Record<string, { readonly smoothedApy?: number | null; readonly tvlUsd?: number | null }>>;
   /** Price overrides by symbol (null: unpriced). */
   readonly prices?: Readonly<Record<string, number | null>>;
   /** Read the wallet's positions (default true when it has any). */
@@ -116,7 +118,15 @@ export function snapshotOf(walletId: string, options: SnapshotOptions = {}): Sna
   for (const [venueId, value] of Object.entries(options.apy ?? {})) {
     const venue = YIELD_VENUES.find((entry) => entry.id === venueId);
     if (!venue) continue;
-    apy.set(venueId, { venue: venueId, network: venue.network, protocol: venue.protocol, status: "known", apy: value, paused: false, frozen: false, at: new Date(T0).toISOString() });
+    // A fixture's fixed rate is a settled rate: also its 7-day rate, on a venue well above every TVL floor (seam S8),
+    // unless the test overrides the metrics.
+    const metrics = options.metrics?.[venueId];
+    apy.set(venueId, {
+      venue: venueId, network: venue.network, protocol: venue.protocol, status: "known", apy: value,
+      smoothedApy: metrics && "smoothedApy" in metrics ? metrics.smoothedApy ?? null : value, apyWindowSeconds: 604_800,
+      tvlUsd: metrics && "tvlUsd" in metrics ? metrics.tvlUsd ?? null : 1_000_000_000, capRemaining: null,
+      paused: false, frozen: false, at: new Date(T0).toISOString(),
+    });
   }
   return {
     accounts,

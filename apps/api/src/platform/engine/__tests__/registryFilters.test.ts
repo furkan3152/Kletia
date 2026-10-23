@@ -19,12 +19,12 @@ import type { AdapterRoute, ProtocolAdapter } from "../adapters/types.js";
 import { decodeStepRef, encodeStepRef } from "../stepRef.js";
 import type { ResolvedAsset } from "../assets.js";
 
-/** The final order; ids of venues not wired yet are skipped. */
+/** The final order, newer venues within their families; ids of venues not wired yet are skipped. */
 const FINAL_ORDER: readonly ProtocolId[] = [
   "jupiter", "raydium", "orca", "meteora", "jito", "sanctum", "marinade", "solana-stake", "spl-token", "erc20-transfer",
   "uniswap-v3", "aerodrome", "velodrome", "pancakeswap-v3", "camelot", "curve", "relay", "across", "cctp-v2", "lifi",
-  "debridge-dln", "aave-v3", "sparklend", "compound-v3", "morpho", "spark-savings", "fluid", "yearn-v3", "moonwell",
-  "jupiter-lend", "kamino", "lido", "rocket-pool", "etherfi", "stader", "mantle-lsp", "frax-ether", "custom-call", "solana-actions",
+  "debridge-dln", "aave-v3", "sparklend", "compound-v3", "morpho", "spark-savings", "fluid", "yearn-v3", "moonwell", "sky", "ethena",
+  "jupiter-lend", "kamino", "lido", "rocket-pool", "etherfi", "stader", "mantle-lsp", "frax-ether", "kelp", "renzo", "custom-call", "solana-actions",
 ];
 
 function solanaAsset(symbol: string): ResolvedAsset {
@@ -69,14 +69,15 @@ describe("adapter registry order", () => {
     }
   });
 
-  it("GET /v1/protocols reports 38 executable real protocols", () => {
+  it("GET /v1/protocols reports 42 executable real protocols", () => {
     const executable = protocolRegistry().filter((entry) => entry.executable && entry.category !== "custom").map((entry) => entry.id);
     assert.deepEqual(executable.sort(), [
-      "aave-v3", "across", "aerodrome", "camelot", "cctp-v2", "compound-v3", "curve", "debridge-dln", "erc20-transfer", "etherfi", "fluid", "frax-ether", "jito",
-      "jupiter", "jupiter-lend", "kamino", "lido", "lifi", "mantle-lsp", "marinade", "meteora", "moonwell", "morpho", "orca", "pancakeswap-v3", "raydium", "relay",
-      "rocket-pool", "sanctum", "solana-stake", "spark-savings", "sparklend", "spl-token", "stader", "system-transfer", "uniswap-v3", "velodrome", "yearn-v3",
+      "aave-v3", "across", "aerodrome", "camelot", "cctp-v2", "compound-v3", "curve", "debridge-dln", "erc20-transfer", "ethena", "etherfi", "fluid", "frax-ether",
+      "jito", "jupiter", "jupiter-lend", "kamino", "kelp", "lido", "lifi", "mantle-lsp", "marinade", "meteora", "moonwell", "morpho", "orca", "pancakeswap-v3",
+      "raydium", "relay", "renzo", "rocket-pool", "sanctum", "sky", "solana-stake", "spark-savings", "sparklend", "spl-token", "stader", "system-transfer",
+      "uniswap-v3", "velodrome", "yearn-v3",
     ]);
-    assert.equal(PROTOCOLS.length, 51, "the registry lists 51 protocol ids");
+    assert.equal(PROTOCOLS.length, 55, "round 7 lists seven more ids and round 9 four more, each with a live adapter");
   });
 });
 

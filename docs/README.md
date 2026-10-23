@@ -38,6 +38,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Client generation](platform/codegen.md): typed clients in other languages from the served OpenAPI document.
 - [Error catalog](platform/errors.md): every error and step-failure code, its status, retry rule and remedy (also `GET /v1/errors`).
 - [Contracts](platform/contracts.md): register your own EVM contracts and Solana Actions.
+- [EVM protocols](platform/evm-protocols.md): the venues added on the five EVM networks, how each is checked, and what was not added and why.
 - [Asset preview](platform/preview.md): the fare breakdown and `PREVIEW_CHANGED`.
 - [Receipts](platform/receipts.md): signed, selectively disclosed, independently verifiable receipts.
 - [Policies](platform/policies.md): the Rule Book, agent keys and approvals.

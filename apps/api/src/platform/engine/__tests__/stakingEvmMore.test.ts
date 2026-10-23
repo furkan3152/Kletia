@@ -144,7 +144,7 @@ describe("registry pins", () => {
     for (const [symbol, address] of [["ETHx", ETHX], ["mETH", METH], ["sfrxETH", SFRXETH]] as const) {
       assert.equal(getAddress((await resolveAsset("ethereum", symbol)).address as string), getAddress(address));
     }
-    assert.deepEqual(STAKING_VENUES.map((venue) => venue.protocol), ["lido", "rocket-pool", "etherfi", "stader", "mantle-lsp", "frax-ether"]);
+    assert.deepEqual(STAKING_VENUES.map((venue) => venue.protocol), ["lido", "rocket-pool", "etherfi", "stader", "mantle-lsp", "frax-ether", "kelp", "renzo"]);
   });
 });
 
@@ -357,8 +357,8 @@ describe("LST positions (ETHx, mETH, sfrxETH)", () => {
     const ethx = mockStader();
     const meth = mockMantle();
     const sfrxeth = mockFrax();
-    // Lido, Rocket Pool and ether.fi tokens hold nothing.
-    for (const [address, symbol] of [["0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0", "wstETH"], ["0xae78736Cd615f374D3085123A210448E74Fc6393", "rETH"], ["0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee", "weETH"]] as const) {
+    // Lido, Rocket Pool, ether.fi, Kelp and Renzo tokens hold nothing.
+    for (const [address, symbol] of [["0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0", "wstETH"], ["0xae78736Cd615f374D3085123A210448E74Fc6393", "rETH"], ["0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee", "weETH"], ["0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7", "rsETH"], ["0xbf5495Efe5DB9ce00f80364C8B423567e58d2110", "ezETH"]] as const) {
       lstToken(address, symbol, [], {});
     }
     setBalance(ethx, ACCOUNT, 9n * ONE);

@@ -1026,6 +1026,40 @@
           "response": []
         },
         {
+          "id": "52f64848-0c99-5c10-aeb1-1341f05e19ff",
+          "name": "Mint a model-assisted reading consent token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scope\": \"once\",\n  \"wallet\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/reading-consent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "reading-consent"
+              ]
+            },
+            "description": "Browser callers only (the Kletia desk, or a publishable key of a project with `modelReading: \"enabled\"` from one of its allowed origins); server keys get 403 CONFIRM_AUTHORITY_REQUIRED, so an agent can never consent or confirm for the person. `once` covers one message (bound to its text and the wallet), `session` 8 hours of typed desk text, `confirm` the person's \"Yes, plan it\" on a model reading of one thread.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/reading-consent` · operationId `createReadingConsent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
           "id": "266cf8fe-c061-5cfd-889a-d93a06c8c4c8",
           "name": "List the key's Kletia-held clarify threads",
           "request": {

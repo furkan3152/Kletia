@@ -268,7 +268,7 @@ export interface PlanOptions {
 }
 
 /** What the clarify layer adds to `graph.interpretation`. */
-export type PlanInterpretation = Partial<Pick<IntentInterpretation, "departure" | "assumptions" | "thread">>;
+export type PlanInterpretation = Partial<Pick<IntentInterpretation, "departure" | "assumptions" | "thread" | "modelReading">>;
 
 /** Longest lifetime an intent can be given (a held intent waiting for approval). */
 export const MAX_INTENT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -2588,6 +2588,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
       ...(departure ? { departure } : {}),
       ...(options.interpretation?.assumptions ? { assumptions: options.interpretation.assumptions } : {}),
       ...(options.interpretation?.thread ? { thread: options.interpretation.thread } : {}),
+      ...(options.interpretation?.modelReading ? { modelReading: options.interpretation.modelReading } : {}),
       ...(routes.length > 0 ? { routes } : {}),
       ...(contacted.length > 0 ? { providersContacted: contacted } : {}),
     },

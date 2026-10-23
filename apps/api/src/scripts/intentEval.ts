@@ -24,7 +24,9 @@
  *   --delay <ms>          pause between live requests (default 400; the public tier allows 30 a minute)
  *   --family <a,b>        only these families
  *   --enforce             exit 1 when a gate fails (always on once INTENT_EVAL_ENFORCE is)
- *   --llm                 model-assisted readings are evaluated by scripts/readingEval.ts (package P5)
+ *   --llm <mode>          also run the model-assisted reading layer (scripts/readingEval.ts): replay (recordings),
+ *                         adversarial or fuzz (hostile providers, every family agreeing), or live; the harness
+ *                         confirms model readings as the person would, so a wrong reading counts as a wrong plan
  *
  * Exit 1 on a crash, a broken corpus, a failed gate, a broken ratchet or an
  * unreviewed transition.
@@ -47,6 +49,7 @@ import {
   type IntentEvalCorpus,
   type Scoreboard,
 } from "../platform/engine/goal/evalHarness.js";
+import { evalReader, READING_EVAL_MODES, type EvalReader, type ReadingEvalMode } from "./readingEval.js";
 import { checkMetamorphic, formatMetamorphic, runMetamorphic } from "../platform/engine/goal/evalMetamorphic.js";
 import {
   EVAL_CORPUS_FILES,
@@ -79,7 +82,7 @@ const HOLDOUT_MARGIN_POINTS = 6;
 interface Args {
   fails: boolean;
   enforce: boolean;
-  llm: boolean;
+  llm?: ReadingEvalMode;
   confirm: boolean;
   ledger: boolean;
   recordLedger: boolean;
@@ -98,7 +101,7 @@ interface Args {
 
 function parseArgs(argv: readonly string[]): Args {
   const args: Args = {
-    fails: false, enforce: false, llm: false, confirm: true, ledger: false, recordLedger: false, recordOutcomes: false,
+    fails: false, enforce: false, confirm: true, ledger: false, recordLedger: false, recordOutcomes: false,
     transitions: false, metamorphic: false, modes: ["decide"], corpora: ["repo"], delay: 400,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -112,7 +115,12 @@ function parseArgs(argv: readonly string[]): Args {
     switch (flag) {
       case "--fails": args.fails = true; break;
       case "--enforce": args.enforce = true; break;
-      case "--llm": args.llm = true; break;
+      case "--llm": {
+        const mode = value() as ReadingEvalMode;
+        if (!READING_EVAL_MODES.includes(mode)) throw new Error(`--llm must be one of ${READING_EVAL_MODES.join(", ")}`);
+        args.llm = mode;
+        break;
+      }
       case "--no-confirm": args.confirm = false; break;
       case "--ledger": args.ledger = true; break;
       case "--record-ledger": args.recordLedger = true; args.ledger = true; break;
@@ -168,9 +176,13 @@ function load(path: string, families: readonly string[] | undefined): Loaded {
   return { name: corpusNameOf(path), corpus, fixtures: loadEvalFixtures(path, loaded, REPO_ROOT) };
 }
 
+/** The model-assisted reading hook of `--llm` (one per process run, so its metrics add up). */
+let llmReader: EvalReader | null = null;
+
 async function runOffline(loaded: Loaded, mode: EvalMode, confirm: boolean): Promise<{ results: EvalResult[]; board: Scoreboard; ms: number }> {
   const started = Date.now();
-  const results = await runIntentEval(loaded.corpus, loaded.fixtures, modeRunOptions(mode, { confirm }));
+  const reader = mode !== "strict" && llmReader ? { reader: llmReader.hook } : {};
+  const results = await runIntentEval(loaded.corpus, loaded.fixtures, { ...modeRunOptions(mode, { confirm }), ...reader });
   return { results, board: scoreIntentEval(loaded.corpus, results, { strict: mode === "strict" }), ms: Date.now() - started };
 }
 
@@ -186,10 +198,7 @@ function ledgerDefaults(loaded: Loaded) {
 
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
-  if (args.llm) {
-    console.error("--llm: model-assisted readings are evaluated by scripts/readingEval.ts (package P5), which is not built yet.");
-    return 2;
-  }
+  if (args.llm) llmReader = evalReader(args.llm);
   let failed = false;
   if (args.api) {
     const loaded = load(corpusPath(args.corpora[0] as string), args.families);
@@ -274,6 +283,11 @@ async function main(): Promise<number> {
   }
 
   if (args.json) writeFileSync(args.json, `${JSON.stringify(lastResults, null, 1)}\n`);
+  if (llmReader) {
+    const m = llmReader.layer.metrics;
+    const rejected = Object.entries(m.rejected).sort((a, b) => b[1] - a[1]).map(([code, count]) => `${code} ${count}`).join(", ");
+    console.log(`model reading (${args.llm}): calls ${m.calls}, failures ${m.failures}, proposals ${m.proposals}, missing recordings ${llmReader.missing()}; rejected: ${rejected || "none"}`);
+  }
   return failed ? 1 : 0;
 }
 

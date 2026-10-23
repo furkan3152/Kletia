@@ -58,8 +58,8 @@ import {
   stakeProvider,
   USD_ORDER,
 } from "./catalog.js";
-import type { Kind, Slot, WorkStep } from "./types.js";
-import type { ThreadCorrection, ThreadKeep } from "@kletia/core";
+import type { Kind, Slot, UnreadClause, WorkStep } from "./types.js";
+import type { Goal, ThreadCorrection, ThreadKeep } from "@kletia/core";
 
 const AMT =
   "(?<amt>\\d{1,3}(?:\\.\\d{1,2})?%|\\$\\d[\\d,]*(?:\\.\\d+)?|\\d[\\d,]*(?:\\.\\d+)?|\\.\\d+|all|max|everything|it|them|that|half|a\\s+quarter|quarter)";
@@ -1008,12 +1008,27 @@ const keywordCorrection = (correction: ThreadCorrection) => correction.material 
  * never-drop word no rule of this reader consumes refuses the clause with its
  * family's message; reviewed fillers are dropped and listed ("Ignored").
  */
-export function parseSentence(raw: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0, previousStep?: WorkStep): ParsedSentence {
+/** Options of `parseSentence`: readings proposed for clauses the reader could not read, by clause index. */
+export interface SentenceOptions {
+  readonly readings?: ReadonlyMap<number, readonly Goal[]>;
+}
+
+/**
+ * The refusal for unread clauses carries them (index, text, closed-class record) on a non-enumerable
+ * property, so the decision layer can offer them to the reading layer; it is never serialised.
+ */
+function unreadRefusal(unread: readonly UnreadClause[]): PlatformError {
+  const error = notUnderstood((unread[0] as UnreadClause).text);
+  Object.defineProperty(error, "unreadClauses", { value: unread, enumerable: false, writable: false, configurable: false });
+  return error;
+}
+
+export function parseSentence(raw: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0, previousStep?: WorkStep, sentence: SentenceOptions = {}): ParsedSentence {
   // A question is never planned as typed ("swap 0.01 ETH to USDC on base?"): it is read only as the instruction it
   // stands for, and every step is confirmed as the solved plan (questionForm); anything else is refused.
   const asked = questionForm(raw);
   if (asked) {
-    const read = parseSentence(asked.text, phrases, previousExists, offset, previousStep);
+    const read = parseSentence(asked.text, phrases, previousExists, offset, previousStep, sentence);
     // A goal only the solver can place ("exit my aave position?") does not carry the confirm through its expansion
     // yet: refused as a question, never ready (fail closed).
     if (read.steps.some((step) => step.kind === undefined)) throw questionRefusal(normalizeMessage(raw), REFUSAL_EXAMPLES);
@@ -1024,7 +1039,7 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
   if (PARALLEL_LISTS.test(raw.trim())) throw pairingRefusal();
   const each = eachRecipients(raw);
   if (each) {
-    const read = parseSentence(each, phrases, previousExists, offset, previousStep);
+    const read = parseSentence(each, phrases, previousExists, offset, previousStep, sentence);
     for (const step of read.steps) if (step.amount) step.amount = { ...step.amount, prov: { ...step.amount.prov, rule: "deliverEach" } };
     return read;
   }
@@ -1032,7 +1047,7 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
   if (keep) return readWithKeep(keep, phrases, previousExists, offset, previousStep);
   const edit = inMessageCorrection(raw);
   if (edit) {
-    const read = parseSentence(edit.text, phrases, previousExists, offset, previousStep);
+    const read = parseSentence(edit.text, phrases, previousExists, offset, previousStep, sentence);
     const target = read.steps.find((step) => (edit.slot === "amount" ? step.amount : edit.slot === "network" ? step.network ?? step.toNetwork : step.recipient)) ?? read.steps[0];
     for (const step of read.steps) step.source = "C";
     if (target) target.readAs = [...(target.readAs ?? []), { slot: edit.slot, rule: "correction:inMessage", from: edit.from.slice(0, 16), to: `${edit.to} (you corrected ${edit.from})`.slice(0, 40) }].slice(0, 4);
@@ -1058,7 +1073,8 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
   // The label is kept only as a note (a non-material ".text" correction, never shown as a chip or read as a slot).
   const corrections: ThreadCorrection[] = labelled.label ? [{ field: `actions[${offset}].text`, from: labelled.label.slice(0, 16), to: "note", material: false }] : [];
   let emoji = screened.emoji > 0;
-  clauses.forEach((original) => {
+  const unreadClauses: UnreadClause[] = [];
+  clauses.forEach((original, clauseIndex) => {
     const index = steps.length + offset;
     const previous = previousExists || steps.length > 0;
     // The closed-class record comes first, before any word is dropped or corrected.
@@ -1132,8 +1148,17 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
         const unread = record.hits.find((hit) => hit.category === "unit" || hit.category === "approximation");
         if (unread) throw closedClassError(unread);
         const vague = shapes ? vagueClause(clause, true) : null;
-        if (!vague) throw notUnderstood(clause);
-        read = [vague];
+        if (vague) read = [vague];
+        else {
+          // A reading proposed for this clause (model-assisted, source M) stands in for it; it is solved
+          // and confirmed like any goal step. Otherwise the clause is recorded as unread and the message refused.
+          const given = sentence.readings?.get(clauseIndex);
+          if (!given || given.length === 0) {
+            unreadClauses.push({ index: clauseIndex, text: clause, closedClass: record });
+            return;
+          }
+          read = given.map((goal: Goal): WorkStep => ({ goal, goalRead: { lowered: false }, modelRead: true, source: "M" }));
+        }
       } else {
         corrections.push(...reading.corrections);
         read = reading.steps;
@@ -1181,6 +1206,7 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
       steps.push(step);
     });
   });
+  if (unreadClauses.length > 0) throw unreadRefusal(unreadClauses);
   if (steps.length === 0) throw notUnderstood(text);
   if (steps.length > 8) throw new PlatformError("INTENT_UNSUPPORTED", "Say what should happen in one to eight steps.", 422);
   return { steps, corrections };

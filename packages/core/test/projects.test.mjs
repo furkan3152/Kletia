@@ -114,3 +114,10 @@ test("the hash is canonical and the domain file lists the project", () => {
   assert.notEqual(a, projectSettingsHash({ schema: PROJECT_SCHEMA }));
   assert.deepEqual(JSON.parse(projectDomainFile("prj_key_1")), { projects: ["prj_key_1"] });
 });
+
+test("modelReading is disabled by default and accepts only disabled or enabled", () => {
+  assert.equal(validateProjectSettings({ schema: PROJECT_SCHEMA }).value.modelReading, undefined);
+  assert.equal(validateProjectSettings({ schema: PROJECT_SCHEMA, modelReading: "enabled" }).value.modelReading, "enabled");
+  assert.equal(validateProjectSettings({ schema: PROJECT_SCHEMA, modelReading: "disabled" }).value.modelReading, undefined);
+  assert.deepEqual(paths(validateProjectSettings({ schema: PROJECT_SCHEMA, modelReading: "on" })), ["modelReading"]);
+});

@@ -998,6 +998,19 @@ export class KletiaClient {
         { retryClass: turnRetryClass(request, { dryRun: dryRun === true }) },
       );
     },
+    /**
+     * A model-assisted reading consent (`POST /v1/reading-consent`), for
+     * browser integrations only (a publishable key of a project with
+     * `modelReading: "enabled"`): `once` for one message, `confirm` when the
+     * person clicked "Yes, plan it" on a model reading. Server keys are
+     * refused (CONFIRM_AUTHORITY_REQUIRED): an agent never consents or
+     * confirms for the person. Send the token as `consent` on the next turn.
+     */
+    readingConsent: async (
+      request: { readonly scope: "once" | "session" | "confirm"; readonly wallet: string; readonly text?: string; readonly threadId?: string },
+      options: RequestOptions = {},
+    ): Promise<{ token: string; expiresAt: string; scope: "once" | "session" | "confirm" }> =>
+      this.request("POST", "/reading-consent", request, options),
     get: async (id: string, options: RequestOptions = {}): Promise<IntentGraph> => {
       const body = await this.request<{ intent: IntentGraph }>("GET", `/intents/${encodeSegment(id, "id")}`, undefined, options);
       return body.intent;

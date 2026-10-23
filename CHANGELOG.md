@@ -14,6 +14,11 @@ on-chain action in the browser.
 - Deployment registry for every Kletia contract on every EVM network it applies to: deploys built from committed artifacts (`npm run export:contract-artifacts`, checked in `verify`), signed by the admin wallet, verified on-chain by the API (code, arguments, owner), exported as JSON for pinning. Solana has no Kletia programs.
 - Owner management (direct or as Safe proposals with chain-derived hashes), fee and revenue view with x402 gateway claims, Render status and redeploy (server-side `RENDER_API_KEY`), env readiness (booleans only) and a persistent audit log.
 - Every admin write (deploy records, reverify, Safe proposals, fee rescans, redeploys, settings) needs a fresh wallet confirmation signed by the session's own wallet (single-use, 5 minutes): a stolen session cookie can only read. "Verified" deployments must be admin-controlled; others are "foreign", never exported or used as dependencies.
+- Solana: Save (ex-Solend) main-pool USDC / USDT deposits and withdrawals, engine-built and verified by instruction and token deltas ([Solana venues](docs/platform/solana-venues.md)).
+- Solana: SOL deposits into the Sanctum hSOL, dSOL and bonkSOL pools and BlazeStake bSOL with an on-chain minimum; one stake pool table (`SOLANA_STAKE_POOLS`) for every pool.
+- Solana: Kamino JLP and Altcoins market reserves pinned (discovery until sentences can name a Kamino venue by slug).
+- Solana: Jupiter swaps take a venue filter (`params.provider` `dexes:raydium,orca` or `avoid:phoenix`), re-checked against every quoted route.
+- Solana Pay transfer requests (`protocol: "solana-pay"`): a per-step reference key on the transfer, `solana:` URL helpers, verification by reference.
 - Intent engine: whole-balance readings for stake, deposit and withdraw ("stake my SOL", "withdraw my USDC from aave"), the single position when a venue and network are named, leading labels ("rent: send 500 USDC to …") kept as notes, and "fund my <network> wallet" goals. Eval: 97.9% correct on the original 338 prompts (was 95.9%), 0 wrong plans.
 - `npm run test:coverage` prints line and branch coverage per area (informational, not a gate); numbers in [test coverage](docs/architecture/test-coverage.md).
 

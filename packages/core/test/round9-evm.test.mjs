@@ -29,7 +29,7 @@ const ROUND9_VENUES = [
   "ethereum:sky:susds", "ethereum:sky:sdai", "ethereum:ethena:susde",
 ];
 
-const evidence = JSON.parse(readFileSync(new URL("./fixtures/protocols-2026-10-23.json", import.meta.url), "utf8"));
+const evidence = JSON.parse(readFileSync(new URL("./fixtures/protocols-2026-10-23-evm.json", import.meta.url), "utf8"));
 const verified = new Set(evidence.entries.filter((entry) => entry.verified).map((entry) => `${entry.network}:${entry.address.toLowerCase()}`));
 const isVerified = (network, address) => verified.has(`${network}:${address.toLowerCase()}`);
 
@@ -54,7 +54,7 @@ test("EVM additions: four new registry ids with words, tiers and kinds", () => {
   assert.equal(reservedContractPhrase("blue sky pay"), null);
 });
 
-test("every round-9 pin is read back on-chain (fixtures/protocols-2026-10-23.json)", () => {
+test("every 2026-10-23 pin is read back on-chain (fixtures/protocols-2026-10-23-evm.json)", () => {
   assert.deepEqual(evidence.summary.failed, []);
   for (const id of ROUND9_VENUES) {
     const venue = YIELD_VENUES.find((entry) => entry.id === id);

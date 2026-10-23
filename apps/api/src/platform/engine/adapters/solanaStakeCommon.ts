@@ -1,6 +1,6 @@
 /**
  * Shared pieces of the direct Solana staking adapters:
- * SPL stake pools (Jito, Sanctum JupSOL), Marinade and native staking.
+ * SPL stake pools (Jito, Sanctum, BlazeStake), Marinade and native staking.
  *
  * - Every program and account the adapters touch is pinned in
  *   VENUE_CONTRACTS (`pinnedSolana`), or derived from a pin (PDAs, the user's

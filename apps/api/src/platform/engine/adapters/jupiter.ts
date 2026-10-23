@@ -1,8 +1,22 @@
 /**
  * Jupiter adapter: Solana swaps and liquid staking (SOL -> JitoSOL / mSOL /
  * JupSOL executed as a Jupiter route into the LST).
+ *
+ * Venue preference: a swap's `provider` may restrict the route to named
+ * venue families ("dexes:raydium,orca") or keep it away from them
+ * ("avoid:phoenix"); see `encodeJupiterVenueFilter`. The families map to
+ * Jupiter AMM labels (JUPITER_DEX_FAMILIES) sent as `dexes` / `excludeDexes`,
+ * and every quote's route is re-checked against the filter (fail closed).
  */
-import { fromBaseUnits, formatAmount, type AssetAmount, type IntentStep } from "@kletia/core";
+import {
+  fromBaseUnits,
+  formatAmount,
+  isJupiterDexFamily,
+  JUPITER_DEX_FAMILIES,
+  type AssetAmount,
+  type IntentStep,
+  type JupiterDexFamily,
+} from "@kletia/core";
 import {
   buildJupiterSwapTransaction,
   quoteJupiterSwap,
@@ -45,15 +59,81 @@ function assertStakeShape(action: Pick<AdapterAction, "kind" | "input" | "output
   }
 }
 
+/** A swap restricted to (`only`) or kept away from (`avoid`) Jupiter venue families. */
+export interface JupiterVenueFilter {
+  readonly mode: "only" | "avoid";
+  readonly families: readonly JupiterDexFamily[];
+}
+
+/** Step refs keep `provider` up to 32 characters. */
+const VENUE_FILTER_MAX_LENGTH = 32;
+const VENUE_FILTER_PATTERN = /^(dexes|avoid):([a-z]+(?:,[a-z]+)*)$/u;
+
+function venueFilterRefusal(message: string): PlatformError {
+  return new PlatformError("INTENT_UNSUPPORTED", message, 422);
+}
+
+/**
+ * The `provider` value that restricts a Jupiter swap (typed entry point for
+ * the sentence reader and structured `params.provider`): "dexes:raydium,orca"
+ * or "avoid:phoenix". Refuses an empty list or one longer than a step ref keeps.
+ */
+export function encodeJupiterVenueFilter(filter: JupiterVenueFilter): string {
+  const families = [...new Set(filter.families)];
+  if (families.length === 0) throw venueFilterRefusal("Name at least one Jupiter venue to use or avoid.");
+  const encoded = `${filter.mode === "only" ? "dexes" : "avoid"}:${families.join(",")}`;
+  if (encoded.length > VENUE_FILTER_MAX_LENGTH) throw venueFilterRefusal("Name at most three Jupiter venues to use or avoid.");
+  return encoded;
+}
+
+/**
+ * Reads a swap's venue filter from `provider`: null when it carries none;
+ * an unknown family or a malformed filter refuses (never ignored).
+ */
+export function parseJupiterVenueFilter(provider: string | undefined): JupiterVenueFilter | null {
+  if (!provider || !/^(dexes|avoid):/u.test(provider)) return null;
+  const match = VENUE_FILTER_PATTERN.exec(provider);
+  const families = match ? (match[2] as string).split(",") : [];
+  const unknown = families.find((family) => !isJupiterDexFamily(family));
+  if (!match || unknown !== undefined) {
+    const known = Object.keys(JUPITER_DEX_FAMILIES).join(", ");
+    throw venueFilterRefusal(`${unknown ? `"${unknown}" is not a Jupiter venue Kletia can name` : "The Jupiter venue filter is malformed"}; use ${known}.`);
+  }
+  return { mode: match[1] === "dexes" ? "only" : "avoid", families: families as JupiterDexFamily[] };
+}
+
+function filterLabels(filter: JupiterVenueFilter): string[] {
+  return filter.families.flatMap((family) => JUPITER_DEX_FAMILIES[family].map((entry) => entry.label));
+}
+
+function swapFilter(action: Pick<AdapterAction, "kind" | "provider">): JupiterVenueFilter | null {
+  return action.kind === "swap" ? parseJupiterVenueFilter(action.provider) : null;
+}
+
+/** Refuses a quote whose route leaves the allowed venues or uses an avoided one (Jupiter is asked, then checked). */
+function assertRouteFilter(result: JupiterQuote, filter: JupiterVenueFilter | null): void {
+  if (!filter) return;
+  const labels = new Set(filterLabels(filter));
+  const offending = result.route.find((leg) => (filter.mode === "only" ? !labels.has(leg.label) : labels.has(leg.label)));
+  if (offending) {
+    throw new PlatformError("PROVIDER_TRANSACTION_REJECTED", `Jupiter quoted a route through ${offending.label}, which the swap's venue filter excludes. Kletia will not sign it.`, 502);
+  }
+}
+
 /** Plans may reuse a quote seconds old; a quote that becomes a transaction to sign is always `fresh`. */
-async function quote(action: Pick<AdapterAction, "input" | "output" | "amount">, slippageBps: number, fresh = false): Promise<JupiterQuote> {
-  return quoteJupiterSwap({
+async function quote(action: Pick<AdapterAction, "kind" | "input" | "output" | "amount" | "provider">, slippageBps: number, fresh = false): Promise<JupiterQuote> {
+  const filter = swapFilter(action);
+  const labels = filter ? filterLabels(filter) : [];
+  const result = await quoteJupiterSwap({
     inputMint: jupiterMint(action.input),
     outputMint: jupiterMint(action.output),
     amount: action.amount,
     slippageBps,
+    ...(filter?.mode === "only" ? { dexes: labels } : filter ? { excludeDexes: labels } : {}),
     ...(fresh ? { fresh } : {}),
   });
+  assertRouteFilter(result, filter);
+  return result;
 }
 
 function impactWarnings(result: JupiterQuote, warnings: string[]): void {
@@ -136,6 +216,8 @@ export const jupiterAdapter: ProtocolAdapter = {
     if (!action.output.verified) warnings.push(`${action.output.symbol} is not on Jupiter's verified list.`);
     const route = result.route.map((leg) => leg.label).filter((label, index, all) => all.indexOf(label) === index);
     if (route.length > 0) warnings.push(`Route: ${route.slice(0, 4).join(" → ")}.`);
+    const filter = swapFilter(action);
+    if (filter) warnings.push(`${filter.mode === "only" ? "Routed only through" : "Routed around"} ${filter.families.join(", ")} (venue filter).`);
     const fees = await feeUsd();
     return {
       protocol: "jupiter",
@@ -147,6 +229,7 @@ export const jupiterAdapter: ProtocolAdapter = {
       settlement: { kind: "same-network" },
       warnings,
       ...(result.contextSlot ? { quoteId: `slot:${result.contextSlot}` } : {}),
+      ...(filter ? { provider: encodeJupiterVenueFilter(filter) } : {}),
       transactionCount: 1,
       slippageBps,
     };

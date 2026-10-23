@@ -40,6 +40,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Error catalog](platform/errors.md): every error and step-failure code, its status, retry rule and remedy (also `GET /v1/errors`).
 - [Contracts](platform/contracts.md): register your own EVM contracts and Solana Actions.
 - [EVM protocols](platform/evm-protocols.md): the venues added on the five EVM networks, how each is checked, and what was not added and why.
+- [Solana venues](platform/solana-venues.md): Save lending, more SPL stake pools (hSOL, dSOL, bonkSOL, bSOL), Kamino JLP / Altcoins reserves, Jupiter venue filters and Solana Pay transfer requests.
 - [Asset preview](platform/preview.md): the fare breakdown and `PREVIEW_CHANGED`.
 - [Receipts](platform/receipts.md): signed, selectively disclosed, independently verifiable receipts.
 - [Policies](platform/policies.md): the Rule Book, agent keys and approvals.

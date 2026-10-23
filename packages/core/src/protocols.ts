@@ -98,11 +98,15 @@ export type ProtocolId =
   | "mantle-lsp"
   | "frax-ether"
   | "solana-stake"
-  // round 9 (E1: more EVM protocols)
+  // EVM savings and restaking
   | "sky"
   | "ethena"
   | "kelp"
-  | "renzo";
+  | "renzo"
+  // more Solana venues
+  | "blazestake"
+  | "save"
+  | "solana-pay";
 
 /**
  * Intent-engine risk tier of a protocol: `core` venues are
@@ -510,10 +514,34 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     networks: ["solana"],
     capabilities: ["execute", "quote"],
     website: "https://sanctum.so",
-    summary: "JupSOL and the Sanctum LST family: minted by the pinned Sanctum SPL stake pool, or bought through Jupiter routes.",
+    summary: "JupSOL, hSOL, dSOL and bonkSOL: minted by their pinned Sanctum SPL stake pools (SOL deposits with an on-chain minimum), or bought through Jupiter routes.",
     kinds: ["stake"],
-    words: ["sanctum", "jupsol"],
+    words: ["sanctum", "jupsol", "hsol", "dsol", "bonksol"],
     tier: "curated",
+  },
+  {
+    id: "blazestake",
+    name: "BlazeStake",
+    category: "liquid-staking",
+    networks: ["solana"],
+    capabilities: ["execute", "quote"],
+    website: "https://stake.solblaze.org",
+    summary: "Liquid staking (bSOL): SOL deposited into the pinned BlazeStake SPL stake pool with an on-chain minimum, or bought through Jupiter routes.",
+    kinds: ["stake"],
+    words: ["blazestake", "solblaze", "bsol"],
+    tier: "curated",
+  },
+  {
+    id: "save",
+    name: "Save (ex-Solend)",
+    category: "lending",
+    networks: ["solana"],
+    capabilities: ["execute", "discover"],
+    website: "https://save.finance",
+    summary: "Main-pool reserve deposits and withdrawals (USDC, USDT), pinned by reserve address; the cToken receipt lands in the wallet.",
+    kinds: ["deposit", "withdraw"],
+    words: ["solend", "save finance", "save lending"],
+    tier: "extended",
   },
   {
     id: "lido",
@@ -624,7 +652,7 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     words: ["frax", "sfrxeth", "frxeth", "frax ether"],
     tier: "extended",
   },
-  // ---- round 9 (E1: more EVM protocols; pins read back 2026-10-23, packages/core/test/fixtures/protocols-2026-10-23.json)
+  // ---- EVM savings and restaking (pins read back 2026-10-23, packages/core/test/fixtures/protocols-2026-10-23-evm.json)
   {
     id: "sky",
     name: "Sky Savings",
@@ -684,6 +712,19 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     kinds: ["stake"],
     words: ["native stake", "native staking", "natively", "validator"],
     tier: "core",
+  },
+  {
+    id: "solana-pay",
+    name: "Solana Pay",
+    category: "payments",
+    networks: ["solana", "solana-devnet"],
+    capabilities: ["execute"],
+    website: "https://docs.solanapay.com",
+    summary: "Transfer requests: a solana: transfer URL and the matching transfer carrying a unique reference key, verified by that reference. Used when named (\"via solana pay\").",
+    kinds: ["transfer"],
+    words: ["solana pay"],
+    tier: "core",
+    explicitOnly: true,
   },
   {
     id: "spl-token",
@@ -851,6 +892,7 @@ export type YieldVenueKind =
   | "ctoken"
   | "jupiter-lend"
   | "kamino-reserve"
+  | "save-reserve"
   | "fluid-ftoken"
   | "spark-vault"
   | "yearn-vault"
@@ -947,6 +989,19 @@ export interface KaminoReserveVenue extends YieldVenueBase {
   readonly supplyVault?: string;
 }
 
+/** Save (ex-Solend) reserve: deposits mint the reserve's cToken (collateral mint) straight into the wallet. */
+export interface SaveReserveVenue extends YieldVenueBase {
+  readonly kind: "save-reserve";
+  readonly market: string;
+  readonly reserve: string;
+  /** PDA([market], program): owner of the reserve's liquidity supply. */
+  readonly marketAuthority: string;
+  /** Reserve liquidity supply token account (reserve offset 75). */
+  readonly supplyVault: string;
+  /** The cToken (reserve collateral mint, offset 227; same decimals as the liquidity). */
+  readonly receipt: ReceiptToken;
+}
+
 export interface FluidFTokenVenue extends YieldVenueBase {
   readonly kind: "fluid-ftoken";
   /** The fToken (target = spender = share token). */
@@ -1017,6 +1072,7 @@ export type YieldVenue =
   | CTokenVenue
   | JupiterLendVenue
   | KaminoReserveVenue
+  | SaveReserveVenue
   | FluidFTokenVenue
   | SparkVaultVenue
   | YearnVaultVenue
@@ -1121,15 +1177,53 @@ function jlToken(asset: string, mint: string, decimals: number, actions: readonl
 }
 
 const KAMINO_PROGRAM = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD";
-const KAMINO_MAIN_MARKET = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
-const KAMINO_MAIN_MARKET_AUTHORITY = "9DrvZvyWh1HuAoZxvYWMvkf2XCzryCpGgHqrMjyDWpmo";
 
-function kaminoReserve(asset: string, reserve: string, supplyVault?: string): KaminoReserveVenue {
-  const slug = asset.toLowerCase();
+interface KaminoMarket {
+  /** Slug prefix ("" for the main market, whose venues keep their original slugs). */
+  readonly prefix: string;
+  readonly name: string;
+  readonly address: string;
+  /** PDA("lma", market). */
+  readonly authority: string;
+}
+
+const KAMINO_MAIN: KaminoMarket = { prefix: "", name: "Kamino Main", address: "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF", authority: "9DrvZvyWh1HuAoZxvYWMvkf2XCzryCpGgHqrMjyDWpmo" };
+/**
+ * The JLP and Altcoins markets (names from api.kamino.finance/v2/kamino-market; market owner, authority
+ * derivation and every reserve's market, mint and supply vault read back on 2026-10-23, fixtures/protocols-2026-10-23-solana.json).
+ */
+const KAMINO_JLP: KaminoMarket = { prefix: "jlp-", name: "Kamino JLP", address: "DxXdAyU3kCjnyggvHmY5nAwg5cRbbmdyX3npfDMjjMek", authority: "B9spsrMK6pJicYtukaZzDyzsUQLgc3jbx5gHVwdDxb6y" };
+const KAMINO_ALTCOINS: KaminoMarket = { prefix: "altcoins-", name: "Kamino Altcoins", address: "ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5", authority: "81BgcfZuZf9bESLvw3zDkh7cZmMtDwTPgkCvYu7zx26o" };
+
+function kaminoReserve(
+  asset: string,
+  reserve: string,
+  supplyVault?: string,
+  market: KaminoMarket = KAMINO_MAIN,
+  actions: readonly YieldVenueAction[] = BOTH,
+): KaminoReserveVenue {
+  const slug = `${market.prefix}${asset.toLowerCase()}`;
   return {
     id: `solana:kamino:${slug}`, slug, protocol: "kamino", network: "solana", kind: "kamino-reserve",
-    name: `Kamino Main ${asset}`, asset, target: KAMINO_PROGRAM, market: KAMINO_MAIN_MARKET, reserve,
-    marketAuthority: KAMINO_MAIN_MARKET_AUTHORITY, ...(supplyVault ? { supplyVault } : {}), actions: BOTH,
+    name: `${market.name} ${asset}`, asset, target: KAMINO_PROGRAM, market: market.address, reserve,
+    marketAuthority: market.authority, ...(supplyVault ? { supplyVault } : {}), actions,
+  };
+}
+
+/**
+ * Save (ex-Solend) main pool: program, market and authority PDA([market]) from api.solend.fi/v1/markets/configs
+ * (market "main", isPrimary) and read back on 2026-10-23 with each reserve (fixtures/protocols-2026-10-23-solana.json).
+ */
+const SAVE_PROGRAM = "So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo";
+const SAVE_MAIN_MARKET = "4UpD2fh7xH3VP9QQaXtsS1YY3bxzWhtfpks7FatyKvdY";
+const SAVE_MAIN_AUTHORITY = "DdZR6zRFiUt4S5mg7AV1uKB2z1f1WzcNYCaTEEWPAuby";
+
+function saveReserve(asset: string, reserve: string, supplyVault: string, cToken: string, decimals: number): SaveReserveVenue {
+  const slug = asset.toLowerCase();
+  return {
+    id: `solana:save:${slug}`, slug, protocol: "save", network: "solana", kind: "save-reserve", name: `Save Main ${asset}`,
+    asset, target: SAVE_PROGRAM, market: SAVE_MAIN_MARKET, reserve, marketAuthority: SAVE_MAIN_AUTHORITY, supplyVault,
+    receipt: { address: cToken, decimals }, actions: BOTH,
   };
 }
 
@@ -1339,6 +1433,17 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   kaminoReserve("SOL", "d4A2prbA2whesmvHaL88BH6Ewn5N4bTSU2Ze8P6Bc4Q", "GafNuUXj9rxGLn4y79dPu6MHSuPWeJR6UtTWuexpGh3U"),
   kaminoReserve("USDT", "H3t6qZ1JkguCNTi9uzVKqQ7dvt2cum4XiXWom6Gn5e5S"),
   kaminoReserve("PYUSD", "2gc9Dm1eB6UgVYFBUN9bWks6Kes9PbWSaPaa9DqyvEiN"),
+  // Kamino JLP and Altcoins market reserves (the Altcoins market lists capped USDC decoys: pinned by address).
+  // Listed for discovery until sentences can name a Kamino venue by slug ("into kamino jlp-usdc"): a second
+  // executable Kamino USDC venue would make clarify offer a venue chip the grammar cannot read back.
+  // The adapter already serves them (KTX checked against the venue's own market and authority).
+  kaminoReserve("USDC", "Ga4rZytCpq1unD4DbEJ5bkHeUz9g3oh9AAFEi6vSauXp", "GENey8es3EgGiNTM8H8gzA3vf98haQF8LHiYFyErjgrv", KAMINO_JLP, []),
+  kaminoReserve("USDT", "2ov3CMqPBYG3jNBmmpXgK9KMW5GmU5GWZNGcwf7w3BC1", "BXE6FX8arPDS9uaQzdpTeqvFt4zAzWeUhnYuXUFzA8Hb", KAMINO_JLP, []),
+  kaminoReserve("PYUSD", "FswUCVjvfAuzHCgPDF95eLKscGsLHyJmD6hzkhq26CLe", "5aeoJKE5beaV8uJJnWRbGYxRTRrZCJi4mGgmK8yPE1wr", KAMINO_JLP, []),
+  kaminoReserve("USDC", "9TD2TSv4pENb8VwfbVYg25jvym7HN6iuAR6pFNSrKjqQ", "HTyrXvSvBbD7WstvU3oqFTBZM1fPZJPxVRvwLAmCTDyJ", KAMINO_ALTCOINS, []),
+  // Save main pool reserves (cToken = reserve collateral mint, liquidity decimals)
+  saveReserve("USDC", "BgxfHJDzm44T7XG68MYKx7YisTjZu73tVovyZSjJMpmw", "8SheGtsopRUDzdiD6v6BR9a6bqZ9QwywYQY99Fp5meNf", "993dVFL2uXWYeoXuEBFXR4BijeXdTv4s6BzsCjJZuwqk", 6),
+  saveReserve("USDT", "8K9WC8xoh2rtQNY7iEGXtPvfbDCi563SdWhCAhuMP2xE", "3CdpSW5dxM7RTxBgxeyt8nnnjqoDbZe48tsBs9QUrmuN", "BTsbZDV7aCMRJ3VNy9ygV4Q2UeEo9GpR8D6VvmMZzNr8", 6),
 ] satisfies readonly YieldVenue[]);
 
 const VENUE_BY_ID = new Map<string, YieldVenue>(YIELD_VENUES.map((venue) => [venue.id, venue]));
@@ -1366,9 +1471,9 @@ export function findYieldVenue(network: NetworkKey, reference: string, protocol?
   return (
     candidates.find((venue) => venue.id === wanted) ??
     candidates.find((venue) => venue.slug === wanted.toLowerCase()) ??
-    candidates.find((venue) => venue.kind !== "kamino-reserve" && venue.kind !== "jupiter-lend" && sameVenueAddress(network, venue.target, wanted)) ??
+    candidates.find((venue) => venue.kind !== "kamino-reserve" && venue.kind !== "jupiter-lend" && venue.kind !== "save-reserve" && sameVenueAddress(network, venue.target, wanted)) ??
     candidates.find((venue) => "receipt" in venue && sameVenueAddress(network, venue.receipt.address, wanted)) ??
-    candidates.find((venue) => venue.kind === "kamino-reserve" && venue.reserve === wanted) ??
+    candidates.find((venue) => (venue.kind === "kamino-reserve" || venue.kind === "save-reserve") && venue.reserve === wanted) ??
     null
   );
 }
@@ -1662,6 +1767,94 @@ export const CCTP_V2_TESTNET_CONTRACTS: readonly VenueContract[] = Object.freeze
   { protocol: "cctp-v2", network: "solana-devnet", role: "message-transmitter", address: "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC" },
 ] satisfies readonly VenueContract[]);
 
+/** Protocols with pinned Solana SPL stake pools (the adapter serves every pool of its protocol). */
+export type StakePoolProtocolId = Extract<ProtocolId, "jito" | "sanctum" | "blazestake">;
+
+/**
+ * A Solana SPL stake pool that takes SOL deposits (DepositSolWithSlippage):
+ * the program that owns it and the pool fields the adapter checks on-chain.
+ */
+export interface SolanaStakePool {
+  readonly protocol: StakePoolProtocolId;
+  /** The LST symbol (an ASSETS row on Solana with the same mint). */
+  readonly symbol: string;
+  readonly label: string;
+  readonly program: string;
+  readonly pool: string;
+  readonly mint: string;
+  readonly reserve: string;
+  readonly feeAccount: string;
+  readonly validatorList: string;
+}
+
+/** Program ids of the three SPL stake pool deployments (Sanctum's LST list names them Spl, SanctumSpl, SanctumSplMulti). */
+const SPL_STAKE_POOL_PROGRAM = "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy";
+const SANCTUM_SPL_PROGRAM = "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY";
+const SANCTUM_SPL_MULTI_PROGRAM = "SPMBzsVUuoHA4Jm6KunbsotaahvVikZs1JyTW6iJvbn";
+
+/**
+ * Pinned stake pools; within a protocol the first pool is its default. Jito and JupSOL were pinned 2026-10-15.
+ * Added 2026-10-23 (pool, mint and validator list from Sanctum's LST list, github.com/igneous-labs/sanctum-lst-list;
+ * owner, reserve, fee account, epoch and an open SOL deposit read back and DepositSolWithSlippage simulated
+ * on 2026-10-23, fixtures/protocols-2026-10-23-solana.json): hSOL, dSOL and bonkSOL (Sanctum single-validator
+ * pools) and BlazeStake bSOL (SPL stake pool program).
+ */
+export const SOLANA_STAKE_POOLS: readonly SolanaStakePool[] = Object.freeze([
+  {
+    protocol: "jito", symbol: "JitoSOL", label: "Jito stake pool", program: SPL_STAKE_POOL_PROGRAM, pool: "Jito4APyf642JPZPx3hGc6WWJ8zPKtRbRs4P815Awbb",
+    mint: "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn", reserve: "BgKUXdS29YcHCFrPm5M8oLHiTzZaMDjsebggjoaQ6KFL",
+    feeAccount: "8yoigZfzZ1nNaadumY9uPVD118225UYHTDpmjpr2nrSa", validatorList: "3R3nGZpQs2aZo5FDQvd2MUQ6R7KhAPainds6uT6uE2mn",
+  },
+  {
+    protocol: "sanctum", symbol: "JupSOL", label: "Sanctum JupSOL pool", program: SANCTUM_SPL_MULTI_PROGRAM, pool: "8VpRhuxa7sUUepdY3kQiTmX9rS5vx4WgaXiAnXq4KCtr",
+    mint: "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v", reserve: "FMAWbzuxsgbgndArunedwxXPA6sweaVUGGgadCpSxau2",
+    feeAccount: "GbvFCpMqKX65gQ8KNeob9JUAL7vHCHFSg8YN5bnpPT8g", validatorList: "AXL4v4bbzRkqwHmLc9A1YzHQmRhmG9Q93i1e6CPG2bEK",
+  },
+  {
+    protocol: "sanctum", symbol: "hSOL", label: "Sanctum hSOL pool", program: SANCTUM_SPL_PROGRAM, pool: "3wK2g8ZdzAH8FJ7PKr2RcvGh7V9VYson5hrVsJM5Lmws",
+    mint: "he1iusmfkpAdwvxLNGV8Y1iSbj4rUy6yMhEA3fotn9A", reserve: "xdmLgScxrbbUu2gx7j2iqQXVKZYBCTDiCtR7AsHHJYQ",
+    feeAccount: "C1mXWyT6CpiatsC2ob4tTTdT6nHJBVmcPzrV5oAXXDT5", validatorList: "TCxWHorDSe3vWydw6MGwyexcqm3ZU9RT7VTqiCcN6y9",
+  },
+  {
+    protocol: "sanctum", symbol: "dSOL", label: "Sanctum dSOL pool", program: SANCTUM_SPL_PROGRAM, pool: "9mhGNSPArRMHpLDMSmxAvuoizBqtBGqYdT8WGuqgxNdn",
+    mint: "Dso1bDeDjCQxTrWHqUUi63oBvV7Mdm6WaobLbQ7gnPQ", reserve: "4RjzgujRmdadbLjyh2L1Qn5ECsQ1qfjaapTfeWKYtsC3",
+    feeAccount: "4ipvqrPR7dvkRPJ9iHhAxY7NfcgCSrZw5KLH3K8aAbCM", validatorList: "4dRHzwW2npecE4riAKibHccnMib5jBu9RdFf8bQ2o7Mo",
+  },
+  {
+    protocol: "sanctum", symbol: "bonkSOL", label: "Sanctum bonkSOL pool", program: SANCTUM_SPL_PROGRAM, pool: "ArAQfbzsdotoKB5jJcZa3ajQrrPcWr2YQoDAEAiFxJAC",
+    mint: "BonK1YhkXEGLZzwtcvRTip3gAL9nCeQD7ppZBLXhtTs", reserve: "5htyN73FSd1dvv8LEHrmy4EiDkXtrGn5EXv5ZizqVF3X",
+    feeAccount: "2azKdTLTd7xBF3mKjVBrrpj5jgJHoCRXLNpFjhfgzXwv", validatorList: "Ea2ATXQgQrUXGdMPXUbdNw8SmV3S6RSzsiff8AcBLP2G",
+  },
+  {
+    protocol: "blazestake", symbol: "bSOL", label: "BlazeStake stake pool", program: SPL_STAKE_POOL_PROGRAM, pool: "stk9ApL5HeVAwPLr3TLhDXdZS8ptVu7zp6ov8HFDuMi",
+    mint: "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1", reserve: "rsrxDvYUXjH1RQj2Ke36LNZEVqGztATxFkqNukERqFT",
+    feeAccount: "Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1", validatorList: "1istpXjy8BM7Vd5vPfA485frrV7SRJhgq5vs3sskWmc",
+  },
+] satisfies readonly SolanaStakePool[]);
+
+/** The pinned stake pools of `protocol` (default first). */
+export function stakePoolsFor(protocol: ProtocolId): SolanaStakePool[] {
+  return SOLANA_STAKE_POOLS.filter((pool) => pool.protocol === protocol);
+}
+
+/** VENUE_CONTRACTS rows of the stake pools: each protocol's programs once, then every pool's accounts. */
+function stakePoolContracts(): VenueContract[] {
+  const rows: VenueContract[] = [];
+  const add = (row: VenueContract) => {
+    if (!rows.some((entry) => entry.protocol === row.protocol && entry.role === row.role && entry.address === row.address)) rows.push(row);
+  };
+  for (const pool of SOLANA_STAKE_POOLS) {
+    const network = "solana";
+    add({ protocol: pool.protocol, network, role: "program", address: pool.program });
+    add({ protocol: pool.protocol, network, role: "stake-pool", address: pool.pool });
+    add({ protocol: pool.protocol, network, role: "pool-mint", address: pool.mint });
+    add({ protocol: pool.protocol, network, role: "reserve-stake", address: pool.reserve });
+    add({ protocol: pool.protocol, network, role: "fee-account", address: pool.feeAccount });
+    add({ protocol: pool.protocol, network, role: "validator-list", address: pool.validatorList });
+  }
+  return rows;
+}
+
 export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   // Relay (GET /chains protocol.v2.depository and contracts.*; bytecode present on all five EVM networks)
   ...everyEvm("relay", "depository", "0x4cD00E387622C35bDDB9b4c962C136462338BC31"),
@@ -1681,6 +1874,7 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   { protocol: "jupiter-lend", network: "solana", role: "liquidity-program", address: JUPITER_LIQUIDITY_PROGRAM },
   { protocol: "kamino", network: "solana", role: "program", address: KAMINO_PROGRAM },
   { protocol: "kamino", network: "solana", role: "farms-program", address: "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr" },
+  { protocol: "save", network: "solana", role: "program", address: SAVE_PROGRAM },
   // Name services
   { protocol: "ens", network: "ethereum", role: "registry", address: "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e" },
   { protocol: "ens", network: "ethereum", role: "universal-resolver", address: "0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe" },
@@ -1749,7 +1943,7 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   { protocol: "frax-ether", network: "ethereum", role: "deposit-target", address: "0xbAFA44EFE7901E04E39Dad13167D089C559c1138" },
   { protocol: "frax-ether", network: "ethereum", role: "underlying-token", address: "0x5E8422345238F34275888049021821E8E08CAa1f" },
   { protocol: "frax-ether", network: "ethereum", role: "lst-token", address: "0xac3E018457B222d93114458476f3E3416Abbe38F" },
-  // ---- round 9 (E1; read back 2026-10-23: packages/core/test/fixtures/protocols-2026-10-23.json)
+  // ---- read back 2026-10-23: packages/core/test/fixtures/protocols-2026-10-23-evm.json
   // Kelp: LRTDepositPool (lrtConfig() = config), LRTConfig (rsETH() = token; getContract(LRT_DEPOSIT_POOL / LRT_ORACLE) = pool / oracle)
   { protocol: "kelp", network: "ethereum", role: "deposit-target", address: "0x036676389e48133B63a802f8635AD39E752D375D" },
   { protocol: "kelp", network: "ethereum", role: "config", address: "0x947Cb49334e6571ccBFEF1f1f1178d8469D65ec7" },
@@ -1759,19 +1953,8 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   { protocol: "renzo", network: "ethereum", role: "deposit-target", address: "0x74a09653A083691711cF8215a6ab074BB4e99ef5" },
   { protocol: "renzo", network: "ethereum", role: "lst-token", address: "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110" },
   { protocol: "renzo", network: "ethereum", role: "rate-oracle", address: "0x5a12796f7e7EBbbc8a402667d266d2e65A814042" },
-  // Solana SPL stake pools: Jito (SPL stake pool program) and JupSOL (Sanctum SPL multi program); pool fields decoded live
-  { protocol: "jito", network: "solana", role: "program", address: "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy" },
-  { protocol: "jito", network: "solana", role: "stake-pool", address: "Jito4APyf642JPZPx3hGc6WWJ8zPKtRbRs4P815Awbb" },
-  { protocol: "jito", network: "solana", role: "pool-mint", address: "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn" },
-  { protocol: "jito", network: "solana", role: "reserve-stake", address: "BgKUXdS29YcHCFrPm5M8oLHiTzZaMDjsebggjoaQ6KFL" },
-  { protocol: "jito", network: "solana", role: "fee-account", address: "8yoigZfzZ1nNaadumY9uPVD118225UYHTDpmjpr2nrSa" },
-  { protocol: "jito", network: "solana", role: "validator-list", address: "3R3nGZpQs2aZo5FDQvd2MUQ6R7KhAPainds6uT6uE2mn" },
-  { protocol: "sanctum", network: "solana", role: "program", address: "SPMBzsVUuoHA4Jm6KunbsotaahvVikZs1JyTW6iJvbn" },
-  { protocol: "sanctum", network: "solana", role: "stake-pool", address: "8VpRhuxa7sUUepdY3kQiTmX9rS5vx4WgaXiAnXq4KCtr" },
-  { protocol: "sanctum", network: "solana", role: "pool-mint", address: "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v" },
-  { protocol: "sanctum", network: "solana", role: "reserve-stake", address: "FMAWbzuxsgbgndArunedwxXPA6sweaVUGGgadCpSxau2" },
-  { protocol: "sanctum", network: "solana", role: "fee-account", address: "GbvFCpMqKX65gQ8KNeob9JUAL7vHCHFSg8YN5bnpPT8g" },
-  { protocol: "sanctum", network: "solana", role: "validator-list", address: "AXL4v4bbzRkqwHmLc9A1YzHQmRhmG9Q93i1e6CPG2bEK" },
+  // Solana SPL stake pools (generated from SOLANA_STAKE_POOLS): Jito, the Sanctum pools and BlazeStake; pool fields decoded live
+  ...stakePoolContracts(),
   // Marinade: program, state (owned by the program), mSOL mint and the liquidity pool's mSOL leg (decoded from state)
   { protocol: "marinade", network: "solana", role: "program", address: "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD" },
   { protocol: "marinade", network: "solana", role: "program-state", address: "8szGkuLTAux9XMgZ2vtY39jVSowEcpBfFfD8hXSEqdGC" },
@@ -1786,6 +1969,54 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   { protocol: "solana-stake", network: "solana-devnet", role: "program", address: "Stake11111111111111111111111111111111111111" },
   { protocol: "solana-stake", network: "solana-devnet", role: "vote-account", address: "vgcDar2pryHvMgPkKaZfh8pQy4BJxv7SpwUG7zinWjG" },
 ] satisfies readonly VenueContract[]);
+
+/* ------------------------------------------------- Jupiter venue families */
+
+/** A Jupiter AMM label and the program it stands for. */
+export interface JupiterDexLabel {
+  readonly label: string;
+  readonly program: string;
+}
+
+/**
+ * Venue families a Jupiter swap may be restricted to or kept away from
+ * (Jupiter's `dexes` / `excludeDexes` quote parameters take the labels).
+ * Labels and programs read from Jupiter's /swap/v1/program-id-to-label on
+ * 2026-10-23 (fixtures/protocols-2026-10-23-solana.json); Lifinity is no longer
+ * listed there, so it cannot be named.
+ */
+export const JUPITER_DEX_FAMILIES = Object.freeze({
+  raydium: [
+    { label: "Raydium", program: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8" },
+    { label: "Raydium CLMM", program: "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK" },
+    { label: "Raydium CP", program: "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C" },
+  ],
+  orca: [{ label: "Whirlpool", program: "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc" }],
+  meteora: [
+    { label: "Meteora DLMM", program: "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo" },
+    { label: "Meteora DAMM v2", program: "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG" },
+    { label: "Meteora", program: "Eo7WjKq67rjJQSZxS6z3YkapzY3eMj6Xy8X5EQVn5UaB" },
+  ],
+  phoenix: [{ label: "Phoenix", program: "PhoeNiXZ8ByJGLkxNfZRnkUfjvmuYqLR89jjFHGqdXY" }],
+  openbook: [{ label: "OpenBook V2", program: "opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb" }],
+  manifest: [{ label: "Manifest", program: "MNFSTqtC93rEfYHB6hF82sKdZpUDFWkViLByLd1k1Ms" }],
+  solfi: [
+    { label: "SolFi", program: "SoLFiHG9TfgtdUXUjWAxi3LtvYuFyDLVhBWxdMZxyCe" },
+    { label: "SolFi V2", program: "SV2EYYJyRz2YhfXwXnhNAevDEui5Q6yrfyo13WtupPF" },
+  ],
+  humidifi: [{ label: "HumidiFi", program: "9H6tua7jkLhdm3w8BvgpTn5LZNU7g4ZynDmCiNN3q6Rp" }],
+  zerofi: [{ label: "ZeroFi", program: "ZERor4xhbUycZ6gb9ntrhqscUcZmAbQDjEAtCf4hbZY" }],
+  pumpfun: [
+    { label: "Pump.fun", program: "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P" },
+    { label: "Pump.fun Amm", program: "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA" },
+  ],
+} satisfies Readonly<Record<string, readonly JupiterDexLabel[]>>);
+
+export type JupiterDexFamily = keyof typeof JUPITER_DEX_FAMILIES;
+
+export function isJupiterDexFamily(value: string): value is JupiterDexFamily {
+  return Object.hasOwn(JUPITER_DEX_FAMILIES, value);
+}
 
 /** The Solana DEX venue behind a Jupiter route label ("Raydium CLMM" -> raydium), or null. */
 export function venueByLabel(label: string): VenueContract | null {

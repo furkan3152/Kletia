@@ -1,0 +1,502 @@
+{
+ "at": "2026-10-23",
+ "note": "Solana pins added 2026-10-23, read back read-only on 2026-10-23 (stake pools, Kamino JLP/Altcoins reserves, Save main pool, Jupiter venue labels). DepositSolWithSlippage was simulated on every new pool (exact minimum passes, a higher one fails with ExceededSlippage 0x27) and Save refresh + deposit + redeem on USDC/USDT, from a funded mainnet account without signing. Generated; do not edit by hand.",
+ "entries": [
+  {
+   "network": "solana",
+   "address": "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY",
+   "label": "sanctum stake pool program",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "3wK2g8ZdzAH8FJ7PKr2RcvGh7V9VYson5hrVsJM5Lmws",
+   "label": "hSOL stake pool",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY",
+   "lastUpdateEpoch": "1065",
+   "epoch": 1065
+  },
+  {
+   "network": "solana",
+   "address": "he1iusmfkpAdwvxLNGV8Y1iSbj4rUy6yMhEA3fotn9A",
+   "label": "hSOL mint",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+   "decimals": 9,
+   "mintAuthority": "2rMuGTyXCqCHZBSu6NZR9Aq8MhZX9gLkCHoQsPhSj2YF"
+  },
+  {
+   "network": "solana",
+   "address": "xdmLgScxrbbUu2gx7j2iqQXVKZYBCTDiCtR7AsHHJYQ",
+   "label": "hSOL reserve stake",
+   "source": "stake pool account",
+   "verified": true,
+   "owner": "Stake11111111111111111111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "C1mXWyT6CpiatsC2ob4tTTdT6nHJBVmcPzrV5oAXXDT5",
+   "label": "hSOL manager fee account",
+   "source": "stake pool account",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "TCxWHorDSe3vWydw6MGwyexcqm3ZU9RT7VTqiCcN6y9",
+   "label": "hSOL validator list",
+   "source": "sanctum-lst-list.toml",
+   "verified": true,
+   "owner": "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY"
+  },
+  {
+   "network": "solana",
+   "address": "9mhGNSPArRMHpLDMSmxAvuoizBqtBGqYdT8WGuqgxNdn",
+   "label": "dSOL stake pool",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY",
+   "lastUpdateEpoch": "1065",
+   "epoch": 1065
+  },
+  {
+   "network": "solana",
+   "address": "Dso1bDeDjCQxTrWHqUUi63oBvV7Mdm6WaobLbQ7gnPQ",
+   "label": "dSOL mint",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+   "decimals": 9,
+   "mintAuthority": "6727ZvQ2YEz8jky1Z9fqDFG5mYuAvC9G34o2MxwzmrUK"
+  },
+  {
+   "network": "solana",
+   "address": "4RjzgujRmdadbLjyh2L1Qn5ECsQ1qfjaapTfeWKYtsC3",
+   "label": "dSOL reserve stake",
+   "source": "stake pool account",
+   "verified": true,
+   "owner": "Stake11111111111111111111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "4ipvqrPR7dvkRPJ9iHhAxY7NfcgCSrZw5KLH3K8aAbCM",
+   "label": "dSOL manager fee account",
+   "source": "stake pool account",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "4dRHzwW2npecE4riAKibHccnMib5jBu9RdFf8bQ2o7Mo",
+   "label": "dSOL validator list",
+   "source": "sanctum-lst-list.toml",
+   "verified": true,
+   "owner": "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY"
+  },
+  {
+   "network": "solana",
+   "address": "ArAQfbzsdotoKB5jJcZa3ajQrrPcWr2YQoDAEAiFxJAC",
+   "label": "bonkSOL stake pool",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY",
+   "lastUpdateEpoch": "1065",
+   "epoch": 1065
+  },
+  {
+   "network": "solana",
+   "address": "BonK1YhkXEGLZzwtcvRTip3gAL9nCeQD7ppZBLXhtTs",
+   "label": "bonkSOL mint",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+   "decimals": 9,
+   "mintAuthority": "9LcmMfufi8YUcx83RALwF9Y9BPWZ7SqGy4D9VLe2nhhA"
+  },
+  {
+   "network": "solana",
+   "address": "5htyN73FSd1dvv8LEHrmy4EiDkXtrGn5EXv5ZizqVF3X",
+   "label": "bonkSOL reserve stake",
+   "source": "stake pool account",
+   "verified": true,
+   "owner": "Stake11111111111111111111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "2azKdTLTd7xBF3mKjVBrrpj5jgJHoCRXLNpFjhfgzXwv",
+   "label": "bonkSOL manager fee account",
+   "source": "stake pool account",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "Ea2ATXQgQrUXGdMPXUbdNw8SmV3S6RSzsiff8AcBLP2G",
+   "label": "bonkSOL validator list",
+   "source": "sanctum-lst-list.toml",
+   "verified": true,
+   "owner": "SP12tWFxD9oJsVWNavTTBZvMbA6gkAmxtVgxdqvyvhY"
+  },
+  {
+   "network": "solana",
+   "address": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy",
+   "label": "blazestake stake pool program",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "stk9ApL5HeVAwPLr3TLhDXdZS8ptVu7zp6ov8HFDuMi",
+   "label": "bSOL stake pool",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy",
+   "lastUpdateEpoch": "1065",
+   "epoch": 1065
+  },
+  {
+   "network": "solana",
+   "address": "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",
+   "label": "bSOL mint",
+   "source": "sanctum-lst-list.toml + getAccountInfo",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+   "decimals": 9,
+   "mintAuthority": "6WecYymEARvjG5ZyqkrVQ6YkhPfujNzWpSPwNKXHCbV2"
+  },
+  {
+   "network": "solana",
+   "address": "rsrxDvYUXjH1RQj2Ke36LNZEVqGztATxFkqNukERqFT",
+   "label": "bSOL reserve stake",
+   "source": "stake pool account",
+   "verified": true,
+   "owner": "Stake11111111111111111111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1",
+   "label": "bSOL manager fee account",
+   "source": "stake pool account",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "1istpXjy8BM7Vd5vPfA485frrV7SRJhgq5vs3sskWmc",
+   "label": "bSOL validator list",
+   "source": "sanctum-lst-list.toml",
+   "verified": true,
+   "owner": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy"
+  },
+  {
+   "network": "solana",
+   "address": "DxXdAyU3kCjnyggvHmY5nAwg5cRbbmdyX3npfDMjjMek",
+   "label": "Kamino JLP market",
+   "source": "api.kamino.finance + getAccountInfo",
+   "verified": true,
+   "owner": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+  },
+  {
+   "network": "solana",
+   "address": "B9spsrMK6pJicYtukaZzDyzsUQLgc3jbx5gHVwdDxb6y",
+   "label": "Kamino JLP market authority",
+   "source": "PDA(lma, market)",
+   "verified": true,
+   "owner": null
+  },
+  {
+   "network": "solana",
+   "address": "Ga4rZytCpq1unD4DbEJ5bkHeUz9g3oh9AAFEi6vSauXp",
+   "label": "Kamino JLP USDC reserve",
+   "source": "api.kamino.finance + getAccountInfo",
+   "verified": true,
+   "owner": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+  },
+  {
+   "network": "solana",
+   "address": "GENey8es3EgGiNTM8H8gzA3vf98haQF8LHiYFyErjgrv",
+   "label": "Kamino JLP USDC supply vault",
+   "source": "reserve offset 160",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "2ov3CMqPBYG3jNBmmpXgK9KMW5GmU5GWZNGcwf7w3BC1",
+   "label": "Kamino JLP USDT reserve",
+   "source": "api.kamino.finance + getAccountInfo",
+   "verified": true,
+   "owner": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+  },
+  {
+   "network": "solana",
+   "address": "BXE6FX8arPDS9uaQzdpTeqvFt4zAzWeUhnYuXUFzA8Hb",
+   "label": "Kamino JLP USDT supply vault",
+   "source": "reserve offset 160",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "FswUCVjvfAuzHCgPDF95eLKscGsLHyJmD6hzkhq26CLe",
+   "label": "Kamino JLP PYUSD reserve",
+   "source": "api.kamino.finance + getAccountInfo",
+   "verified": true,
+   "owner": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+  },
+  {
+   "network": "solana",
+   "address": "5aeoJKE5beaV8uJJnWRbGYxRTRrZCJi4mGgmK8yPE1wr",
+   "label": "Kamino JLP PYUSD supply vault",
+   "source": "reserve offset 160",
+   "verified": true,
+   "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  },
+  {
+   "network": "solana",
+   "address": "ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5",
+   "label": "Kamino Altcoins market",
+   "source": "api.kamino.finance + getAccountInfo",
+   "verified": true,
+   "owner": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+  },
+  {
+   "network": "solana",
+   "address": "81BgcfZuZf9bESLvw3zDkh7cZmMtDwTPgkCvYu7zx26o",
+   "label": "Kamino Altcoins market authority",
+   "source": "PDA(lma, market)",
+   "verified": true,
+   "owner": null
+  },
+  {
+   "network": "solana",
+   "address": "9TD2TSv4pENb8VwfbVYg25jvym7HN6iuAR6pFNSrKjqQ",
+   "label": "Kamino Altcoins USDC reserve",
+   "source": "api.kamino.finance + getAccountInfo",
+   "verified": true,
+   "owner": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD"
+  },
+  {
+   "network": "solana",
+   "address": "HTyrXvSvBbD7WstvU3oqFTBZM1fPZJPxVRvwLAmCTDyJ",
+   "label": "Kamino Altcoins USDC supply vault",
+   "source": "reserve offset 160",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo",
+   "label": "Save program",
+   "source": "api.solend.fi/v1/markets/configs + getAccountInfo",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "4UpD2fh7xH3VP9QQaXtsS1YY3bxzWhtfpks7FatyKvdY",
+   "label": "Save main market",
+   "source": "api.solend.fi/v1/markets/configs + getAccountInfo",
+   "verified": true,
+   "owner": "So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo"
+  },
+  {
+   "network": "solana",
+   "address": "DdZR6zRFiUt4S5mg7AV1uKB2z1f1WzcNYCaTEEWPAuby",
+   "label": "Save main market authority",
+   "source": "PDA([market])",
+   "verified": true,
+   "owner": null
+  },
+  {
+   "network": "solana",
+   "address": "BgxfHJDzm44T7XG68MYKx7YisTjZu73tVovyZSjJMpmw",
+   "label": "Save Main USDC reserve",
+   "source": "api.solend.fi/v1/markets/configs + getAccountInfo",
+   "verified": true,
+   "owner": "So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo",
+   "pythOracle": "Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX",
+   "switchboardOracle": "nu11111111111111111111111111111111111111111",
+   "depositLimit": "75000000000000"
+  },
+  {
+   "network": "solana",
+   "address": "8SheGtsopRUDzdiD6v6BR9a6bqZ9QwywYQY99Fp5meNf",
+   "label": "Save Main USDC liquidity supply",
+   "source": "reserve offset 75",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "993dVFL2uXWYeoXuEBFXR4BijeXdTv4s6BzsCjJZuwqk",
+   "label": "Save Main USDC cToken mint",
+   "source": "reserve offset 227",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+   "mintAuthority": "DdZR6zRFiUt4S5mg7AV1uKB2z1f1WzcNYCaTEEWPAuby"
+  },
+  {
+   "network": "solana",
+   "address": "8K9WC8xoh2rtQNY7iEGXtPvfbDCi563SdWhCAhuMP2xE",
+   "label": "Save Main USDT reserve",
+   "source": "api.solend.fi/v1/markets/configs + getAccountInfo",
+   "verified": true,
+   "owner": "So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo",
+   "pythOracle": "HT2PLQBcG5EiCcNSaMHAjSgd9F98ecpATbk4Sk5oYuM",
+   "switchboardOracle": "ETAaeeuQBwsh9mC2gCov9WdhJENZuffRMXY2HgjCcSL9",
+   "depositLimit": "20000000000000"
+  },
+  {
+   "network": "solana",
+   "address": "3CdpSW5dxM7RTxBgxeyt8nnnjqoDbZe48tsBs9QUrmuN",
+   "label": "Save Main USDT liquidity supply",
+   "source": "reserve offset 75",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  },
+  {
+   "network": "solana",
+   "address": "BTsbZDV7aCMRJ3VNy9ygV4Q2UeEo9GpR8D6VvmMZzNr8",
+   "label": "Save Main USDT cToken mint",
+   "source": "reserve offset 227",
+   "verified": true,
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+   "mintAuthority": "DdZR6zRFiUt4S5mg7AV1uKB2z1f1WzcNYCaTEEWPAuby"
+  },
+  {
+   "network": "solana",
+   "address": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+   "label": "Jupiter label Raydium (raydium)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK",
+   "label": "Jupiter label Raydium CLMM (raydium)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C",
+   "label": "Jupiter label Raydium CP (raydium)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+   "label": "Jupiter label Whirlpool (orca)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+   "label": "Jupiter label Meteora DLMM (meteora)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG",
+   "label": "Jupiter label Meteora DAMM v2 (meteora)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "Eo7WjKq67rjJQSZxS6z3YkapzY3eMj6Xy8X5EQVn5UaB",
+   "label": "Jupiter label Meteora (meteora)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "PhoeNiXZ8ByJGLkxNfZRnkUfjvmuYqLR89jjFHGqdXY",
+   "label": "Jupiter label Phoenix (phoenix)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb",
+   "label": "Jupiter label OpenBook V2 (openbook)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "MNFSTqtC93rEfYHB6hF82sKdZpUDFWkViLByLd1k1Ms",
+   "label": "Jupiter label Manifest (manifest)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "SoLFiHG9TfgtdUXUjWAxi3LtvYuFyDLVhBWxdMZxyCe",
+   "label": "Jupiter label SolFi (solfi)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "SV2EYYJyRz2YhfXwXnhNAevDEui5Q6yrfyo13WtupPF",
+   "label": "Jupiter label SolFi V2 (solfi)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "9H6tua7jkLhdm3w8BvgpTn5LZNU7g4ZynDmCiNN3q6Rp",
+   "label": "Jupiter label HumidiFi (humidifi)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "ZERor4xhbUycZ6gb9ntrhqscUcZmAbQDjEAtCf4hbZY",
+   "label": "Jupiter label ZeroFi (zerofi)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+   "label": "Jupiter label Pump.fun (pumpfun)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
+   "label": "Jupiter label Pump.fun Amm (pumpfun)",
+   "source": "lite-api.jup.ag/swap/v1/program-id-to-label",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  }
+ ]
+}

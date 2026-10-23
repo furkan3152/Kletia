@@ -20,8 +20,9 @@
  *   (revoked again if that write fails). At most 5 active per project.
  * - POST /v1/keys/{id}/children: an agent key (`kl_agt_`) under `{id}` with
  *   its first rule book (a document, a template, or the observer), at most
- *   2 levels below a project key, 100 active per project, expiring in 1 h to
- *   365 d and never after its parent.
+ *   3 levels below a project key, 100 active per project, expiring in 1 h to
+ *   365 d and never after its parent. Project keys only: agents ask for
+ *   sub-agents through a human decision (agents/service.ts).
  * - PATCH /v1/keys/{id} `{ expiresAt }`: an ancestor shortens at once;
  *   extending is a loosening, applied at once only when the key's rule book
  *   has no amendment delay.
@@ -59,7 +60,7 @@ import {
 } from "./auth.js";
 import { HttpError, invalidRequest, isRecord, type AuthContext } from "./context.js";
 import { deliveryStore } from "./deliveries.js";
-import { assertAgentPermission, agentForbidden } from "./policies/agentGuard.js";
+import { agentForbidden } from "./policies/agentGuard.js";
 import { publishKeyEvent, recordKeyDecision, announceAmended } from "./policies/announce.js";
 import { readKeyChain } from "./policies/chain.js";
 import { policyStore, projectScope, subjectKey } from "./policies/store.js";
@@ -377,8 +378,8 @@ async function deleteWebhooksOf(keyIds: readonly string[]): Promise<void> {
   }
 }
 
-/** DELETE /v1/keys/{id}: the key and its whole subtree. */
-export async function revokeKey(auth: AuthContext, id: string): Promise<void> {
+/** DELETE /v1/keys/{id}: the key and its whole subtree; returns the keys revoked with it. */
+export async function revokeKey(auth: AuthContext, id: string): Promise<readonly string[]> {
   const caller = manager(auth);
   if (caller.kind === "agent") await managed(caller, id);
   const now = Date.now();
@@ -392,6 +393,7 @@ export async function revokeKey(auth: AuthContext, id: string): Promise<void> {
     await recordKeyDecision({ projectId: caller.projectId, keyId: id, actorKeyId: caller.keyId, title: `Key ${id} revoked (${cascade.length} key(s) with its subtree)`, at: now });
     publishKeyEvent("key.revoked", { projectId: projectScope(caller.projectId), keyId: id, cascade: [...cascade] });
   }
+  return cascade;
 }
 
 /* ------------------------------------------------------------ agent keys */
@@ -474,8 +476,8 @@ export async function createChildKey(auth: AuthContext, parentId: string, reques
   const caller = manager(auth);
   const now = Date.now();
   if (caller.kind === "agent") {
-    await assertAgentPermission(auth, "createChildKeys");
-    if (parentId !== caller.keyId) await managed(caller, parentId);
+    // Agents get keys below themselves only through a human decision (docs/platform/subagents.md).
+    throw agentForbidden("Agent keys never mint child keys directly. Request a sub-agent with POST /v1/agents/{id}/subagents (permissions.createChildKeys); the project's owner or a project key approves it.");
   }
   const parent = await apiKeyStore().findById(parentId);
   if (!parent || parent.projectId !== caller.projectId) throw keyNotFound();

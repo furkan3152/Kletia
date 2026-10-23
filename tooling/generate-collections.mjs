@@ -47,6 +47,7 @@ const VARIABLES = [
   ["shareId", "", "A receipt share id (rsh_…) from creating or listing shares."],
   ["batchSeq", "1", "A transparency log batch number."],
   ["approvalId", "", "A Rule Book approval id (apr_…) from a held intent."],
+  ["subagentRequestId", "", "A sub-agent request id (sar_…) from POST /v1/agents/{id}/subagents."],
   ["decisionId", "", "A Rule Book decision id (pdc_…) from the decision log."],
   ["linkId", "", "An intent link id (lk_…) from creating or listing links."],
   ["threadId", "", "A Kletia-held clarify thread id (th_…) from a turn with remember: true, or from listing threads."],
@@ -160,7 +161,7 @@ function generate(document) {
     if (name === "accountId") return "accountId";
     const segments = path.split("/");
     const owner = segments[segments.indexOf(`{${name}}`) - 1] ?? "";
-    const singular = { intents: "intent", webhooks: "webhook", keys: "key", contracts: "contract", sessions: "session", links: "link", blinks: "link", approvals: "approval", decisions: "decision", threads: "thread" }[owner];
+    const singular = { intents: "intent", webhooks: "webhook", keys: "key", contracts: "contract", sessions: "session", links: "link", blinks: "link", approvals: "approval", decisions: "decision", threads: "thread", agents: "key", requests: "subagentRequest" }[owner];
     if (singular) return `${singular}Id`;
     if (name === "seq") return "batchSeq";
     return name;

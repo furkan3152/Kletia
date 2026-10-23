@@ -49,7 +49,7 @@ export interface ArticleProps {
 }
 
 const PERMISSION_TEXT: Readonly<Record<PolicyPermission, { label: string; meaning: string }>> = {
-  createChildKeys: { label: "Create agent keys", meaning: "Issue agent keys under itself (never above two levels)." },
+  createChildKeys: { label: "Request sub-agents", meaning: "Ask for agent keys under itself, each approved by a human (at most three levels)." },
   webhooks: { label: "Manage webhooks", meaning: "Create, delete and test webhooks." },
   registerContracts: { label: "Register contracts", meaning: "Register, update and reverify custom contracts." },
   sessions: { label: "Create sessions", meaning: "Create embed sessions for its fixed actions." },

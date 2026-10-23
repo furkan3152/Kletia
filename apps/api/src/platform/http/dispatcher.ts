@@ -117,7 +117,7 @@ function isLinkEvent(event: DispatchedEvent): event is LinkEvent {
 }
 
 function isPolicyOrKeyEvent(event: DispatchedEvent): event is PolicyEvent | KeyEvent {
-  return event.type.startsWith("policy.") || event.type.startsWith("key.");
+  return event.type.startsWith("policy.") || event.type.startsWith("key.") || event.type.startsWith("agent.");
 }
 
 /** The intent an event is about, if any (delivery log). */

@@ -41,6 +41,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Asset preview](platform/preview.md) — the fare breakdown and `PREVIEW_CHANGED`.
 - [Receipts](platform/receipts.md) — signed, selectively disclosed, independently verifiable receipts.
 - [Policies](platform/policies.md) — the Rule Book, agent keys and approvals.
+- [Sub-agents](platform/subagents.md) — main agents request sub-agents inside their rule book; the owner approves with a wallet signature.
 - [Intent links](platform/links.md) — shareable, bounded intents at `/go/<id>`.
 - [MCP server](platform/mcp.md) — read-only Model Context Protocol tools at `/v1/mcp` for AI agents.
 - [Embed web component](platform/embed.md) — `<kletia-intent>` and `mountKletiaIntent()` for any site, the frame bridge protocol and server-side verification.

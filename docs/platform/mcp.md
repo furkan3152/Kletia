@@ -86,8 +86,10 @@ actions).
 
 ## Tools
 
-Every tool is annotated `destructiveHint: false`, and every tool except
-`create_intent` and `create_link` is `readOnlyHint: true`.
+Every tool except `revoke_subagent` is annotated `destructiveHint: false`,
+and every tool except `create_intent`, `create_link` and the sub-agent
+tools `request_subagent`, `claim_subagent` and `revoke_subagent` is
+`readOnlyHint: true`.
 
 | Tool | Input | Output |
 |---|---|---|
@@ -162,6 +164,18 @@ using names never gets around a rule.
 | `get_link` | `linkId` | The same summary of one link (public view) |
 | `quote_link` | `linkId`, `source { network, asset }`, `amount?`, `accounts?` | What a visitor would send and receive for one funding choice (steps and the fare breakdown); nothing stored |
 | `create_link` | `definition` (the `POST /v1/links` body) | Publishes a link owned by the key (agent keys need `permissions.links`; the key's rule book bounds it) and returns its page and card URLs for a human. `readOnlyHint: false` |
+
+### Sub-agent tools
+
+For agent keys whose rule book grants `permissions.createChildKeys`
+([sub-agents](subagents.md)). A human always decides; nothing here signs.
+
+| Tool | Input | Output |
+|---|---|---|
+| `request_subagent` | `name`, `purpose`, `policy?` or `template?` + `fill?`, `expiresInSeconds?` | Files a request under the connecting key (its rule book must be inside the key's chain): `requestId`, `status`, `policyHash`, the grant line by line beside the key's own values, the claim token (shown once) and the portal link for the approver. `readOnlyHint: false` |
+| `list_subagents` | none | The key's requests (status, `claimBy` once approved) and sub-agents with their mode, caps and 24 h / 7 d use |
+| `claim_subagent` | `requestId`, `claimToken` | The approved sub-agent's key, once, within 15 minutes of the approval (only in `structuredContent`, never in the text part). `readOnlyHint: false` |
+| `revoke_subagent` | `keyId` | Revokes a key below the connecting key with its subtree. `destructiveHint: true` |
 
 Results carry `structuredContent` and the same JSON as text. Failures are
 `isError: true` results whose `structuredContent.error` holds the Platform API

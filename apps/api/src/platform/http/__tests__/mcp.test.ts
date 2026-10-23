@@ -144,6 +144,7 @@ describe("POST /v1/mcp (2026-07-28)", () => {
     const names = tools.map((tool) => tool.name).sort();
     assert.deepEqual(names, [
       "check_intent",
+      "claim_subagent",
       "create_intent",
       "create_link",
       "create_signing_link",
@@ -162,16 +163,20 @@ describe("POST /v1/mcp (2026-07-28)", () => {
       "list_links",
       "list_networks",
       "list_protocols",
+      "list_subagents",
       "plan_intent",
       "preview_intent",
       "quote_link",
+      "request_subagent",
+      "revoke_subagent",
       "test_contract_action",
     ]);
-    // create_intent and create_link store an intent or a link for a human to sign (never a transaction).
-    const writers = new Set(["create_intent", "create_link"]);
+    // create_intent and create_link store an intent or a link for a human to sign (never a transaction);
+    // the sub-agent tools file requests, claim an approved key and revoke one (only that is destructive).
+    const writers = new Set(["create_intent", "create_link", "request_subagent", "claim_subagent", "revoke_subagent"]);
     for (const tool of tools) {
       assert.equal(tool.annotations?.readOnlyHint, !writers.has(tool.name), `${tool.name} readOnlyHint`);
-      assert.equal(tool.annotations?.destructiveHint, false, `${tool.name} is not destructive`);
+      assert.equal(tool.annotations?.destructiveHint, tool.name === "revoke_subagent", `${tool.name} destructiveHint`);
       assert.equal(tool.inputSchema.type, "object");
       assert.doesNotMatch(tool.name, /prepare|submit|sign_tx|send/u);
     }

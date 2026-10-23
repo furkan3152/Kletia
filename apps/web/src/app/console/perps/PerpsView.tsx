@@ -8,7 +8,7 @@
  * two from 1024 px; nothing scrolls sideways.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { PerpsPosition, PerpsVenueId } from "@kletia/core";
+import type { IntentHandoff, PerpsPosition, PerpsVenueId } from "@kletia/core";
 
 import { toPlatformError, type PlatformError } from "../../../shared/platform/kletiaClient";
 import { useWallets } from "../../../shared/wallet/useWallets";
@@ -36,6 +36,9 @@ import {
   type PerpsTicket,
 } from "./perpsModel";
 import { usePerpsRun } from "./usePerpsRun";
+import { perpsPrefill } from "../handoff/handoffModel";
+import { HandoffNote } from "../handoff/HandoffNote";
+import { useHandoff } from "../handoff/useHandoff";
 
 const copy = PERPS_COPY;
 const PANEL = cx("p-4", INK_BORDER, SURFACE);
@@ -61,6 +64,14 @@ export function PerpsView() {
   const [quote, setQuote] = useState<PerpsQuoteResponse | null>(null);
   const [requestError, setRequestError] = useState<PlatformError | null>(null);
   const [pending, setPending] = useState<"quote" | "prepare" | null>(null);
+  const [handoffNote, setHandoffNote] = useState<string | null>(null);
+  useHandoff("perps", useCallback((handoff: IntentHandoff) => {
+    if (handoff.surface !== "perps") return;
+    const prefill = perpsPrefill(handoff.input);
+    setTicket(prefill.ticket);
+    setQuote(null);
+    setHandoffNote(prefill.position ? `${handoff.summary}: use Close or Reduce on that position below.` : `${handoff.summary}: check the ticket, then quote and sign.`);
+  }, []));
 
   const [marketsRead, setMarketsRead] = useState(0);
   const loadMarkets = useCallback(() => setMarketsRead((count) => count + 1), []);
@@ -149,6 +160,7 @@ export function PerpsView() {
         <h2 id="perps-heading" className="font-display text-2xl font-bold">{copy.heading}</h2>
         <p className="max-w-prose text-sm">{copy.intro}</p>
       </header>
+      <HandoffNote text={handoffNote} />
 
       <aside aria-labelledby="perps-risk" className={cx(PANEL, "border-[#B45309] dark:border-[#F59E0B]")}>
         <h3 id="perps-risk" className={cx(LABEL, "mb-2")}>{copy.risk.heading}</h3>

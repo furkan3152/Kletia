@@ -35,6 +35,7 @@ import {
   type ClarifyQuestion,
   type ClarifyThread,
   type IntentDeparture,
+  type IntentHandoff,
   type IntentRequest,
   type IntentTurnRequest,
   type IntentTurnResponse,
@@ -45,7 +46,8 @@ import { PlatformError } from "../../errors.js";
 import { contractDirectory, contractsEnabled, type ContractPhrase } from "../contracts/directory.js";
 import { resolveDeparture, type DepartureBalanceReader } from "../departure.js";
 import { assertNoSecret } from "../secretScreen.js";
-import { createIntentDetailed } from "../service.js";
+import { createIntentDetailed, inexactReading } from "../service.js";
+import { handoffTurn } from "../handoff/turn.js";
 import { networkName } from "./catalog.js";
 import { assumption, clip } from "./copy.js";
 import { TurnFacts } from "./facts.js";
@@ -201,7 +203,8 @@ export function threadFromState(state: WorkState): ClarifyThread {
 /* ------------------------------------------------------------ decide */
 
 export interface TurnDecision {
-  readonly status: "ready" | "needs_input" | "cancelled";
+  /** `handoff`: a perps trade, native order or automation for its own surface (round 9); nothing to plan here. */
+  readonly status: "ready" | "needs_input" | "cancelled" | "handoff";
   readonly turn: TurnKindName;
   readonly thread: ClarifyThread;
   readonly questions: readonly Question[];
@@ -218,6 +221,8 @@ export interface TurnDecision {
   /** Option sentences by question id and option id ("the sentence this choice leads to"). */
   readonly optionSentences: ReadonlyMap<string, string>;
   readonly state: WorkState;
+  /** Hand-off turns: the surface, its typed input and a summary. */
+  readonly handoff?: IntentHandoff;
 }
 
 /** Runs the reducer over this turn's facts, reading more until the policy asks for nothing new. */
@@ -269,9 +274,13 @@ export async function decideTurn(thread: ClarifyThread | null, input: TurnInput,
   // Secrets first: a message or an answer that carries one is refused before anything is read or kept.
   if ("text" in input) assertNoSecret(input.text, "text");
   if ("answer" in input) assertNoSecret(input.answer.text, "answer.text");
-  const previous = thread ? stateFromThread(thread) : null;
   const facts = new TurnFacts(ctx.accounts as IntentRequest["accounts"]);
   const id = thread?.id ?? newThreadId();
+  // Round 9: perps trades, native orders and automations are handed to their surface, never planned as intents.
+  const handed = await handoffTurn(thread, input, ctx, facts, id, { decideTurn, inexactReading, stateFromThread });
+  if (handed && "fresh" in handed) return decideTurn(null, input, ctx, constraints);
+  if (handed) return handed;
+  const previous = thread ? stateFromThread(thread) : null;
   let outcome: ReduceOutcome;
   try {
     outcome = await reduceWithFacts(previous, input, ctx, facts, id);
@@ -523,6 +532,8 @@ export interface ClarifyTurnOptions {
   readonly modelReadingAvailable?: boolean;
   /** Families of an agreed model reading (interpretation.modelReading.families). */
   readonly modelFamilies?: number;
+  /** The caller's perps rights (the key's rule book chain) for perps hand-offs; absent: the project defaults. */
+  readonly perps?: TurnContext["perps"];
 }
 
 function turnInput(request: IntentTurnRequest): TurnInput {
@@ -566,6 +577,7 @@ export async function clarifyTurn(request: IntentTurnRequest, options: ClarifyTu
     ...(options.reader ? { reader: options.reader } : {}),
     ...(options.confirmAuthority ? { confirmAuthority: options.confirmAuthority } : {}),
     ...(turn.textOrigin ? { textOrigin: turn.textOrigin } : {}),
+    ...(options.perps ? { perps: options.perps } : {}),
   };
   let decision: TurnDecision;
   try {
@@ -578,6 +590,9 @@ export async function clarifyTurn(request: IntentTurnRequest, options: ClarifyTu
     throw error;
   }
   if (decision.status === "cancelled") return { status: "cancelled", turn: "control", thread: decision.thread };
+  if (decision.status === "handoff" && decision.handoff) {
+    return { status: "handoff", turn: decision.turn, handoff: decision.handoff, assumptions: decision.assumptions.map(publicAssumption), thread: decision.thread };
+  }
   if (decision.status === "needs_input") {
     return {
       status: "needs_input",

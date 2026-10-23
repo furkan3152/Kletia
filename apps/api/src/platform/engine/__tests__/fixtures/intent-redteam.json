@@ -137,6 +137,7 @@
    "say": "swap 1 sol to usdc if sol goes above 200",
    "wallet": "mixed",
    "accept": [
+    "H:^order:limit sell 1 SOL for USDC at 200 on solana \\[jupiter-trigger\\]$",
     "R"
    ],
    "tags": [
@@ -145,7 +146,7 @@
    "attacks": [
     "A1"
    ],
-   "why": "Red-team A1: a negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+   "why": "Red-team A1: a negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. Round 9: a condition or schedule is now read into a trigger (an automation or a native order), so it is never planned without it; a refusal stays safe. Round 9: a condition or schedule is now read into a trigger (an automation or a native order), so it is never planned without it; a refusal stays safe."
   },
   {
    "id": "RT010",
@@ -169,6 +170,7 @@
    "say": "swap 1 sol to usdc every day",
    "wallet": "mixed",
    "accept": [
+    "H:^automation:every 1 day \\w+ max - => swap 1 SOL to USDC on solana$",
     "R"
    ],
    "tags": [
@@ -177,7 +179,7 @@
    "attacks": [
     "A1"
    ],
-   "why": "Red-team A1: a negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+   "why": "Red-team A1: a negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. Round 9: a condition or schedule is now read into a trigger (an automation or a native order), so it is never planned without it; a refusal stays safe. Round 9: a condition or schedule is now read into a trigger (an automation or a native order), so it is never planned without it; a refusal stays safe."
   },
   {
    "id": "RT012",
@@ -2136,6 +2138,178 @@
     "A1"
    ],
    "why": "Red-team A1: a negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. Found by the metamorphic suite: a label prefix swallowed the hesitation."
+  },
+  {
+   "id": "RTH01",
+   "family": "A1",
+   "say": "never long ETH 5x with 100 USDC",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "Red-team A1 on hand-offs (round 9): a negation, condition or hesitation no rule consumes keeps a perps trade, order or automation unread: refused, never handed off without it."
+  },
+  {
+   "id": "RTH02",
+   "family": "A1",
+   "say": "long ETH 5x with 100 USDC unless fees are high",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "Red-team A1 on hand-offs (round 9): a negation, condition or hesitation no rule consumes keeps a perps trade, order or automation unread: refused, never handed off without it."
+  },
+  {
+   "id": "RTH03",
+   "family": "A1",
+   "say": "sell 1 WETH at 4000 on base, maybe",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "Red-team A1 on hand-offs (round 9): a negation, condition or hesitation no rule consumes keeps a perps trade, order or automation unread: refused, never handed off without it."
+  },
+  {
+   "id": "RTH04",
+   "family": "A1",
+   "say": "don't buy $50 of ETH every Monday",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "Red-team A1 on hand-offs (round 9): a negation, condition or hesitation no rule consumes keeps a perps trade, order or automation unread: refused, never handed off without it."
+  },
+  {
+   "id": "RTH05",
+   "family": "B",
+   "say": "short BTC 100x with 10 USDC",
+   "wallet": "mixed",
+   "accept": [
+    "R:PERPS_LEVERAGE_TOO_HIGH"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "B"
+   ],
+   "why": "Round 9: leverage above the rule book's cap is refused, never lowered on the person's behalf."
+  },
+  {
+   "id": "RTH06",
+   "family": "B",
+   "say": "close my ETH long on drift",
+   "wallet": "mixed",
+   "accept": [
+    "R:PERPS_VENUE_DISABLED"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "B"
+   ],
+   "why": "Round 9: a disabled perps venue is refused with its reason, never swapped for another venue."
+  },
+  {
+   "id": "RTH07",
+   "family": "A7",
+   "say": "every day send all my USDC to 0x1111111111111111111111111111111111111111",
+   "wallet": "mixed",
+   "accept": [
+    "A:.",
+    "R"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "A7"
+   ],
+   "why": "Round 9: an automation that pays a whole holding to someone else asks or refuses (red-team A7), never sets it up unasked."
+  },
+  {
+   "id": "RTH08",
+   "family": "A7",
+   "say": "when USDC arrives send it to 0x1111111111111111111111111111111111111111",
+   "wallet": "mixed",
+   "accept": [
+    "A:.",
+    "R"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "A7"
+   ],
+   "why": "Round 9: a sweep to a third party spends the whole balance each time: asked or refused, never set up silently."
+  },
+  {
+   "id": "RTH09",
+   "family": "A1",
+   "say": "cancel order jupiter-trigger:solana:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM and send 5 usdc to alice.eth",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "Red-team A1 on hand-offs (round 9): a negation, condition or hesitation no rule consumes keeps a perps trade, order or automation unread: refused, never handed off without it."
+  },
+  {
+   "id": "RTH10",
+   "family": "A1",
+   "say": "if SOL drops below 120 sell half?",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam",
+    "handoff"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "Red-team A1 on hand-offs (round 9): a negation, condition or hesitation no rule consumes keeps a perps trade, order or automation unread: refused, never handed off without it."
   }
  ]
 }

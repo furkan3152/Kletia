@@ -20,6 +20,7 @@ import {
   STAKE_PROVIDER_WORDS,
   USD_WORDS,
   YIELD_VENUES,
+  venueExecutes,
   type NetworkKey,
   type ProtocolId,
   type ProtocolTier,
@@ -303,7 +304,7 @@ function venueMatches(asset: string, symbol: string): boolean {
 export function venueNetworks(kind: "deposit" | "withdraw", protocol: string | undefined, symbolOn: (network: NetworkKey) => string | null): NetworkKey[] {
   const options = ambiguousVenue(protocol) ?? (protocol ? [protocol] : null);
   const networks = YIELD_VENUES
-    .filter((venue) => (!options || options.includes(venue.protocol)) && (venue.actions as readonly string[]).includes(kind))
+    .filter((venue) => (!options || options.includes(venue.protocol)) && venueExecutes(venue, kind))
     .filter((venue) => {
       const symbol = symbolOn(venue.network);
       return symbol !== null && venueMatches(venue.asset, symbol);
@@ -312,13 +313,15 @@ export function venueNetworks(kind: "deposit" | "withdraw", protocol: string | u
   return [...new Set(networks)].sort((a, b) => NETWORK_ORDER.indexOf(a) - NETWORK_ORDER.indexOf(b));
 }
 
-export function venuesOn(network: NetworkKey, kind: "deposit" | "withdraw", protocol: string | undefined, symbol: string) {
+/** Executable venues of a kind; a named-only venue (Kamino JLP) only when `slug` names it. */
+export function venuesOn(network: NetworkKey, kind: "deposit" | "withdraw", protocol: string | undefined, symbol: string, slug?: string) {
   return YIELD_VENUES.filter((venue) =>
-    venue.network === network && (!protocol || venue.protocol === protocol) && (venue.actions as readonly string[]).includes(kind) && venueMatches(venue.asset, symbol));
+    venue.network === network && (!protocol || venue.protocol === protocol) && venueExecutes(venue, kind, slug !== undefined && venue.slug === slug) &&
+    venueMatches(venue.asset, symbol));
 }
 
-/** Protocols whose venues are named by slug in the grammar ("into morpho spark-usdc"). */
-export const VAULT_PROTOCOLS: readonly string[] = ["morpho", "spark-savings", "yearn-v3"];
+/** Protocols whose venues are named by slug in the grammar ("into morpho spark-usdc", "into kamino jlp-usdc", "into sky sdai"). */
+export const VAULT_PROTOCOLS: readonly string[] = ["morpho", "spark-savings", "yearn-v3", "kamino", "sky"];
 
 /* ------------------------------------------------------------ staking */
 
@@ -381,6 +384,14 @@ export const REGISTRY_STAKE_PROVIDERS: readonly StakeProvider[] = (() => {
       grammarProvider: entry.provider,
     });
   }
+  // Round 9: Solana liquid staking words the round-6 set does not name (BlazeStake bSOL, Sanctum hSOL / dSOL / bonkSOL).
+  const solanaWords = new Set(Object.keys(STAKE_PROVIDER_WORDS));
+  for (const [word, entry] of Object.entries(LIQUID_STAKING_TOKENS)) {
+    if (solanaWords.has(word)) continue;
+    const id = solanaStakeId(entry);
+    if (known.has(id) || out.has(id)) continue;
+    out.set(id, { id, word, symbol: entry.symbol, label: `${entry.provider} (${entry.symbol})`, network: "solana", input: "SOL", grammarProvider: entry.provider });
+  }
   const [nativeWord] = NATIVE_STAKE_WORDS;
   if (nativeWord && !known.has(NATIVE_STAKE_PROTOCOL)) {
     out.set(NATIVE_STAKE_PROTOCOL, {
@@ -396,6 +407,11 @@ export const REGISTRY_STAKE_PROVIDERS: readonly StakeProvider[] = (() => {
   return [...out.values()];
 })();
 
+/** The provider id of a Solana liquid staking token the round-6 set does not name ("blazestake", "sanctum-hsol"). */
+function solanaStakeId(entry: { readonly symbol: string; readonly provider: string }): string {
+  return entry.provider === "Sanctum" ? `sanctum-${entry.symbol.toLowerCase()}` : entry.provider.toLowerCase();
+}
+
 export function stakeProvider(id: string | undefined): StakeProvider | undefined {
   return STAKE_PROVIDERS.find((provider) => provider.id === id) ?? REGISTRY_STAKE_PROVIDERS.find((provider) => provider.id === id);
 }
@@ -409,6 +425,8 @@ export function providerFromWord(word: string): StakeProvider | undefined {
   if (entry) return stakeProvider(entry.provider);
   const evm = EVM_STAKING_TOKENS[spaced];
   if (evm) return stakeProvider(evm.protocol);
+  const solana = LIQUID_STAKING_TOKENS[spaced];
+  if (solana) return stakeProvider(solanaStakeId(solana));
   return NATIVE_STAKE_WORDS.includes(spaced) ? stakeProvider(NATIVE_STAKE_PROTOCOL) : undefined;
 }
 

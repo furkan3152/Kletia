@@ -147,7 +147,7 @@ export function ticketStampOf(task: {
   readonly engine?: { readonly kind: string };
 }): TicketStamp | null {
   if (task.engine?.kind === "rates") return null;
-  if (task.status === "question" || task.status === "unsupported" || task.status === "engine") return null;
+  if (task.status === "question" || task.status === "unsupported" || task.status === "engine" || task.status === "handoff") return null;
   const signature = task.signature ?? "unknown";
   const state = stampFor(task.status, signature);
   if (task.status === "executing" && state === "planned") {
@@ -167,6 +167,7 @@ export function unstampedSentence(status: TaskStatus, engine?: { readonly kind: 
   if (engine?.kind === "rates") return "Read only. Nothing was planned and nothing can be signed.";
   if (status === "unsupported") return "Kletia can't do that yet. Nothing was planned or signed.";
   if (status === "engine") return "Handed to a network engine. Nothing has been signed.";
+  if (status === "handoff") return "Opened in its own view to check and sign there. Nothing has been signed.";
   return "Waiting for your answer. Nothing has been signed.";
 }
 

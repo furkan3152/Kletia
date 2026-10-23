@@ -7,7 +7,7 @@
  */
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, Pause, Play, Plus, Trash2, Wallet } from "lucide-react";
-import type { AutomationView } from "@kletia/core";
+import type { AutomationView, IntentHandoff, ValidatedAutomationDraft } from "@kletia/core";
 
 import { useAccountSession } from "../../pages/developers/keys/accountSession";
 import { isPlatformError } from "../../pages/developers/keys/accountClient";
@@ -15,6 +15,9 @@ import { Button } from "../../site/ui/Button";
 import { cx, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import { useDeskActions } from "../shell/deskContext";
 import { getDeskStore } from "../state/deskStore";
+import { automationPrefill } from "../handoff/handoffModel";
+import { HandoffNote } from "../handoff/HandoffNote";
+import { useHandoff } from "../handoff/useHandoff";
 import { automationApi } from "./automationClient";
 import {
   AUTOMATION_COPY as copy,
@@ -50,6 +53,11 @@ export default function AutomationsView() {
   const seenRef = useRef<Set<string> | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const token = session?.token ?? null;
+  // A sentence read as an automation: its draft waits here until the person creates it (or dismisses it).
+  const [sentence, setSentence] = useState<{ readonly summary: string; readonly draft: ValidatedAutomationDraft } | null>(null);
+  useHandoff("automations", useCallback((handoff: IntentHandoff) => {
+    if (handoff.surface === "automations") setSentence({ summary: handoff.summary, draft: automationPrefill(handoff.input) });
+  }, []));
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
@@ -113,6 +121,7 @@ export default function AutomationsView() {
         {copy.title}
       </h2>
       <p className="border-l-4 border-[var(--kl-line)] pl-3 text-sm font-semibold">{copy.signatureNote}</p>
+      <HandoffNote text={sentence ? `${sentence.summary}. ${session ? "Create it below to start it." : "Sign in to create it."}` : null} />
       {error ? (
         <p role="alert" className="border-l-4 border-[var(--kl-danger)] bg-[var(--kl-danger-bg)] px-3 py-2 text-sm font-bold text-[var(--kl-danger)]">
           {error}
@@ -202,6 +211,25 @@ export default function AutomationsView() {
               })}
             </ul>
           </section>
+          {sentence ? (
+            <section aria-labelledby="automation-sentence" className={PANEL}>
+              <h3 id="automation-sentence" className="font-display text-lg font-bold">{sentence.summary}</h3>
+              <p className={cx("text-sm", TEXT_MUTED)}>Each run waits in the inbox for your signature.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  loading={busy === "create"}
+                  onClick={() => void act("create", async () => {
+                    await automationApi.create(session.token, sentence.draft);
+                    setSentence(null);
+                  })}
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  {copy.create}
+                </Button>
+                <Button variant="ghost" onClick={() => setSentence(null)}>Dismiss</Button>
+              </div>
+            </section>
+          ) : null}
           <TemplateForm
             busy={busy === "create"}
             onCreate={(id, values) => {

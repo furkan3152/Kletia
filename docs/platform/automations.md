@@ -102,6 +102,16 @@ curl -X POST https://api.kletiaai.xyz/v1/automations \
 ```
 
 `validateAutomationDraft` in `@kletia/core` reports the same issues locally.
+
+From a sentence, the reader returns the validated draft as a hand-off
+([clarify](clarify.md#hand-offs)): "buy $50 of ETH every Monday", "if SOL
+drops below 120 sell half", "every month send 100 USDC to vitalik.eth on
+base", "keep my USDC in the best yield", "when USDC arrives, deposit it into
+aave". It prefers a native order where one runs the same thing (a swap with
+an end, a take-profit sell) and says so. A run's sentence is checked to read
+again without questions: runs plan it through the exact deterministic reader
+(`CreateIntentOptions.exactReading`), so "sell half of my SOL for USDC on
+solana" sells half of the balance at that run.
 `planAutomationFromGoal({ trigger, action }, { now, accounts })` turns a
 typed goal ("every Monday", "if SOL drops below 120") into a draft; it
 computes the UTC `startAt` from a local weekday and time once.

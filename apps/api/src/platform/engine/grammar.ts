@@ -15,7 +15,9 @@ import {
   findAssetBySymbol,
   getProtocol,
   isEvmAddress,
+  isJupiterDexFamily,
   isSolanaAddress,
+  JUPITER_DEX_FAMILIES,
   lookalikeFamilyOf,
   MAX_INTENT_ACTIONS,
   parseAccountId,
@@ -29,11 +31,13 @@ import {
   type AccountId,
   type IntentActionKind,
   type IntentActionSpec,
+  type JupiterDexFamily,
   type NetworkKey,
   type ProtocolDescriptor,
   type ProtocolId,
 } from "@kletia/core";
 import { PlatformError, unsupported, type PlatformIssue } from "../errors.js";
+import { encodeJupiterVenueFilter } from "./adapters/jupiter.js";
 import type { ContractPhrase } from "./contracts/directory.js";
 import { hasQuestionMark, questionRefusal, readOnlyRates, readOnlyRatesRefusal } from "./readOnly.js";
 
@@ -102,6 +106,15 @@ function generatedVenueWords(covered: readonly ProtocolId[], select: (protocol: 
     .map((protocol) => ({ pattern: new RegExp(`^(?:${wordAlternation(protocol.words ?? [])})$`, "iu"), protocol: protocol.id }));
 }
 
+/** The hand-written lending and savings protocols (round 6 and earlier); later ones read their registry words. */
+const HAND_WRITTEN_LENDING: readonly ProtocolId[] = [
+  "aave-v3", "compound-v3", "morpho", "moonwell", "jupiter-lend", "kamino", "sparklend", "spark-savings", "fluid", "yearn-v3",
+];
+/** Registry lending and savings protocols with words and no hand-written pattern (round 9: Save, Sky, Ethena). */
+const GENERATED_LENDING: readonly ProtocolDescriptor[] = PROTOCOLS.filter((protocol) =>
+  (protocol.category === "lending" || protocol.category === "yield") && (protocol.kinds ?? []).includes("deposit") &&
+  (protocol.words ?? []).length > 0 && !HAND_WRITTEN_LENDING.includes(protocol.id));
+
 /** Lending and savings venue words -> protocol (bare "spark" is Spark Savings, with a warning naming SparkLend). */
 export const LENDING_VENUES: readonly VenueWord[] = Object.freeze([
   { pattern: /^aave(?:[\s-]*v3)?$/iu, protocol: "aave-v3" },
@@ -114,12 +127,39 @@ export const LENDING_VENUES: readonly VenueWord[] = Object.freeze([
   { pattern: /^spark(?:[\s-]+savings)?$/iu, protocol: "spark-savings" },
   { pattern: /^fluid(?:[\s-]+(?:lend|lending))?$/iu, protocol: "fluid" },
   { pattern: /^yearn(?:[\s-]+v3)?$/iu, protocol: "yearn-v3" },
+  ...generatedVenueWords(HAND_WRITTEN_LENDING, (protocol) => GENERATED_LENDING.includes(protocol)),
 ]);
 export const LENDING_WORDS =
   "aave(?:[\\s-]*v3)?|compound(?:[\\s-]*v3)?|comet|morpho(?:[\\s-]+vaults?)?|moonwell|(?:jupiter|jup)[\\s-]+(?:lend|earn)|kamino(?:[\\s-]+lend)?|" +
-  "spark[\\s-]*lend|spark(?:[\\s-]+savings)?|fluid(?:[\\s-]+(?:lending|lend))?|yearn(?:[\\s-]+v3)?";
-/** Lending protocols whose venues may be named by vault slug ("into morpho spark-usdc", "into yearn usdc-1", "into spark spusdc"). */
-const VAULT_PROTOCOLS: readonly ProtocolId[] = ["morpho", "spark-savings", "yearn-v3"];
+  "spark[\\s-]*lend|spark(?:[\\s-]+savings)?|fluid(?:[\\s-]+(?:lending|lend))?|yearn(?:[\\s-]+v3)?" +
+  (GENERATED_LENDING.length > 0 ? `|${wordAlternation(GENERATED_LENDING.flatMap((protocol) => protocol.words ?? []))}` : "");
+/**
+ * Lending protocols whose venues may be named by slug ("into morpho spark-usdc", "into yearn usdc-1", "into spark
+ * spusdc", "into kamino jlp-usdc", "into sky sdai").
+ */
+const VAULT_PROTOCOLS: readonly ProtocolId[] = ["morpho", "spark-savings", "yearn-v3", "kamino", "sky"];
+/** Venue words that are the name of one venue ("into sdai", "into susds", "into savings dai"): the word names the vault. */
+const VENUE_NAME_WORDS: Readonly<Record<string, string>> = Object.freeze({ "savings dai": "sdai" });
+
+/**
+ * The vault a venue word itself names ("sdai" is the Sky venue sdai), or undefined: a word equal to one of the
+ * protocol's venue slugs, or a reviewed name of one.
+ */
+export function vaultOfVenueWord(protocol: string, word: string | undefined): string | undefined {
+  const spaced = (word ?? "").trim().toLowerCase().replace(/[\s-]+/gu, " ");
+  const slug = VENUE_NAME_WORDS[spaced] ?? spaced;
+  return YIELD_VENUES.some((venue) => venue.protocol === protocol && venue.slug === slug && slug !== protocol) ? slug : undefined;
+}
+
+/**
+ * Exits a venue does not run (round 9): Ethena's sUSDe leaves through its cooldown, which Kletia shows and never
+ * runs; the refusal says what to do instead.
+ */
+export const EXIT_GUIDES: Readonly<Partial<Record<ProtocolId, string>>> = Object.freeze({
+  ethena:
+    "Kletia does not withdraw from Ethena: sUSDe leaves through Ethena's cooldown (cooldownShares on ethena.fi, then unstake once it ends). " +
+    "Kletia shows the cooldown when you deposit and does not run the exit.",
+});
 
 /** Cross-network venue words -> protocol ("bridge ... via lifi"). */
 export const BRIDGE_VENUES: readonly VenueWord[] = Object.freeze([
@@ -163,6 +203,13 @@ export const LIQUID_STAKING_TOKENS: Readonly<Record<string, { symbol: string; pr
   jupiter: { symbol: "JupSOL", provider: "Jupiter" },
   jupsol: { symbol: "JupSOL", provider: "Jupiter" },
   sanctum: { symbol: "JupSOL", provider: "Jupiter" },
+  // round 9: BlazeStake and the Sanctum single-validator pools (SPL stake pools, also routable through Jupiter)
+  blazestake: { symbol: "bSOL", provider: "BlazeStake" },
+  solblaze: { symbol: "bSOL", provider: "BlazeStake" },
+  bsol: { symbol: "bSOL", provider: "BlazeStake" },
+  hsol: { symbol: "hSOL", provider: "Sanctum" },
+  dsol: { symbol: "dSOL", provider: "Sanctum" },
+  bonksol: { symbol: "bonkSOL", provider: "Sanctum" },
 });
 
 /** EVM liquid staking on Ethereum: the staking word -> the token it mints and its protocol. */
@@ -272,6 +319,8 @@ export const GRAMMAR_VENUE_WORDS: readonly string[] = Object.freeze([
   "sparklend", "spark lend", "spark-lend", "spark", "spark savings", "spark-savings",
   "fluid", "fluid lend", "fluid lending",
   "yearn", "yearn v3", "yearn-v3",
+  // Round 9: generated lending and savings words (Save, Sky, Ethena).
+  ...GENERATED_LENDING.flatMap((protocol) => (protocol.words ?? []).map((word) => word.toLowerCase())),
   "lifi", "li.fi", "debridge", "debridge dln", "dln", "relay", "across", "cctp", "cctp v2",
   "jup", "raydium", "orca", "meteora", "uniswap", "uniswap v3", "aerodrome", "velodrome",
   ...Object.keys(LIQUID_STAKING_TOKENS),
@@ -342,8 +391,10 @@ interface Draft {
   /** Native SOL staking (stake account); `vote` is the validator the clause named. */
   readonly native?: { readonly vote?: string };
   readonly protocol?: ProtocolId;
-  /** Vault slug named in the clause (Morpho, Spark Savings, Yearn). */
+  /** Vault slug named in the clause (Morpho, Spark Savings, Yearn, Kamino, Sky). */
   readonly venue?: string;
+  /** A swap's Jupiter venue filter ("dexes:phoenix", "avoid:raydium"). */
+  readonly provider?: string;
   /** True when the clause named its network or source. */
   readonly explicit: boolean;
   readonly warnings?: readonly string[];
@@ -411,14 +462,63 @@ export const LST_WORDS = [
 const VOTE_ACCOUNT = "(?<vote>[1-9A-HJ-NP-Za-km-z]{32,44})";
 /** "via raydium", "using orca", "through uniswap" after a swap. */
 const SWAP_VENUE_SUFFIX = `(?:\\s+(?:via|using|through|with)\\s+(?<dex>${SWAP_VENUE_WORDS}))`;
-/** A swap names its network and venue in either order. */
-const SWAP_SUFFIXES = [`${ON_NETWORK}?${SWAP_VENUE_SUFFIX}?`, `${SWAP_VENUE_SUFFIX}${ON_NETWORK}?`];
+/** The Solana Pay protocol id (named only: never picked for a plain send). */
+export const SOLANA_PAY_PROTOCOL: ProtocolId = "solana-pay";
+/** "with solana pay" after a transfer: the Solana Pay protocol (reference-tracked transfer). */
+const SOLANA_PAY_SUFFIX = "(?:\\s+(?:with|via|using|through|over|by)\\s+(?<pay>solana[\\s-]*pay))";
+/** A Jupiter venue family ("phoenix", "pump.fun"); see `jupiterFamily`. */
+const FAMILY = `(?:${Object.keys(JUPITER_DEX_FAMILIES).filter((family) => family !== "pumpfun").join("|")}|pump(?:\\.|[\\s-]?)fun)`;
+const FAMILY_LIST = `${FAMILY}(?:(?:\\s*,\\s*|\\s+(?:and|or|nor)\\s+|\\s*,\\s*(?:and|or)\\s+)${FAMILY}){0,2}`;
+/** Families that are no swap venue word of their own ("via phoenix"): read as "only through Phoenix" on Jupiter. */
+const FILTER_ONLY_FAMILIES = Object.keys(JUPITER_DEX_FAMILIES).filter((family) => !SWAP_VENUES.some((venue) => venue.pattern.test(family)));
+/**
+ * A Jupiter venue filter after a Solana swap (round 9): "using only raydium and orca", "via phoenix",
+ * "avoiding raydium", "without solfi or humidifi". Encoded as `params.provider` (encodeJupiterVenueFilter).
+ */
+const SWAP_FILTER_SUFFIX =
+  `(?:\\s+(?:using\\s+only|only\\s+(?:via|through|using|on)|via\\s+only|through\\s+only)\\s+(?<only>${FAMILY_LIST})` +
+  `|\\s+(?:via|through|using)\\s+(?<viaOnly>${FILTER_ONLY_FAMILIES.join("|")})` +
+  `|\\s+(?:avoiding|avoid|excluding|except|without|not\\s+(?:via|through|using|on))\\s+(?<avoid>${FAMILY_LIST}))`;
+const SWAP_VENUE_OR_FILTER = `(?:${SWAP_VENUE_SUFFIX}|${SWAP_FILTER_SUFFIX})`;
+/** A swap names its network and venue (or venue filter) in either order. */
+const SWAP_SUFFIXES = [`${ON_NETWORK}?${SWAP_VENUE_OR_FILTER}?`, `${SWAP_VENUE_OR_FILTER}${ON_NETWORK}?`];
+
+/** A swap's venue filter in the grammar's words ("using only phoenix and orca", "avoiding raydium"), or null. */
+export function swapFilterWords(provider: string | undefined): string | null {
+  const match = /^(dexes|avoid):([a-z]+(?:,[a-z]+)*)$/u.exec(provider ?? "");
+  if (!match) return null;
+  const families = (match[2] as string).split(",");
+  const list = families.length === 1 ? families[0] : `${families.slice(0, -1).join(", ")} and ${families[families.length - 1]}`;
+  return match[1] === "dexes" ? `using only ${list}` : `avoiding ${list}`;
+}
+
+/** The Jupiter family a filter word names ("pump.fun" -> pumpfun), or null. */
+function jupiterFamily(word: string): JupiterDexFamily | null {
+  const value = word.trim().toLowerCase().replace(/^pump(?:\.|[\s-]?)fun$/u, "pumpfun");
+  return isJupiterDexFamily(value) ? value : null;
+}
+
+/**
+ * The `provider` of a swap's venue filter from the suffix groups ("only", "viaOnly", "avoid"), or undefined
+ * when the swap names none. Refuses a filter off Solana (Jupiter routes Solana swaps only).
+ */
+export function swapFilterProvider(groups: Record<string, string | undefined>, network: NetworkKey | undefined, clause: string): string | undefined {
+  const list = groups.only ?? groups.viaOnly ?? groups.avoid;
+  if (!list) return undefined;
+  if (network && CHAINS[network].vm !== "svm") {
+    throw clauseError(clause, `Venue filters ("via phoenix", "avoiding raydium") choose Jupiter venues on Solana; ${CHAINS[network].name} swaps do not take them.`);
+  }
+  const families = list.split(/\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or|nor)\s+/u).map(jupiterFamily).filter((family): family is JupiterDexFamily => family !== null);
+  return encodeJupiterVenueFilter({ mode: groups.avoid ? "avoid" : "only", families });
+}
 
 /**
  * The building blocks of the built-in sentences (exported for the clarify
  * layer, which reads the same shapes without refusing).
  */
 export const SENTENCE_FRAGMENTS = Object.freeze({
+  SWAP_FILTER_SUFFIX,
+  SOLANA_PAY_SUFFIX,
   AMOUNT,
   KEYWORD_GUARD,
   NETWORK_WORDS,
@@ -454,10 +554,11 @@ const PATTERNS: readonly { kind: IntentActionKind | "buy" | "bridge-or-transfer"
       "iu",
     ),
   },
-  {
-    kind: "transfer",
-    regex: new RegExp(`^(?:send|transfer|pay)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?\\s+to\\s+${ADDRESS}${ON_NETWORK}?$`, "iu"),
-  },
+  // "pay 5 USDC to <address> with solana pay" (round 9): a Solana Pay transfer, named only, network and connector in either order.
+  ...[`${ON_NETWORK}?${SOLANA_PAY_SUFFIX}?`, `${SOLANA_PAY_SUFFIX}${ON_NETWORK}?`].map((suffix) => ({
+    kind: "transfer" as const,
+    regex: new RegExp(`^(?:send|transfer|pay)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?\\s+to\\s+${ADDRESS}${suffix}$`, "iu"),
+  })),
   {
     // Native SOL staking: "stake 2 SOL natively", "stake 2 SOL with native staking", "stake 2 SOL with validator <vote>".
     kind: "native-stake",
@@ -581,11 +682,22 @@ function protocolName(id: ProtocolId): string {
   return getProtocol(id)?.name ?? id;
 }
 
+/** A swap's venue filter as a draft: Jupiter on Solana with the encoded filter as the provider. */
+function swapFilterDraft(groups: Record<string, string | undefined>, network: NetworkKey | undefined, clause: string): Partial<Draft> {
+  const provider = swapFilterProvider(groups, network, clause);
+  return provider ? { protocol: "jupiter", provider, network: network ?? "solana" } : {};
+}
+
 function lendingDraft(clause: string, kind: "deposit" | "withdraw", groups: Record<string, string | undefined>, amount: AmountPhrase, network: NetworkKey | undefined): Draft {
   const protocol = venueProtocol(groups.venue, LENDING_VENUES, clause);
-  const vault = groups.vault?.toLowerCase();
+  const exitGuide = kind === "withdraw" && !(getProtocol(protocol)?.kinds ?? []).includes("withdraw") ? EXIT_GUIDES[protocol] : undefined;
+  if (exitGuide) throw clauseError(clause, exitGuide);
+  const named = vaultOfVenueWord(protocol, groups.venue);
+  const said = groups.vault?.toLowerCase();
+  if (said && named && said !== named) throw clauseError(clause, `"${groups.venue}" is the ${named} venue; it cannot also be "${said}".`);
+  const vault = said ?? named;
   if (vault && !VAULT_PROTOCOLS.includes(protocol)) {
-    throw clauseError(clause, `Only Morpho, Spark Savings and Yearn vaults are named; say "${kind === "deposit" ? "into" : "from"} ${groups.venue ?? "the venue"}" without "${vault}".`);
+    throw clauseError(clause, `Only Morpho, Spark Savings, Yearn, Kamino and Sky venues are named; say "${kind === "deposit" ? "into" : "from"} ${groups.venue ?? "the venue"}" without "${vault}".`);
   }
   // Bare "spark" names two protocols: the default (Spark Savings) is used and the alternative named.
   const bareSpark = protocol === "spark-savings" && /^spark$/iu.test((groups.venue ?? "").trim()) && !vault;
@@ -649,6 +761,7 @@ function matchClause(clause: string): Draft {
           ...(groups.b ? { to: groups.b } : {}),
           ...(network ? { network } : {}),
           ...(groups.dex ? { protocol: venueProtocol(groups.dex, SWAP_VENUES, clause) } : {}),
+          ...swapFilterDraft(groups, network, clause),
           explicit: network !== undefined,
         };
       case "bridge": {
@@ -673,13 +786,15 @@ function matchClause(clause: string): Draft {
         };
       }
       case "transfer":
+        if (groups.pay && network && CHAINS[network].vm !== "svm") throw clauseError(clause, `Solana Pay runs on Solana, not on ${CHAINS[network].name}.`);
         return {
           clause,
           kind: "transfer",
           amount,
           ...(groups.a ? { from: groups.a } : {}),
           ...(groups.addr ? { recipient: groups.addr } : {}),
-          ...(network ? { network } : {}),
+          ...(network ? { network } : groups.pay ? { network: "solana" as const } : {}),
+          ...(groups.pay ? { protocol: SOLANA_PAY_PROTOCOL } : {}),
           explicit: network !== undefined || (groups.addr ?? "").includes(":"),
         };
       case "stake":
@@ -770,6 +885,33 @@ function venuelessDeposit(clause: string): PlatformError | null {
     ? `"${clause.slice(0, 120)}" does not match a supported "deposit" sentence: it names no venue. ${what}${where} run on ${protocols.map(protocolName).join(", ")}; say which one,${example}`
     : `"${clause.slice(0, 120)}" does not match a supported "deposit" sentence: no lending venue takes ${asset ?? "that asset"}${where}.`;
   return unsupported(message, GRAMMAR_EXAMPLES, [{ path: "text", message: "Name a venue (into <venue>)." }]);
+}
+
+/** The amount placeholder of the desk's "Move here" sentences ("Deposit [EDIT AMOUNT] USDC into ..."). */
+const AMOUNT_PLACEHOLDER = /\s*\[\s*edit[\s_-]*amount\s*\]/giu;
+/** "... into <venue name> on <network name>": a venue said by its full registry name (the data dashboard's sentences). */
+const VENUE_NAME_CLAUSE = /^(?<head>.*?\s(?:into|from|out\s+of)\s+)(?:the\s+)?(?<name>.+?)\s+(?:on|in)\s+(?<net>[a-z][a-z0-9 -]*)$/iu;
+
+function nameKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/gu, " ");
+}
+
+/**
+ * Reads the data dashboard's "Move here" sentence (`Deposit [EDIT AMOUNT] USDC into Kamino JLP USDC on Solana`) in
+ * the grammar's own words: the amount placeholder is dropped (the amount is then asked, or refused on the strict
+ * path), and a venue said by its full registry name on its network becomes its venue word and, for protocols named
+ * by slug, the slug ("into kamino jlp-usdc on solana"). Any other text is returned unchanged.
+ */
+export function readVenueNames(text: string): string {
+  const unplaced = text.replace(AMOUNT_PLACEHOLDER, "");
+  const match = VENUE_NAME_CLAUSE.exec(unplaced.trim());
+  if (!match?.groups) return unplaced;
+  const network = resolveNetworkName(match.groups.net as string);
+  const name = nameKey(match.groups.name as string);
+  const venue = network ? YIELD_VENUES.find((entry) => entry.network === network && nameKey(entry.name) === name) : undefined;
+  if (!venue || !network) return unplaced;
+  const slug = VAULT_PROTOCOLS.includes(venue.protocol) ? ` ${venue.slug}` : "";
+  return `${match.groups.head}${venueWordOf(venue.protocol)}${slug} on ${network}`;
 }
 
 /** The first grammar venue word of a protocol ("aave-v3" -> "aave"). */
@@ -1080,6 +1222,7 @@ function toActionSpec(draft: Draft, network: NetworkKey, index: number, warnings
   const params: Record<string, string | number | boolean> = {};
   if (amount.type === "previous" && amount.portionBps !== 10_000) params.portionBps = amount.portionBps;
   if (draft.venue) params.venue = draft.venue;
+  if (draft.provider) params.provider = draft.provider;
   let to = draft.to;
   const toAlias = etherAlias(network, to, draft.kind);
   if (toAlias) {
@@ -1186,7 +1329,7 @@ function refuseLookalike(clause: string, action: IntentActionSpec): void {
 }
 
 export function compileIntentText(text: string, context: GrammarContext = {}): GrammarResult {
-  const normalizedText = normalizeText(screenStrict(text));
+  const normalizedText = normalizeText(readVenueNames(screenStrict(text)));
   if (!normalizedText) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);
   // A question is never planned as typed ("swap 0.01 ETH to USDC on base?"): normalizeText strips the mark, so check first.
   if (hasQuestionMark(text)) throw questionRefusal(normalizedText, GRAMMAR_EXAMPLES);

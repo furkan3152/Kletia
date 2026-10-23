@@ -13,6 +13,7 @@ import type {
   ClarifyReason,
   ClarifyStepKind,
   NetworkKey,
+  PerpsPolicyView,
   ReadingSource,
   SlotProvenance,
   TextOrigin,
@@ -280,6 +281,10 @@ export interface TurnContext {
   readonly confirmAuthority?: ConfirmAuthority;
   /** How this turn's text reached Kletia (absent: "prefilled"). */
   readonly textOrigin?: TextOrigin;
+  /** Perps rights of the caller (the key's rule book chain), set by the HTTP layer; absent: the project defaults. */
+  readonly perps?: PerpsPolicyView;
+  /** Internal: a run's sentence read for an automation is never read as a hand-off itself. */
+  readonly noHandoff?: true;
 }
 
 export type TurnInput =

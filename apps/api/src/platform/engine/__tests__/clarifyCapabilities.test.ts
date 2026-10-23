@@ -24,7 +24,6 @@ import { assetAmount } from "../assets.js";
 import { BRIDGE_NETWORKS, OFFERED_KINDS, protocolWord, STAKE_PROVIDERS, SWAP_NETWORKS, TESTNET_BRIDGE_NETWORKS, VAULT_PROTOCOLS } from "../clarify/catalog.js";
 import { installWallet, type Corpus } from "../clarify/corpusHarness.js";
 import { clarifyTurn } from "../clarify/index.js";
-import { LENDING_VENUES } from "../grammar.js";
 import { configureHoldingsReaders } from "../holdings.js";
 import { EVM_ACCOUNT, OTHER_EVM_ADDRESS, OTHER_SOL_ADDRESS, resetEngine, SOL_ACCOUNT } from "./helpers.js";
 
@@ -169,8 +168,8 @@ describe("clarify capabilities: every offered kind and network plans", () => {
   });
 
   it("deposits into and withdraws from every executable venue", async () => {
-    // Round 9 venues (Sky, Ethena, Save) wait for their grammar words (reader hook, wired by the integrator).
-    for (const venue of YIELD_VENUES.filter((entry) => !READER_PENDING.includes(entry.protocol) && LENDING_VENUES.some((word) => word.protocol === entry.protocol))) {
+    // Every venue, the round 9 ones too (Sky, Ethena, Save, the Kamino JLP and Altcoins markets named by slug).
+    for (const venue of YIELD_VENUES) {
       const vault = VAULT_PROTOCOLS.includes(venue.protocol) ? ` ${venue.slug}` : "";
       for (const kind of venue.actions) {
         const text = kind === "deposit"
@@ -181,9 +180,6 @@ describe("clarify capabilities: every offered kind and network plans", () => {
     }
   });
 });
-
-/** Lending protocols whose venue words the sentence reader does not know yet (round 9 reader hooks). */
-const READER_PENDING: readonly string[] = ["sky", "ethena"];
 
 describe("clarify planning", () => {
   it("plans the canonical sentence as grammar text with the thread and assumptions in the interpretation", async () => {

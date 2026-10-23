@@ -157,7 +157,7 @@ describe("venue choices and staking providers from the registry", () => {
     const base = rankedVenueOptions("base", "deposit", "USDC").map((venue) => venue.protocol);
     assert.equal(base.length, 4);
     assert.deepEqual(base.slice(0, 3), ["aave-v3", "compound-v3", "spark-savings"]);
-    assert.deepEqual(rankedVenueOptions("polygon", "deposit", "ETH").map((venue) => venue.protocol), ["aave-v3", "fluid"]);
+    assert.deepEqual(rankedVenueOptions("polygon", "deposit", "ETH").map((venue) => venue.protocol), ["aave-v3", "morpho", "fluid"]);
     assert.deepEqual(rankedVenueOptions("arbitrum-sepolia", "deposit", "USDC").map((venue) => venue.protocol), ["aave-v3"]);
     assert.deepEqual(rankedVenueOptions("arc", "deposit", "USDC"), []);
   });
@@ -241,8 +241,8 @@ describe("grammar hooks (protocols design 3.6)", () => {
 
   it("a venue-less deposit names the venues of the index and a sentence that works", () => {
     const message = refusal("deposit 100 USDT on arbitrum").message;
-    assert.match(message, /names no venue\. USDT deposits on Arbitrum One run on Aave V3, Compound V3; say which one, e\.g\. "deposit 100 USDT into aave on arbitrum"\./u);
-    assert.match(refusal("deposit 1 ETH on polygon").message, /run on Aave V3, Fluid Lending/u);
+    assert.match(message, /names no venue\. USDT deposits on Arbitrum One run on Aave V3, Compound V3, Morpho Vaults; say which one, e\.g\. "deposit 100 USDT into aave on arbitrum"\./u);
+    assert.match(refusal("deposit 1 ETH on polygon").message, /run on Aave V3, Morpho Vaults, Fluid Lending/u);
     assert.match(refusal("deposit 1 USDC on arc").message, /no lending venue takes USDC on Arc Testnet/u);
   });
 

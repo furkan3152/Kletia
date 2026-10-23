@@ -97,7 +97,12 @@ export type ProtocolId =
   | "stader"
   | "mantle-lsp"
   | "frax-ether"
-  | "solana-stake";
+  | "solana-stake"
+  // round 9 (E1: more EVM protocols)
+  | "sky"
+  | "ethena"
+  | "kelp"
+  | "renzo";
 
 /**
  * Intent-engine risk tier of a protocol (engine design 4.2): `core` venues
@@ -216,7 +221,7 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     networks: ["base", "arbitrum", "ethereum", "optimism", "polygon"],
     capabilities: ["execute", "discover"],
     website: "https://compound.finance",
-    summary: "Comet base-asset supply and withdraw (USDC, WETH, USDT, wstETH); refuses accounts with an open borrow.",
+    summary: "Comet base-asset supply and withdraw (USDC, WETH, USDT, wstETH, USDS, AERO); refuses accounts with an open borrow.",
     kinds: ["deposit", "withdraw"],
     words: ["compound", "compound v3", "comet"],
     tier: "core",
@@ -575,10 +580,10 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     id: "curve",
     name: "Curve",
     category: "dex",
-    networks: ["ethereum"],
+    networks: ["ethereum", "arbitrum"],
     capabilities: ["execute", "quote"],
     website: "https://curve.fi",
-    summary: "Stablecoin swaps on pinned Curve pools (3pool): get_dy quotes and exchange with an on-chain min_dy.",
+    summary: "Stablecoin swaps on pinned Curve pools (Ethereum 3pool, Arbitrum USDC/USDT0): get_dy quotes and exchange with an on-chain min_dy.",
     kinds: ["swap"],
     words: ["curve", "curve finance", "3pool"],
     tier: "curated",
@@ -617,6 +622,55 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Stake ETH for sfrxETH (frxETH deposited into the staked vault) through the pinned frxETHMinter.",
     kinds: ["stake"],
     words: ["frax", "sfrxeth", "frxeth", "frax ether"],
+    tier: "extended",
+  },
+  // ---- round 9 (E1: more EVM protocols; pins read back 2026-10-23, packages/core/test/fixtures/protocols-2026-10-23.json)
+  {
+    id: "sky",
+    name: "Sky Savings",
+    category: "yield",
+    networks: ["ethereum"],
+    capabilities: ["execute", "discover"],
+    website: "https://sky.money",
+    summary: "Sky Savings Rate (sUSDS, implementation-pinned) and the Dai Savings Rate (sDAI, Pot-pinned): ERC-4626 deposits and withdrawals.",
+    kinds: ["deposit", "withdraw"],
+    words: ["sky", "sky savings", "susds", "sdai", "savings dai"],
+    tier: "core",
+  },
+  {
+    id: "ethena",
+    name: "Ethena",
+    category: "yield",
+    networks: ["ethereum"],
+    capabilities: ["execute", "discover"],
+    website: "https://ethena.fi",
+    summary: "Stake USDe for sUSDe (ERC-4626, silo-pinned). Deposits only: exits need Ethena's cooldown, which Kletia shows and does not run.",
+    kinds: ["deposit"],
+    words: ["ethena", "susde"],
+    tier: "extended",
+  },
+  {
+    id: "kelp",
+    name: "Kelp",
+    category: "liquid-staking",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://kelpdao.xyz",
+    summary: "Restake ETH for rsETH through the pinned LRTDepositPool with an on-chain minimum rsETH amount (restaking: slashing risk; no withdrawals through Kletia).",
+    kinds: ["stake"],
+    words: ["kelp", "kelp dao", "rseth"],
+    tier: "extended",
+  },
+  {
+    id: "renzo",
+    name: "Renzo",
+    category: "liquid-staking",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://renzoprotocol.com",
+    summary: "Restake ETH for ezETH through the pinned RestakeManager; the mint is quoted by Renzo's oracle (restaking: slashing risk; no withdrawals through Kletia).",
+    kinds: ["stake"],
+    words: ["renzo", "ezeth"],
     tier: "extended",
   },
   {
@@ -799,7 +853,8 @@ export type YieldVenueKind =
   | "kamino-reserve"
   | "fluid-ftoken"
   | "spark-vault"
-  | "yearn-vault";
+  | "yearn-vault"
+  | "savings-vault";
 export type YieldVenueAction = "deposit" | "withdraw";
 export type MorphoGeneration = "metamorpho-v1.0" | "metamorpho-v1.1" | "vault-v2";
 
@@ -933,6 +988,28 @@ export interface YearnVaultVenue extends YieldVenueBase {
   readonly implementation: string;
 }
 
+/** Savings tokens: Sky's sUSDS (UUPS proxy) and sDAI (immutable), Ethena's sUSDe (immutable, cooldown exits). */
+export type SavingsVaultGeneration = "susds" | "sdai" | "susde";
+
+/** A view call of the vault and the address it must return (provenance pins of a savings vault). */
+export interface SavingsVaultPin {
+  /** Zero-argument view returning an address ("pot", "silo"). */
+  readonly call: string;
+  readonly address: string;
+}
+
+export interface SavingsVaultVenue extends YieldVenueBase {
+  readonly kind: "savings-vault";
+  /** The vault (target = spender = share token). */
+  readonly spender: string;
+  readonly receipt: ReceiptToken;
+  readonly generation: SavingsVaultGeneration;
+  /** EIP-1967 implementation slot must equal it (upgradeable vaults); null: an immutable vault whose slot must be empty. */
+  readonly implementation: string | null;
+  /** Every pin's view call must return its address. */
+  readonly pins: readonly SavingsVaultPin[];
+}
+
 export type YieldVenue =
   | AaveReserveVenue
   | CometVenue
@@ -942,7 +1019,8 @@ export type YieldVenue =
   | KaminoReserveVenue
   | FluidFTokenVenue
   | SparkVaultVenue
-  | YearnVaultVenue;
+  | YearnVaultVenue
+  | SavingsVaultVenue;
 
 /** MetaMorpho / Vault V2 factories per network (null: no such factory is used there). */
 export const MORPHO_FACTORIES: Readonly<Partial<Record<NetworkKey, Readonly<Record<MorphoGeneration, string | null>>>>> = Object.freeze({
@@ -965,7 +1043,8 @@ export const MORPHO_FACTORIES: Readonly<Partial<Record<NetworkKey, Readonly<Reco
   optimism: {
     "metamorpho-v1.0": null,
     "metamorpho-v1.1": "0x3Bb6A6A0Bc85b367EFE0A5bAc81c5E52C892839a",
-    "vault-v2": null,
+    // round 9: the VaultV2Factory Morpho's API reports for OP vaults; isVaultV2(Re7 WETH) read back 2026-10-23
+    "vault-v2": "0x6128b680b277Bf4Df80DFE9D8c55A498660870ef",
   },
   polygon: {
     "metamorpho-v1.0": null,
@@ -1096,6 +1175,26 @@ function yearnVault(network: NetworkKey, slug: string, name: string, address: st
   };
 }
 
+function savingsVault(
+  protocol: "sky" | "ethena",
+  slug: string,
+  name: string,
+  address: string,
+  asset: string,
+  generation: SavingsVaultGeneration,
+  implementation: string | null,
+  pins: readonly SavingsVaultPin[],
+  actions: readonly YieldVenueAction[] = BOTH,
+): SavingsVaultVenue {
+  return {
+    id: `ethereum:${protocol}:${slug}`, slug, protocol, network: "ethereum", kind: "savings-vault", name,
+    asset, target: address, spender: address, receipt: { address, decimals: 18 }, generation, implementation, pins, actions,
+  };
+}
+
+/** sUSDS (UUPS): implementation read back 2026-10-23 (getImplementation() and the EIP-1967 slot agree). */
+const SUSDS_IMPLEMENTATION = "0x4e7991e5C547ce825BdEb665EE14a3274f9F61e0";
+const USDS_TOKEN = "0xdC035D45d973E3EC169d2276DDab16f1e407384F";
 const SPARKLEND_POOL = "0xC13e21B648A5Ee794902342038FF3aDAB66BE987";
 const SPARKLEND_DATA = "0xFc21d6d146E6086B8359705C8b28512a983db0cb";
 const SPARK_VAULT_V2_IMPLEMENTATION = "0x1b992302652A92611DCd5090D1Cb388C6377f455";
@@ -1156,6 +1255,10 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   comet("optimism", "0x995E394b8B2437aC8Ce61Ee0bC610D617962B214", "USDT", 6),
   comet("polygon", "0xaeB318360f27748Acb200CE616E389A6C9409a07", "USDT0", 6),
   comet("ethereum", "0x3D0bb1ccaB520A66e607822fC55BC921738fAFE3", "wstETH", 18),
+  // round 9 (baseToken() read back 2026-10-23; addresses from Compound's docs deployment tables)
+  comet("ethereum", "0x3Afdc9BCA9213A35503b077a6072F3D0d5AB0840", "USDT", 6),
+  comet("ethereum", "0x5D409e56D886231aDAf00c8775665AD0f9897b56", "USDS", 18),
+  comet("base", "0x784efeB622244d2348d4F2522f8860B96fbEcE89", "AERO", 18),
   // Moonwell mTokens (8-decimal receipts; recipient must be the account)
   mtoken("base", "0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22", "USDC", BASE_MOONWELL),
   mtoken("base", "0x628ff693426583D9a7FB391E54366292F509D457", "WETH", BASE_MOONWELL, {
@@ -1185,6 +1288,17 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   vault("optimism", "gauntlet-usdc-prime", "Gauntlet USDC Prime", "0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59", "USDC", "metamorpho-v1.1"),
   vault("polygon", "compound-usdc", "Compound USDC", "0x781FB7F6d845E3bE129289833b04d43Aa8558c42", "USDC", "metamorpho-v1.1"),
   vault("polygon", "compound-usdt", "Compound USDT", "0xfD06859A671C21497a2EB8C5E3fEA48De924D6c8", "USDT0", "metamorpho-v1.1"),
+  // round 9 (factory isMetaMorpho / isVaultV2, asset(), decimals() and Vault V2 gates read back 2026-10-23; existing defaults stay first)
+  vault("ethereum", "spark-blue-chip-usdt", "Spark Blue Chip USDT Vault", "0xb0c424116172B55CbB6dD3136F5989F7959e5B91", "USDT", "vault-v2"),
+  vault("ethereum", "steakhouse-prime-usdt", "Steakhouse Prime USDT", "0xbeef003C68896c7D2c3c60d363e8d71a49Ab2bf9", "USDT", "vault-v2"),
+  vault("ethereum", "sky-usds-flagship", "sky.money USDS Flagship", "0xE15fcC81118895b67b6647BBd393182dF44E11E0", "USDS", "vault-v2"),
+  vault("ethereum", "gauntlet-weth-prime", "Gauntlet WETH Prime", "0x2371e134e3455e0593363cBF89d3b6cf53740618", "WETH", "metamorpho-v1.0"),
+  vault("base", "steakhouse-high-yield-usdc", "Steakhouse High Yield USDC Edition", "0xbeeff2490FEffa212faC2f6553682C219E6a8845", "USDC", "vault-v2"),
+  vault("base", "grove-steakhouse-usdc", "Grove x Steakhouse USDC", "0xbeef0786756810478b88982DE00F3CD7fdB8e7c7", "USDC", "vault-v2"),
+  vault("base", "steakhouse-eurc", "Steakhouse EURC", "0xBeEF086b8807Dc5E5A1740C5E3a7C4c366eA6ab5", "EURC", "metamorpho-v1.0"),
+  vault("arbitrum", "bitget-steakhouse-usdt", "Bitget x Steakhouse USDT", "0xbeeff77CE5C059445714E6A3490E273fE7F2492F", "USDT0", "vault-v2"),
+  vault("optimism", "re7-weth", "Re7 WETH", "0x3d63934715b6D4c4DFbBC1a00Fe2A2145079DD76", "WETH", "vault-v2"),
+  vault("polygon", "compound-weth", "Compound WETH", "0xF5C81d25ee174d83f1FD202cA94AE6070d073cCF", "WETH", "metamorpho-v1.1"),
   // SparkLend reserves (Aave V3 fork: same venue kind, protocol "sparklend")
   aaveFamily("sparklend", "SparkLend", "ethereum", SPARKLEND_POOL, SPARKLEND_DATA, "USDC", "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815", 6),
   aaveFamily("sparklend", "SparkLend", "ethereum", SPARKLEND_POOL, SPARKLEND_DATA, "WETH", "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB", 18),
@@ -1207,6 +1321,15 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   // Yearn V3 vaults (registry-endorsed clones of the 3.0.2 vault)
   yearnVault("ethereum", "usdc-1", "Yearn V3 USDC-1", "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204", "USDC", 6),
   yearnVault("ethereum", "weth-1", "Yearn V3 WETH-1", "0xc56413869c6CDf96496f2b1eF801fEDBdFA7dDB0", "WETH", 18),
+  // round 9: Sky savings (sUSDS first: Ethereum's default USDS savings venue) and Ethena sUSDe (deposits only: cooldown exits)
+  savingsVault("sky", "susds", "Sky Savings USDS (sUSDS)", "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD", "USDS", "susds", SUSDS_IMPLEMENTATION, [{ call: "usds", address: USDS_TOKEN }]),
+  savingsVault("sky", "sdai", "Savings Dai (sDAI)", "0x83F20F44975D03b1b09e64809B757c47f942BEeA", "DAI", "sdai", null, [
+    { call: "pot", address: "0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7" },
+    { call: "daiJoin", address: "0x9759A6Ac90977b93B58547b4A71c78317f391A28" },
+  ]),
+  savingsVault("ethena", "susde", "Ethena Staked USDe (sUSDe)", "0x9D39A5DE30e57443BfF2A8307A4256c8797A3497", "USDe", "susde", null, [
+    { call: "silo", address: "0x7FC7c91D556B400AFa565013E3F32055a0713425" },
+  ], ["deposit"]),
   // Jupiter Lend Earn (jlToken mint = receipt). jlWSOL is listed for discovery until SOL wrapping is supported.
   jlToken("USDC", "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D", 6),
   jlToken("USDT", "Cmn4v2wipYV41dkakDvCgFJpxhtaaKt11NyWV8pjSE8A", 6),
@@ -1318,7 +1441,10 @@ export type VenueContractRole =
   | "program-state"
   | "liquidity-leg"
   /** Native staking: default vote accounts (the user may name another active one). */
-  | "vote-account";
+  | "vote-account"
+  // ---- round 9
+  /** EVM restaking: the oracle that prices the token (Kelp LRTOracle, Renzo `renzoOracle()`). */
+  | "rate-oracle";
 
 export interface VenueContract {
   readonly protocol: ProtocolId;
@@ -1499,6 +1625,8 @@ export interface CurvePool {
 export const CURVE_POOLS: readonly CurvePool[] = Object.freeze([
   // 3pool: coins(0..2) = DAI, USDC, USDT (read back 2026-10-15; MetaRegistry find_pool_for_coins(USDC, USDT) returns it)
   { id: "ethereum:curve:3pool", protocol: "curve", network: "ethereum", pool: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7", coins: ["DAI", "USDC", "USDT"], kind: "plain" },
+  // round 9: stable-ng USDC/USDT0 (coins(0..1) read back 2026-10-23; the stable-ng factory 0x9AF14D26…167b lists it for the pair)
+  { id: "arbitrum:curve:usdc-usdt0", protocol: "curve", network: "arbitrum", pool: "0x49b720F1Aab26260BEAec93A7BeB5BF2925b2A8F", coins: ["USDC", "USDT0"], kind: "plain" },
 ] satisfies readonly CurvePool[]);
 
 /** Pinned Curve pools on `network` (optionally the ones holding both symbols). */
@@ -1622,6 +1750,16 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   { protocol: "frax-ether", network: "ethereum", role: "deposit-target", address: "0xbAFA44EFE7901E04E39Dad13167D089C559c1138" },
   { protocol: "frax-ether", network: "ethereum", role: "underlying-token", address: "0x5E8422345238F34275888049021821E8E08CAa1f" },
   { protocol: "frax-ether", network: "ethereum", role: "lst-token", address: "0xac3E018457B222d93114458476f3E3416Abbe38F" },
+  // ---- round 9 (E1; read back 2026-10-23: packages/core/test/fixtures/protocols-2026-10-23.json)
+  // Kelp: LRTDepositPool (lrtConfig() = config), LRTConfig (rsETH() = token; getContract(LRT_DEPOSIT_POOL / LRT_ORACLE) = pool / oracle)
+  { protocol: "kelp", network: "ethereum", role: "deposit-target", address: "0x036676389e48133B63a802f8635AD39E752D375D" },
+  { protocol: "kelp", network: "ethereum", role: "config", address: "0x947Cb49334e6571ccBFEF1f1f1178d8469D65ec7" },
+  { protocol: "kelp", network: "ethereum", role: "lst-token", address: "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7" },
+  { protocol: "kelp", network: "ethereum", role: "rate-oracle", address: "0x349A73444b1a310BAe67ef67973022020d70020d" },
+  // Renzo: RestakeManager (ezETH() = token, renzoOracle() = oracle)
+  { protocol: "renzo", network: "ethereum", role: "deposit-target", address: "0x74a09653A083691711cF8215a6ab074BB4e99ef5" },
+  { protocol: "renzo", network: "ethereum", role: "lst-token", address: "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110" },
+  { protocol: "renzo", network: "ethereum", role: "rate-oracle", address: "0x5a12796f7e7EBbbc8a402667d266d2e65A814042" },
   // Solana SPL stake pools: Jito (SPL stake pool program) and JupSOL (Sanctum SPL multi program); pool fields decoded live
   { protocol: "jito", network: "solana", role: "program", address: "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy" },
   { protocol: "jito", network: "solana", role: "stake-pool", address: "Jito4APyf642JPZPx3hGc6WWJ8zPKtRbRs4P815Awbb" },

@@ -27,15 +27,18 @@ On-chain read-backs of every new pin (public RPCs, chain id checked,
 
 | Network | Swap venues | Lend / vault venues | Stake | Testnet demo |
 |---|---|---|---|---|
-| Ethereum | Uniswap V3, PancakeSwap V3, Curve 3pool (+ Relay) | Aave V3 (+USDT, wstETH, cbBTC), Compound V3 (+wstETH), Morpho (+Steakhouse USDC, USDT, ETH), SparkLend, Spark Savings, Fluid, Yearn V3 | Lido, Rocket Pool, ether.fi, Stader, Mantle LSP, Frax Ether | - |
-| Base | Uniswap V3, Aerodrome, PancakeSwap V3 | Aave V3 (+wstETH, cbETH), Compound V3, Morpho, Moonwell, Spark Savings, Fluid | buy wstETH or cbETH at market (a swap), or bridge and stake | - |
-| Arbitrum One | Uniswap V3, PancakeSwap V3, Camelot V3 | Aave V3 (+USDT0, wstETH), Compound V3 (+USDT0), Morpho, Spark Savings, Fluid | buy wstETH, or bridge and stake | - |
-| OP Mainnet | Uniswap V3, Velodrome | Aave V3 (+USDT, wstETH), Compound V3 (+USDT), Moonwell, Spark Savings, Morpho | buy wstETH (price guard decides), or bridge and stake | - |
-| Polygon PoS | Uniswap V3 ("ETH" is WETH) | Aave V3 (+USDT0, wstETH), Fluid, Compound V3 USDT0, Morpho (USDC, USDT0) | buy wstETH with WETH | - |
+| Ethereum | Uniswap V3, PancakeSwap V3, Curve 3pool (+ Relay) | Aave V3 (+USDT, wstETH, cbBTC), Compound V3 (+wstETH; round 9: USDT, USDS), Morpho (+Steakhouse USDC, USDT, ETH; round 9: Spark Blue Chip USDT, Steakhouse Prime USDT, sky.money USDS, Gauntlet WETH Prime), SparkLend, Spark Savings, Fluid, Yearn V3, Sky Savings (sUSDS, sDAI; round 9), Ethena sUSDe (deposit only; round 9) | Lido, Rocket Pool, ether.fi, Stader, Mantle LSP, Frax Ether, Kelp and Renzo (round 9) | - |
+| Base | Uniswap V3, Aerodrome, PancakeSwap V3 | Aave V3 (+wstETH, cbETH), Compound V3 (round 9: +AERO), Morpho (round 9: +Steakhouse High Yield USDC, Grove x Steakhouse USDC, Steakhouse EURC), Moonwell, Spark Savings, Fluid | buy wstETH or cbETH at market (a swap), or bridge and stake | - |
+| Arbitrum One | Uniswap V3, PancakeSwap V3, Camelot V3, Curve USDC / USDT0 (round 9) | Aave V3 (+USDT0, wstETH), Compound V3 (+USDT0), Morpho (round 9: +USDT0), Spark Savings, Fluid | buy wstETH, or bridge and stake | - |
+| OP Mainnet | Uniswap V3, Velodrome | Aave V3 (+USDT, wstETH), Compound V3 (+USDT), Moonwell, Spark Savings, Morpho (round 9: +Re7 WETH) | buy wstETH (price guard decides), or bridge and stake | - |
+| Polygon PoS | Uniswap V3 ("ETH" is WETH) | Aave V3 (+USDT0, wstETH), Fluid, Compound V3 USDT0, Morpho (USDC, USDT0; round 9: WETH) | buy wstETH with WETH | - |
 | Solana | Jupiter (+ named Raydium, Orca, Meteora) | Kamino, Jupiter Lend | Jito and JupSOL stake pools, Marinade (each competes with the Jupiter route), native staking | - |
 | Arc Testnet | - | - | - | USDC / EURC transfers, CCTP V2 |
 | Arbitrum Sepolia | Uniswap V3 (test tokens) | Aave V3 USDC | - | swap, deposit, CCTP V2 |
 | Solana Devnet | - | - | native staking | stake, CCTP V2 arrivals |
+
+Round 9 venues, their checks and the requested venues that were not added
+are listed in [EVM protocols (round 9)](../platform/evm-protocols.md).
 
 ## How the engine reads these cells
 

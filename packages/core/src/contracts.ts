@@ -1009,6 +1009,8 @@ const VENUE_WORDS: readonly string[] = [
   "yearn", "uniswap", "aerodrome",
   // round 7 (protocols design 3.0): brand-unique words of the new venues
   "pancakeswap", "camelot", "stader", "ethx", "sfrxeth", "frxeth",
+  // round 9 (E1): brand-unique words of the new venues
+  "ethena", "susde", "susds", "sdai", "kelp", "rseth", "renzo", "ezeth",
 ];
 /**
  * Venue phrases and common English venue words: refused as a whole alias

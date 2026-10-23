@@ -109,7 +109,8 @@ test("round 7 assets: rows match tokens.json, aliases resolve on their network o
 });
 
 test("every round-7 pin is read back in the round-7 evidence (fixtures/protocols-2026-10-15.json)", () => {
-  const rows = [...VENUE_CONTRACTS.filter((entry) => ROUND7_PROTOCOLS.has(entry.protocol)), ...CCTP_V2_TESTNET_CONTRACTS];
+  // The Arbitrum Curve pool is a round-9 pin (round9.test.mjs).
+  const rows = [...VENUE_CONTRACTS.filter((entry) => ROUND7_PROTOCOLS.has(entry.protocol) && !(entry.protocol === "curve" && entry.network === "arbitrum")), ...CCTP_V2_TESTNET_CONTRACTS];
   assert.ok(rows.length >= 40, `${rows.length} rows`);
   for (const row of rows) assert.ok(verified.has(key(row.network, row.address)), `${row.protocol} ${row.role} ${row.network} ${row.address}`);
   for (const deployment of DEX_DEPLOYMENTS.filter((entry) => ["pancakeswap-v3", "camelot"].includes(entry.protocol) || entry.testnet)) {
@@ -126,7 +127,8 @@ test("every round-7 pin is read back in the round-7 evidence (fixtures/protocols
     assert.ok(verified.has(key(venue.network, venue.receipt.address)), `${id} receipt`);
     if (venue.kind === "erc4626") assert.ok(verified.has(key(venue.network, venue.factory)), `${id} factory`);
   }
-  for (const pool of CURVE_POOLS) assert.ok(verified.has(key(pool.network, pool.pool)), pool.id);
+  // Round-9 pools are read back in the round-9 evidence (round9.test.mjs).
+  for (const pool of CURVE_POOLS.filter((entry) => entry.id === "ethereum:curve:3pool")) assert.ok(verified.has(key(pool.network, pool.pool)), pool.id);
   // The Steakhouse vaults are v1.0 (factory pinned on Ethereum now); OP and Polygon have v1.1 factories only.
   assert.equal(MORPHO_FACTORIES.ethereum["metamorpho-v1.0"], "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101");
   assert.equal(MORPHO_FACTORIES.optimism["metamorpho-v1.1"], "0x3Bb6A6A0Bc85b367EFE0A5bAc81c5E52C892839a");

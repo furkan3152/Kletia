@@ -636,6 +636,7 @@ const RECEIPT_KIND_LABEL: Readonly<Record<string, string>> = {
   "fluid-ftoken": "fToken shares",
   "spark-vault": "savings shares",
   "yearn-vault": "vault shares",
+  "savings-vault": "savings shares",
 };
 
 /** 1:1 receipts: the balance is the underlying (aTokens, Comet balances). */

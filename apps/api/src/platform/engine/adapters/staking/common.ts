@@ -3,7 +3,7 @@
  * liquid-staking token out, on Ethereum, in one wallet transaction.
  *
  * Each protocol (lido.ts, rocketPool.ts, etherfi.ts; round 7: stader.ts,
- * mantle.ts, frax.ts) supplies a `StakingVenue`:
+ * mantle.ts, frax.ts; round 9: kelp.ts, renzo.ts) supplies a `StakingVenue`:
  * the token it mints, its pinned contracts, a quote (provenance, pause and
  * limit reads, the expected output) and an outcome proof from receipt logs.
  * The skeleton enforces the shared rules:
@@ -92,15 +92,20 @@ export interface StakeQuote {
 
 /** One liquid-staking protocol on Ethereum. */
 export interface StakingVenue {
-  readonly protocol: Extract<ProtocolId, "lido" | "rocket-pool" | "etherfi" | "stader" | "mantle-lsp" | "frax-ether">;
+  readonly protocol: Extract<ProtocolId, "lido" | "rocket-pool" | "etherfi" | "stader" | "mantle-lsp" | "frax-ether" | "kelp" | "renzo">;
   /** "Lido". */
   readonly label: string;
   /** The minted token's symbol in ASSETS ("wstETH"). */
   readonly symbol: string;
   /** VENUE_CONTRACTS role of the minted token's pin. */
   readonly tokenRole: VenueContractRole;
-  /** How the token is valued in ETH: `function(uint256) view returns (uint256)` on the token (or on `rateRole`'s pin). */
-  readonly rateFunction: string;
+  /**
+   * How the token is valued in ETH: `function(uint256) view returns (uint256)` on the token (or on `rateRole`'s pin).
+   * Venues without such a function supply `ethValue` instead (one of the two is required).
+   */
+  readonly rateFunction?: string;
+  /** ETH value of `units` of the token, for protocols that price it elsewhere (Kelp's oracle, Renzo's TVL). */
+  ethValue?(units: bigint): Promise<bigint>;
   /** VENUE_CONTRACTS role of the contract that answers `rateFunction` when it is not the token (Stader, Mantle: the staking contract). */
   readonly rateRole?: VenueContractRole;
   /** Provenance, pause and limit reads, and the expected output; throws to refuse. */
@@ -298,6 +303,15 @@ export function createStakingAdapter(venue: StakingVenue): ProtocolAdapter {
 
 /* ------------------------------------------------------------ positions */
 
+/** The `rateFunction` reader of a venue (on the token, or on its `rateRole` pin). */
+function rateReader(venue: StakingVenue, token: Address): (units: bigint) => Promise<bigint> {
+  const functionName = venue.rateFunction;
+  if (!functionName) throw new PlatformError("VENUE_INVALID", `${venue.label} has no way to value ${venue.symbol} in ETH.`, 500);
+  const rateAbi = parseAbi([`function ${functionName}(uint256) view returns (uint256)`]);
+  const rateSource = venue.rateRole ? pinned(venue.protocol, venue.rateRole) : token;
+  return (units) => withTimeout(client().readContract({ address: rateSource, abi: rateAbi, functionName, args: [units] } as never)) as Promise<bigint>;
+}
+
 /**
  * Liquid-staking tokens the owner holds on Ethereum, as journey positions
  * (`<network>:<protocol>:<symbol>`): the token balance, its value in ETH at
@@ -315,9 +329,7 @@ export async function readStakingPositions(venues: readonly StakingVenue[], owne
     }
     const balance = await withTimeout(client().readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [account] }));
     if (balance === 0n) return null;
-    const rateAbi = parseAbi([`function ${venue.rateFunction}(uint256) view returns (uint256)`]);
-    const rateSource = venue.rateRole ? pinned(venue.protocol, venue.rateRole) : token;
-    const read = (units: bigint) => withTimeout(client().readContract({ address: rateSource, abi: rateAbi, functionName: venue.rateFunction, args: [units] } as never)) as Promise<bigint>;
+    const read = venue.ethValue ?? rateReader(venue, token);
     const [value, perToken] = await Promise.all([read(balance), read(10n ** 18n)]);
     const position: VenuePosition = {
       venue: `${STAKING_NETWORK}:${venue.protocol}:${venue.symbol}`,

@@ -1,0 +1,785 @@
+{
+ "at": "2026-10-23",
+ "note": "Round-9 (E1) pins read back read-only (eth_call, eth_getStorageAt) on 2026-10-23 from public RPCs. Generated; do not edit by hand.",
+ "summary": {
+  "entries": 30,
+  "failed": []
+ },
+ "entries": [
+  {
+   "network": "ethereum",
+   "address": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+   "label": "USDe",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "registry": {
+     "actual": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+     "expected": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+     "ok": true
+    },
+    "symbol": {
+     "actual": "USDe",
+     "expected": "USDe",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+   "label": "rsETH",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "registry": {
+     "actual": "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+     "expected": "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+     "ok": true
+    },
+    "symbol": {
+     "actual": "rsETH",
+     "expected": "rsETH",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110",
+   "label": "ezETH",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "registry": {
+     "actual": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110",
+     "expected": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110",
+     "ok": true
+    },
+    "symbol": {
+     "actual": "ezETH",
+     "expected": "ezETH",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x3Afdc9BCA9213A35503b077a6072F3D0d5AB0840",
+   "label": "ethereum:compound-v3:usdt",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "baseToken": {
+     "actual": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+     "expected": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "6",
+     "expected": "6",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x5D409e56D886231aDAf00c8775665AD0f9897b56",
+   "label": "ethereum:compound-v3:usds",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "baseToken": {
+     "actual": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+     "expected": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "base",
+   "address": "0x784efeB622244d2348d4F2522f8860B96fbEcE89",
+   "label": "base:compound-v3:aero",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "baseToken": {
+     "actual": "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+     "expected": "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xb0c424116172B55CbB6dD3136F5989F7959e5B91",
+   "label": "ethereum:morpho:spark-blue-chip-usdt",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+     "expected": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    },
+    "receiveSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "receiveAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbeef003C68896c7D2c3c60d363e8d71a49Ab2bf9",
+   "label": "ethereum:morpho:steakhouse-prime-usdt",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+     "expected": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    },
+    "receiveSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "receiveAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xE15fcC81118895b67b6647BBd393182dF44E11E0",
+   "label": "ethereum:morpho:sky-usds-flagship",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+     "expected": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    },
+    "receiveSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "receiveAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x2371e134e3455e0593363cBF89d3b6cf53740618",
+   "label": "ethereum:morpho:gauntlet-weth-prime",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+     "expected": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "base",
+   "address": "0xbeeff2490FEffa212faC2f6553682C219E6a8845",
+   "label": "base:morpho:steakhouse-high-yield-usdc",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "expected": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    },
+    "receiveSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "receiveAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "base",
+   "address": "0xbeef0786756810478b88982DE00F3CD7fdB8e7c7",
+   "label": "base:morpho:grove-steakhouse-usdc",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "expected": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    },
+    "receiveSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "receiveAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "base",
+   "address": "0xBeEF086b8807Dc5E5A1740C5E3a7C4c366eA6ab5",
+   "label": "base:morpho:steakhouse-eurc",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
+     "expected": "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xbeeff77CE5C059445714E6A3490E273fE7F2492F",
+   "label": "arbitrum:morpho:bitget-steakhouse-usdt",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+     "expected": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    },
+    "receiveSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "receiveAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "optimism",
+   "address": "0x3d63934715b6D4c4DFbBC1a00Fe2A2145079DD76",
+   "label": "optimism:morpho:re7-weth",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0x4200000000000000000000000000000000000006",
+     "expected": "0x4200000000000000000000000000000000000006",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    },
+    "receiveSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendSharesGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "receiveAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "sendAssetsGate": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "polygon",
+   "address": "0xF5C81d25ee174d83f1FD202cA94AE6070d073cCF",
+   "label": "polygon:morpho:compound-weth",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
+     "expected": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "factory": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD",
+   "label": "ethereum:sky:susds",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+     "expected": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "implementation": {
+     "actual": "0x4e7991e5c547ce825bdeb665ee14a3274f9f61e0",
+     "expected": "0x4e7991e5C547ce825BdEb665EE14a3274f9F61e0",
+     "ok": true
+    },
+    "usds": {
+     "actual": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+     "expected": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x83F20F44975D03b1b09e64809B757c47f942BEeA",
+   "label": "ethereum:sky:sdai",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+     "expected": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "implementation": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "pot": {
+     "actual": "0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7",
+     "expected": "0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7",
+     "ok": true
+    },
+    "daiJoin": {
+     "actual": "0x9759A6Ac90977b93B58547b4A71c78317f391A28",
+     "expected": "0x9759A6Ac90977b93B58547b4A71c78317f391A28",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x9D39A5DE30e57443BfF2A8307A4256c8797A3497",
+   "label": "ethereum:ethena:susde",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "asset": {
+     "actual": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+     "expected": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+     "ok": true
+    },
+    "decimals": {
+     "actual": "18",
+     "expected": "18",
+     "ok": true
+    },
+    "implementation": {
+     "actual": "0x0000000000000000000000000000000000000000",
+     "expected": "0x0000000000000000000000000000000000000000",
+     "ok": true
+    },
+    "silo": {
+     "actual": "0x7FC7c91D556B400AFa565013E3F32055a0713425",
+     "expected": "0x7FC7c91D556B400AFa565013E3F32055a0713425",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "optimism",
+   "address": "0x6128b680b277Bf4Df80DFE9D8c55A498660870ef",
+   "label": "optimism:morpho:vault-v2-factory",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "isVaultV2": {
+     "actual": "true",
+     "expected": "true",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x49b720F1Aab26260BEAec93A7BeB5BF2925b2A8F",
+   "label": "arbitrum:curve:usdc-usdt0",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "coins(0)": {
+     "actual": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "expected": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "ok": true
+    },
+    "coins(1)": {
+     "actual": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+     "expected": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+     "ok": true
+    },
+    "factoryCoins": {
+     "actual": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831,0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+     "expected": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831,0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x036676389e48133B63a802f8635AD39E752D375D",
+   "label": "kelp deposit-target",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "lrtConfig": {
+     "actual": "0x947Cb49334e6571ccBFEF1f1f1178d8469D65ec7",
+     "expected": "0x947Cb49334e6571ccBFEF1f1f1178d8469D65ec7",
+     "ok": true
+    },
+    "registered": {
+     "actual": "0x036676389e48133B63a802f8635AD39E752D375D",
+     "expected": "0x036676389e48133B63a802f8635AD39E752D375D",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x947Cb49334e6571ccBFEF1f1f1178d8469D65ec7",
+   "label": "kelp config",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "rsETH": {
+     "actual": "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+     "expected": "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+   "label": "kelp lst-token",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "symbol": {
+     "actual": "rsETH",
+     "expected": "rsETH",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x349A73444b1a310BAe67ef67973022020d70020d",
+   "label": "kelp rate-oracle",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "registered": {
+     "actual": "0x349A73444b1a310BAe67ef67973022020d70020d",
+     "expected": "0x349A73444b1a310BAe67ef67973022020d70020d",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x74a09653A083691711cF8215a6ab074BB4e99ef5",
+   "label": "renzo deposit-target",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "ezETH": {
+     "actual": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110",
+     "expected": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110",
+     "ok": true
+    },
+    "renzoOracle": {
+     "actual": "0x5a12796f7e7EBbbc8a402667d266d2e65A814042",
+     "expected": "0x5a12796f7e7EBbbc8a402667d266d2e65A814042",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110",
+   "label": "renzo lst-token",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "symbol": {
+     "actual": "ezETH",
+     "expected": "ezETH",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x5a12796f7e7EBbbc8a402667d266d2e65A814042",
+   "label": "renzo rate-oracle",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "calculateMintAmount": {
+     "actual": "1000000000000000000",
+     "expected": "1000000000000000000",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0xa569d910839Ae8865Da8F8e70FfFb0cBA869F961",
+   "label": "chainlink USDe / USD",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "description": {
+     "actual": "USDe / USD",
+     "expected": "USDe / USD",
+     "ok": true
+    }
+   }
+  },
+  {
+   "network": "ethereum",
+   "address": "0x636A000262F6aA9e1F094ABF0aD8f645C44f641C",
+   "label": "chainlink ezETH / ETH",
+   "source": "round9-e1",
+   "verified": true,
+   "checks": {
+    "description": {
+     "actual": "ezETH / ETH",
+     "expected": "ezETH / ETH",
+     "ok": true
+    }
+   }
+  }
+ ]
+}

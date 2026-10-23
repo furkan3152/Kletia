@@ -6012,7 +6012,8 @@
         "reason": "VENUE_MISSING",
         "options": [
          "aave-v3",
-         "compound-v3"
+         "compound-v3",
+         "morpho"
         ],
         "recommended": "aave-v3",
         "allowsText": false
@@ -6021,7 +6022,7 @@
      }
     }
    ],
-   "why": "Round 7 protocols (P7): USDT0 reserves on Aave V3 and the USDT0 comet (A6, A10); the asset alias resolves USDT to USDT0."
+   "why": "Round 7 protocols (P7): USDT0 reserves on Aave V3 and the USDT0 comet (A6, A10); round 9 adds the Bitget x Steakhouse USDT0 Morpho vault; the asset alias resolves USDT to USDT0."
   },
   {
    "id": "N03",

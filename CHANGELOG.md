@@ -15,6 +15,7 @@ on-chain action in the browser.
 - Owner management (direct or as Safe proposals with chain-derived hashes), fee and revenue view with x402 gateway claims, Render status and redeploy (server-side `RENDER_API_KEY`), env readiness (booleans only) and a persistent audit log.
 - Every admin write (deploy records, reverify, Safe proposals, fee rescans, redeploys, settings) needs a fresh wallet confirmation signed by the session's own wallet (single-use, 5 minutes): a stolen session cookie can only read. "Verified" deployments must be admin-controlled; others are "foreign", never exported or used as dependencies.
 - Intent engine: whole-balance readings for stake, deposit and withdraw ("stake my SOL", "withdraw my USDC from aave"), the single position when a venue and network are named, leading labels ("rent: send 500 USDC to …") kept as notes, and "fund my <network> wallet" goals. Eval: 97.9% correct on the original 338 prompts (was 95.9%), 0 wrong plans.
+- Data API `/v1/data/*` and the desk's Dashboard (`/app/dashboard`): holdings, positions, Aave V3, SparkLend and Compound V3 debt with health warnings, allocation, a labelled 24-hour change and PnL estimate, the key's activity, venue rates with "Move here", prices, network status and CSV export; every value carries `source` and `asOf`, unknown values are null with a reason; SDK `client.data.*` and a Data API portal page ([data](docs/platform/data.md)).
 
 ### Fixed
 

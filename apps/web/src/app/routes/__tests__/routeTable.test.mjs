@@ -113,7 +113,7 @@ test("recipe pages name recipes that exist in site/snippets.ts, with the same la
 });
 
 test("the desk's views are the console route, pre-rendered, canonical /app and not indexed", () => {
-  assert.deepEqual([...CONSOLE_VIEW_PATHS], ["/app/tasks", "/app/holdings", "/app/activity", "/app/tools"]);
+  assert.deepEqual([...CONSOLE_VIEW_PATHS], ["/app/tasks", "/app/holdings", "/app/activity", "/app/tools", "/app/dashboard"]);
   for (const path of ["/app", ...CONSOLE_VIEW_PATHS, "/app/tools/x402"]) assert.equal(matchRoute(path).id, "console", path);
   assert.equal(matchRoute("/app/classic").id, "console", "no classic route: the desk renders it");
   assert.ok(!PRERENDER_PATHS.some((page) => page.path === "/app/classic"), "there is no /app/classic page");

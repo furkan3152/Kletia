@@ -119,6 +119,7 @@ import { streamIntentEvents, type StreamOptions } from "./sse.js";
 import { startThreadPruner } from "./threads.js";
 import { parseUsageWindow, startUsageFlusher, usageCounter, usageReport } from "./usage.js";
 import { createWebhook, deleteWebhook, listWebhooks } from "./webhooks.js";
+import { dataHandlers } from "./data.js";
 
 export const MAX_BODY_BYTES = 64 * 1024;
 
@@ -148,6 +149,13 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/quotes", auth: "public", publishable: true },
   { method: "get", path: "/portfolio", auth: "public", publishable: true },
   { method: "get", path: "/portfolio/:accountId", auth: "public", publishable: true },
+  { method: "get", path: "/data/portfolio", auth: "public", publishable: true },
+  { method: "get", path: "/data/positions", auth: "public", publishable: true },
+  { method: "get", path: "/data/history", auth: "key", publishable: true },
+  { method: "get", path: "/data/markets/yields", auth: "public", publishable: true },
+  { method: "get", path: "/data/markets/prices", auth: "public", publishable: true },
+  { method: "get", path: "/data/markets/status", auth: "public", publishable: true },
+  { method: "get", path: "/data/export", auth: "public", publishable: true },
   { method: "post", path: "/intents", auth: "public", publishable: true },
   // ?owner=key_…: a key of the caller's subtree (agent or publishable keys).
   { method: "get", path: "/intents", auth: "key" },
@@ -882,6 +890,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ...policyHandlers(),
     ...linkHandlers(),
     ...accountHandlers(),
+    ...dataHandlers(),
     "post /webhooks": [
       requireApiKey,
       forbidAgent("webhooks"),

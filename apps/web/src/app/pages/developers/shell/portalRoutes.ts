@@ -97,6 +97,7 @@ const PAGE_UI: Readonly<Record<Exclude<PortalPageId, "missing">, PageUi>> = {
   errors: { label: "Errors", group: "reference", load: () => import("../views/ErrorsPage") },
   venues: { label: "Venues and auction", group: "reference", load: () => import("../views/VenuesPage") },
   agents: { label: "Agents and MCP", group: "reference", load: () => import("../views/AgentsPage") },
+  data: { label: "Data API", group: "reference", load: () => import("../views/DataApiPage") },
 };
 
 function pageOf(meta: PortalRouteMeta): PortalPageDef {

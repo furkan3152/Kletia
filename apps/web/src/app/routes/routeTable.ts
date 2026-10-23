@@ -305,6 +305,7 @@ export type PortalPageId =
   | "errors"
   | "venues"
   | "agents"
+  | "data"
   | "missing";
 
 /** What may follow a page's own path: an object id or `new`, an operationId, or a recipe id. */
@@ -440,6 +441,13 @@ export const PORTAL_ROUTES: readonly PortalRouteMeta[] = [
     description: "Agents plan through the same API or the MCP server, under a rule book, and hand every value-moving step to a wallet they do not control.",
     indexed: true,
   },
+  {
+    id: "data",
+    path: "/developers/data",
+    title: portalTitle("Data API"),
+    description: "Read-only dashboard data: a wallet set's holdings, positions, loan health and activity on every network, venue rates, prices, status and CSV export.",
+    indexed: true,
+  },
 ];
 
 /** Recipe pages (`/developers/recipes/<id>`): the ids and labels of RECIPES in site/snippets.ts (a test keeps them in step). */
@@ -539,11 +547,11 @@ export function portalMetaFor(pathname: string): RouteMeta {
 }
 
 /**
- * Views of the desk at /app (tasks, holdings, activity, tools): the same
+ * Views of the desk at /app (tasks, holdings, activity, tools, dashboard): the same
  * console route with their own HTML entry, so a static host without a
  * rewrite rule serves them. Their canonical URL stays /app.
  */
-export const CONSOLE_VIEW_PATHS: readonly string[] = Object.freeze(["/app/tasks", "/app/holdings", "/app/activity", "/app/tools"]);
+export const CONSOLE_VIEW_PATHS: readonly string[] = Object.freeze(["/app/tasks", "/app/holdings", "/app/activity", "/app/tools", "/app/dashboard"]);
 
 /** Every /app path is the desk: one title, canonical /app, and only /app itself is indexed. */
 export function consoleMetaFor(pathname: string): RouteMeta {

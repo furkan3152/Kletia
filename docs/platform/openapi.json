@@ -52,6 +52,10 @@
       "description": "Balances and venue positions of CAIP-10 accounts, one or up to 12 per request."
     },
     {
+      "name": "Data",
+      "description": "Read-only dashboard data: a wallet set's holdings, positions, health and activity across every network, plus venue yields, prices and network status."
+    },
+    {
       "name": "Intents",
       "description": "Plan, prepare, submit, verify and cancel intents."
     },
@@ -6318,6 +6322,632 @@
                 }
               }
             }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/portfolio": {
+      "get": {
+        "operationId": "getDataPortfolio",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Everything a wallet set holds, across every network of the lane",
+        "description": "Wallet holdings, venue positions (lending, savings, vaults, Jupiter Lend), liquid-staking tokens, Aave V3, SparkLend and Compound V3 debt with health, totals, allocation by network, asset and protocol, the 24-hour change and a PnL estimate against this API's earlier readings. Each value carries `source` and `asOf`; unknown values are null with a `reason`. Cached 15 s per wallet set. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account of the wallet set.",
+        "parameters": [
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "description": "Production networks (default) or test networks; the two never mix.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The portfolio.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataPortfolioResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/positions": {
+      "get": {
+        "operationId": "getDataPositions",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Positions, debts and lending health of a wallet set",
+        "description": "The positions part of the portfolio read (same cache). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.",
+        "parameters": [
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "description": "Production networks (default) or test networks; the two never mix.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Positions and health.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataPositions"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/history": {
+      "get": {
+        "operationId": "getDataHistory",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Kletia activity of the calling key",
+        "description": "The key's intents, the receipts issued for them and its intent links, newest first. With `evm` / `solana`, only intents planned for those wallets (links are left out). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.",
+        "parameters": [
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Newest entries to return (default 50).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The timeline.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataHistory"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/data/markets/yields": {
+      "get": {
+        "operationId": "getDataYields",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Supply APYs of every venue Kletia knows",
+        "description": "Every lending, savings and vault venue of the lane, best APY first; a venue whose rate cannot be read is listed with `apy: null` and the reason. Cached 60 s. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "description": "One network (its lane wins over `lane`).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "base",
+                "arbitrum",
+                "ethereum",
+                "optimism",
+                "polygon",
+                "arc",
+                "arbitrum-sepolia",
+                "solana",
+                "solana-devnet"
+              ]
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          },
+          {
+            "name": "asset",
+            "in": "query",
+            "required": false,
+            "description": "Underlying symbol, e.g. USDC.",
+            "schema": {
+              "type": "string",
+              "maxLength": 16
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Yields.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataYields"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/markets/prices": {
+      "get": {
+        "operationId": "getDataPrices",
+        "tags": [
+          "Data"
+        ],
+        "summary": "USD prices of listed assets",
+        "description": "Advisory prices (stablecoins at par, Jupiter, Chainlink) with source and reading time. Cached 30 s. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.",
+        "parameters": [
+          {
+            "name": "symbols",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated symbols (at most 20); default ETH, SOL, POL, cbBTC, wstETH, USDC and USDT.",
+            "schema": {
+              "type": "string",
+              "maxLength": 400
+            }
+          },
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "description": "One network (its lane wins over `lane`).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "base",
+                "arbitrum",
+                "ethereum",
+                "optimism",
+                "polygon",
+                "arc",
+                "arbitrum-sepolia",
+                "solana",
+                "solana-devnet"
+              ]
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prices.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataPrices"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/markets/status": {
+      "get": {
+        "operationId": "getDataStatus",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Network status and route statistics",
+        "description": "The health probe of every network; route statistics per venue and network pair when the deployment records them (else `routes: null` with the reason). Cached 15 s. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Status.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataMarketStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/export": {
+      "get": {
+        "operationId": "exportData",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Export holdings, positions or history as CSV or JSON",
+        "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after).",
+        "parameters": [
+          {
+            "name": "dataset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "holdings",
+                "positions",
+                "history"
+              ],
+              "default": "holdings"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "json"
+              ],
+              "default": "csv"
+            }
+          },
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "description": "Production networks (default) or test networks; the two never mix.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Newest entries to return (default 50).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dataset as a download (`Content-Disposition: attachment`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "description": "RFC 4180 CSV with a header row; unknown values are empty cells; text cells that start like a formula are prefixed with an apostrophe."
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -22885,6 +23515,1004 @@
           "icon",
           "title",
           "label"
+        ]
+      },
+      "DataUsdValue": {
+        "type": "object",
+        "properties": {
+          "usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Null when unknown (see reason); never 0 for unknown."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "usd-par",
+              "jupiter",
+              "chainlink",
+              "pyth",
+              "venue-rate",
+              "testnet",
+              "unpriced",
+              "adapter",
+              "aave-oracle",
+              "lending-metrics",
+              "health-probe",
+              "snapshot",
+              "kletia"
+            ],
+            "description": "Where the value comes from."
+          },
+          "asOf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the value was read."
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "usd",
+          "source",
+          "asOf"
+        ]
+      },
+      "DataFailure": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "code",
+          "message"
+        ]
+      },
+      "DataHolding": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "base",
+              "arbitrum",
+              "ethereum",
+              "optimism",
+              "polygon",
+              "arc",
+              "arbitrum-sepolia",
+              "solana",
+              "solana-devnet"
+            ]
+          },
+          "asset": {
+            "$ref": "#/components/schemas/AssetId"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Base units."
+          },
+          "formatted": {
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/DataUsdValue"
+          }
+        },
+        "required": [
+          "account",
+          "network",
+          "asset",
+          "symbol",
+          "amount",
+          "formatted",
+          "value"
+        ]
+      },
+      "DataPosition": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Registry venue id (`<network>:<protocol>:<slug>`), the pool or Comet of a debt, or `<network>:<protocol>:<symbol>` for a staking token."
+          },
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "base",
+              "arbitrum",
+              "ethereum",
+              "optimism",
+              "polygon",
+              "arc",
+              "arbitrum-sepolia",
+              "solana",
+              "solana-devnet"
+            ]
+          },
+          "protocol": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "supply",
+              "vault",
+              "borrow",
+              "staking"
+            ]
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Underlying amount; null for an Aave debt (known in USD only)."
+          },
+          "value": {
+            "$ref": "#/components/schemas/DataUsdValue"
+          },
+          "apy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Supply APY as a fraction."
+          },
+          "inWallet": {
+            "type": "boolean",
+            "description": "Staking tokens sit in the wallet: their value is counted with the holdings, not again."
+          }
+        },
+        "required": [
+          "id",
+          "account",
+          "network",
+          "protocol",
+          "name",
+          "kind",
+          "symbol",
+          "amount",
+          "value",
+          "apy",
+          "inWallet"
+        ]
+      },
+      "LendingHealth": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "base",
+              "arbitrum",
+              "ethereum",
+              "optimism",
+              "polygon",
+              "arc",
+              "arbitrum-sepolia",
+              "solana",
+              "solana-devnet"
+            ]
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "market": {
+            "type": "string"
+          },
+          "healthFactor": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Aave V3 and SparkLend; null for Compound V3 (no health factor) and unread markets."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warning",
+              "critical",
+              "no-debt",
+              "unknown"
+            ],
+            "description": "warning below 1.5, critical below 1.1 or when liquidatable."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "usd-par",
+              "jupiter",
+              "chainlink",
+              "pyth",
+              "venue-rate",
+              "testnet",
+              "unpriced",
+              "adapter",
+              "aave-oracle",
+              "lending-metrics",
+              "health-probe",
+              "snapshot",
+              "kletia"
+            ],
+            "description": "Where the value comes from."
+          },
+          "asOf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "network",
+          "protocol",
+          "market",
+          "healthFactor",
+          "status",
+          "source",
+          "asOf"
+        ]
+      },
+      "DataAllocationSlice": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "usd": {
+            "type": "number"
+          },
+          "share": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "usd",
+          "share"
+        ]
+      },
+      "DataValueChange": {
+        "type": "object",
+        "properties": {
+          "usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "pct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Fraction of the earlier value."
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "const": "snapshot"
+          },
+          "estimate": {
+            "type": "boolean",
+            "const": true
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "usd",
+          "pct",
+          "since",
+          "source",
+          "estimate"
+        ]
+      },
+      "DataPortfolio": {
+        "type": "object",
+        "properties": {
+          "wallets": {
+            "type": "object",
+            "properties": {
+              "evm": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "solana": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "production",
+                  "testnet"
+                ]
+              }
+            },
+            "required": [
+              "evm",
+              "solana",
+              "lane"
+            ]
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountId"
+            }
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "net": {
+                "$ref": "#/components/schemas/DataUsdValue"
+              },
+              "wallet": {
+                "$ref": "#/components/schemas/DataUsdValue"
+              },
+              "positions": {
+                "$ref": "#/components/schemas/DataUsdValue"
+              },
+              "debt": {
+                "$ref": "#/components/schemas/DataUsdValue"
+              },
+              "unpriced": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "complete": {
+                "type": "boolean",
+                "description": "False when something was unpriced or unread: the totals cover the known part only."
+              }
+            },
+            "required": [
+              "net",
+              "wallet",
+              "positions",
+              "debt",
+              "unpriced",
+              "complete"
+            ]
+          },
+          "change24h": {
+            "$ref": "#/components/schemas/DataValueChange",
+            "description": "Against this API instance's reading from about 24 hours ago (an estimate)."
+          },
+          "pnl": {
+            "$ref": "#/components/schemas/DataValueChange",
+            "description": "Against the first reading of these wallets (an estimate: deposits and withdrawals count too)."
+          },
+          "allocation": {
+            "type": "object",
+            "properties": {
+              "byNetwork": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DataAllocationSlice"
+                }
+              },
+              "byAsset": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DataAllocationSlice"
+                }
+              },
+              "byProtocol": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DataAllocationSlice"
+                }
+              }
+            },
+            "required": [
+              "byNetwork",
+              "byAsset",
+              "byProtocol"
+            ]
+          },
+          "holdings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataHolding"
+            }
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataPosition"
+            }
+          },
+          "health": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LendingHealth"
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataFailure"
+            },
+            "description": "Accounts, venues and markets that could not be read (unknown, never empty)."
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "wallets",
+          "accounts",
+          "totals",
+          "change24h",
+          "pnl",
+          "allocation",
+          "holdings",
+          "positions",
+          "health",
+          "failures",
+          "asOf"
+        ]
+      },
+      "DataPortfolioResponse": {
+        "type": "object",
+        "properties": {
+          "portfolio": {
+            "$ref": "#/components/schemas/DataPortfolio"
+          }
+        },
+        "required": [
+          "portfolio"
+        ]
+      },
+      "DataPositions": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountId"
+            }
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataPosition"
+            }
+          },
+          "health": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LendingHealth"
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataFailure"
+            },
+            "description": "Accounts, venues and markets that could not be read (unknown, never empty)."
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "accounts",
+          "positions",
+          "health",
+          "failures",
+          "asOf"
+        ]
+      },
+      "DataHistoryEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "intent",
+              "receipt",
+              "link"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "base",
+                "arbitrum",
+                "ethereum",
+                "optimism",
+                "polygon",
+                "arc",
+                "arbitrum-sepolia",
+                "solana",
+                "solana-devnet"
+              ]
+            }
+          },
+          "intentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "const": "kletia"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "at",
+          "status",
+          "title",
+          "networks",
+          "intentId",
+          "source"
+        ]
+      },
+      "DataHistory": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataHistoryEntry"
+            }
+          },
+          "filtered": {
+            "type": "boolean"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "entries",
+          "filtered",
+          "asOf"
+        ]
+      },
+      "DataYieldRow": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "base",
+              "arbitrum",
+              "ethereum",
+              "optimism",
+              "polygon",
+              "arc",
+              "arbitrum-sepolia",
+              "solana",
+              "solana-devnet"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "apy": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "apyBasis": {
+            "type": "string",
+            "enum": [
+              "rate",
+              "share-price",
+              "unavailable"
+            ]
+          },
+          "supplied": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utilization": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "executable": {
+            "type": "boolean"
+          },
+          "depositText": {
+            "type": "string",
+            "description": "A sentence for POST /v1/intents with an `[EDIT AMOUNT]` placeholder to replace."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "usd-par",
+              "jupiter",
+              "chainlink",
+              "pyth",
+              "venue-rate",
+              "testnet",
+              "unpriced",
+              "adapter",
+              "aave-oracle",
+              "lending-metrics",
+              "health-probe",
+              "snapshot",
+              "kletia"
+            ],
+            "description": "Where the value comes from."
+          },
+          "asOf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "venue",
+          "protocol",
+          "network",
+          "name",
+          "asset",
+          "apy",
+          "apyBasis",
+          "supplied",
+          "utilization",
+          "executable",
+          "depositText",
+          "source",
+          "asOf"
+        ]
+      },
+      "DataYields": {
+        "type": "object",
+        "properties": {
+          "yields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataYieldRow"
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataFailure"
+            },
+            "description": "Accounts, venues and markets that could not be read (unknown, never empty)."
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "yields",
+          "failures",
+          "asOf"
+        ]
+      },
+      "DataPriceRow": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "network": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "base",
+              "arbitrum",
+              "ethereum",
+              "optimism",
+              "polygon",
+              "arc",
+              "arbitrum-sepolia",
+              "solana",
+              "solana-devnet",
+              null
+            ]
+          },
+          "asset": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "$ref": "#/components/schemas/DataUsdValue"
+          }
+        },
+        "required": [
+          "symbol",
+          "network",
+          "asset",
+          "value"
+        ]
+      },
+      "DataPrices": {
+        "type": "object",
+        "properties": {
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataPriceRow"
+            }
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "prices",
+          "asOf"
+        ]
+      },
+      "DataMarketStatus": {
+        "type": "object",
+        "properties": {
+          "networks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "network": {
+                  "type": "string",
+                  "enum": [
+                    "base",
+                    "arbitrum",
+                    "ethereum",
+                    "optimism",
+                    "polygon",
+                    "arc",
+                    "arbitrum-sepolia",
+                    "solana",
+                    "solana-devnet"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "environment": {
+                  "type": "string",
+                  "enum": [
+                    "mainnet",
+                    "testnet"
+                  ]
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "latencyMs": {
+                  "type": "number"
+                },
+                "height": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "type": "string",
+                  "const": "health-probe"
+                },
+                "asOf": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "network",
+                "name",
+                "environment",
+                "ok",
+                "latencyMs",
+                "height",
+                "source",
+                "asOf"
+              ]
+            }
+          },
+          "routes": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "venue": {
+                      "type": "string"
+                    },
+                    "network": {
+                      "type": "string",
+                      "enum": [
+                        "base",
+                        "arbitrum",
+                        "ethereum",
+                        "optimism",
+                        "polygon",
+                        "arc",
+                        "arbitrum-sepolia",
+                        "solana",
+                        "solana-devnet"
+                      ]
+                    },
+                    "destination": {
+                      "type": "string",
+                      "enum": [
+                        "base",
+                        "arbitrum",
+                        "ethereum",
+                        "optimism",
+                        "polygon",
+                        "arc",
+                        "arbitrum-sepolia",
+                        "solana",
+                        "solana-devnet"
+                      ]
+                    },
+                    "attempts": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "p50Ms": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "p95Ms": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "failureRate": {
+                      "type": "number"
+                    },
+                    "rateLimited": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "breaker": {
+                      "type": "string",
+                      "enum": [
+                        "closed",
+                        "open",
+                        "half-open"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "venue",
+                    "network",
+                    "destination",
+                    "attempts",
+                    "p50Ms",
+                    "p95Ms",
+                    "failureRate",
+                    "rateLimited",
+                    "breaker"
+                  ]
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "routesReason": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "networks",
+          "routes",
+          "asOf"
         ]
       },
       "ProjectSettings": {

@@ -22,7 +22,7 @@ import type { ResolvedAsset } from "../assets.js";
 /** The final order; ids of venues not wired yet are skipped. */
 const FINAL_ORDER: readonly ProtocolId[] = [
   "jupiter", "raydium", "orca", "meteora", "jito", "sanctum", "marinade", "solana-stake", "spl-token", "erc20-transfer", "wrap",
-  "uniswap-v3", "aerodrome", "velodrome", "pancakeswap-v3", "camelot", "curve", "relay", "across", "cctp-v2", "lifi",
+  "uniswap-v3", "aerodrome", "velodrome", "pancakeswap-v3", "camelot", "curve", "kyberswap", "relay", "across", "cctp-v2", "lifi",
   "debridge-dln", "aave-v3", "sparklend", "compound-v3", "morpho", "spark-savings", "fluid", "yearn-v3", "moonwell",
   "jupiter-lend", "kamino", "lido", "rocket-pool", "etherfi", "stader", "mantle-lsp", "frax-ether", "custom-call", "solana-actions",
 ];
@@ -76,8 +76,8 @@ describe("adapter registry order", () => {
       "jupiter", "jupiter-lend", "kamino", "lido", "lifi", "mantle-lsp", "marinade", "meteora", "moonwell", "morpho", "orca", "pancakeswap-v3", "raydium", "relay",
       "rocket-pool", "sanctum", "solana-stake", "spark-savings", "sparklend", "spl-token", "stader", "system-transfer", "uniswap-v3", "velodrome", "wrap", "yearn-v3",
     ]);
-    // Round 7 lists seven more ids, each with a live adapter; the routing design adds the wrap venue (B.3, D10).
-    assert.equal(PROTOCOLS.length, 52);
+    // the optional aggregator (B.4 RC5, O5), which is not executable unless the server enables it.
+    assert.equal(PROTOCOLS.length, 53);
   });
 });
 

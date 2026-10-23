@@ -9,7 +9,7 @@ import { lifiAdapter } from "../adapters/lifi.js";
 import { actionForStep, planIntent } from "../planner.js";
 import { configurePlatform } from "../service.js";
 import { decodeStepRef } from "../stepRef.js";
-import { resetLifiClient } from "../adapters/lifiClient.js";
+import { destinationSwap, resetLifiClient } from "../adapters/lifiClient.js";
 import type { AdapterAction, VerificationResult } from "../adapters/types.js";
 import {
   asset,
@@ -411,5 +411,24 @@ describe("LI.FI verification and settlement", () => {
     const settled = await lifiAdapter.poll?.(step, Date.now());
     assert.equal(settled?.status, "settled");
     assert.equal(settled?.status === "settled" ? settled.actualOutput?.amount : null, "24937500");
+  });
+});
+
+describe("LI.FI delivers only the quoted asset", () => {
+  const request = { fromChain: 8453, toChain: 42161, toToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" };
+  const cross = { type: "cross", action: { fromChainId: 8453, toChainId: 42161, toToken: { address: request.toToken } } };
+  const fee = { type: "protocol", action: { fromChainId: 8453, toChainId: 8453, toToken: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" } } };
+
+  it("accepts a source fee step and the crossing into the requested token", () => {
+    assert.equal(destinationSwap(undefined, request), false);
+    assert.equal(destinationSwap([fee, cross], request), false);
+  });
+
+  it("refuses a destination swap or a crossing into another token, since a failed swap would deliver the bridged token", () => {
+    const swap = { type: "swap", action: { fromChainId: 42161, toChainId: 42161, toToken: { address: request.toToken } } };
+    assert.equal(destinationSwap([fee, { ...cross, action: { ...cross.action, toToken: { address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1" } } }, swap], request), true);
+    assert.equal(destinationSwap([fee, cross, swap], request), true);
+    assert.equal(destinationSwap([{ ...cross, action: { ...cross.action, toToken: { address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1" } } }], request), true);
+    assert.equal(destinationSwap("steps", request), true, "an unreadable step list fails closed");
   });
 });

@@ -34,7 +34,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { findAssetBySymbol, type IntentActionSpec, type IntentRequest, type NetworkKey } from "@kletia/core";
+import { findAssetBySymbol, type IntentActionSpec, type IntentGraph, type IntentRequest, type NetworkKey } from "@kletia/core";
 import { isPlatformError } from "../../errors.js";
 import { compileIntentText } from "../grammar.js";
 import { configureHoldingsReaders } from "../holdings.js";
@@ -45,6 +45,7 @@ import type { ReadingHook, ResolvedAction, TurnContext, TurnInput } from "../cla
 import { contextFor, CORPUS_PRICE_AT, CORPUS_PRICES, installWallet, loadCorpus, runTurn, shape, uninstallWallet, type Corpus, type CorpusCase } from "../clarify/corpusHarness.js";
 import { asNetwork, compareEndStates, endStateOfActions, endStateOfGraph, planActions, planRequest, withPlanWorld, type EndState } from "./evalPlan.js";
 import { oracleFlags } from "./evalOracle.js";
+import { resetVenueStats } from "../routing/venueStats.js";
 
 export const INTENT_EVAL_SPEC = "kletia.intent-eval/v1";
 
@@ -264,7 +265,15 @@ export function classifyResult(prompt: IntentEvalPrompt, result: EvalResult, opt
   if (klass === "plan_ok" || klass === "plans_unconfirmed" || klass === "asks_needlessly") {
     if (result.confirmMismatch) return "plans_wrongly";
     if (result.endStateDiff && result.endStateDiff.length > 0) return "plans_wrongly";
-    if (result.planned && !result.planned.ok) return "plans_unplannable";
+    if (result.planned && !result.planned.ok) {
+      // The person ends with the planner's refusal: correct when the corpus accepts that refusal.
+      const code = result.planned.code;
+      const refusalAccepted = prompt.accept.some((accept) => {
+        const parsed = parsedAccept(accept);
+        return parsed.kind === "R" && (parsed.code === null || parsed.code === code);
+      });
+      return refusalAccepted ? "refuse_ok" : "plans_unplannable";
+    }
   }
   return klass;
 }
@@ -487,11 +496,47 @@ async function strictPrompt(fixtures: Corpus, prompt: IntentEvalPrompt): Promise
   const endState = endStateOfGraph(planned.graph, ctx.accounts);
   // A departure (sourceNetwork) adds legs the sentence does not have: only the sentence's own end state is compared.
   const diff = ctx.sourceNetwork ? [] : compareEndStates(endStateOfActions(actions), endState);
-  return { id: prompt.id, say: prompt.say, status: "ready", questions: [], plan: specShape(specs), assumptions: [], planned: { ok: true }, endState, endStateDiff: diff };
+  return { id: prompt.id, say: prompt.say, status: "ready", questions: [], plan: strictShape(specs, planned.graph), assumptions: [], planned: { ok: true }, endState, endStateDiff: diff };
+}
+
+/**
+ * Strict mode's plan shape: the compiled specs, plus every crossing leg the
+ * planner's strict-path safety net inserted between dependent steps on
+ * different networks, so a plan that crosses is shown crossing.
+ * Graph steps are matched to the specs in order by kind and network; the
+ * unmatched ones are the inserted legs. Falls back to the specs' shape when
+ * the graph cannot be matched that way.
+ */
+function strictShape(specs: readonly IntentActionSpec[], graph: IntentGraph): string {
+  const base = specShape(specs);
+  if (graph.steps.length <= specs.length) return base;
+  const parts = base.split(" | ");
+  if (parts.length !== specs.length) return base;
+  const out: string[] = [];
+  let next = 0;
+  for (const step of graph.steps) {
+    const spec = specs[next];
+    if (spec && spec.kind === step.kind && spec.network === step.network) {
+      out.push(parts[next] as string);
+      next += 1;
+      continue;
+    }
+    // An inserted crossing: it carries the previous output to the network of the step it feeds.
+    const destination = spec?.network;
+    if (!destination || destination === step.network || !step.input) return base;
+    const from = canonicalSymbol(step.network, step.input.symbol);
+    const toSymbol = step.expectedOutput ? canonicalSymbol(destination, step.expectedOutput.symbol) : from;
+    const to = toSymbol.toUpperCase() !== from.toUpperCase() ? `->${toSymbol}` : "";
+    out.push(`${step.kind}@${step.network}->${destination} max ${from}${to}`);
+  }
+  return next === specs.length ? out.join(" | ") : base;
 }
 
 /** Runs one prompt offline in the given mode (the caller installs the price reader). */
 export async function runPrompt(fixtures: Corpus, prompt: IntentEvalPrompt, options: PromptOptions = {}): Promise<EvalResult> {
+  // Every prompt starts from the same venue statistics: a breaker opened or a fill rate learnt
+  // by an earlier prompt's dry runs must not change this prompt's routes (determinism).
+  resetVenueStats();
   try {
     if (options.mode === "strict") return await strictPrompt(fixtures, prompt);
     const outcome = await decidePrompt(fixtures, prompt, options);
@@ -522,18 +567,40 @@ export function modeRunOptions(mode: EvalMode, options: { readonly confirm?: boo
   return { mode, autoConfirm: (options.confirm ?? true) && mode !== "strict", oracles: mode !== "strict" };
 }
 
+/**
+ * The offline eval never reaches the network (determinism): a token
+ * search for a symbol Kletia does not list answers "no such token" (the
+ * fixture world knows no unlisted tokens), and any other request fails as a
+ * network error. Returns the function that restores the real fetch.
+ */
+export function installOfflineFetch(): () => void {
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (/\/tokens\/v\d+\/search\?/u.test(url)) {
+      return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
+    }
+    throw new TypeError(`offline eval: no network (${url.slice(0, 80)})`);
+  }) as typeof fetch;
+  return () => {
+    globalThis.fetch = real;
+  };
+}
+
 /** Runs every prompt offline, in corpus order; restores the holdings and price readers afterwards. */
 export async function runIntentEval(corpus: IntentEvalCorpus, fixtures: Corpus, options: RunOptions = {}): Promise<EvalResult[]> {
   const prices = options.prices === undefined ? evalPriceReader() : options.prices;
   if (prices) configurePriceReader(prices);
   pricesOverride = options.prices === undefined ? null : options.prices;
   const out: EvalResult[] = [];
+  const restoreFetch = installOfflineFetch();
   try {
     for (const prompt of corpus.prompts) {
       if (options.filter && !options.filter(prompt)) continue;
       out.push(await runPrompt(fixtures, prompt, options));
     }
   } finally {
+    restoreFetch();
     pricesOverride = null;
     uninstallWallet();
     configureHoldingsReaders(null);

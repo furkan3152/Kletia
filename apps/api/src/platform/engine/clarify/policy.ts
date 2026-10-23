@@ -25,6 +25,7 @@ import {
   type NetworkKey,
   type ProtocolId,
   type ThreadAmount,
+  type YieldVenue,
   YIELD_VENUES,
 } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
@@ -58,11 +59,13 @@ import {
   rankedVenueOptions,
   recipientFamily,
   stakeProvider,
+  type StakeProvider,
   STAKE_PROVIDERS,
   SWAP_NETWORKS,
   symbolsOn,
   transferOnly,
   USD_ORDER,
+  venueCandidates,
   venueNetworks,
   venuesOn,
 } from "./catalog.js";
@@ -71,11 +74,23 @@ import { MAX_POSITION_READS, type DecisionFacts } from "./facts.js";
 import { confirmPrompt, endStateDigest, gasSymbol, recipientLabel, settledAcks } from "../solver/confirm.js";
 import { GAS_TOPUP_USD, gasShortfalls, type GasShortfall } from "../solver/gasNeeds.js";
 import { invariantRefusal, readyViolations, spendsPrevious, type ActionMeta } from "../solver/invariants.js";
-import { movesReason } from "../solver/moves.js";
+import { EXACT_DELIVERY_PLANNED, movesReason } from "../solver/moves.js";
 import { expandGoalSteps } from "./goals.js";
 import { symbolTypoCandidates } from "../goal/lexer.js";
 import { priceAmount, typoQuestion } from "../solver/decide.js";
-import { apyLabel, riskLabel } from "../solver/explain.js";
+import { apyLabel, riskLabel, smoothedApyLabel } from "../solver/explain.js";
+import { typicalTxUsd } from "../solver/search.js";
+import {
+  bestRatedStake,
+  migrationVerdict,
+  rankedByRate,
+  rankStakeReadings,
+  rankYieldReadings,
+  stakeProvidersOf,
+  type RankedStakeProvider,
+  type RankedYieldVenue,
+  type YieldReading,
+} from "../solver/yieldRank.js";
 import { cmp, formatDecimal, isDecimal, isPositive, parseDecimal, portion, sub, tidy } from "./decimal.js";
 import { field, pendingEditQuestion } from "./edits.js";
 import { candidates } from "./fuzzy.js";
@@ -118,14 +133,33 @@ function symbolOnNetwork(env: Env, network: NetworkKey, raw: string | undefined,
   return null;
 }
 
-/** Balance minus the native fee reserve, times bps (R6). */
-function spendable(env: Env, network: NetworkKey, symbol: string, bps: number): bigint | undefined {
-  const balance = env.facts.balance(network, symbol);
-  if (balance === undefined) return undefined;
+/** Balance minus what the person keeps back and the native fee reserve, times bps (R6, "keep N"). */
+function spendable(env: Env, network: NetworkKey, symbol: string, bps: number, keep = "0"): bigint | undefined {
+  const held = env.facts.balance(network, symbol);
+  if (held === undefined) return undefined;
+  const left = sub(held, keep);
+  if (left <= 0n) return 0n;
+  const balance = formatDecimal(left);
   const share = portion(balance, bps);
   if (CHAINS[network].nativeAsset.symbol.toUpperCase() !== symbol.toUpperCase()) return share;
   const cap = sub(balance, NATIVE_FEE_RESERVE[network]);
   return share < cap ? share : cap;
+}
+
+/**
+ * "keep N": what the person keeps back of this step's asset on this network, as a decimal string,
+ * subtracted before a share of the holding is taken. Null when an entry cannot be applied here (another asset or
+ * network, or not an exact amount): the amount is then asked, never planned around the keep.
+ */
+function keptHere(step: WorkStep, network: NetworkKey, from: string): string | null {
+  let total = 0n;
+  for (const entry of step.keep ?? []) {
+    if (entry.amount.t !== "exact" || !isDecimal(entry.amount.value)) return null;
+    if (entry.asset && (canonicalOn(network, entry.asset) ?? entry.asset).toUpperCase() !== from.toUpperCase()) return null;
+    if (entry.network && entry.network !== network) return null;
+    total += parseDecimal(entry.amount.value);
+  }
+  return formatDecimal(total);
 }
 
 interface Funding {
@@ -475,9 +509,42 @@ function resolveAmount(env: Env, index: number, step: WorkStep, network: Network
   const amount = step.amount?.v;
   const decimals = decimalsOf(network, from);
   if (!amount) return { question: amountQuestion(env, index, step, network, from) };
+  const keep = step.keep && step.keep.length > 0 ? keptHere(step, network, from) : "0";
+  if (keep === null) {
+    return { question: question(path, "amount", "AMOUNT_MISSING", `How much ${from} should this use?`, "Kletia could not apply what you keep back to this step; say the exact amount to use.", [], true, placeholderFor("amount", from)) };
+  }
+  if (amount.t === "exact" && isPositive(keep) && step.amount?.by === "user") {
+    // An exact amount plus what is kept back must fit the balance: otherwise the person chooses.
+    const balance = env.facts.balance(network, from);
+    if (balance !== undefined && isDecimal(amount.value) && parseDecimal(balance) < parseDecimal(amount.value) + parseDecimal(keep)) {
+      const left = spendable(env, network, from, 10_000, keep) ?? 0n;
+      const options: Option[] = left > 0n ? [{ id: "rest", label: clip(`All but ${tidy(keep)} · ${formatDecimal(left, decimals)} ${from}`, 48), value: { amount: { t: "exact", value: formatDecimal(left, decimals) } } }] : [];
+      options.push({ id: "cancel", label: "Neither, cancel", value: { target: "cancel" } });
+      return {
+        question: question(path, "choice", "AMOUNT_EXCEEDS_BALANCE", `${amount.value} ${from} and the ${tidy(keep)} ${from} you keep are more than you hold on ${networkName(network)}. How much should this use?`,
+          `You hold ${held(env, network, from) ?? tidy(balance)} ${from} there.`, options, true, placeholderFor("amount", from)),
+      };
+    }
+  }
   if (amount.t === "exact") {
     if (step.usdFrom && !USD_ORDER.includes(from.toUpperCase())) {
       return { question: question(path, "amount", "AMOUNT_MISSING", `How much ${from}?`, "A $ amount is paid in a USD stablecoin; say the amount in the token instead.", [], true, placeholderFor("amount", from)) };
+    }
+    // "1.000" or "2.500" as typed has two readings (a decimal point, or a thousands separator): always asked,
+    // never read as one of them, the person's own funds or a payment alike. The answer is the person's.
+    const dotted = (amount.raw ?? amount.value).trim();
+    if (step.amount?.by === "user" && /^[1-9]\d{0,2}(?:\.\d{3})+$/u.test(dotted)) {
+      const decimal = /^\d+\.\d{3}$/u.test(dotted) ? dotted.replace(/\.?0+$/u, "") : null;
+      const whole = dotted.replace(/\./gu, "");
+      const grouped = whole.replace(/\B(?=(\d{3})+$)/gu, ",");
+      return {
+        question: question(path, "choice", "AMOUNT_FORMAT_AMBIGUOUS", `Did you mean ${decimal ? `${decimal} ${from} or ` : ""}${grouped} ${from}?`,
+          "The dot can be a decimal point or a thousands separator. Kletia never guesses an amount.", [
+            ...(decimal ? [{ id: "decimal", label: `${decimal} ${from}`, detail: "The dot as a decimal point", value: { amount: { t: "exact" as const, value: decimal } } }] : []),
+            { id: "thousands", label: `${grouped} ${from}`, detail: "The dot as a thousands separator", value: { amount: { t: "exact" as const, value: whole } } },
+            { id: "cancel", label: "Neither, cancel", value: { target: "cancel" } },
+          ], true, placeholderFor("amount", from)),
+      };
     }
     if (amount.raw && /^\d{1,3},\d{3}$/u.test(amount.raw) && step.amount?.by === "user") {
       const decimal = formatDecimal(parseDecimal(amount.raw.replace(",", ".")), decimals);
@@ -517,15 +584,20 @@ function resolveAmount(env: Env, index: number, step: WorkStep, network: Network
     }
     return { amount: priced.value, assumption: { ...priced.assumption, source: "price" } };
   }
-  const value = spendable(env, network, from, amount.bps);
+  const value = spendable(env, network, from, amount.bps, keep);
   if (value === undefined) return { question: question(path, "amount", "AMOUNT_BALANCE_UNKNOWN", `How much ${from}?`, "Kletia cannot read your balance; say an exact amount.", [], true, placeholderFor("amount", from)) };
-  if (value <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", `Your ${from} balance on ${networkName(network)} is too small to spend.`, 422, [{ path, message: "Balance too small." }]);
+  if (value <= 0n) {
+    throw new PlatformError("AMOUNT_TOO_SMALL", isPositive(keep)
+      ? `After the ${tidy(keep)} ${from} you keep, your ${from} on ${networkName(network)} leaves nothing to spend.`
+      : `Your ${from} balance on ${networkName(network)} is too small to spend.`, 422, [{ path, message: "Balance too small." }]);
+  }
   const formatted = formatDecimal(value, decimals);
   const native = CHAINS[network].nativeAsset.symbol === from;
-  const label = amount.bps === 10_000 ? `All your ${from}: ${formatted}` : `${amount.bps / 100}% of your ${from}: ${formatted}`;
+  const kept = isPositive(keep) ? ` after keeping ${tidy(keep)}` : "";
+  const label = amount.bps === 10_000 ? `All your ${from}${kept}: ${formatted}` : `${amount.bps / 100}% of your ${from}${kept}: ${formatted}`;
   return {
     amount: formatted,
-    assumption: assumption(path, label, { amount }, "balance", `You hold ${held(env, network, from)} ${from} on ${networkName(network)}${native ? `; ${NATIVE_FEE_RESERVE[network]} ${from} stays for network fees` : ""}.`, [], true),
+    assumption: assumption(path, label, { amount }, "balance", `You hold ${held(env, network, from)} ${from} on ${networkName(network)}${isPositive(keep) ? `; ${tidy(keep)} ${from} stays as you asked` : ""}${native ? `; ${NATIVE_FEE_RESERVE[network]} ${from} stays for network fees` : ""}.`, [], true),
   };
 }
 
@@ -1115,40 +1187,119 @@ function exceedsBalance(env: Env, index: number, step: WorkStep, kind: Kind, net
     `You hold ${shown} ${from} there; Kletia checks the amount against your balance before planning.`, options, true, placeholderFor("amount", from));
 }
 
-/** The risk penalty of a tier in rate terms: a curated venue must pay 0.5 points more than a core one to be picked. */
-const TIER_PENALTY: Readonly<Record<string, number>> = { core: 0, curated: 0.005 };
+/** The previous step's venue when this deposit moves a position on the same network (a migration). */
+function migrationSource(previous: ResolvedAction | undefined, network: NetworkKey, from: string): YieldVenue | undefined {
+  if (!previous || previous.kind !== "withdraw" || previous.network !== network || !previous.protocol) return undefined;
+  if (canonicalOn(network, previous.from)?.toUpperCase() !== canonicalOn(network, from)?.toUpperCase()) return undefined;
+  const venues = venuesOn(network, "withdraw", previous.protocol, from);
+  return venues.find((venue) => !previous.vault || venue.slug === previous.vault) ?? venues[0];
+}
 
-/** D6 for a venue-less deposit: the venue (picked by rate, a chip) or a VENUE_MISSING question. */
-function chooseVenue(env: Env, index: number, step: WorkStep, network: NetworkKey, from: string): { protocol?: string; vault?: string; assumption?: Assumption; question?: Question } {
-  const ranked = rankedVenueOptions(network, "deposit", from, 4);
-  if (ranked.length === 0) throw refuseUnsupported(`No lending venue takes ${from} on ${networkName(network)}.`);
-  const rated = ranked.map((venue) => ({ venue, apy: env.facts.venueApy?.(venue.id) ?? null, tier: protocolTier(venue.protocol as ProtocolId, network) }));
-  const scored = rated.filter((entry) => entry.apy !== null && entry.tier in TIER_PENALTY)
-    .sort((a, b) => ((b.apy as number) - TIER_PENALTY[b.tier]!) - ((a.apy as number) - TIER_PENALTY[a.tier]!));
-  const vaultOf = (venue: (typeof ranked)[number]) => (venuesOn(network, "deposit", venue.protocol, from).length > 1 ? venue.slug : undefined);
-  const best = scored[0];
-  if (!best) {
-    const options = rated.map((entry, i) => ({
-      id: entry.venue.protocol, label: protocolLabel(entry.venue.protocol), detail: `${entry.venue.name} · ${riskLabel(entry.tier as never)} · ${apyLabel(entry.apy)}`,
-      value: { protocol: entry.venue.protocol, ...(vaultOf(entry.venue) ? { venue: vaultOf(entry.venue) } : {}) }, ...(i === 0 ? { recommended: true as const } : {}),
-    }));
-    const copy = PROTOCOL_QUESTION_COPY.venueMissing(amountPhrase(step, from), networkName(network));
-    return { question: question(field(index, "protocol"), "choice", "VENUE_MISSING", copy.prompt, `${copy.why} Rates could not be read right now.`, options, false) };
+/** USD of what a deposit puts in (ranking only): an exact amount, or the previous withdrawal's position; undefined when unknown. */
+function depositUsd(env: Env, step: WorkStep, network: NetworkKey, from: string, previous: ResolvedAction | undefined): number | undefined {
+  let amount: string | undefined;
+  if (step.amount?.v.t === "exact") amount = step.amount.v.value;
+  else if (step.amount?.v.t === "previous" && previous?.kind === "withdraw" && previous.protocol) {
+    amount = previous.amount === "max" ? env.facts.position(network, previous.protocol, from) : previous.amount;
   }
-  const vault = vaultOf(best.venue);
-  step.protocol = { v: best.venue.protocol, by: "assumed", why: { source: "default", code: VENUE_RATE_CODE } };
+  if (amount === undefined || !isDecimal(amount)) return undefined;
+  const price = (env.facts as DecisionFacts).usdPrice?.(network, from)?.usd;
+  const value = price === undefined ? undefined : Number(amount) * price;
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * D6 for a venue-less deposit: every venue of the asset on the network is
+ * ranked on its smoothed rate net of the tier's risk allowance
+ * (`solver/yieldRank.ts`) before any list is cut. The best compared venue is
+ * picked and shown (a chip with the other venues); without a compared venue it
+ * is asked (VENUE_MISSING), never picked on an instantaneous rate. A deposit
+ * that moves a position here (a withdrawal from a venue on the same network
+ * just before) never returns to that venue and must beat it by more than the
+ * gas of switching, else it is refused.
+ */
+function chooseVenue(env: Env, index: number, step: WorkStep, network: NetworkKey, from: string, previous?: ResolvedAction): { protocol?: string; vault?: string; assumption?: Assumption; question?: Question } {
+  const candidates = venueCandidates(network, "deposit", from);
+  if (candidates.length === 0) throw refuseUnsupported(`No lending venue takes ${from} on ${networkName(network)}.`);
+  const facts = env.facts as DecisionFacts;
+  // A facts view without full readings (fixtures) knows the current rate only: nothing is compared on it.
+  const readingOf = (venue: YieldVenue): YieldReading | null | undefined => {
+    if (facts.venueReading) return facts.venueReading(venue.id);
+    const apy = env.facts.venueApy?.(venue.id);
+    return apy === undefined ? undefined : { status: "known", apy, smoothedApy: null, tvlUsd: null, capRemaining: null, paused: false, frozen: false };
+  };
+  const source = migrationSource(previous, network, from);
+  const amountUsd = depositUsd(env, step, network, from, previous);
+  // "somewhere safe" / "the highest apy": the reader's preference when the step still carries its Goal ("safest": tier
+  // first; "yield": raw 7-day rate). A lowered step without its Goal ranks by the risk-adjusted rate.
+  const preferred: string | undefined = step.goal?.constraints.prefer;
+  const prefer = preferred === "safest" || preferred === "yield" ? preferred : undefined;
+  const ranked = rankYieldReadings({
+    network, ...(amountUsd !== undefined ? { amountUsd } : {}), ...(prefer ? { prefer } : {}), ...(source ? { excludeVenueIds: [source.id] } : {}),
+  }, candidates, readingOf);
+  const vaultOf = (venue: YieldVenue) => (venuesOn(network, "deposit", venue.protocol, from).length > 1 ? venue.slug : undefined);
+  const valueOf = (venue: YieldVenue) => ({ protocol: venue.protocol, ...(vaultOf(venue) ? { venue: vaultOf(venue) } : {}) });
+  // The best entry of each protocol, in ranked order (option ids are protocol ids).
+  const perProtocol = (entries: readonly RankedYieldVenue[]) => entries.filter((entry, i) => entries.findIndex((other) => other.venue.protocol === entry.venue.protocol) === i);
+  const ask = (why: string) => {
+    const shown = rankedVenueOptions(network, "deposit", from, 8)
+      .filter((venue) => venue.protocol !== source?.protocol || venuesOn(network, "deposit", venue.protocol, from).length > 1)
+      .slice(0, 4);
+    const options = shown.map((venue, i) => {
+      const entry = ranked.find((row) => row.venue.protocol === venue.protocol);
+      const pick = entry?.venue ?? venue;
+      return {
+        id: venue.protocol, label: protocolLabel(venue.protocol), detail: `${pick.name} · ${riskLabel(protocolTier(venue.protocol as ProtocolId, network) as never)} · ${entry ? smoothedApyLabel(entry) : "rate not compared"}`,
+        value: valueOf(pick), ...(i === 0 ? { recommended: true as const } : {}),
+      };
+    });
+    const copy = PROTOCOL_QUESTION_COPY.venueMissing(amountPhrase(step, from), networkName(network));
+    return { question: question(field(index, "protocol"), "choice", "VENUE_MISSING", copy.prompt, `${copy.why} ${why}`, options, false) };
+  };
+  let best = ranked.find((entry) => entry.compared);
+  if (!best) return ask("Rates could not be compared right now.");
+  if (source) {
+    const verdict = migrationVerdict({ ranked, source, sourceReading: readingOf(source), amountUsd: amountUsd ?? null, switchingGasUsd: 3 * typicalTxUsd(network) });
+    if (!verdict.move) {
+      if (verdict.reason === "not-compared") return ask(verdict.why);
+      throw refuseUnsupported(`${verdict.why} Kletia does not move a position for no gain; name the venue to move it anyway.`);
+    }
+    best = verdict.target;
+  }
+  const chosen = best;
+  const vault = vaultOf(chosen.venue);
+  step.protocol = { v: chosen.venue.protocol, by: "assumed", why: { source: "default", code: VENUE_RATE_CODE } };
   if (vault) step.vault = { v: vault, by: "assumed", why: { source: "default", code: VENUE_RATE_CODE } };
   else delete step.vault;
-  const alternatives = rated.filter((entry) => entry !== best).map((entry) => ({
-    id: entry.venue.protocol, label: `${protocolLabel(entry.venue.protocol)} · ${apyLabel(entry.apy)}`, detail: riskLabel(entry.tier as never),
-    value: { protocol: entry.venue.protocol, ...(vaultOf(entry.venue) ? { venue: vaultOf(entry.venue) } : {}) },
+  const alternatives = perProtocol(ranked.filter((entry) => entry.venue.protocol !== chosen.venue.protocol && entry.capacityOk !== false)).slice(0, 4).map((entry) => ({
+    id: entry.venue.protocol, label: `${protocolLabel(entry.venue.protocol)} · ${smoothedApyLabel(entry)}`, detail: `${entry.venue.name} · ${riskLabel(entry.tier as never)}`,
+    value: valueOf(entry.venue),
   }));
+  const byRate = rankedByRate(chosen);
   return {
-    protocol: best.venue.protocol,
+    protocol: chosen.venue.protocol,
     ...(vault ? { vault } : {}),
-    assumption: assumption(field(index, "protocol"), `${best.venue.name} · ${apyLabel(best.apy)}`, { protocol: best.venue.protocol, ...(vault ? { venue: vault } : {}) }, "default",
-      reasonText(VENUE_RATE_CODE, { protocol: protocolLabel(best.venue.protocol), kind: riskLabel(best.tier as never) }), alternatives, true),
+    assumption: assumption(field(index, "protocol"), `${chosen.venue.name} · ${smoothedApyLabel(chosen)}`, valueOf(chosen.venue), "default",
+      reasonText(byRate ? VENUE_RATE_CODE : "venue.only", { protocol: protocolLabel(chosen.venue.protocol), kind: riskLabel(chosen.tier as never) }), alternatives, true),
   };
+}
+
+/** The vaults of a named protocol ranked on their 7-day rates; [] while unread. */
+function vaultRanking(env: Env, network: NetworkKey, protocol: string, from: string): RankedYieldVenue[] {
+  const facts = env.facts as DecisionFacts;
+  if (!facts.venueReading) return [];
+  const candidates = venueCandidates(network, "deposit", from).filter((venue) => venue.protocol === protocol);
+  return rankYieldReadings({ network, protocol: protocol as ProtocolId }, candidates, (venue) => facts.venueReading?.(venue.id));
+}
+
+/** The best compared staking provider of `input` on `network`, or undefined (no readings: the default stays). */
+function stakeChoice(env: Env, input: "SOL" | "ETH", network: NetworkKey): { provider: StakeProvider; best: RankedStakeProvider; ranks: readonly RankedStakeProvider[] } | undefined {
+  const readings = (env.facts as DecisionFacts).stakeReadings?.(input);
+  if (!readings || readings.length === 0) return undefined;
+  const providers = stakeProvidersOf(input, network);
+  const best = bestRatedStake(providers, readings);
+  const provider = best ? stakeProvider(best.provider) : undefined;
+  return best && provider ? { provider, best, ranks: rankStakeReadings(providers, readings) } : undefined;
 }
 
 /* ------------------------------------------------------------- analyze */
@@ -1159,9 +1310,10 @@ function chooseVenue(env: Env, index: number, step: WorkStep, network: NetworkKe
  * Exact delivery to a recipient (seam S10: `receiveExact`, the input sized by
  * an inverse quote) is offered once the planner sizes such legs (P3-M2).
  * Until then a payment that crosses networks asks DELIVERY_AMOUNT with "the
- * recipient receives what arrives" as the only plannable reading.
+ * recipient receives what arrives" as the only plannable reading. The switch
+ * lives with the solver, which reads it for "exactly" goals.
  */
-export const EXACT_DELIVERY_PLANNED = false;
+export { EXACT_DELIVERY_PLANNED } from "../solver/moves.js";
 
 /** A resolved action with the decision layer's internal fields (never serialised). */
 export interface PlacedAction extends ResolvedAction {
@@ -1264,8 +1416,8 @@ function crossingChip(index: number, kind: Kind, from: NetworkKey, to: NetworkKe
   const runs = venue ? `${venue} runs on ${networkName(to)}` : `this ${kind} runs on ${networkName(to)}`;
   return assumption(field(index, why === "dependent" ? "network" : "fundFrom"), `Bridges ${asset} ${networkName(from)} to ${networkName(to)} first`, { network: to }, "context",
     why === "dependent"
-      ? `Step ${index}'s ${asset} is on ${networkName(from)}, and ${runs}. The bridge with the best quote is picked at planning.`
-      : `You said the ${asset} is on ${networkName(from)}, and ${runs}. The bridge with the best quote is picked at planning.`,
+      ? `Step ${index}'s ${asset} is on ${networkName(from)}, and ${runs}. The route is picked by live quotes at planning.`
+      : `You said the ${asset} is on ${networkName(from)}, and ${runs}. The route is picked by live quotes at planning.`,
     [], true);
 }
 
@@ -1506,7 +1658,9 @@ function confirmNeed(state: WorkState, env: Env, steps: readonly WorkStep[], res
     const index = moves.kind === "several" ? meta.find((info) => info.goalStep === moves.step)?.step ?? 0 : meta[moves.action]?.step ?? 0;
     note(index, "Every move: ", moves.kind === "holding-to-third-party"
       ? "It pays a whole holding (or a share of it) to someone else. Kletia lists the amount before planning."
-      : "It moves more than one holding, or most of one. Kletia lists every move before planning.");
+      : moves.kind === "computed"
+        ? "Kletia computed these amounts from your goal. It lists every move before planning."
+        : "It moves more than one holding, or most of one. Kletia lists every move before planning.");
   }
   for (const [action, entry] of resolved.entries()) {
     if (!thirdParty(entry)) continue;
@@ -2001,13 +2155,15 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): P
     // A venue Kletia picked by rate is decided again each turn (rates move); one the person chose stays.
     const pickedByRate = step.protocol?.by === "assumed" && step.protocol.why?.code === VENUE_RATE_CODE;
     let protocol = pickedByRate ? undefined : step.protocol?.v;
-    let vault = pickedByRate ? undefined : step.vault?.v;
+    // A vault Kletia picked by rate goes with that pick: a chip that changes the protocol leaves no stale vault behind.
+    const vaultByRate = step.vault?.by === "assumed" && step.vault.why?.code === VENUE_RATE_CODE;
+    let vault = pickedByRate || vaultByRate ? undefined : step.vault?.v;
     let provider = step.provider?.v;
     if (kind === "deposit" || kind === "withdraw") {
       if (!protocol && kind === "deposit") {
         // A venue-less deposit: the capability index's venues, ranked by tier, with live
         // rates. The best risk-adjusted rate among core and curated venues is picked and shown; asked only without rates.
-        const pick = chooseVenue(env, index, step, network, from);
+        const pick = chooseVenue(env, index, step, network, from, dependent ? resolved[resolved.length - 1] : undefined);
         if (pick.question) {
           ask([pick.question]);
           break;
@@ -2029,9 +2185,20 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): P
         throw refuseUnsupported(`${protocolLabel(protocol)} has no ${from} vault "${vault.slice(0, 32)}" on ${networkName(network)}.`);
       }
       if (!vault && venues.length > 1) {
-        vault = venues[0]!.slug;
-        assumptions.push(assumption(field(index, "venue"), venues[0]!.name, { venue: vault }, "default", `The default ${protocolLabel(protocol)} venue for ${from} on ${networkName(network)}.`,
-          venues.slice(1).map((venue) => ({ id: venue.slug, label: venue.name, value: { venue: venue.slug } })), false));
+        // A named protocol with several vaults: the vault with the best compared 7-day rate for its
+        // risk; without one, the protocol's default vault. Either is a means, shown.
+        const ranked = kind === "deposit" ? vaultRanking(env, network, protocol, from) : [];
+        const best = ranked.find(rankedByRate);
+        const pick = best?.venue ?? venues[0]!;
+        vault = pick.slug;
+        const rateOf = (slug: string) => ranked.find((entry) => entry.venue.slug === slug);
+        assumptions.push(assumption(field(index, "venue"), best ? `${pick.name} · ${smoothedApyLabel(best)}` : pick.name, { venue: vault }, "default",
+          best ? `The ${protocolLabel(protocol)} vault with the best 7-day rate for ${from} on ${networkName(network)} among those Kletia compared; rates are variable.`
+            : `The default ${protocolLabel(protocol)} venue for ${from} on ${networkName(network)}.`,
+          venues.filter((venue) => venue.slug !== pick.slug).map((venue) => {
+            const entry = rateOf(venue.slug);
+            return { id: venue.slug, label: entry && entry.compared && entry.smoothedApy !== null ? `${venue.name} · ${smoothedApyLabel(entry)}` : venue.name, value: { venue: venue.slug } };
+          }), false));
       }
     }
     if (kind === "stake" && !dependent && step.provider?.by !== "user" && step.provider?.by !== "answer") {
@@ -2049,11 +2216,17 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): P
       const input = stakeProvider(provider)?.input ?? (network === "ethereum" || from.toUpperCase() === "ETH" ? "ETH" : "SOL");
       if (!provider || step.provider?.by === "assumed") {
         // Solana Devnet runs native staking only.
-        const chosen = stakeProvider(provider) ?? (network === "solana-devnet" ? stakeProvider(NATIVE_STAKE_PROTOCOL) as NonNullable<ReturnType<typeof stakeProvider>> : defaultProvider(input));
+        // An unnamed provider is the best compared 7-day rate net of the risk allowance; without readings, Kletia's default.
+        const rated = !provider && network !== "solana-devnet" ? stakeChoice(env, input, network) : undefined;
+        const chosen = stakeProvider(provider) ?? rated?.provider ?? (network === "solana-devnet" ? stakeProvider(NATIVE_STAKE_PROTOCOL) as NonNullable<ReturnType<typeof stakeProvider>> : defaultProvider(input));
         provider = chosen.id;
         remember(step, "provider", provider, { source: "default", code: "default.provider" });
-        assumptions.push(assumption(field(index, "provider"), chosen.label, { provider }, "default", reasonText("default.provider", { protocol: chosen.grammarProvider, symbol: input }),
-          STAKE_PROVIDERS.filter((entry) => entry.input === input && entry.id !== provider).map((entry) => ({ id: entry.id, label: entry.label, value: { provider: entry.id } })), true));
+        const others = STAKE_PROVIDERS.filter((entry) => entry.input === input && entry.id !== provider).map((entry) => {
+          const rank = rated?.ranks.find((row) => row.provider === entry.id);
+          return { id: entry.id, label: rank?.apy !== null && rank?.apy !== undefined ? `${entry.label} · ${apyLabel(rank.apy)} (7-day)` : entry.label, value: { provider: entry.id } };
+        });
+        assumptions.push(assumption(field(index, "provider"), rated ? `${chosen.label} · ${apyLabel(rated.best.apy)} (7-day)` : chosen.label, { provider }, "default",
+          reasonText(rated ? "stake.rate" : "default.provider", { protocol: chosen.grammarProvider, symbol: input }), others, true));
       }
       const chosen = stakeProvider(provider) as ReturnType<typeof stakeProvider>;
       if (!chosen) throw refuseUnsupported("Unknown staking provider.");

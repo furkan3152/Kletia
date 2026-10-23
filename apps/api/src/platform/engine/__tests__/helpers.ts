@@ -5,6 +5,7 @@
  * fee-paid by the step account). Verification and settlement outcomes are
  * scripted per test through `stub`.
  */
+import { configureSnapshotReaders } from "../solver/snapshot.js";
 import { randomBytes } from "node:crypto";
 import {
   AccountRole,
@@ -415,5 +416,19 @@ export function resetEngine(): MemoryIntentStore {
   // Never read the chain while planning in tests; journeyPlanner sets an empty account to see the reserve.
   configureGasReserveReader(async () => FUNDED_GAS_FACTS);
   resetRouting();
+  offlineEarnRanking();
   return store;
+}
+
+/**
+ * The deposit-venue ranking (planner resolveVenue) reads no chain
+ * in tests: venues have no smoothed rate, so the registry default applies.
+ * Tests of the ranking install their own snapshot readers after this.
+ */
+export function offlineEarnRanking(): void {
+  configureSnapshotReaders({
+    venue: async () => {
+      throw new Error("offline");
+    },
+  });
 }

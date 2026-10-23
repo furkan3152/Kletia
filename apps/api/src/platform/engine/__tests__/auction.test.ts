@@ -17,6 +17,8 @@ import { planIntent } from "../planner.js";
 import { quoteRoutes } from "../quotes.js";
 import { createIntent, prepareStep } from "../service.js";
 import { bridgeAction } from "./crosschainFixtures.js";
+import { assetAmount } from "../assets.js";
+import type { ProtocolAdapter } from "../adapters/types.js";
 import { ACCOUNTS, EVM_ACCOUNT, EVM_ADDRESS, OTHER_EVM_ADDRESS, OTHER_SOL_ADDRESS, SOL_ADDRESS, TEST_SCORE_FACTS } from "./helpers.js";
 import { BRIDGE_STUBS, bridgeCalls, nativeCost, resetVenueEngine, venueScripts, type VenueScript } from "./venueStubs.js";
 
@@ -197,6 +199,7 @@ describe("auction ranking: on-chain floors break ties", () => {
       score: { valueUsd: Number(minimum), expectedUsd: Number(minimum), minimumUsd: Number(minimum), minimumKind: floor ?? "claimed", gasUsd: 0, feesUsd: 0, seconds, signatures: transactions, riskUsd: 0 },
       haircutBps: 0,
       pFill: 1,
+      arrivingUsd: Number(minimum),
       planned: { minimumOutput: { amount: minimum }, estimatedSeconds: seconds, transactionCount: transactions, ...(floor ? { floor } : {}) } as VenueQuote["planned"],
     };
   }
@@ -284,9 +287,15 @@ describe("destination account of cross-network steps", () => {
     assert.equal(prepared?.destinationAccount?.address, SOL_ADDRESS, "actionForStep derives the same account from the intent");
   });
 
-  it("leaves it unset when the intent has no account on the destination's VM", async () => {
-    await planIntent({ actions: [{ ...BRIDGE, toNetwork: "solana", recipient: OTHER_SOL_ADDRESS, protocol: "debridge-dln" }], accounts: [EVM_ACCOUNT] });
+  it("leaves it unset when the intent has no account on the destination's VM, where DLN is not eligible", async () => {
+    // Without the person's own Solana account the cancel authority would be the recipient: DLN is refused, Relay serves.
+    const graph = await planIntent({ actions: [{ ...BRIDGE, toNetwork: "solana", recipient: OTHER_SOL_ADDRESS }], accounts: [EVM_ACCOUNT] });
+    assert.notEqual(graph.steps[0]?.protocol, "debridge-dln");
     assert.equal(bridgeCalls.at(-1)?.destinationAccount, undefined);
+    const named = await planIntent({ actions: [{ ...BRIDGE, toNetwork: "solana", recipient: OTHER_SOL_ADDRESS, protocol: "debridge-dln" }], accounts: [EVM_ACCOUNT] })
+      .then(() => null, (error: unknown) => error as PlatformError);
+    assert.equal(named?.code, "ROUTE_UNSUPPORTED");
+    assert.match(named?.message ?? "", /own account on Solana/u);
   });
 });
 
@@ -438,5 +447,62 @@ describe("pre-screen cache", () => {
     assert.equal(isNeutralAccount(neutral.recipient), true);
     assert.equal(neutralPrescreenAction({ id: "debridge-dln" }, action), null, "DLN's order authority needs the real account");
     assert.equal(neutralPrescreenAction(relay, bridgeAction("base", "arbitrum", { recipient: OTHER_EVM_ADDRESS })), null, "a payment to someone else keeps its recipient");
+  });
+});
+
+describe("declared fallback assets", () => {
+  beforeEach(() => resetVenueEngine({ bridges: true }));
+
+  /** A venue quoting 1,000 USDC on Base -> ETH on Arbitrum at `bps` of fair value, optionally declaring a USDC fallback. */
+  function venue(protocol: "relay" | "lifi", bps: bigint, fallback?: { readonly units: string; readonly priced: boolean }): ProtocolAdapter {
+    return {
+      id: protocol,
+      protocols: [protocol],
+      label: protocol,
+      supports: (route) => route.kind === "bridge",
+      plan: async (action) => {
+        const expected = ((BigInt(action.amount) * 10n ** 12n) / 2_500n * bps) / 10_000n;
+        return {
+          protocol,
+          title: `${protocol} bridge`,
+          mode: "wallet",
+          input: assetAmount(action.input, action.amount),
+          expectedOutput: assetAmount(action.output, expected.toString()),
+          minimumOutput: assetAmount(action.output, ((expected * 9_960n) / 10_000n).toString()),
+          estimatedSeconds: 10,
+          settlement: { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: 10 },
+          warnings: [],
+          transactionCount: 1,
+          slippageBps: action.slippageBps,
+          ...(fallback ? {
+            fallbackOutput: fallback.priced
+              ? { asset: findAssetBySymbol("arbitrum", "USDC")?.id as string, symbol: "USDC", decimals: 6, amount: fallback.units, formatted: "fallback" }
+              : { asset: "eip155:42161/erc20:0x0000000000000000000000000000000000000abc", symbol: "XYZ", decimals: 18, amount: fallback.units, formatted: "fallback" },
+          } : {}),
+        };
+      },
+      prepare: async () => { throw new Error("not prepared"); },
+      verify: async () => ({ status: "confirmed", evidence: [] }),
+    } as ProtocolAdapter;
+  }
+
+  const action = () => bridgeAction("base", "arbitrum", { out: "ETH", amount: "1000000000" });
+  const options = { maxSeconds: 600, explicitMaxSeconds: false, prefer: [] };
+
+  it("ranks a quote at the lower of its output and its declared fallback", async () => {
+    // LI.FI quotes 0.5 % more ETH, but if its destination swap fails it delivers only 990 USDC: Relay wins.
+    const result = await runVenueAuction([venue("relay", 9_960n), venue("lifi", 10_010n, { units: "990000000", priced: true })], action(), options);
+    assert.equal(result.winner.protocol, "relay");
+    const lifi = result.losers.find((quote) => quote.protocol === "lifi");
+    assert.ok(lifi && lifi.value < result.winner.value);
+    // A fallback worth as much as the output changes nothing.
+    const even = await runVenueAuction([venue("relay", 9_960n), venue("lifi", 10_010n, { units: "1001000000", priced: true })], action(), options);
+    assert.equal(even.winner.protocol, "lifi");
+  });
+
+  it("excludes a quote whose fallback cannot be priced", async () => {
+    const result = await runVenueAuction([venue("relay", 9_900n), venue("lifi", 10_010n, { units: "1", priced: false })], action(), options);
+    assert.equal(result.winner.protocol, "relay");
+    assert.equal(result.losers.find((quote) => quote.protocol === "lifi")?.excluded, "asset");
   });
 });

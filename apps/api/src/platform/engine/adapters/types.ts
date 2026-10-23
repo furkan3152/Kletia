@@ -115,6 +115,12 @@ export interface AdapterAction extends AdapterRoute {
    * whose `supportsGasTopup(route)` is true; prepare rebuilds it from the step ref.
    */
   readonly gasTopupUsd?: string;
+  /**
+   * The request's explicit time budget (`constraints.maxSeconds`) and whether
+   * it asked for the fastest route. Absent when the request set no limit: a
+   * venue with a slow variant (CCTP Standard Transfer) then never offers it.
+   */
+  readonly timeBudget?: { readonly maxSeconds: number; readonly fastest: boolean };
 }
 
 /**
@@ -188,6 +194,14 @@ export interface PlannedStep {
   readonly floor?: "onchain" | "claimed";
   /** Gas delivered on the destination with this leg (journey gas on arrival), in the destination's gas asset. */
   readonly gasTopup?: AssetAmount;
+  /**
+   * Another asset the route may deliver instead of the quoted output (a
+   * destination swap that fails hands over the bridged token). A quote with a
+   * fallback ranks at the lower of the two values and is shown with it; an
+   * unpriced fallback excludes the quote. Adapters that cannot declare it
+   * refuse such routes instead (LI.FI).
+   */
+  readonly fallbackOutput?: AssetAmount;
 }
 
 /**

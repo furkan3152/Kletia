@@ -259,20 +259,36 @@ export function lendingProtocols(): string[] {
  * as WETH (EVM venues take the wrapped token).
  */
 export function rankedVenueOptions(network: NetworkKey, kind: "deposit" | "withdraw", symbol: string, limit = 4): YieldVenue[] {
+  const seen = new Set<string>();
+  const out: YieldVenue[] = [];
+  for (const venue of venueCandidates(network, kind, symbol)) {
+    if (seen.has(venue.protocol)) continue;
+    seen.add(venue.protocol);
+    out.push(venue);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * Every venue a venue-less `kind` of `symbol` on `network` can use, in tier
+ * then registry order, with no cut (the rate ranking sees them all
+ * before any list is shortened for display). A protocol's other venues of the
+ * asset are included only when the grammar can name them by slug (vault
+ * protocols); for the rest only its default venue executes.
+ */
+export function venueCandidates(network: NetworkKey, kind: "deposit" | "withdraw", symbol: string): YieldVenue[] {
   const rank = (tier: ProtocolTier) => TIER_ORDER.indexOf(tier);
   const rows = capabilityIndex(network, kind)
     .filter((row) => row.asset !== null && venueMatches(row.asset, symbol) && row.venueId !== undefined)
     .map((row, index) => ({ row, index }))
     .sort((a, b) => rank(a.row.tier) - rank(b.row.tier) || a.index - b.index);
-  const seen = new Set<string>();
   const out: YieldVenue[] = [];
   for (const { row } of rows) {
-    if (seen.has(row.protocol)) continue;
     const venue = YIELD_VENUES.find((entry) => entry.id === row.venueId);
-    if (!venue) continue;
-    seen.add(row.protocol);
+    if (!venue || out.includes(venue)) continue;
+    if (!VAULT_PROTOCOLS.includes(venue.protocol) && venuesOn(network, kind, venue.protocol, symbol)[0]?.id !== venue.id) continue;
     out.push(venue);
-    if (out.length >= limit) break;
   }
   return out;
 }

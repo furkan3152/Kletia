@@ -10,7 +10,7 @@
 import { findAssetBySymbol, fromBaseUnits, getProtocol, GOAL_LIMITS, YIELD_VENUES, type ProtocolId, type AccountId, type Goal, type NetworkKey } from "@kletia/core";
 import { FACTS_DEADLINE_MS, MAX_BALANCE_READS, MAX_NAME_READS, readAccountCodes, readFacts, type FactNeed } from "../holdings.js";
 import { quoteAsset } from "../preview/pricer.js";
-import { positionAmount, readSnapshot, readVenueApy, type Snapshot } from "../solver/snapshot.js";
+import { positionAmount, readSnapshot, readStakeMetrics, readVenueReading, type Snapshot, type SnapshotApy, type StakeMetricsReading } from "../solver/snapshot.js";
 import { decimalsOf } from "./catalog.js";
 import type { FactsView, UsdPrice } from "./types.js";
 
@@ -21,7 +21,18 @@ export type AccountCodeView = "none" | "delegated" | "contract" | "unknown";
 export interface DecisionFacts extends FactsView {
   /** What lives at `address` on `network`; undefined until read (the policy runs again after the read). */
   accountCode?(network: NetworkKey, address: string): AccountCodeView | undefined;
+  /**
+   * A venue's full reading (current rate, smoothed rate and TVL, pause and
+   * capacity) for the earn ranking (`solver/yieldRank.ts`); null when the venue
+   * is not listed, undefined until read.
+   */
+  venueReading?(venueId: string): SnapshotApy | null | undefined;
+  /** Smoothed-rate readings of the liquid-staking tokens of `input`; undefined until read ([] when none could be read). */
+  stakeReadings?(input: "SOL" | "ETH"): readonly StakeMetricsReading[] | undefined;
 }
+
+/** Venue readings per turn: every venue of the asset on the network, read in parallel within 1.5 s. */
+export const MAX_VENUE_READS = 24;
 
 /**
  * At most this many position reads (one network and protocol each) per turn:
@@ -79,10 +90,13 @@ export class TurnFacts implements DecisionFacts {
   private readonly prices = new Map<string, UsdPrice | null>();
   private readonly wantedPrices = new Map<string, { network: NetworkKey; symbol: string }>();
   private priceReads = 0;
-  private readonly apys = new Map<string, number | null>();
+  private readonly readings = new Map<string, SnapshotApy | null>();
+  private readonly stakes = new Map<string, readonly StakeMetricsReading[]>();
+  private readonly wantedStakes = new Set<"SOL" | "ETH">();
   private readonly positionSnapshots = new Map<string, Snapshot>();
   private readonly wantedPositions = new Map<string, { network: NetworkKey; protocol: ProtocolId }>();
   private positionReads = 0;
+  private venueReads = 0;
   private readonly wantedApys = new Set<string>();
   private readonly codes = new Map<string, AccountCodeView>();
   private readonly wantedCodes = new Map<string, { network: NetworkKey; address: string }>();
@@ -199,9 +213,22 @@ export class TurnFacts implements DecisionFacts {
 
   /** A venue's supply APY (fraction), null when it does not report one, undefined until read. */
   venueApy(venueId: string): number | null | undefined {
-    if (this.apys.has(venueId)) return this.apys.get(venueId) ?? null;
+    const reading = this.venueReading(venueId);
+    if (reading === undefined) return undefined;
+    return reading && reading.status === "known" && !reading.paused && !reading.frozen ? reading.apy : null;
+  }
+
+  venueReading(venueId: string): SnapshotApy | null | undefined {
+    if (this.readings.has(venueId)) return this.readings.get(venueId) ?? null;
     this.misses += 1;
     if (!this.frozen) this.wantedApys.add(venueId);
+    return undefined;
+  }
+
+  stakeReadings(input: "SOL" | "ETH"): readonly StakeMetricsReading[] | undefined {
+    if (this.stakes.has(input)) return this.stakes.get(input);
+    this.misses += 1;
+    if (!this.frozen) this.wantedStakes.add(input);
     return undefined;
   }
 
@@ -221,7 +248,7 @@ export class TurnFacts implements DecisionFacts {
 
   /** True when the last policy run asked for facts that can still be read this turn. */
   get pending(): boolean {
-    return this.wanted.size > 0 || this.wantedSnapshots.size > 0 || this.wantedPrices.size > 0 || this.wantedApys.size > 0 || this.wantedPositions.size > 0 ||
+    return this.wanted.size > 0 || this.wantedSnapshots.size > 0 || this.wantedPrices.size > 0 || this.wantedApys.size > 0 || this.wantedStakes.size > 0 || this.wantedPositions.size > 0 ||
       this.wantedCodes.size > 0;
   }
 
@@ -233,7 +260,7 @@ export class TurnFacts implements DecisionFacts {
     const needs = [...this.wanted.values()];
     this.wanted.clear();
     this.misses = 0;
-    await Promise.all([this.readSnapshots(), this.readPrices(), this.readApys(), this.readPositions(), this.readCodes()]);
+    await Promise.all([this.readSnapshots(), this.readPrices(), this.readApys(), this.readStakes(), this.readPositions(), this.readCodes()]);
     if (needs.length === 0) return;
     const balanceNeeds = needs.filter((need): need is Extract<FactNeed, { kind: "balance" }> => need.kind === "balance");
     const nameNeeds = needs.filter((need): need is Extract<FactNeed, { kind: "name" }> => need.kind === "name");
@@ -303,14 +330,29 @@ export class TurnFacts implements DecisionFacts {
     }
   }
 
-  /** The venue APYs the last run asked for (at most 6 a turn, read in parallel). */
+  /**
+   * The venue readings the last run asked for (at most MAX_VENUE_READS a turn,
+   * read in parallel, each within 1.5 s); a venue past the cap or not listed
+   * is settled as null (unknown, never zero).
+   */
   private async readApys(): Promise<void> {
     const wanted = [...this.wantedApys];
     this.wantedApys.clear();
-    await Promise.all(wanted.map(async (id, index) => {
+    const budget = Math.max(1, FACTS_DEADLINE_MS - (Date.now() - this.started));
+    await Promise.all(wanted.map(async (id) => {
       const venue = YIELD_VENUES.find((entry) => entry.id === id);
-      this.apys.set(id, venue && index < 6 ? await readVenueApy(venue, nowMs()).catch(() => null) : null);
+      const within = venue !== undefined && this.venueReads < MAX_VENUE_READS;
+      if (within) this.venueReads += 1;
+      this.readings.set(id, within ? await readVenueReading(venue, nowMs(), budget).catch(() => null) : null);
     }));
+  }
+
+  /** The staking metrics the last run asked for (one bounded read per input asset). */
+  private async readStakes(): Promise<void> {
+    const wanted = [...this.wantedStakes];
+    this.wantedStakes.clear();
+    const budget = Math.max(1, FACTS_DEADLINE_MS - (Date.now() - this.started));
+    await Promise.all(wanted.map(async (input) => this.stakes.set(input, await readStakeMetrics(input, nowMs(), budget).catch(() => []))));
   }
 
   /** The prices the last run asked for (at most MAX_PRICE_READS a turn; the rest stay unpriced). */

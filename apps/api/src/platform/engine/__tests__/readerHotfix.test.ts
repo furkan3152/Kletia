@@ -4,8 +4,9 @@
  *
  * - "half a sol" is 0.5 SOL (token units), never half the balance; a
  *   fraction with no exact decimal ("a third of a sol") is not read.
- * - A message with a question mark is never ready (read-only answer or
- *   refusal), in the clarify reader and in the strict grammar.
+ * - A message with a question mark is never ready (read-only answer,
+ *   refusal, or a confirm of the solved plan), in the clarify
+ *   reader and in the strict grammar.
  * - "over" is no filler: "swap over 100 USDC" is not read as "swap 100 USDC";
  *   "over to" / "over from" stay connector spellings.
  * - No keyword correction into an English word: "on case" is not "on base".
@@ -133,20 +134,27 @@ describe("a question mark is never ready", () => {
     assert.equal(hasQuestionMark("swap 1 sol to usdc."), false);
   });
 
+  // A command with a trailing question mark is read, but only as a confirm of the solved plan (questionForm).
   for (const text of [
     "swap 0.01 eth to usdc on base?",
     "can you swap 1 sol to usdc?",
-    "swap 1 sol to usdc? thanks",
     "bridge 20 usdc from base to arbitrum？",
     "send 5 usdc to vitalik.eth on base??",
   ]) {
-    it(`"${text}" is refused, never planned`, async () => {
+    it(`"${text}" is never ready: a confirm of the solved plan`, async () => {
       const run = await say(text);
-      assert.equal(run.decision, undefined, `not a decision: ${run.decision ? shape(run.decision.actions ?? []) : ""}`);
-      assert.equal(run.error?.code, "INTENT_UNSUPPORTED");
-      assert.match(run.error?.message ?? "", /question/u);
+      assert.ok(run.decision, run.error?.message);
+      assert.equal(run.decision.status, "needs_input");
+      assert.ok(run.decision.questions.some((question) => question.reason === "INTERPRETATION_CONFIRM"), JSON.stringify(run.decision.questions.map((q) => q.reason)));
     });
   }
+
+  it('"swap 1 sol to usdc? thanks" is refused: text after the mark is not an instruction', async () => {
+    const run = await say("swap 1 sol to usdc? thanks");
+    assert.equal(run.decision, undefined);
+    assert.equal(run.error?.code, "INTENT_UNSUPPORTED");
+    assert.match(run.error?.message ?? "", /question/u);
+  });
 
   it("a rate question with a question mark keeps its read-only answer", () => {
     const error = refusal(() => parseSentence("what's the best yield for usdc on base?", []));
@@ -180,8 +188,11 @@ describe("\"over\" is not a filler", () => {
 
   it("\"over to\" and \"over from\" are connector spellings", async () => {
     assert.deepEqual(CONNECTOR_VARIANTS, { "over to": "to", "over from": "from" });
-    const to = await say("hey could you move 25 USDC from base over to solana");
+    const to = await say("hey move 25 USDC from base over to solana");
     assert.equal(shape(to.decision?.actions ?? []), "bridge@base->solana 25 USDC");
+    // Asked politely ("could you ..."), the same sentence is planned only after a one-click confirm.
+    const polite = await say("hey could you move 25 USDC from base over to solana");
+    assert.equal(polite.decision?.questions[0]?.reason, "INTERPRETATION_CONFIRM");
     const from = await say("port 10 USDC over from arbitrum to base");
     assert.equal(shape(from.decision?.actions ?? []), "bridge@arbitrum->base 10 USDC");
   });
@@ -220,10 +231,15 @@ describe("no keyword correction into an English word", () => {
     });
   }
 
-  it("a slip that is not a word is still corrected (\"bsae\")", async () => {
+  it("a slip that is not a word is still corrected (\"bsae\"), and the correction is confirmed (source C)", async () => {
     const run = await say("deposit 100 usdc into aave on bsae");
     assert.ok(run.decision, run.error?.message);
-    assert.match(shape(run.decision.actions ?? []), /^deposit@base 100 USDC/u);
+    const confirm = run.decision.questions[0];
+    assert.equal(confirm?.reason, "INTERPRETATION_CONFIRM");
+    installWallet(corpus, "full");
+    const yes = await runTurn(run.decision.thread, { answer: { question: confirm.id, option: "confirm" } }, contextOf("full"));
+    assert.ok(yes.decision, yes.error?.message);
+    assert.match(shape(yes.decision.actions ?? []), /^deposit@base 100 USDC/u);
   });
 
   it("an English word is never corrected into a verb; two close verbs are still asked", async () => {

@@ -115,6 +115,19 @@ describe("addresses and families", () => {
     assert.equal(turn?.decision?.questions[0]?.kind, "address");
   });
 
+  it("an amount written d.ddd has two readings: asked with both, never guessed; 0.005 is not", async () => {
+    const [grouped, decimal] = await thread("full", {}, "send 2.500 USDC to vitalik.eth on base", answer("q.actions.0.amount", "decimal"));
+    assert.deepEqual(asked(grouped), ["actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"]);
+    assert.equal(grouped?.decision?.questions[0]?.prompt, "Did you mean 2.5 USDC or 2,500 USDC?");
+    assert.deepEqual(optionsOf(grouped), ["decimal", "thousands", "cancel"]);
+    assert.ok(grouped?.decision?.questions[0]?.options.every((option) => !option.recommended));
+    assert.equal(planOf(decimal), "transfer@base 2.5 USDC to vitalik.eth");
+    const [own] = await thread("full", {}, "swap 1.000 USDC to SOL");
+    assert.deepEqual(asked(own), ["actions[0].amount:AMOUNT_FORMAT_AMBIGUOUS"]);
+    const [small] = await thread("full", {}, "send 0.005 ETH to vitalik.eth on base");
+    assert.equal(planOf(small), "transfer@base 0.005 ETH to vitalik.eth");
+  });
+
   it("'the USDC' after a swap that delivers USDC, while USDC is also held there, is asked (REFERENCE_AMBIGUOUS)", async () => {
     const [turn] = await thread("full", {}, "swap 1 SOL to USDC then send the USDC to toly.sns");
     assert.deepEqual(asked(turn), ["actions[1].amount:REFERENCE_AMBIGUOUS"]);

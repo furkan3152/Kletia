@@ -22,8 +22,8 @@ import { PlatformError, providerRateLimited } from "../../errors.js";
 import { configurePlatform } from "../service.js";
 import { MemoryIntentStore } from "../store.js";
 import { assetAmount, type ResolvedAsset } from "../assets.js";
-import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter } from "../adapters/types.js";
-import { resetEngine, STUB_ADAPTERS, unsignedSolanaTransaction } from "./helpers.js";
+import type { AdapterAction, AdapterRoute, PlannedStep, PreparedPayload, ProtocolAdapter } from "../adapters/types.js";
+import { JUPITER_PROGRAM, resetEngine, stub, STUB_ADAPTERS, TEST_USD_PRICES, unsignedSolanaTransaction } from "./helpers.js";
 
 /* ---------------------------------------------------------------- lending */
 
@@ -363,4 +363,141 @@ export function stubSameNetwork(
 export function resetSwapStubs(): void {
   for (const key of Object.keys(swapScripts)) delete swapScripts[key];
   swapCalls.length = 0;
+}
+
+/* ------------------------------------------------ priced route venues */
+
+/** A route venue's scripted quote: expected output as bps of the fair value at TEST_USD_PRICES. */
+export interface RouteVenueScript {
+  bps: number;
+  seconds?: number;
+  transactions?: number;
+  floor?: "onchain" | "claimed";
+  /** Plan throws this code. */
+  fail?: string;
+  /** Plan answers after this many milliseconds. */
+  delayMs?: number;
+  /** Prepare quotes at these bps instead (a fresh quote that moved). */
+  preparedBps?: number;
+  /** Plan calls take these bps in turn (then `bps`): a quote that moves between pre-screen and the real plan. */
+  sequence?: number[];
+}
+
+export const routeScripts: Record<string, RouteVenueScript> = {};
+/** Every action the priced route venues planned or prepared, in order. */
+export const routeCalls: { readonly protocol: ProtocolId; readonly stage: "plan" | "prepare"; readonly action: AdapterAction }[] = [];
+
+function usdPrice(asset: ResolvedAsset): number {
+  const symbol = asset.symbol.toUpperCase();
+  if (["USDC", "USDT", "USDT0", "DAI", "USDBC", "USDC.E"].includes(symbol)) return 1;
+  return TEST_USD_PRICES[symbol] ?? 1;
+}
+
+/** Base units of the output worth `amount` of the input at TEST_USD_PRICES, times `bps`. */
+export function fairOutput(action: Pick<AdapterAction, "input" | "output" | "amount">, bps: number): string {
+  const usd = Number(fromBaseUnits(action.amount, action.input.decimals)) * usdPrice(action.input);
+  const units = Math.floor((usd / usdPrice(action.output)) * (bps / 10_000) * 10 ** action.output.decimals);
+  return BigInt(Math.max(0, units)).toString();
+}
+
+function routePlan(protocol: ProtocolId, action: AdapterAction, stage: "plan" | "prepare"): PlannedStep {
+  routeCalls.push({ protocol, stage, action });
+  const script = routeScripts[protocol] ?? { bps: 9_990 };
+  if (script.fail) throw new PlatformError(script.fail, `${protocol} refused the route.`, 422);
+  const bps = stage === "prepare" ? script.preparedBps ?? script.bps : script.sequence?.shift() ?? script.bps;
+  const expected = fairOutput(action, bps);
+  const cross = action.network !== action.destinationNetwork;
+  const seconds = script.seconds ?? (cross ? 20 : 5);
+  return {
+    protocol,
+    title: `${protocol} ${action.kind} ${action.input.symbol}->${action.output.symbol}`,
+    mode: "wallet",
+    input: assetAmount(action.input, action.amount),
+    expectedOutput: assetAmount(action.output, expected),
+    minimumOutput: assetAmount(action.output, applySlippage(expected, action.slippageBps)),
+    estimatedSeconds: seconds,
+    settlement: cross ? { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: seconds } : { kind: "same-network" },
+    warnings: [],
+    transactionCount: script.transactions ?? 1,
+    slippageBps: action.slippageBps,
+    ...(script.floor ? { floor: script.floor } : {}),
+    ...(action.gasTopupUsd !== undefined ? {
+      gasTopup: {
+        asset: nativeAssetId(action.destinationNetwork),
+        symbol: CHAINS[action.destinationNetwork].nativeAsset.symbol,
+        decimals: CHAINS[action.destinationNetwork].nativeAsset.decimals,
+        amount: "200000000000000",
+        formatted: "0.0002",
+        usd: Number(action.gasTopupUsd),
+      },
+    } : {}),
+  };
+}
+
+/**
+ * A priced venue for composer tests: same-network swaps on `networks`, or
+ * cross-network legs between them (`sameFamilyOnly`: a plain bridge that
+ * never changes the token). Outputs follow TEST_USD_PRICES, so composites
+ * and one-shots compare on real value.
+ */
+export function stubRouteVenue(
+  protocol: ProtocolId,
+  options: { readonly kind: "swap" | "bridge"; readonly networks: readonly NetworkKey[]; readonly sameFamilyOnly?: boolean; readonly gasTopup?: boolean; readonly label?: string },
+): ProtocolAdapter {
+  return {
+    id: protocol,
+    protocols: [protocol],
+    label: options.label ?? `Stub ${protocol}`,
+    ...(options.gasTopup ? { supportsGasTopup: (route: AdapterRoute) => route.network !== route.destinationNetwork && CHAINS[route.destinationNetwork].vm === "evm" && !route.output.isNative } : {}),
+    supports: (route) => {
+      if (!options.networks.includes(route.network) || !options.networks.includes(route.destinationNetwork)) return false;
+      if (options.kind === "swap") return route.kind === "swap" && route.network === route.destinationNetwork && route.input.id !== route.output.id;
+      if (route.kind !== "bridge" || route.network === route.destinationNetwork) return false;
+      return !options.sameFamilyOnly || (route.input.group !== undefined && route.input.group === route.output.group);
+    },
+    plan: async (action) => {
+      const script = routeScripts[protocol];
+      if (script?.delayMs) await new Promise((resolve) => setTimeout(resolve, script.delayMs));
+      return routePlan(protocol, action, "plan");
+    },
+    prepare: async ({ action }): Promise<PreparedPayload> => {
+      const plan = routePlan(protocol, action, "prepare");
+      const solana = CHAINS[action.network].vm === "svm";
+      const transaction: TransactionRequest = solana
+        ? { vm: "svm", network: action.network, feePayer: action.account.address, transaction: unsignedSolanaTransaction(action.account.address, JUPITER_PROGRAM), encoding: "base64", description: `${protocol} ${action.kind}` }
+        : {
+            vm: "evm",
+            network: action.network,
+            chainId: CHAINS[action.network].evmChainId as number,
+            from: action.account.address,
+            to: "0x000000000000000000000000000000000000bEEF",
+            data: "0xabcdef",
+            value: action.input.isNative ? action.amount : "0",
+            description: `${protocol} ${action.kind}`,
+          };
+      return {
+        transactions: [transaction],
+        records: [transaction.vm === "evm"
+          ? { vm: "evm", network: action.network, to: transaction.to, description: transaction.description }
+          : { vm: "svm", network: action.network, feePayer: transaction.feePayer, to: JUPITER_PROGRAM, description: transaction.description }],
+        input: plan.input,
+        expectedOutput: plan.expectedOutput,
+        minimumOutput: plan.minimumOutput,
+        ...(plan.gasTopup ? { gasTopup: plan.gasTopup } : {}),
+        warnings: [],
+      };
+    },
+    verify: async (context) => stub.verify(context),
+    poll: async (step) => stub.poll(step),
+  };
+}
+
+/** resetEngine() with only the given venues (plus the transfer stubs); clears the route scripts and calls. */
+export function resetRouteEngine(venues: readonly ProtocolAdapter[]): MemoryIntentStore {
+  resetEngine();
+  for (const key of Object.keys(routeScripts)) delete routeScripts[key];
+  routeCalls.length = 0;
+  const store = new MemoryIntentStore();
+  configurePlatform({ store, adapters: [...STUB_ADAPTERS.filter((adapter) => adapter.id === "erc20-transfer" || adapter.id === "spl-token"), ...venues] });
+  return store;
 }

@@ -38,10 +38,12 @@ import {
   findAssetBySymbol,
   protocolExecutesKind,
   type AssetCategory,
+  type AssetClass,
   type AssetDescriptor,
   type AssetId,
   type AssetSel,
   type Custody,
+  type ExposureAssetClass,
   type NetworkKey,
   type NetworkLane,
   type ProtocolId,
@@ -147,7 +149,10 @@ export function nodeMatchesAsset(node: GraphNode, selection: AssetSel): boolean 
     const listed = findAssetBySymbol(node.network, selection.symbol);
     return listed !== null && listed.id === node.asset;
   }
-  switch (selection.class) {
+  // The exposure classes are read here before core lists them (`EXPOSURE_ASSET_CLASSES`): a liquid
+  // staking token of ETH or of SOL, or a wrapped bitcoin; never the staked asset itself.
+  const cls = selection.class as AssetClass | ExposureAssetClass;
+  switch (cls) {
     case "usd-stable":
       return isUsdStablecoin({ symbol: node.symbol, canonical: true, category: node.category });
     case "any-stable":
@@ -158,6 +163,12 @@ export function nodeMatchesAsset(node: GraphNode, selection: AssetSel): boolean 
       return node.group === "SOL" || (node.isNative && node.symbol.toUpperCase() === "SOL");
     case "gas":
       return node.isNative;
+    case "eth-lst":
+      return node.category === "liquid-staking" && node.group !== "SOL";
+    case "sol-lst":
+      return node.category === "liquid-staking" && node.group === "SOL";
+    case "btc":
+      return node.group === "BTC";
   }
 }
 

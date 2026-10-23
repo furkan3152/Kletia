@@ -92,6 +92,11 @@ export const VERB_LEXICON: Readonly<Record<string, VerbEntry>> = Object.freeze({
   pay: { kind: "deliver", op: "transfer", object: "spend" },
   give: { kind: "deliver", op: "transfer", object: "spend" },
   tip: { kind: "deliver", op: "transfer", object: "spend" },
+  // payment verbs: money to someone else, read as a payment
+  gift: { kind: "deliver", op: "transfer", object: "spend" },
+  reimburse: { kind: "deliver", op: "transfer", object: "spend" },
+  "pay back": { kind: "deliver", op: "transfer", object: "spend" },
+  "settle up": { kind: "deliver", op: "transfer", object: "spend" },
   // earn
   stake: { kind: "earn", op: "stake", object: "spend" },
   "liquid stake": { kind: "earn", op: "stake", object: "spend" },
@@ -230,3 +235,23 @@ export const ALL_BUT_PHRASES: readonly string[] = ["all but", "everything but", 
 
 /** Dollar unit words after a number ("50 dollars", "50 bucks"). */
 export const USD_UNITS: ReadonlySet<string> = new Set(["dollars", "dollar", "bucks", "buck", "usd"]);
+
+/**
+ * Approximation words before an amount ("around 3", "about 50", "~3",
+ * "close to 2"): the amount is asked, never read as the stated number
+ * (never-drop rule "amountVague:approx").
+ */
+export const APPROXIMATION_BEFORE: readonly string[] = [
+  "close to", "around", "about", "approximately", "approx", "roughly", "circa", "nearly", "almost", "like", "~",
+];
+
+/** Approximation phrases after an amount ("3 sol or so", "50 usdc give or take", "3ish"). */
+export const APPROXIMATION_AFTER: readonly string[] = ["give or take", "more or less", "or so", "ish"];
+
+/**
+ * Vague quantities before a token ("a couple of sol", "a few usdc", "a bit
+ * of eth"): an amount was meant but not said, so it is asked.
+ */
+export const VAGUE_QUANTITIES: readonly string[] = [
+  "a little bit of", "a couple of", "a bunch of", "a handful of", "a bit of", "a couple", "a few", "a little", "a tad of",
+];

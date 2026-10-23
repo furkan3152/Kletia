@@ -25,13 +25,17 @@
  *
  * Parallel edges (several bridges or DEXs between the same two nodes) are
  * one hop: the cheapest allowed edge stands for the lane, and the planner's
- * auction picks the venue (D8). Pure and synchronous; reads nothing.
+ * auction picks the venue (D8). A token-changing crossing (X on A -> Y on B)
+ * is one abstract leg whose shape the planner's composer picks on live
+ * quotes (`collapseCrossings`), and no route returns to a network it
+ * left. Pure and synchronous; reads nothing.
  */
 import {
   CHAINS,
   GOAL_LIMITS,
   YIELD_VENUES,
   protocolExecutesKind,
+  riskAdjustedApy,
   type AssetId,
   type GoalPreference,
   type NetworkKey,
@@ -89,6 +93,11 @@ const TYPICAL_TX_USD: Readonly<Partial<Record<NetworkKey, number>>> = Object.fre
   polygon: 0.01,
   solana: 0.001,
 });
+
+/** USD of one ordinary transaction on `network` for ranking (gas of switching venues); never a quote. */
+export function typicalTxUsd(network: NetworkKey): number {
+  return CHAINS[network].environment === "testnet" ? 0 : TYPICAL_TX_USD[network] ?? 0.01;
+}
 
 /* ------------------------------------------------------------------ types */
 
@@ -373,6 +382,8 @@ function hopsFrom(partial: PartialRoute, spec: SearchSpec, depth: number, valueU
       case "bridge":
         if (spec.allowBridge === false) return;
         if (!BRIDGE_NETWORKS.includes(edge.network) || !BRIDGE_NETWORKS.includes(edge.destinationNetwork)) return;
+        // A route never returns money to a network it already left (a round trip is never the cheapest way).
+        if (partial.source.node.network === edge.destinationNetwork || partial.hops.some((hop) => hop.from.network === edge.destinationNetwork)) return;
         if (!target && !sameAsset(node, to)) return;
         break;
       case "stake":
@@ -448,7 +459,9 @@ function finish(partial: PartialRoute, spec: SearchSpec, w: Weights): Route | nu
   const apy = venueId ? spec.apy?.(venueId) ?? null : null;
   const known = partial.source.valueUsd !== null;
   const value = known ? (partial.source.valueUsd as number) : RANKING.nominalUsd;
-  const yieldUsd = apy !== null ? (value * apy * RANKING.yieldDays) / 365 : 0;
+  // A venue's rate counts net of its tier's holding penalty (core 0, curated 0.5, extended 1.5 points).
+  const adjusted = apy !== null && last ? riskAdjustedApy(last.edge.risk, apy) : null;
+  const yieldUsd = adjusted !== null ? (value * adjusted * RANKING.yieldDays) / 365 : 0;
   const score = partialScore(partial, w, yieldUsd);
   const id = partial.hops.length > 0 ? partial.hops.map((hop) => hop.edge.id).join(" > ") : `hold:${partial.node.id}`;
   return {
@@ -469,6 +482,77 @@ function finish(partial: PartialRoute, spec: SearchSpec, w: Weights): Route | nu
     differsOn: [],
     order: partial.order,
   };
+}
+
+/* ------------------------------------------------------ abstract crossing */
+
+/** A swap or bridge between wallet nodes: a hop a crossing leg may stand for. */
+const crossingPart = (hop: RouteHop) => (hop.edge.kind === "swap" || hop.edge.kind === "bridge") && hop.from.custody.kind === "wallet" && hop.to.custody.kind === "wallet";
+
+/** The one-shot edge X on A -> Y on B a crossing leg is planned as, when the goal allows it (accounts, avoid, named venues). */
+function oneShotEdge(spec: SearchSpec, memo: SearchMemo, from: GraphNode, to: GraphNode): { edge: GraphEdge; order: number } | null {
+  const named = viaFor("bridge", spec.via);
+  const edges = spec.graph.edgesFrom(from.id);
+  for (const [order, edge] of edges.entries()) {
+    if (edge.kind !== "bridge" || edge.to !== to.id) continue;
+    if (!accountOn(memo, spec, edge.network) || !accountOn(memo, spec, edge.destinationNetwork)) continue;
+    if (!BRIDGE_NETWORKS.includes(edge.network) || !BRIDGE_NETWORKS.includes(edge.destinationNetwork)) continue;
+    if (spec.avoid?.includes(edge.protocol) || spec.avoid?.includes(edge.adapterId)) continue;
+    if (named.length > 0 && !named.includes(edge.protocol) && !named.includes(edge.adapterId)) continue;
+    if (edge.explicitOnly && !named.includes(edge.protocol) && !named.includes(edge.adapterId)) continue;
+    return { edge, order };
+  }
+  return null;
+}
+
+/**
+ * A run of swaps and bridges that changes the token and the network (X on A
+ * -> Y on B) is one abstract crossing leg, never a shape the search picked
+ * by static costs: the planner's composer compares the one-shot route with
+ * the carrier composites on live quotes. The leg is the one-shot edge
+ * between the run's ends (so the strict planner can also serve it with one
+ * venue); its estimate is the run's when that is the cheaper shape. A run
+ * whose swap uses a DEX the person named, or with no one-shot edge between
+ * its ends, stays as it is.
+ */
+function collapseCrossings(route: Route, spec: SearchSpec, memo: SearchMemo): Route {
+  if (route.hops.length < 2) return route;
+  const namedDex = viaFor("swap", spec.via).length > 0;
+  const hops: RouteHop[] = [];
+  const order: number[] = [];
+  let changed = false;
+  for (let start = 0; start < route.hops.length;) {
+    let end = start;
+    while (end < route.hops.length && crossingPart(route.hops[end] as RouteHop)) end += 1;
+    const run = route.hops.slice(start, end);
+    const first = run[0];
+    const last = run[run.length - 1];
+    const crosses = run.some((hop) => hop.edge.kind === "bridge");
+    if (first && last && run.length >= 2 && crosses && !namedDex && first.from.network !== last.to.network && !sameAsset(first.from, last.to)) {
+      const direct = oneShotEdge(spec, memo, first.from, last.to);
+      if (direct) {
+        const feesUsd = run.reduce((sum, hop) => sum + hop.feesUsd, 0);
+        const gasUsd = run.reduce((sum, hop) => sum + hop.gasUsd, 0);
+        const seconds = run.reduce((sum, hop) => sum + hop.seconds, 0);
+        hops.push({ edge: direct.edge, from: first.from, to: last.to, landing: last.landing, feesUsd, gasUsd, seconds });
+        order.push(direct.order);
+        changed = true;
+        start = end;
+        continue;
+      }
+    }
+    if (end === start) {
+      hops.push(route.hops[start] as RouteHop);
+      order.push(route.order[start] ?? 0);
+      start += 1;
+      continue;
+    }
+    hops.push(...run);
+    order.push(...route.order.slice(start, end));
+    start = end;
+  }
+  if (!changed) return route;
+  return { ...route, id: hops.map((hop) => hop.edge.id).join(" > "), hops, order };
 }
 
 /**
@@ -495,8 +579,9 @@ export function searchRoutes(input: SearchSpec): Route[] {
   const maxSteps = Math.max(1, Math.min(GOAL_LIMITS.maxRouteSteps, spec.maxSteps ?? GOAL_LIMITS.maxRouteSteps));
   const beam = Math.max(1, spec.beam ?? SEARCH_LIMITS.beam);
   const complete = new Map<string, Route>();
-  const record = (route: Route | null) => {
-    if (!route) return;
+  const record = (found: Route | null) => {
+    if (!found) return;
+    const route = collapseCrossings(found, spec, memo);
     const existing = complete.get(route.id);
     if (!existing || compareRoutes(route, existing) < 0) complete.set(route.id, route);
   };

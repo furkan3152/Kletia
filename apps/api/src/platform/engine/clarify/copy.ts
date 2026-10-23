@@ -71,6 +71,8 @@ export type ReasonCode =
   | "position.only"
   | "position.found"
   | "venue.rate"
+  | "venue.only"
+  | "stake.rate"
   | "departure.fixed"
   | "departure.auto"
   // the goal solver's codes (solver/explain.ts SOLVER_CODES)
@@ -90,12 +92,14 @@ const REASONS: Readonly<Record<ReasonCode, (p: ReasonParams) => string>> = {
   "default.provider": (p) => `${p.protocol ?? "This provider"} is Kletia's default liquid staking provider for ${p.symbol ?? "it"}.`,
   "context.kept": () => "Kept from earlier in this task.",
   "position.only": (p) => `Your only ${p.protocol ?? ""} ${p.symbol ?? ""} position.`.replace(/\s+/gu, " "),
-  "venue.rate": (p) => `${p.protocol ?? "This venue"} pays the best rate for its risk${p.kind ? ` (${p.kind})` : ""} among the venues Kletia lists here; rates are variable.`,
+  "venue.rate": (p) => `${p.protocol ?? "This venue"} pays the best 7-day rate for its risk${p.kind ? ` (${p.kind})` : ""} among the venues Kletia compared here; rates are variable.`,
+  "stake.rate": (p) => `${p.protocol ?? "This provider"} pays the best 7-day staking rate for its risk among the providers Kletia compared for ${p.symbol ?? "it"}; rates are variable.`,
+  "venue.only": (p) => `${p.protocol ?? "This venue"} is the only venue Kletia can use for this here; its rate was not compared.`,
   "position.found": (p) => `The ${p.protocol ?? ""} ${p.symbol ?? ""} position Kletia found; positions on some networks could not be read.`.replace(/\s+/gu, " "),
   "departure.fixed": (p) => `Your departure is ${p.departure ?? "fixed"}, and this ${p.kind ?? "step"} runs on ${p.targets ?? "another network"}.`,
   "solver.source": (p) => `Kletia picked where the ${p.symbol ?? "money"} comes from${p.network ? ` (${p.network})` : ""}: the holding that covers it at the lowest cost.`,
   "solver.venue-apy": (p) => `${p.protocol ?? "This venue"} pays the best rate for its risk${p.kind ? ` (${p.kind})` : ""}; rates are variable.`,
-  "solver.bridge": (p) => `A bridge${p.network ? ` to ${p.network}` : ""} is needed; the one with the best quote is picked at planning.`,
+  "solver.bridge": (p) => `A bridge${p.network ? ` to ${p.network}` : ""} is needed; the route is picked by live quotes at planning.`,
   "solver.scope": (p) => `Only your ${p.symbol ?? "holding"}${p.network ? ` on ${p.network}` : ""} is used; the rest stays where it is.`,
   "solver.target-amount": (p) => `The amount that delivers what you asked for${p.symbol ? ` in ${p.symbol}` : ""}, with fees and a 1% buffer.`,
   "price.usd": (p) => `A dollar amount converted to ${p.symbol ?? "the token"} at the current price; the signed amount is in ${p.symbol ?? "the token"}.`,

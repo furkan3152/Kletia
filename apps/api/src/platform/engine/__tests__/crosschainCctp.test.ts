@@ -10,15 +10,26 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { address, getAddressEncoder } from "@solana/kit";
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { encodeFunctionData, keccak256, parseAbi, type Hex } from "viem";
+import { decodeFunctionData, encodeFunctionData, keccak256, parseAbi, type Hex } from "viem";
 import type { IntentGraph, IntentStep, TransactionRequest } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { CCTP_FORWARD_HOOK, cctpV2Adapter, decodeCctpMessage, resetCctpBurnLimitCache } from "../adapters/cctpV2.js";
+import {
+  CCTP_FORWARD_HOOK,
+  CCTP_STANDARD_PROVIDER,
+  CCTP_STANDARD_SECONDS,
+  cctpClaimTransaction,
+  cctpV2Adapter,
+  decodeCctpMessage,
+  MESSAGE_TRANSMITTER_V2_ABI,
+  preferStandard,
+  resetCctpBurnLimitCache,
+} from "../adapters/cctpV2.js";
 import { cctpProtocolFee } from "../adapters/cctpClient.js";
 import type { AdapterAction, SettlementResult, VerificationResult } from "../adapters/types.js";
 import {
   bridgeAction,
   bridgeFixture,
+  CCTP_MESSAGE_TRANSMITTER,
   CCTP_TOKEN_MESSENGER,
   cctpMessage,
   depositForBurnLog,
@@ -311,5 +322,113 @@ describe("CCTP V2 verification and settlement", () => {
     const settled = await cctpV2Adapter.poll?.(step, Date.now());
     assert.equal(settled?.status, "settled", JSON.stringify(settled));
     assert.equal(settled?.status === "settled" ? settled.actualOutput?.amount : null, (AMOUNT - MAX_FEE_SOLANA).toString());
+  });
+});
+
+describe("CCTP destination claim", () => {
+  const sent = (mintRecipient: Hex, maxFee: bigint, overrides: Partial<Parameters<typeof cctpMessage>[0]> = {}) => cctpMessage({
+    sourceDomain: 6, destinationDomain: 3, amount: AMOUNT, mintRecipient, messageSender: EVM_ADDRESS, maxFee, burnToken: USDC_BASE, ...overrides,
+  });
+  const ATTESTATION = `0x${"ab".repeat(65)}` as Hex;
+
+  async function settlingLeg(recipient = OTHER_EVM_ADDRESS) {
+    const action = toArbitrum({ recipient });
+    const prepared = await cctpV2Adapter.prepare(prepareContext(action));
+    const data = (prepared.transactions[1] as { data: Hex }).data;
+    const mintRecipient = word(recipient);
+    const references = landPrepared(mock.rpc, prepared.transactions, [depositForBurnLog(data, EVM_ADDRESS), messageSentLog(sent(mintRecipient, MAX_FEE_ARBITRUM))]);
+    const burnHash = (references[references.length - 1] as string).toLowerCase();
+    const step = { ...evmBridgeStep(action, "cctp-v2", prepared.transactions, { minimum: (AMOUNT - MAX_FEE_ARBITRUM).toString(), references }), protocol: "cctp-v2" as const };
+    const nonce = `0x${"5a".repeat(32)}` as Hex;
+    const attested = sent(mintRecipient, MAX_FEE_ARBITRUM, { nonce });
+    const iris = (overrides: Record<string, unknown> = {}, message: Hex = attested) =>
+      mock.irisMessages.set(burnHash, { messages: [{ attestation: ATTESTATION, message, eventNonce: nonce, cctpVersion: 2, status: "complete", forwardState: "FAILED", forwardTxHash: null, ...overrides }] });
+    return { step, attested, iris, nonce };
+  }
+
+  it("builds receiveMessage(message, attestation) on the destination's pinned transmitter for an attested, unforwarded burn", async () => {
+    const { step, attested, iris } = await settlingLeg();
+    iris();
+    const claim = await cctpClaimTransaction(step, EVM_ADDRESS);
+    const tx = claim.transaction;
+    assert.ok(tx.vm === "evm");
+    assert.equal(tx.network, "arbitrum");
+    assert.equal(tx.to, CCTP_MESSAGE_TRANSMITTER);
+    assert.equal(tx.value, "0");
+    assert.equal(tx.from.toLowerCase(), EVM_ADDRESS.toLowerCase());
+    const decoded = decodeFunctionData({ abi: MESSAGE_TRANSMITTER_V2_ABI, data: tx.data as Hex });
+    assert.equal(decoded.functionName, "receiveMessage");
+    assert.deepEqual(decoded.args, [attested, ATTESTATION]);
+    assert.equal(claim.messageHash, keccak256(attested));
+    assert.equal(claim.minimum, AMOUNT - MAX_FEE_ARBITRUM);
+  });
+
+  it("refuses before attestation, after the forward minted, when already received, for another recipient's message and for other venues", async () => {
+    const { step, iris } = await settlingLeg();
+    assert.match(await errorOf(() => cctpClaimTransaction(step, EVM_ADDRESS)), /^STEP_NOT_READY.*not published/u);
+    iris({ status: "pending_confirmations", attestation: "PENDING" });
+    assert.match(await errorOf(() => cctpClaimTransaction(step, EVM_ADDRESS)), /^STEP_NOT_READY.*not attested/u);
+    iris({ forwardState: "COMPLETE", forwardTxHash: randomEvmHash() });
+    assert.match(await errorOf(() => cctpClaimTransaction(step, EVM_ADDRESS)), /^STEP_NOT_PREPARABLE.*already minted/u);
+    iris({}, sent(word(EVM_ADDRESS), MAX_FEE_ARBITRUM, { nonce: `0x${"5a".repeat(32)}` }));
+    assert.match(await errorOf(() => cctpClaimTransaction(step, EVM_ADDRESS)), /^STEP_NOT_READY/u, "a message for another recipient is never this leg's");
+    iris();
+    mock.cctpUsedNonce = 1n;
+    assert.match(await errorOf(() => cctpClaimTransaction(step, EVM_ADDRESS)), /^STEP_NOT_PREPARABLE.*already received/u);
+    mock.cctpUsedNonce = 0n;
+    assert.match(await errorOf(() => cctpClaimTransaction({ ...step, protocol: "across" }, EVM_ADDRESS)), /^STEP_NOT_PREPARABLE.*Only a Circle CCTP/u);
+    assert.match(await errorOf(() => cctpClaimTransaction({ ...step, references: [] }, EVM_ADDRESS)), /^STEP_NOT_READY/u);
+  });
+
+  it("settles the leg once the claim received the message (nonce used) although the forward never minted", async () => {
+    const { step, iris } = await settlingLeg();
+    iris();
+    assert.equal(code(await cctpV2Adapter.poll?.(step, Date.now())), "settling", "forward failed, not received yet");
+    mock.cctpUsedNonce = 1n;
+    const settled = await cctpV2Adapter.poll?.(step, Date.now());
+    assert.equal(settled?.status, "settled");
+    assert.equal(settled?.status === "settled" ? settled.actualOutput?.amount : null, (AMOUNT - MAX_FEE_ARBITRUM).toString(), "the guaranteed floor");
+  });
+});
+
+describe("CCTP Standard Transfer: forwarding only, explicit time budget, server flag", () => {
+  const fast = { protocolFeeCentiBps: 130, forwardFeeHigh: 77_357n };
+  const standard = { protocolFeeCentiBps: 0, forwardFeeHigh: 77_357n };
+  const big = (timeBudget?: { maxSeconds: number; fastest: boolean }) => ({ ...toArbitrum({ amount: "100000000000" }), ...(timeBudget ? { timeBudget } : {}) });
+
+  it("prefers Standard only when enabled, forwarded, inside an explicit budget, not 'fastest', and worth the wait", () => {
+    const budget = { maxSeconds: 3_600, fastest: false };
+    assert.equal(preferStandard(big(budget), fast, standard, 20, true), true, "100,000 USDC saves $13, about $2.36 of waiting");
+    assert.equal(preferStandard(big(budget), fast, standard, 20, false), false, "off unless the server enables it");
+    assert.equal(preferStandard(big(), fast, standard, 20, true), false, "no explicit time budget");
+    assert.equal(preferStandard(big({ maxSeconds: CCTP_STANDARD_SECONDS - 1, fastest: false }), fast, standard, 20, true), false, "budget too short");
+    assert.equal(preferStandard(big({ maxSeconds: 3_600, fastest: true }), fast, standard, 20, true), false, "the fastest route was asked for");
+    assert.equal(preferStandard(big(budget), fast, null, 20, true), false, "no forwarding for Standard: never offered");
+    assert.equal(preferStandard({ ...toArbitrum(), timeBudget: budget }, fast, standard, 20, true), false, "100 USDC saves 1.3 cents: not worth 20 minutes");
+  });
+
+  it("plans and prepares a Standard burn (finality 2000, no Fast fee) and records the choice for prepare", async () => {
+    const flag = process.env.KLETIA_CCTP_STANDARD;
+    process.env.KLETIA_CCTP_STANDARD = "on";
+    try {
+      const action = big({ maxSeconds: 3_600, fastest: false });
+      const planned = await cctpV2Adapter.plan(action);
+      assert.equal(planned.provider, CCTP_STANDARD_PROVIDER);
+      assert.equal(planned.estimatedSeconds, CCTP_STANDARD_SECONDS);
+      assert.equal(planned.minimumOutput.amount, (100_000_000_000n - 77_357n).toString(), "forwarding gas only");
+      assert.ok(planned.warnings.some((warning) => /Standard Transfer/u.test(warning)));
+      const burn = planned.preview?.transactions.at(-1);
+      assert.ok(burn?.vm === "evm");
+      assert.equal(decodeFunctionData({ abi: parseAbi(["function depositForBurnWithHook(uint256,uint32,bytes32,address,bytes32,uint256,uint32,bytes)"]), data: burn.data as Hex }).args[6], 2000);
+      const prepared = await cctpV2Adapter.prepare(prepareContext({ ...toArbitrum({ amount: "100000000000" }), provider: CCTP_STANDARD_PROVIDER }));
+      const preparedBurn = prepared.transactions.at(-1);
+      assert.ok(preparedBurn?.vm === "evm");
+      assert.equal(decodeFunctionData({ abi: parseAbi(["function depositForBurnWithHook(uint256,uint32,bytes32,address,bytes32,uint256,uint32,bytes)"]), data: preparedBurn.data as Hex }).args[6], 2000, "prepare keeps the planned finality");
+      const fastPlan = await cctpV2Adapter.plan(toArbitrum({ amount: "100000000000" }));
+      assert.equal(fastPlan.provider, undefined, "no time budget: Fast Transfer as today");
+    } finally {
+      if (flag === undefined) delete process.env.KLETIA_CCTP_STANDARD;
+      else process.env.KLETIA_CCTP_STANDARD = flag;
+    }
   });
 });

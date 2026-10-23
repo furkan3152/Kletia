@@ -36,6 +36,7 @@ const BADGE_TONE: Readonly<Record<ProtocolBadgeKind, string>> = {
   read: "border-current",
   console: "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]",
   service: "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]",
+  orders: "border-[#0B7A4B] text-[#0B5E3A] dark:border-[#5CF2B4] dark:text-[#5CF2B4]",
   listed: "border-dashed border-current",
 };
 

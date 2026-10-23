@@ -19,7 +19,7 @@
 /** The registry category of bring-your-own-contract entries. */
 export const OWN_CONTRACT_CATEGORY = "custom";
 
-export type ProtocolSurfaceName = "platform" | "console" | "service";
+export type ProtocolSurfaceName = "platform" | "console" | "service" | "orders";
 
 interface Categorized {
   readonly category?: unknown;
@@ -43,12 +43,12 @@ export function realProtocols<T extends Categorized>(entries: readonly T[]): T[]
 
 /**
  * Where an entry executes: the live API's `surface`, else the registry's
- * `execution` ("console" or "service"), else "platform". An unknown value
+ * `execution` ("console", "service" or "orders"), else "platform". An unknown value
  * from a newer API is never read as "platform".
  */
 export function surfaceOf(entry: Countable): ProtocolSurfaceName | "unknown" {
   const value = entry.surface ?? entry.execution ?? "platform";
-  return value === "platform" || value === "console" || value === "service" ? value : "unknown";
+  return value === "platform" || value === "console" || value === "service" || value === "orders" ? value : "unknown";
 }
 
 /** A real protocol this deployment executes through Platform API v1 (live data only). */

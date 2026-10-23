@@ -48,18 +48,19 @@ after(async () => {
 });
 
 describe("GET /v1/protocols and GET /v1/networks (protocol surface)", () => {
-  it("adds surface (platform, console, service) and routedVia to every protocol", async () => {
+  it("adds surface (platform, console, service, orders) and routedVia to every protocol", async () => {
     const reply = await call<{ protocols: { id: string; surface: string; routedVia: string[]; execution?: string }[] }>(server, "GET", "/protocols");
     assert.equal(reply.status, 200);
     assert.equal(reply.body.protocols.length, PROTOCOLS.length);
     const byId = new Map(reply.body.protocols.map((protocol) => [protocol.id, protocol]));
     for (const protocol of reply.body.protocols) {
-      assert.ok(["platform", "console", "service"].includes(protocol.surface), `${protocol.id} surface`);
+      assert.ok(["platform", "console", "service", "orders"].includes(protocol.surface), `${protocol.id} surface`);
       assert.equal(protocol.surface, protocol.execution ?? "platform", `${protocol.id} surface follows execution`);
       assert.ok(Array.isArray(protocol.routedVia), `${protocol.id} routedVia`);
     }
     for (const id of ["kletia-router-v2", "basenames", "arc-native", "circle-app-kit"]) assert.equal(byId.get(id)?.surface, "console", id);
     assert.equal(byId.get("x402")?.surface, "service");
+    for (const id of ["jupiter-trigger", "jupiter-recurring", "cow-protocol"]) assert.equal(byId.get(id)?.surface, "orders", id);
     assert.equal(byId.get("jupiter")?.surface, "platform");
     for (const id of ["raydium", "orca", "meteora"]) assert.deepEqual(byId.get(id)?.routedVia, ["jupiter"], id);
     assert.deepEqual(byId.get("relay")?.routedVia, []);

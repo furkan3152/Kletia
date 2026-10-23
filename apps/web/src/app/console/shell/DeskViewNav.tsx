@@ -1,6 +1,6 @@
 /**
  * Views of the desk under 1024 px (console design 3.2): Desk, Tasks,
- * Holdings, Tools, Activity, Dashboard ("Data"), Automations ("Automate"); sticky.
+ * Holdings, Tools, Orders, Activity, Dashboard ("Data"), Automations ("Automate"); sticky.
  * The views share the width; the nav itself scrolls sideways when they do not
  * fit (narrow phones, larger text settings), never the page.
  */
@@ -8,7 +8,7 @@ import { DESK_COPY } from "../content/copy";
 import type { DeskView } from "../state/deskModel";
 
 const copy = DESK_COPY.header;
-const VIEWS: readonly DeskView[] = ["desk", "tasks", "holdings", "tools", "activity", "dashboard", "automations"];
+const VIEWS: readonly DeskView[] = ["desk", "tasks", "holdings", "tools", "orders", "activity", "dashboard", "automations"];
 
 export function DeskViewNav({ view, onView, taskCount }: { readonly view: DeskView; readonly onView: (view: DeskView) => void; readonly taskCount: number }) {
   return (

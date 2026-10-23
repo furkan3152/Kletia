@@ -113,6 +113,7 @@ import { linkHandlers } from "./links/handlers.js";
 import { accountHandlers } from "./accounts/handlers.js";
 import { automationHandlers } from "../automation/handlers.js";
 import { startAutomationEvaluator } from "../automation/evaluator.js";
+import { orderHandlers } from "./orders/handlers.js";
 import { afterLinkSubmit, beforeLinkPrepare } from "./links/uses.js";
 import { startLinkBackground } from "./links/watcher.js";
 import { platformSecretStatus } from "./secrets.js";
@@ -291,6 +292,13 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/accounts/projects/:projectId/keys", auth: "public" },
   { method: "post", path: "/accounts/projects/:projectId/keys/:keyId/rotate", auth: "public" },
   { method: "delete", path: "/accounts/projects/:projectId/keys/:keyId", auth: "public" },
+  // Native protocol orders (orders/): Jupiter Trigger and Recurring, CoW Protocol limit and TWAP.
+  { method: "post", path: "/orders/quote", auth: "public", publishable: true },
+  { method: "post", path: "/orders/prepare", auth: "public", publishable: true },
+  { method: "post", path: "/orders/submit", auth: "public", publishable: true },
+  { method: "get", path: "/orders", auth: "public", publishable: true },
+  { method: "get", path: "/orders/:id", auth: "public", publishable: true },
+  { method: "post", path: "/orders/:id/cancel", auth: "public", publishable: true },
   { method: "get", path: "/errors", auth: "public", publishable: true },
   { method: "post", path: "/mcp", auth: "public" },
   { method: "get", path: "/status/badge", auth: "public", publishable: true },
@@ -905,6 +913,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ...accountHandlers(),
     ...dataHandlers(),
     ...automationHandlers(),
+    ...orderHandlers(),
     "post /webhooks": [
       requireApiKey,
       forbidAgent("webhooks"),

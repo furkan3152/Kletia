@@ -97,6 +97,7 @@ export function DeskHeader({ view, onView, taskCount, onOpenTask, onNewTask, the
         <nav aria-label={copy.navLabel} className="ml-2 hidden items-center lg:flex">
           {item("desk", copy.views.desk)}
           {item("tools", copy.views.tools)}
+          {item("orders", copy.views.orders)}
           {item("activity", copy.views.activity)}
           {item("dashboard", copy.views.dashboard)}
           {item("automations", copy.views.automations)}

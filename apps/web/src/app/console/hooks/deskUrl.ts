@@ -3,7 +3,7 @@
  *
  *   /app                          desk
  *   /app/tasks, /app/holdings,
- *   /app/activity                 views of the same desk (phones and tablets)
+ *   /app/activity, /app/orders    views of the same desk (phones and tablets)
  *   /app/dashboard                the Dashboard view (every width)
  *   /app/tools, /app/tools/<id>   Tools view, an open tool
  *   /app/automations              Automations view
@@ -24,6 +24,7 @@ export const DESK_VIEW_PATHS: Readonly<Record<Exclude<DeskView, "desk">, string>
   tools: "/app/tools",
   dashboard: "/app/dashboard",
   automations: "/app/automations",
+  orders: "/app/orders",
 });
 
 const TOOL_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;

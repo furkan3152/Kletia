@@ -106,7 +106,11 @@ export type ProtocolId =
   // round 9 (more Solana venues)
   | "blazestake"
   | "save"
-  | "solana-pay";
+  | "solana-pay"
+  // round 9: native protocol orders (/v1/orders)
+  | "jupiter-trigger"
+  | "jupiter-recurring"
+  | "cow-protocol";
 
 /**
  * Intent-engine risk tier of a protocol (engine design 4.2): `core` venues
@@ -133,11 +137,13 @@ export interface ProtocolDescriptor {
    */
   readonly kinds?: readonly IntentActionKind[];
   /**
-   * Executed outside Platform API v1: "console" (the legacy console routes)
-   * or "service" (the API's own paid routes). Such entries never count as
-   * executable through the intent engine.
+   * Executed outside the intent engine: "console" (the legacy console
+   * routes), "service" (the API's own paid routes) or "orders" (native
+   * protocol orders built by /v1/orders and filled by the protocol's own
+   * keepers or solvers). Such entries never count as executable through the
+   * intent engine.
    */
-  readonly execution?: "console" | "service";
+  readonly execution?: "console" | "service" | "orders";
   /**
    * Protocols whose programs or APIs every transaction of this protocol also
    * uses (Raydium, Orca and Meteora swaps run through the Jupiter program).
@@ -725,6 +731,36 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     words: ["solana pay"],
     tier: "core",
     explicitOnly: true,
+  },
+  {
+    id: "jupiter-trigger",
+    name: "Jupiter Trigger",
+    category: "dex-aggregator",
+    networks: ["solana"],
+    capabilities: ["execute"],
+    website: "https://jup.ag",
+    summary: "Limit orders (Trigger API V1): the sell amount is escrowed in an on-chain order account and Jupiter's keepers fill it at the limit price or better.",
+    execution: "orders",
+  },
+  {
+    id: "jupiter-recurring",
+    name: "Jupiter Recurring",
+    category: "dex-aggregator",
+    networks: ["solana"],
+    capabilities: ["execute"],
+    website: "https://jup.ag",
+    summary: "Time-based DCA (Recurring API V1): one deposit into an on-chain order account, swapped in equal parts at a fixed interval by Jupiter's keepers.",
+    execution: "orders",
+  },
+  {
+    id: "cow-protocol",
+    name: "CoW Protocol",
+    category: "intent-network",
+    networks: ["ethereum", "arbitrum", "base"],
+    capabilities: ["execute", "quote"],
+    website: "https://cow.fi",
+    summary: "Gasless limit orders signed as EIP-712 typed data and settled by CoW solvers; TWAP orders for Safe accounts through ComposableCoW.",
+    execution: "orders",
   },
   {
     id: "spl-token",

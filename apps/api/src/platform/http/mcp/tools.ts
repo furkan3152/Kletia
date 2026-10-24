@@ -55,6 +55,7 @@ import { errorDocsLink } from "../errorsRoute.js";
 import { GET_JOURNEY_TOOL, GET_RECEIPT_TOOL, journeySummary, PREVIEW_INTENT_TOOL, previewSummary, receiptLine } from "./featureTools.js";
 import { journeyReadLimiter } from "../journey.js";
 import { AGENT_TOOLS } from "./agentTools.js";
+import { ASK_PORTFOLIO_TOOL } from "./assistantTool.js";
 import { LINK_TOOLS } from "./linkTools.js";
 import { deniedPlan, POLICY_TOOLS, remainingFor, stampSummary } from "./policyTools.js";
 import { HANDOFF_MAX_TEXT, signingLink } from "./handoff.js";
@@ -835,6 +836,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   PREVIEW_INTENT_TOOL,
   GET_JOURNEY_TOOL,
   GET_RECEIPT_TOOL,
+  ASK_PORTFOLIO_TOOL,
   ...POLICY_TOOLS,
   ...LINK_TOOLS,
   ...AGENT_TOOLS,

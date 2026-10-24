@@ -122,3 +122,13 @@ test("exportCsv writes transactions one row per leg, unknown prices as empty cel
   assert.match(rows[1], /,swap,success,out,ETH,native,0\.1,300,/u);
   assert.match(rows[2], /,in,USDC,0x833589fcd6edb6e08f4c7c32d4f71b54bda02913,250,,/u);
 });
+
+test("assistant.ask posts the question and unwraps the answer", async () => {
+  const answer = { route: "portfolio-question", status: "answered", text: "You hold 0.05 ETH.", facts: [], query: null, followUps: [], assumptions: [], gaps: [], wording: "template", understoodBy: "parser", wallets: [], asOf: "x" };
+  const { client, calls } = recording(() => jsonResponse({ answer }));
+  const read = await client.assistant.ask({ question: "how much ETH do I have?", wallets: { evm: [EVM] } });
+  assert.equal(read.text, "You hold 0.05 ETH.");
+  assert.deepEqual([calls[0].method, calls[0].path], ["POST", "/v1/assistant/ask"]);
+  await assert.rejects(() => client.assistant.ask({ question: " " }), RangeError);
+  assert.equal(calls.length, 1, "an empty question is refused locally");
+});

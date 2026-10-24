@@ -24,6 +24,19 @@ header (`apps/web/src/app/console/state/deskNav.ts`):
 - Under 1024 px the six sections are a sticky bar under the header; from
   1024 px the header shows Desk, Portfolio, Trade, Automate and More.
 
+## Questions in the composer
+
+A question about your own data ("how much did I spend on fees last month?",
+"what's my biggest position?") or a portfolio request ("rebalance my
+portfolio to 60/40 ETH/USDC") typed in the composer is answered in the thread
+by the [portfolio assistant](assistant.md), from the signed-in wallet's data
+(sign in with the wallet first; the answer is never stored). The answer card
+lists the facts it used with their sources, shows a small table or chart when
+useful, offers follow-up questions (they fill the composer), and for a
+request the sentences it computed: "Plan it" starts a normal task for each,
+which you review and confirm before anything is signed. The exact desk
+commands above still open their views; instructions still go to the planner.
+
 ## View conventions
 
 The views share `shell/ViewParts.tsx` and `shell/viewStyles.ts`: one heading

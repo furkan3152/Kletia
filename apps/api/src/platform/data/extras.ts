@@ -7,7 +7,11 @@
  * - open native orders (orders service: CoW Protocol, Jupiter Trigger and
  *   Recurring);
  * - the caller's automations (wallet session or API key) and, for an API
- *   key, the 24 h / 7 d spend of every agent key below it.
+ *   key, the 24 h / 7 d spend of every agent key below it;
+ * - prediction-market positions (Polymarket's public positions read per EVM
+ *   address on Polygon; mainnet only). Shares held through a Polymarket
+ *   Deposit, Proxy or Safe wallet belong to that wallet's address and are
+ *   read in the Predict view by it.
  *
  * Each section is read on its own; a failed one keeps its rows empty with
  * the reason, never pretends there is nothing.
@@ -21,6 +25,7 @@ import {
   type DataCoverageExtras,
   type DataOrderRow,
   type DataPerpRow,
+  type DataPredictionRow,
   type DataSection,
   type DataWalletSet,
 } from "@kletia/core";
@@ -30,6 +35,8 @@ import type { AuthContext } from "../http/context.js";
 import { subtreeUsage } from "../http/policies/usage.js";
 import { listNativeOrders } from "../orders/service.js";
 import { readPerpsPositions } from "../perps/service.js";
+import { predictionsIo } from "../predictions/io.js";
+import { readPositions } from "../predictions/polymarket.js";
 
 export interface ExtrasCaller {
   /** The automation owner: an API key or a desk wallet session; null for public reads. */
@@ -100,13 +107,21 @@ async function agentSpendSection(caller: ExtrasCaller): Promise<DataSection<Data
   return section("policy", rows, usage.truncated ? "Only the 100 newest keys are listed." : null);
 }
 
+async function predictionsSection(set: DataWalletSet): Promise<DataSection<DataPredictionRow>> {
+  if (set.lane !== "production") return section("predictions", [], "Prediction markets run on mainnet only.");
+  const reads = await Promise.all(set.evm.map(async (address) => ({ account: formatAccountId(CHAINS.polygon, address), read: await readPositions(predictionsIo(), address) })));
+  const rows = reads.flatMap(({ account, read }) => read.positions.map((position): DataPredictionRow => ({ ...position, account })));
+  return section("predictions", rows, reads.some(({ read }) => read.truncated) ? "Polymarket lists more positions than one read returns; only the first 100 per wallet are shown." : null);
+}
+
 /** Every extra section of the set, each read independently. */
 export async function readExtras(set: DataWalletSet, caller: ExtrasCaller): Promise<DataCoverageExtras> {
-  const [perps, orders, automations, agentSpend] = await Promise.all([
+  const [perps, orders, automations, agentSpend, predictions] = await Promise.all([
     perpsSection(set).catch((error: unknown) => failed<DataPerpRow>("perps", error, "Perps positions")),
     ordersSection(set).catch((error: unknown) => failed<DataOrderRow>("orders", error, "Native orders")),
     automationsSection(caller).catch((error: unknown) => failed<DataAutomationRow>("automations", error, "Automations")),
     agentSpendSection(caller).catch((error: unknown) => failed<DataAgentSpendRow>("policy", error, "Agent key spend")),
+    predictionsSection(set).catch((error: unknown) => failed<DataPredictionRow>("predictions", error, "Prediction-market positions")),
   ]);
-  return { perps, orders, automations, agentSpend };
+  return { perps, orders, automations, agentSpend, predictions };
 }

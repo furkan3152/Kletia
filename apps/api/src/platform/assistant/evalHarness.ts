@@ -5,23 +5,42 @@
  * gates: no ungrounded number in any answer, no answer that mentions another
  * fixture wallet, and at least 90% correct.
  *
- * The fixture port builds the same shapes as the data service (core data.ts)
- * from a compact corpus: holdings as [network, symbol, amount] priced from
- * the corpus prices, positions, health, transactions, PnL rows and yields.
+ * The corpus wallets are recorded data API reads (core data.ts shapes, kept
+ * compact): holdings as [network, symbol, amount] priced from the corpus
+ * prices, positions and health, the on-chain history as `DataTransaction`
+ * rows with per-network coverage (a provider not configured, Alchemy without
+ * fees), FIFO PnL by asset, snapshots, and the positions' extras (perps, open
+ * orders, automations, prediction positions). They are served through the
+ * assistant's real port (`dataApiPort`), so the eval exercises the same
+ * mapping, paging and coverage handling as the API.
  */
 import { readFileSync } from "node:fs";
 import {
   CHAINS,
+  explorerTxUrl,
   findAssetBySymbol,
   formatAccountId,
+  getProtocol,
+  parseAccountId,
   type AccountId,
   type AssistantAnswer,
-  type AssistantTxKind,
   type DataAllocationSlice,
+  type DataAutomationRow,
   type DataFailure,
   type DataHolding,
+  type DataOrderRow,
+  type DataPerpRow,
+  type DataPnlAsset,
+  type DataPortfolio,
   type DataPosition,
   type DataPositionKind,
+  type DataPositions,
+  type DataPredictionRow,
+  type DataSection,
+  type DataTransaction,
+  type DataTxCoverage,
+  type DataTxKind,
+  type DataTxProvider,
   type DataWalletSet,
   type DataYieldRow,
   type LendingHealth,
@@ -29,7 +48,7 @@ import {
   type ProtocolId,
 } from "@kletia/core";
 import { laneAccounts } from "../data/wallets.js";
-import type { AssistantDataPort, AssistantPnlRow, AssistantSummary, AssistantTransaction } from "./dataPort.js";
+import { dataApiPort, type AssistantDataPort, type AssistantDataReader, type HistoryAccess } from "./dataPort.js";
 import { checkGrounding, groundingContext } from "./grounding.js";
 import { ask } from "./service.js";
 
@@ -37,7 +56,8 @@ export const ASSISTANT_EVAL_SPEC = "kletia.assistant-eval/v1";
 
 export const ASSISTANT_EVAL_GATES = Object.freeze({ minCorrectBps: 9_000, maxUngrounded: 0, maxLeaks: 0, minQuestions: 60 });
 
-type Leg = readonly [symbol: string, amount: string, usd: number | null];
+/** A transaction leg: direction, symbol, decimal amount (null: unknown decimals), USD at the time (null: no price). */
+type FixtureLeg = readonly [direction: "in" | "out", symbol: string, amount: string | null, usd: number | null];
 
 export interface FixtureWallet {
   readonly evm: readonly string[];
@@ -56,27 +76,36 @@ export interface FixtureWallet {
   }[];
   readonly health?: readonly { readonly network: NetworkKey; readonly protocol: ProtocolId; readonly market: string; readonly healthFactor: number | null; readonly status: LendingHealth["status"]; readonly reason?: string }[];
   readonly failures?: readonly DataFailure[];
-  /** "chain": every transaction is known; "kletia": only Kletia's; "none": no history. */
-  readonly history: "chain" | "kletia" | "none";
+  /** A desk session with tracking off ("untracked"), else the history is readable (an API key, or a tracked set). */
+  readonly access?: "tracked" | "untracked";
+  /** How each network's history reads (default: Etherscan for EVM, Helius for Solana, all `ok`). */
+  readonly coverage?: Readonly<Partial<Record<NetworkKey, { readonly status: DataTxCoverage["status"]; readonly provider?: DataTxProvider | null; readonly reason?: string; readonly env?: readonly string[] }>>>;
+  /** The on-chain history as the data API returns it (`DataTransaction`, compacted). */
   readonly transactions?: readonly {
-    readonly id: string;
+    readonly hash: string;
     readonly at: string;
-    readonly kind: AssistantTxKind;
+    readonly kind: DataTxKind;
     readonly network: NetworkKey;
-    readonly destination?: NetworkKey;
+    readonly status?: DataTransaction["status"];
+    readonly legs: readonly FixtureLeg[];
+    /** [symbol, amount, usd]; null when someone else paid. */
+    readonly fee: readonly [symbol: string, amount: string, usd: number | null] | null;
+    readonly feeReason?: string;
     readonly protocol?: ProtocolId;
-    readonly status?: AssistantTransaction["status"];
-    readonly sent: readonly Leg[];
-    readonly received: readonly Leg[];
-    readonly fee: number | null;
-    readonly hash?: string;
+    readonly method?: string;
   }[];
+  /** FIFO results by asset as `GET /v1/data/pnl` returns them (one reading for every period). */
   readonly pnl?: {
-    readonly total: number | null;
-    readonly assets: readonly { readonly symbol: string; readonly network?: NetworkKey; readonly usd: number; readonly pct: number | null }[];
-    readonly positions: readonly { readonly label: string; readonly symbol: string; readonly network: NetworkKey; readonly protocol: ProtocolId; readonly kind: string; readonly earned: number | null }[];
-    readonly reason?: string;
+    readonly assets: readonly { readonly key: string; readonly symbol: string; readonly realized: number | null; readonly unrealized: number | null; readonly cost: number | null; readonly reason?: string }[];
+    readonly complete?: boolean;
   };
+  /** The tracked set's value change over any range (snapshots). */
+  readonly valueChange?: number;
+  readonly perps?: readonly Omit<DataPerpRow, "account" | "marketId" | "sizeBase" | "collateralUsd">[];
+  readonly perpsReason?: string;
+  readonly orders?: readonly Omit<DataOrderRow, "owner">[];
+  readonly automations?: readonly DataAutomationRow[];
+  readonly predictions?: readonly Pick<DataPredictionRow, "title" | "outcome" | "shares" | "avgPrice" | "currentPrice" | "costUsd" | "valueUsd" | "pnlUsd" | "redeemable">[];
 }
 
 export interface AssistantEvalQuestion {
@@ -96,6 +125,10 @@ export interface AssistantEvalQuestion {
     readonly text?: readonly string[];
     /** Regexes the text must not match. */
     readonly notText?: readonly string[];
+    /** Regexes, each matched by at least one gap line. */
+    readonly gaps?: readonly string[];
+    /** Fact labels that must carry a link (a transaction's History row, a deposit sentence). */
+    readonly links?: readonly string[];
     /** Regexes, one per expected action sentence, in order. */
     readonly sentences?: readonly string[];
     readonly noAction?: true;
@@ -122,7 +155,7 @@ export function loadAssistantCorpus(path: string): AssistantEvalCorpus {
     if (ids.has(question.id)) throw new Error(`${path}: duplicate id ${question.id}`);
     ids.add(question.id);
     if (!corpus.wallets[question.wallet]) throw new Error(`${question.id}: unknown wallet ${question.wallet}`);
-    for (const pattern of [...(question.expect.text ?? []), ...(question.expect.notText ?? []), ...(question.expect.sentences ?? [])]) new RegExp(pattern, "u");
+    for (const pattern of [...(question.expect.text ?? []), ...(question.expect.notText ?? []), ...(question.expect.sentences ?? []), ...(question.expect.gaps ?? [])]) new RegExp(pattern, "u");
   }
   return corpus;
 }
@@ -160,8 +193,7 @@ function slices(rows: readonly { key: string; label: string; usd: number }[]): D
   return [...merged.values()].map((row) => ({ ...row, usd: round2(row.usd), share: total > 0 ? row.usd / total : 0 })).sort((a, b) => b.usd - a.usd);
 }
 
-/** The corpus wallet behind the assistant's data port, as the data service would shape it. */
-export function fixturePort(corpus: AssistantEvalCorpus, wallet: FixtureWallet): AssistantDataPort {
+function portfolioOf(corpus: AssistantEvalCorpus, wallet: FixtureWallet): DataPortfolio {
   const asOf = corpus.now;
   const holdings: DataHolding[] = wallet.holdings.map(([network, symbol, amount]) => {
     const price = priceOf(corpus, network, symbol);
@@ -200,8 +232,10 @@ export function fixturePort(corpus: AssistantEvalCorpus, wallet: FixtureWallet):
     ...holdings.filter((holding) => holding.value.usd !== null).map((holding) => ({ network: holding.network, symbol: holding.symbol, protocol: "wallet", usd: holding.value.usd as number })),
     ...positions.filter((position) => position.kind !== "borrow" && position.value.usd !== null).map((position) => ({ network: position.network, symbol: position.symbol, protocol: position.protocol as string, usd: position.value.usd as number })),
   ];
-  const summary: AssistantSummary = {
-    accounts: walletSetOf(wallet).accounts,
+  const set = walletSetOf(wallet);
+  return {
+    wallets: { evm: set.evm, solana: set.solana, lane: set.lane },
+    accounts: set.accounts,
     totals: {
       net: { usd: round2(walletUsd + positionsUsd - debtUsd), source: "kletia", asOf },
       wallet: { usd: walletUsd, source: "kletia", asOf },
@@ -211,7 +245,7 @@ export function fixturePort(corpus: AssistantEvalCorpus, wallet: FixtureWallet):
       complete: unpriced === 0 && failures.length === 0,
     },
     change24h: { usd: null, pct: null, since: null, source: "snapshot", estimate: true, reason: "No reading 24 hours ago." },
-    pnl: { usd: wallet.pnl?.total ?? null, pct: null, since: null, source: "snapshot", estimate: true },
+    pnl: { usd: null, pct: null, since: null, source: "snapshot", estimate: true, reason: "No earlier reading." },
     allocation: {
       byNetwork: slices(priced.map((row) => ({ key: row.network, label: CHAINS[row.network].name, usd: row.usd }))),
       byAsset: slices(priced.map((row) => ({ key: row.symbol.toUpperCase(), label: row.symbol, usd: row.usd }))),
@@ -223,48 +257,131 @@ export function fixturePort(corpus: AssistantEvalCorpus, wallet: FixtureWallet):
     failures,
     asOf,
   };
-  const leg = ([symbol, amount, usd]: Leg) => ({ symbol, amount, usd });
-  const transactions: AssistantTransaction[] = (wallet.transactions ?? []).map((tx) => ({
-    id: tx.id,
-    at: tx.at,
-    kind: tx.kind,
-    account: accountOf(wallet, tx.network),
+}
+
+function coverageOf(wallet: FixtureWallet): DataTxCoverage[] {
+  return walletSetOf(wallet).accounts.map((account) => {
+    const network = parseAccountId(account)!.chain.key;
+    const override = wallet.coverage?.[network];
+    const provider = override?.provider !== undefined ? override.provider : CHAINS[network].vm === "svm" ? "helius" : "etherscan";
+    return { account, network, provider, status: override?.status ?? "ok", ...(override?.reason ? { reason: override.reason } : {}), ...(override?.env ? { env: override.env } : {}) };
+  });
+}
+
+function transactionsOf(wallet: FixtureWallet): DataTransaction[] {
+  const asset = (network: NetworkKey, symbol: string) => {
+    const listed = findAssetBySymbol(network, symbol);
+    return { symbol, address: listed?.address ?? null, decimals: listed?.decimals ?? null, id: listed?.id ?? null };
+  };
+  return (wallet.transactions ?? []).map((tx) => ({
+    id: `${tx.network}:${tx.hash}`,
     network: tx.network,
-    destination: tx.destination ?? null,
-    protocol: tx.protocol ?? null,
-    status: tx.status ?? "confirmed",
-    sent: tx.sent.map(leg),
-    received: tx.received.map(leg),
-    fee: tx.fee === null ? { usd: null, source: "chain", asOf: tx.at, reason: "No fee reading." } : { usd: tx.fee, source: "chain", asOf: tx.at },
-    hash: tx.hash ?? null,
-    source: "chain",
+    hash: tx.hash,
+    account: accountOf(wallet, tx.network),
+    time: tx.at,
+    block: null,
+    kind: tx.kind,
+    status: tx.status ?? "success",
+    legs: tx.legs.map(([direction, symbol, amount, usd]) => ({ asset: asset(tx.network, symbol), amount, direction, usdAtTime: usd, priceSource: usd === null ? null : "defillama", ...(usd === null ? { reason: "No historical price was found." } : {}) })),
+    fee: tx.fee ? { asset: asset(tx.network, tx.fee[0]), amount: tx.fee[1], usd: tx.fee[2], ...(tx.feeReason ? { reason: tx.feeReason } : tx.fee[2] === null ? { reason: "No historical price was found." } : {}) } : null,
+    counterparty: null,
+    protocol: tx.protocol ? { id: tx.protocol, label: getProtocol(tx.protocol)?.name ?? tx.protocol, role: null } : null,
+    method: tx.method ?? null,
+    kletiaIntentId: null,
+    kletiaReceiptId: null,
+    source: CHAINS[tx.network].vm === "svm" ? "helius" : "etherscan",
+    explorerUrl: explorerTxUrl(tx.network, tx.hash),
   }));
+}
+
+const section = <T>(source: DataSection<T>["source"], rows: readonly T[], reason: string | null, asOf: string): DataSection<T> => ({ rows, reason, source, asOf });
+
+/**
+ * The data API of a corpus wallet, as recorded fixtures: the same shapes as
+ * data/api.ts (portfolio, positions with extras, a cursor-paged on-chain
+ * history with per-account coverage, FIFO PnL and snapshots). No network.
+ */
+export function fixtureReader(corpus: AssistantEvalCorpus, wallet: FixtureWallet): AssistantDataReader {
+  const asOf = corpus.now;
+  const portfolio = portfolioOf(corpus, wallet);
+  const coverage = coverageOf(wallet);
+  const readable = new Set(coverage.filter((entry) => entry.provider !== null && entry.status !== "failed").map((entry) => entry.account));
+  const history = transactionsOf(wallet).filter((tx) => readable.has(tx.account)).sort((a, b) => b.time.localeCompare(a.time));
+  const evmAccount = (network: NetworkKey) => (wallet.evm[0] ? formatAccountId(CHAINS[network], wallet.evm[0]) : null);
   return {
-    summary: async () => summary,
-    positions: async () => ({ accounts: summary.accounts, positions, health, failures, asOf }),
-    async transactions(_set, query) {
-      if (wallet.history === "none") return { transactions: [], coverage: "none", complete: false, reason: "On-chain transaction history is not connected yet.", asOf };
-      const rows = transactions.filter((tx) => (!query.from || tx.at >= query.from) && (!query.to || tx.at < query.to)).sort((a, b) => b.at.localeCompare(a.at));
-      return { transactions: rows, coverage: wallet.history, complete: wallet.history === "chain", ...(wallet.history === "kletia" ? { reason: "Only transactions Kletia planned are known." } : {}), asOf };
+    portfolio: async () => portfolio,
+    async positions(_scope, options) {
+      const base: DataPositions = { accounts: portfolio.accounts, positions: portfolio.positions, health: portfolio.health, failures: portfolio.failures, asOf };
+      if (!options.extras) return base;
+      return {
+        ...base,
+        extras: {
+          perps: section("perps", (wallet.perps ?? []).map((row) => ({ ...row, account: accountOf(wallet, row.network), marketId: row.symbol, sizeBase: 0, collateralUsd: null })), wallet.perpsReason ?? null, asOf),
+          orders: section("orders", (wallet.orders ?? []).map((row) => ({ ...row, owner: wallet.evm[0] ?? wallet.solana[0] ?? "" })), null, asOf),
+          automations: section("automations", wallet.automations ?? [], null, asOf),
+          agentSpend: section("policy", [], "Agent key spend is shown to API keys only.", asOf),
+          predictions: section("predictions", (wallet.predictions ?? []).map((row, index) => ({
+            ...row, venue: "polymarket" as const, holder: wallet.evm[0] ?? "", account: evmAccount("polygon") as AccountId, conditionId: `0x${String(index + 1).padStart(64, "0")}`,
+            tokenId: String(index + 1), slug: null, eventSlug: null, outcomeIndex: 0, negRisk: false, endDate: null,
+          })), null, asOf),
+        },
+      };
     },
-    async pnl(_set, query) {
-      const pnl = wallet.pnl;
-      const rows: AssistantPnlRow[] = !pnl ? [] : query.by === "asset"
-        ? pnl.assets.map((row) => ({ key: `${row.network ?? ""}:${row.symbol}`, label: row.symbol, symbol: row.symbol, network: row.network ?? null, protocol: null, kind: null, change: { usd: row.usd, source: "snapshot", asOf }, pct: row.pct, earned: null }))
-        : pnl.positions.map((row) => ({ key: `${row.network}:${row.protocol}:${row.symbol}`, label: row.label, symbol: row.symbol, network: row.network, protocol: row.protocol, kind: row.kind, change: { usd: null, source: "snapshot", asOf }, pct: null, earned: { usd: row.earned, source: "adapter", asOf } }));
-      return { rows, total: { usd: pnl?.total ?? null, source: "snapshot", asOf, ...(pnl ? {} : { reason: "No earlier reading." }) }, estimate: true, ...(pnl?.reason ? { reason: pnl.reason } : !pnl ? { reason: "No price history for these wallets." } : {}), asOf };
+    async transactions(_scope, query) {
+      const rows = history.filter((tx) => (!query.from || tx.time >= query.from) && (!query.to || tx.time <= query.to) && (!query.kind || tx.kind === query.kind) && (!query.network || tx.network === query.network));
+      const start = query.cursor ? Number(query.cursor) : 0;
+      const limit = query.limit ?? 50;
+      const page = rows.slice(start, start + limit);
+      return { transactions: page, cursor: start + limit < rows.length ? String(start + limit) : null, coverage, asOf };
     },
-    snapshots: async () => ({ points: [], source: "snapshot", reason: "No earlier reading.", asOf }),
+    async pnl(_scope, query) {
+      const assets: DataPnlAsset[] = (wallet.pnl?.assets ?? []).map((row) => ({
+        key: row.key, symbol: row.symbol, openQuantity: 0, costBasisUsd: row.cost, realizedUsd: row.realized, unrealizedUsd: row.unrealized,
+        currentUsd: row.cost !== null && row.unrealized !== null ? round2(row.cost + row.unrealized) : null, ...(row.reason ? { reason: row.reason } : {}),
+      }));
+      const known = (values: readonly (number | null)[]) => values.every((value) => value !== null);
+      const sum = (values: readonly (number | null)[]) => round2(values.reduce<number>((total, value) => total + (value ?? 0), 0));
+      return {
+        period: query.period,
+        since: null,
+        method: "fifo",
+        estimate: true,
+        assets,
+        totals: { realizedUsd: sum(assets.map((row) => row.realizedUsd)), unrealizedUsd: sum(assets.map((row) => row.unrealizedUsd)), complete: (wallet.pnl?.complete ?? true) && coverage.every((entry) => entry.status === "ok") && known(assets.map((row) => row.realizedUsd)) && known(assets.map((row) => row.unrealizedUsd)) },
+        coverage,
+        source: "fifo",
+        asOf,
+      };
+    },
+    async snapshots(_scope, query) {
+      const change = wallet.valueChange ?? null;
+      return { range: query.range, points: [], change: change === null ? null : { usd: change, pct: null }, tracked: wallet.access !== "untracked", source: "snapshot", asOf, ...(change === null ? { reason: "No earlier reading of these wallets." } : {}) };
+    },
     async yields(filter) {
       const rows: DataYieldRow[] = corpus.yields
         .filter((row) => (!filter.network || row.network === filter.network) && (!filter.asset || row.asset.toUpperCase() === filter.asset.toUpperCase()))
-        .map((row) => ({ venue: row.venue, protocol: row.protocol, network: row.network, name: row.name, asset: row.asset, apy: row.apy, apyBasis: row.apy === null ? "unavailable" : "rate", supplied: null, utilization: null, executable: row.executable ?? true, depositText: "", source: "lending-metrics", asOf }));
+        .map((row) => ({ venue: row.venue, protocol: row.protocol, network: row.network, name: row.name, asset: row.asset, apy: row.apy, apyBasis: row.apy === null ? "unavailable" : "rate", supplied: null, utilization: null, executable: row.executable ?? true, depositText: `Deposit [EDIT AMOUNT] ${row.asset} into ${row.name} on ${CHAINS[row.network].name}`, source: "lending-metrics", asOf }));
       return { yields: rows, failures: [], asOf };
     },
     async prices(symbols) {
       return { prices: symbols.map((symbol) => ({ symbol, network: null, asset: null, value: corpus.prices[symbol] === undefined ? { usd: null, source: "unpriced", asOf: null } : { usd: corpus.prices[symbol] as number, source: "chainlink", asOf } })), asOf };
     },
   };
+}
+
+/** The scope a corpus wallet is read under: a tracked desk session's (or an API key's) open history, or a desk session with tracking off. */
+export function fixtureAccess(wallet: FixtureWallet): HistoryAccess {
+  const set = walletSetOf(wallet);
+  return {
+    scope: { wallets: set, viewer: { kind: "public" }, tracking: null, automationOwner: null, keyAuth: null },
+    history: wallet.access === "untracked" ? "tracking-off" : "open",
+  };
+}
+
+/** The corpus wallet behind the assistant's real data port (dataApiPort), read from the recorded fixtures. */
+export function fixturePort(corpus: AssistantEvalCorpus, wallet: FixtureWallet): AssistantDataPort {
+  const now = Date.parse(corpus.now);
+  return dataApiPort(fixtureAccess(wallet), fixtureReader(corpus, wallet), () => now);
 }
 
 /* ------------------------------------------------------------ run and score */
@@ -296,6 +413,8 @@ export function checkExpectation(question: AssistantEvalQuestion, answer: Assist
   }
   for (const pattern of expect.text ?? []) if (!new RegExp(pattern, "u").test(answer.text)) misses.push(`text !~ ${pattern}`);
   for (const pattern of expect.notText ?? []) if (new RegExp(pattern, "u").test(answer.text)) misses.push(`text ~ ${pattern}`);
+  for (const pattern of expect.gaps ?? []) if (!answer.gaps.some((gap) => new RegExp(pattern, "u").test(gap))) misses.push(`no gap ~ ${pattern}`);
+  for (const label of expect.links ?? []) if (!answer.facts.find((fact) => fact.label === label)?.link) misses.push(`fact "${label}" has no link`);
   if (expect.noAction && answer.action) misses.push("unexpected action");
   if (expect.sentences) {
     const sentences = answer.action?.sentences ?? [];

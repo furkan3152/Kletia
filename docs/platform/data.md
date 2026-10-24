@@ -121,7 +121,13 @@ and `asOf`:
 - `automations`: the caller's automations (its API key's, or the desk
   wallet's);
 - `agentSpend`: for an API key, the 24 h / 7 d USD spend of every agent key
-  below it.
+  below it;
+- `predictions`: Polymarket positions of every EVM address (Polymarket's
+  public positions API, mainnet only): market title, outcome, shares, average
+  and current price, value, cost, PnL and whether it can be redeemed, with
+  the account. Shares held through a Polymarket Deposit, Proxy or Safe wallet
+  belong to that wallet's address (the Predict view reads it); a read cut at
+  100 positions says so in `reason`.
 
 ### Yields
 

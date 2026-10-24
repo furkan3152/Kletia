@@ -4,11 +4,13 @@
  * filters (network, type, asset, Kletia only) and "Load older" paging. Each
  * row opens to its legs with the value at the time, the fee, the protocol,
  * the explorer link and, for a Kletia step, its receipt. Accounts the API
- * could not read are listed, never shown as empty history.
+ * could not read are listed, never shown as empty history. A transaction the
+ * assistant's answer named opens here with its network filtered, its row
+ * open and scrolled into view.
  */
 import "./history.css";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ExternalLink } from "lucide-react";
 import { CHAINS, NETWORK_KEYS, type DataLane, type DataTransaction, type DataTxCoverage, type DataTxKind, type NetworkKey } from "@kletia/core";
 
@@ -17,7 +19,7 @@ import { DESK_COPY } from "../content/copy";
 import { ViewEmpty, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
 import { VIEW_FIELD } from "../shell/viewStyles";
 import { historyApi } from "./historyClient";
-import { coverageNotes, EMPTY_FILTERS, filterQuery, historyNotConfigured, historyRow, KIND_LABELS, KIND_OPTIONS, legValue, type HistoryFilters } from "./historyModel";
+import { clearHistoryFocus, coverageNotes, filterQuery, focusFilters, historyNotConfigured, historyRow, KIND_LABELS, KIND_OPTIONS, legValue, peekHistoryFocus, type HistoryFilters } from "./historyModel";
 import { TrackingGate } from "./TrackingGate";
 import { errorText } from "./useTracking";
 
@@ -26,11 +28,15 @@ const copy = DESK_COPY.history;
 const LINK =
   "inline-flex min-h-11 items-center gap-1 text-xs font-black uppercase tracking-wider text-[var(--kl-accent-text)] underline underline-offset-4 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]";
 
-function TransactionItem({ tx }: { readonly tx: DataTransaction }) {
+function TransactionItem({ tx, focused }: { readonly tx: DataTransaction; readonly focused: boolean }) {
   const row = historyRow(tx);
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: "center" });
+  }, [focused]);
   return (
-    <li className="khs-item" data-kind={row.kind}>
-      <details>
+    <li ref={ref} className="khs-item" data-kind={row.kind} data-focused={focused ? "true" : undefined}>
+      <details open={focused || undefined}>
         <summary className="khs-summary">
           <span className="khs-title">
             <span className="font-bold">{row.title}</span>
@@ -103,9 +109,9 @@ interface Listing {
   readonly coverage: readonly DataTxCoverage[];
 }
 
-function HistoryList({ token, lane }: { readonly token: string; readonly lane: DataLane }) {
-  const [draft, setDraft] = useState<HistoryFilters>(EMPTY_FILTERS);
-  const [filters, setFilters] = useState<HistoryFilters>(EMPTY_FILTERS);
+function HistoryList({ token, lane, focus }: { readonly token: string; readonly lane: DataLane; readonly focus: string | null }) {
+  const [draft, setDraft] = useState<HistoryFilters>(() => focusFilters(focus));
+  const [filters, setFilters] = useState<HistoryFilters>(() => focusFilters(focus));
   /** The last read: its filters and round (`key`), the listing, or why it failed. */
   const [reading, setReading] = useState<{ readonly key: string; readonly listing: Listing | null; readonly error: string | null } | null>(null);
   const [paging, setPaging] = useState(false);
@@ -194,10 +200,13 @@ function HistoryList({ token, lane }: { readonly token: string; readonly lane: D
         </details>
       ) : null}
       {loading && !current ? <ViewLoading>{copy.loading}</ViewLoading> : null}
+      {focus && current && !current.transactions.some((tx) => tx.id === focus) ? <ViewNote tone="info">{current.cursor ? copy.focusOlder : copy.focusMissing}</ViewNote> : null}
       {current && current.transactions.length === 0 && !historyNotConfigured(current.coverage) ? <ViewEmpty>{copy.empty}</ViewEmpty> : null}
       {current && current.transactions.length > 0 ? (
         <ol className="khs-list">
-          {current.transactions.map((tx) => <TransactionItem key={`${tx.account}|${tx.id}`} tx={tx} />)}
+          {current.transactions.map((tx, index) => (
+            <TransactionItem key={`${tx.account}|${tx.id}`} tx={tx} focused={tx.id === focus && current.transactions.findIndex((entry) => entry.id === focus) === index} />
+          ))}
         </ol>
       ) : null}
       {current?.cursor ? (
@@ -210,10 +219,13 @@ function HistoryList({ token, lane }: { readonly token: string; readonly lane: D
 }
 
 export default function HistoryView({ lane }: { readonly lane: DataLane }) {
+  // Read once per mount: the answer card sets it just before opening this view.
+  const [focus] = useState(peekHistoryFocus);
+  useEffect(() => clearHistoryFocus(focus), [focus]);
   return (
     <section aria-labelledby="desk-history-heading" className="khs flex min-w-0 flex-col gap-5 pb-8">
       <ViewHeader id="desk-history-heading" title={copy.title} intro={copy.intro} />
-      <TrackingGate lane={lane}>{({ token, tracking }) => <HistoryList token={token} lane={tracking.lane} />}</TrackingGate>
+      <TrackingGate lane={lane}>{({ token, tracking }) => <HistoryList token={token} lane={tracking.lane} focus={focus} />}</TrackingGate>
     </section>
   );
 }

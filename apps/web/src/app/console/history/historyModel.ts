@@ -3,7 +3,9 @@
  * functions: transaction rows (title, amounts, value at the time, protocol,
  * explorer and receipt links), the filter query, coverage notes, the value
  * series as an SVG path and the PnL rows. Unknown values stay unknown, never
- * $0. No React here: node --test loads it.
+ * $0. Also the hand-off from the assistant's answer card: the transaction
+ * it named opens in History (its network filtered, its row open). No React
+ * here: node --test loads it.
  */
 import {
   CHAINS,
@@ -16,6 +18,7 @@ import {
   type DataTxLeg,
   type DataTxQuery,
   type NetworkKey,
+  NETWORK_KEYS,
 } from "@kletia/core";
 
 const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -54,6 +57,37 @@ export interface HistoryFilters {
 }
 
 export const EMPTY_FILTERS: HistoryFilters = Object.freeze({ network: "", kind: "", asset: "", kletiaOnly: false });
+
+/* ------------------------------------------------------------ focus */
+
+let pendingFocus: string | null = null;
+
+/** The network of a data API transaction id (`<network>:<hash>`), or null for anything else. */
+export function focusNetwork(id: string): NetworkKey | null {
+  const network = id.slice(0, id.indexOf(":"));
+  return id.indexOf(":") > 0 && /^[0-9A-Za-z]{20,100}$/u.test(id.slice(network.length + 1)) && (NETWORK_KEYS as readonly string[]).includes(network) ? (network as NetworkKey) : null;
+}
+
+/** Asks the History view to open a transaction (the answer card's "Open in History"); ignored when the id is not one. */
+export function requestHistoryFocus(id: string): void {
+  pendingFocus = focusNetwork(id) ? id : null;
+}
+
+/** The transaction History should open (read on mount; a render may read it twice). */
+export function peekHistoryFocus(): string | null {
+  return pendingFocus;
+}
+
+/** Done with a focus once History has shown it: the next visit opens nothing. */
+export function clearHistoryFocus(id: string | null): void {
+  if (id !== null && pendingFocus === id) pendingFocus = null;
+}
+
+/** Filters that list a focused transaction's network, so its row is among the first read. */
+export function focusFilters(id: string | null): HistoryFilters {
+  const network = id ? focusNetwork(id) : null;
+  return network ? { ...EMPTY_FILTERS, network } : EMPTY_FILTERS;
+}
 
 /** The read query of the filters (blank fields left out). */
 export function filterQuery(filters: HistoryFilters, cursor?: string | null): DataTxQuery {

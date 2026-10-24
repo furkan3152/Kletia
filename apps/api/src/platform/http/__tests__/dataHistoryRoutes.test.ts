@@ -3,16 +3,21 @@
  * (wallet session over its tracked set, API key over named addresses),
  * tracking opt-in with wallet proofs, transactions with filters, cursor
  * paging and Kletia links, one transaction by id, PnL, the snapshot job and
- * its series, the assistant summary, extras, and the transactions export.
+ * its series, the assistant summary, extras (with Polymarket positions), the
+ * transactions export, and the assistant answering from the same history
+ * (an API key's named wallets; a desk session's tracked set, or the desk step
+ * while tracking is off).
  * Offline: history providers, prices and Kamino from fixtures
- * (historyFixtures.ts); portfolio, lending, perps and order reads stubbed.
+ * (historyFixtures.ts), Polymarket from recorded responses
+ * (predictionsHarness.ts); portfolio, lending, perps and order reads stubbed.
  *
  *   cd apps/api && node --import tsx --test src/platform/http/__tests__/dataHistoryRoutes.test.ts
  */
 import assert from "node:assert/strict";
 import { after, afterEach, before, beforeEach, describe, it } from "node:test";
-import type { DataPnl, DataPositions, DataSnapshotSeries, DataSummary, DataTracking, DataTransaction, DataTransactionPage, IntentGraph } from "@kletia/core";
+import type { AssistantAnswer, DataPnl, DataPositions, DataSnapshotSeries, DataSummary, DataTracking, DataTransaction, DataTransactionPage, IntentGraph } from "@kletia/core";
 import { resetEngine } from "../../engine/__tests__/helpers.js";
+import { predictionFixtureIo } from "../../engine/__tests__/predictionsHarness.js";
 import { as, evmWallet, signIn, solanaWallet } from "./accountFlows.js";
 import { fixtureFetcher } from "./historyFixtures.js";
 import { assertError, call, OPERATOR_KEY, serve, useTestEnvironment, type TestServer } from "./support.js";
@@ -26,6 +31,7 @@ const data = await import("../../data/index.js");
 const { dataAddressBudget, dataKeyBudget } = await import("../limits.js");
 const { configurePerpsIo } = await import("../../perps/io.js");
 const { configureNativeOrderProviders } = await import("../../orders/registry.js");
+const { configurePredictionsIo } = await import("../../predictions/io.js");
 
 const ME = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
 const BASE_USDC = "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -90,6 +96,7 @@ beforeEach(async () => {
     now: () => Date.now(),
   });
   configureNativeOrderProviders([]);
+  configurePredictionsIo(predictionFixtureIo());
 });
 
 afterEach(async () => {
@@ -102,6 +109,7 @@ afterEach(async () => {
   data.configureDataTrackingStore(null);
   configurePerpsIo(null);
   configureNativeOrderProviders(null);
+  configurePredictionsIo(null);
 });
 
 describe("history callers", () => {
@@ -291,7 +299,39 @@ describe("pnl, snapshots, summary and extras", () => {
     assert.equal(extras.orders.rows.length, 0);
     assert.equal(extras.automations.reason, null);
     assert.equal(extras.agentSpend.reason, null);
+    assert.equal(extras.predictions.rows.length, 4, "Polymarket positions of the named EVM wallet");
+    assert.equal(extras.predictions.rows[0]!.account, `eip155:137:${ME}`);
+    assert.match(extras.predictions.reason ?? "", /first 100/u, "the recorded read says more exist: the cut is said, never hidden");
     const plain = await call<DataPositions>(server, "GET", `/data/positions?evm=${ME}`, { key: OPERATOR_KEY });
     assert.equal(plain.body.extras, undefined);
+  });
+});
+
+describe("assistant over the history", () => {
+  const ask = (question: string, options: { key?: string; headers?: Record<string, string>; wallets?: boolean }) =>
+    call<{ answer: AssistantAnswer }>(server, "POST", "/assistant/ask", { ...(options.key ? { key: options.key } : {}), ...(options.headers ? { headers: options.headers } : {}), body: { question, ...(options.wallets ? { wallets: { evm: [ME] } } : {}) } });
+
+  it("answers an API key from the named wallets' on-chain history, with History links", async () => {
+    const reply = await ask("list my swaps", { key: KEY.key, wallets: true });
+    assert.equal(reply.status, 200, JSON.stringify(reply.body));
+    const { answer } = reply.body;
+    assert.equal(answer.facts.find((fact) => fact.label === "Swaps")?.value, "2");
+    assert.match(answer.facts.find((fact) => fact.label === "Most recent")?.link?.kind ?? "", /^transaction$/u);
+    assert.equal(answer.table?.links?.length, 2);
+    delete process.env.ETHERSCAN_API_KEY;
+    const unread = (await ask("how much did I spend on fees this month?", { key: KEY.key, wallets: true })).body.answer;
+    assert.equal(unread.status, "unknown");
+    assert.ok(unread.gaps.some((gap) => /ETHERSCAN_API_KEY/u.test(gap)), unread.gaps.join("\n"));
+  });
+
+  it("answers a desk session from its tracked set, and says how to turn tracking on until then", async () => {
+    const token = await signIn(server, evmWallet());
+    const off = (await ask("show my transactions this month", { headers: as(token) })).body.answer;
+    assert.equal(off.status, "unknown");
+    assert.match(off.text, /Portfolio, then History, then "Turn on tracking"/u);
+    assert.equal((await call(server, "POST", "/data/tracking", { headers: as(token), body: {} })).status, 201);
+    const on = (await ask("show my transactions this month", { headers: as(token) })).body.answer;
+    assert.notEqual(on.status, "unknown", on.text);
+    assert.doesNotMatch(on.text, /Turn on tracking/u);
   });
 });

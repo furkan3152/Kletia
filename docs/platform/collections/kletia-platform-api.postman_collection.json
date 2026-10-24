@@ -154,6 +154,12 @@
       "value": "",
       "type": "string",
       "description": "A wallet transaction id (<network>:<hash or signature>) from GET /v1/data/transactions."
+    },
+    {
+      "key": "predictionMarketId",
+      "value": "",
+      "type": "string",
+      "description": "A Polymarket market id (numeric Gamma id or 0x condition id) from GET /v1/predictions/markets."
     }
   ],
   "item": [
@@ -6473,7 +6479,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`, `search_prediction_markets`, `plan_prediction_order`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -6511,7 +6517,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`, `search_prediction_markets`, `plan_prediction_order`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -6549,7 +6555,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`, `search_prediction_markets`, `plan_prediction_order`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }
@@ -6710,6 +6716,358 @@
               ]
             },
             "description": "Rebuilds the action from its fields, checks the nonce is recent and that the signature recovers to the account (400 PERPS_SIGNATURE_INVALID otherwise), then forwards it to Hyperliquid's /exchange. 422 PERPS_RELAY_REJECTED carries the exchange's reason.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/perps/submit` · operationId `submitPerps` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "c08c25fa-2743-5e5a-a055-58841a5a4bef",
+      "name": "Predictions",
+      "description": "Prediction markets on Polymarket (Polygon): market search, order books and implied probabilities, quotes with max loss and payout, unsigned approvals and EIP-712 orders for the user's own wallet, the order-book sign-in, the relay of user-signed orders, positions and redemption.",
+      "item": [
+        {
+          "id": "f329eec3-afeb-5e0f-8bd0-073b3b86e2a7",
+          "name": "Open prediction markets: search, category, busiest or soonest ending",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/markets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "markets"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "politics",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "volume",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Polymarket markets that are open and take orders (Gamma API, cached 15 s), with outcome prices as implied probabilities. Limitless Exchange is listed as a venue that is not added (disabledReason). Kalshi is not integrated: it needs KYC and holds funds in custodial accounts.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/predictions/markets` · operationId `listPredictionMarkets` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "8c9f812c-4f73-5eda-a1b9-6c95dc28366e",
+          "name": "One market with each outcome's order book and a week of prices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/markets/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "markets",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{predictionMarketId}}"
+                }
+              ]
+            },
+            "description": "By Gamma market id, or by the condition id positions carry.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/predictions/markets/{id}` · operationId `getPredictionMarket` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "629ca545-a197-57c7-b070-021786afe50f",
+          "name": "Prediction positions of a Polygon holder",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/positions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "positions"
+              ],
+              "query": [
+                {
+                  "key": "account",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "holder",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "By `account` (CAIP-10) or `holder` (a Polymarket Deposit, Proxy or Safe wallet address, read only). Redeemable rows have resolved.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/predictions/positions` · operationId `listPredictionPositions` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "073e5ce9-1c88-584b-8421-4097dbf36d91",
+          "name": "Quote a prediction order: implied probability, max loss, payout, fees",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"marketId\": \"666861\",\n  \"outcome\": \"Yes\",\n  \"side\": \"buy\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/quote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "quote"
+              ]
+            },
+            "description": "You can lose the whole stake: a share pays 1 pUSD if its outcome wins and 0 if it loses; prices are the market's odds, not guarantees. A market buy's amount is all-in (fees included). Refusals: 422 PREDICTION_MARKET_CLOSED, PREDICTION_OUTCOME_UNKNOWN, PREDICTION_STAKE_TOO_HIGH, PREDICTION_VENUE_DISABLED; 403 PREDICTION_POLICY_DENIED; 503 PREDICTION_PRICE_UNAVAILABLE.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/quote` · operationId `quotePrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "b840b89b-0310-5739-97df-c489731fe1a0",
+          "name": "Unsigned steps for a prediction order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"marketId\": \"666861\",\n  \"outcome\": \"Yes\",\n  \"side\": \"buy\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/prepare",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "prepare"
+              ]
+            },
+            "description": "Kletia never signs: the answer is for the user's own wallet. Exact pUSD approvals (and a USDC.e wrap when pUSD is short), the ERC-1155 operator approval a sell or a negative-risk order needs (disclosed: it has no amount), the venue sign-in unless hasSession, and the EIP-712 order (EOA, signatureType 0). Valid 120 s. Refusals as for quote, plus 422 PREDICTION_ACCOUNT_UNSUPPORTED (smart wallets), PREDICTION_BALANCE_TOO_LOW, PREDICTION_ORDER_TOO_SMALL, PREDICTION_POSITION_NOT_FOUND.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/prepare` · operationId `preparePrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "e30186ee-57e3-5db9-aa53-952ea442a23e",
+          "name": "Sign in to Polymarket's order book",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account\": \"eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "session"
+              ]
+            },
+            "description": "{ account } returns the ClobAuth typed data to sign (no funds move); { account, auth } checks the signature, has the CLOB derive (or create) the account's API credentials, and returns them sealed for this account as `session`. Kletia stores nothing; the session lives 8 hours.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/session` · operationId `predictionSession` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "ddc6fe92-1901-591c-860d-197a5ce27227",
+          "name": "Relay an order the account signed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account\": \"eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D\",\n  \"order\": {\n    \"salt\": \"\",\n    \"maker\": \"\",\n    \"signer\": \"\",\n    \"tokenId\": \"\",\n    \"makerAmount\": \"\",\n    \"takerAmount\": \"\",\n    \"side\": 0,\n    \"signatureType\": 0,\n    \"timestamp\": \"\",\n    \"metadata\": \"\",\n    \"builder\": \"\",\n    \"expiration\": \"\",\n    \"orderType\": \"FAK\",\n    \"exchange\": \"\",\n    \"domainVersion\": \"2\"\n  },\n  \"ticket\": \"\",\n  \"signature\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "submit"
+              ]
+            },
+            "description": "The ticket must match the order prepare built and the signature must recover to the account (400 PREDICTION_SIGNATURE_INVALID otherwise); send `session`, or `auth` to sign in on the way. A buy is not sent while Polymarket reports the relay's location as restricted (403 PREDICTION_GEOBLOCKED); a venue refusal is 422 PREDICTION_RELAY_REJECTED with its reason.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/submit` · operationId `submitPrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "5838628e-707e-51b3-ab1c-0f3f965c5d38",
+          "name": "Open orders of the session's account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account\": \"eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D\",\n  \"session\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "orders"
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/orders` · operationId `listPredictionOrders` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "546a9d16-8851-595c-94c7-b95a47a9fe4e",
+          "name": "Cancel a resting order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account\": \"eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D\",\n  \"session\": \"\",\n  \"orderId\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/orders/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "orders",
+                "cancel"
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/orders/cancel` · operationId `cancelPredictionOrder` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "a30779fa-84ee-5ceb-a32c-b9f021b2b058",
+          "name": "Unsigned redemption of resolved shares",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account\": \"eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D\",\n  \"conditionId\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/redeem",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "redeem"
+              ]
+            },
+            "description": "Kletia never signs: the answer is for the user's own wallet. v1 markets: the collateral adapter's redeemPositions (both outcomes, paid in pUSD) after its operator approval; v2 markets: Router.redeem per outcome held. 422 PREDICTION_NOT_RESOLVED before the market resolves.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/redeem` · operationId `redeemPrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

@@ -11,6 +11,12 @@
  * account's own position (after its last listed row). An account whose read
  * fails is reported in `coverage` and keeps its position for the next page.
  *
+ * Polymarket wallets: a Polygon row whose counterparty is the set's own
+ * Polymarket wallet (a deposit into it, a call run through its Safe) is
+ * labelled "Your Polymarket wallet", once the wallet is verified as the
+ * owner's (predictions/wallets.ts; derived addresses are matched first, so
+ * nothing is read for rows that touch none).
+ *
  * Kletia links: a transaction whose hash a Kletia intent step claimed shows
  * that intent (and its latest receipt) only to callers that may see it: the
  * API key that owns the intent, or a wallet session whose wallets the intent
@@ -41,6 +47,8 @@ import type { AccountCursor, HistoryProvider, ProviderPage, RawToken, RawTx } fr
 import { classifyTransaction } from "./classify.js";
 import { historicalPrices, lookupKey, priceLookup, type HistoricalPrice, type PriceLookup } from "./historicalPrices.js";
 import { inWalletSet } from "./wallets.js";
+import { predictionsIo } from "../predictions/io.js";
+import { cachedPolymarketWallets, polymarketWalletCandidates } from "../predictions/wallets.js";
 
 export const TRANSACTION_LIMITS = Object.freeze({ defaultLimit: 50, maxLimit: 100, pageSize: 50, maxRounds: 3 });
 const PAGE_CACHE_TTL_MS = 60_000;
@@ -197,6 +205,23 @@ export async function enrichTransactions(raws: readonly RawTx[]): Promise<DataTr
   });
 }
 
+/* ---------------------------------------------------- Polymarket wallets */
+
+/** Labels rows whose counterparty is one of the set's own Polymarket wallets (verified; a contract call through it is a prediction-market transaction). */
+export async function labelPolymarketWallets(transactions: readonly DataTransaction[], set: Pick<DataWalletSet, "evm">): Promise<DataTransaction[]> {
+  const touched = new Set(transactions.filter((tx) => tx.network === "polygon" && tx.counterparty).map((tx) => (tx.counterparty as string).toLowerCase()));
+  if (touched.size === 0) return [...transactions];
+  const owners = set.evm.filter((owner) => Object.values(polymarketWalletCandidates(owner)).some((address) => touched.has(address.toLowerCase())));
+  if (owners.length === 0) return [...transactions];
+  const views = await Promise.all(owners.map((owner) => cachedPolymarketWallets(owner, predictionsIo()).catch(() => null)));
+  const kinds = new Map(views.flatMap((view) => view?.wallets.map((wallet) => [wallet.address.toLowerCase(), wallet.kind] as const) ?? []));
+  return transactions.map((tx) => {
+    const kind = tx.network === "polygon" && tx.counterparty ? kinds.get(tx.counterparty.toLowerCase()) : undefined;
+    if (!kind) return tx;
+    return { ...tx, kind: tx.kind === "contract-call" ? "prediction" : tx.kind, protocol: { id: null, label: "Your Polymarket wallet", role: `polymarket-${kind}` } };
+  });
+}
+
 /* ---------------------------------------------------------- Kletia links */
 
 function referenceKeyOf(tx: Pick<DataTransaction, "network" | "hash">): string {
@@ -335,7 +360,7 @@ export async function readTransaction(set: DataWalletSet, id: string, viewer: Da
     }
     const involved = raw !== null && (raw.transfers.length > 0 || (raw.from !== null && inWalletSet(set, raw.from)));
     if (raw && involved) {
-      const [tx] = await linkKletia(await enrichTransactions([raw]), viewer, set);
+      const [tx] = await linkKletia(await labelPolymarketWallets(await enrichTransactions([raw]), set), viewer, set);
       return tx!;
     }
   }
@@ -380,7 +405,7 @@ export async function readTransactionPage(
     // On the last round, rows at the boundary itself are listed rather than none at all (a page of one second).
     const strict = rows.filter((row) => row.time > boundary);
     const ready = strict.length > 0 || round < TRANSACTION_LIMITS.maxRounds - 1 ? strict : rows.filter((row) => row.time >= boundary);
-    const prepared = await linkKletia(await enrichTransactions(ready), viewer, set);
+    const prepared = await linkKletia(await labelPolymarketWallets(await enrichTransactions(ready), set), viewer, set);
     listed = [];
     consumed = [];
     for (let index = 0; index < ready.length && listed.length < limit; index += 1) {

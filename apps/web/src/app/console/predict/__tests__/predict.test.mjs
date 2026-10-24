@@ -1,7 +1,8 @@
 // The Predict view's model (round 10): implied probabilities, market rows,
 // book depth, the ticket and its request, quote rows that say the most you
-// can lose, position rows, the location note, the signing run, and the
-// prediction hand-off prefill. Run with
+// can lose, the user's Polymarket wallets (which one trades, balances,
+// moves), open orders, position rows, the location note, the signing run,
+// and the prediction hand-off prefill. Run with
 //   node --test apps/web/src/app/console/predict/__tests__/predict.test.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -18,7 +19,10 @@ import {
   limitPrice,
   locationNote,
   marketRows,
+  moveProblems,
   nextStep,
+  openOrderRows,
+  pickWallet,
   orderStatusLine,
   positionRows,
   quoteRows,
@@ -26,6 +30,8 @@ import {
   ticketAmount,
   ticketProblems,
   ticketRequest,
+  walletLine,
+  walletRows,
   withStepState,
 } from "../predictModel.ts";
 
@@ -151,4 +157,42 @@ test("the view keeps the session in memory only and never reads browser storage"
   const view = readFileSync(new URL("../PredictView.tsx", import.meta.url), "utf8");
   for (const source of [run, view]) assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB/u);
   assert.match(view, /checkGeoblock/u, "the location check runs from the browser");
+});
+
+// Recorded Polymarket wallets (fixtures/predictions/polymarket-wallets.json in the API tests): a Safe and a Deposit Wallet.
+const SAFE = {
+  address: "0x1DaB69F26C401D587D9e4875e68Dd0D878818719", kind: "safe", owner: "0xF6d143B21Ce3b07DAE3AE0fa23B65e0449e21dC0", signatureType: 2, tradable: true,
+  verifiedBy: "Derived from your wallet with Polymarket's Safe factory (CREATE2); getOwners() on Polygon lists your wallet.", onProfile: true,
+  balances: { pusd: "82.344286", usdce: "0.00255" }, actions: ["deposit", "withdraw", "wrap"], note: null,
+};
+const DEPOSIT = { ...SAFE, address: "0x2a4E00E43232136eD816a5439A3AE9c4CA4A653B", kind: "deposit", signatureType: 3, onProfile: false, balances: null, actions: ["deposit"], note: "relayer" };
+const PROXY = { ...SAFE, address: "0x48Cd30F5939c7F192A6777F1Db222dF1af928D30", kind: "proxy", signatureType: 1, tradable: false, onProfile: false, actions: ["deposit"], note: "Magic" };
+
+test("names the wallet that trades and its balances, and picks it as polymarket.com does", () => {
+  assert.equal(walletLine(SAFE), "Your Polymarket wallet 0x1DaB…8719, owned by 0xF6d1…1dC0");
+  const [safe, deposit, proxy] = walletRows([SAFE, DEPOSIT, PROXY]);
+  assert.deepEqual([safe.kind, safe.balance, safe.tradable, safe.onProfile], ["Safe", "82.34 pUSD · 0.00 USDC.e", true, true]);
+  assert.equal(deposit.balance, "Balance unavailable", "an unread balance is said, never shown as zero");
+  assert.deepEqual([proxy.kind, proxy.tradable], ["Proxy wallet", false]);
+  assert.equal(pickWallet([DEPOSIT, SAFE], null), SAFE, "the profile's wallet first");
+  assert.equal(pickWallet([PROXY, DEPOSIT], null), DEPOSIT, "else the first that trades");
+  assert.equal(pickWallet([SAFE, DEPOSIT], DEPOSIT.address.toLowerCase()), DEPOSIT, "the person's pick");
+  assert.equal(pickWallet([SAFE], DEPOSIT.address), SAFE, "a pick no longer listed falls back");
+  assert.equal(pickWallet([], null), null);
+});
+
+test("sends the wallet with prepare, and checks wallet moves before preparing them", () => {
+  const ticket = { ...DEFAULT_TICKET, marketId: "666861", outcome: "Yes", amount: "20" };
+  assert.equal(ticketRequest(ticket, "eip155:137:0xF6d143B21Ce3b07DAE3AE0fa23B65e0449e21dC0", false, SAFE.address).wallet, SAFE.address);
+  assert.equal("wallet" in ticketRequest(ticket, null, false, SAFE.address), false, "a quote names no account or wallet");
+  assert.deepEqual(moveProblems({ action: "withdraw", asset: "pUSD", amount: "10" }, SAFE), []);
+  assert.deepEqual(moveProblems({ action: "withdraw", asset: "pUSD", amount: "10" }, DEPOSIT), ["Kletia does not build this move for this wallet; do it on polymarket.com."]);
+  assert.deepEqual(moveProblems({ action: "wrap", asset: "pUSD", amount: "1" }, SAFE), ["Wrapping turns USDC.e into pUSD."]);
+  assert.deepEqual(moveProblems({ action: "deposit", asset: "pUSD", amount: "-1" }, SAFE), ["Enter a positive amount (up to 6 decimals)."]);
+  assert.deepEqual(moveProblems({ action: "deposit", asset: "pUSD", amount: "1" }, null), ["Pick your Polymarket wallet."]);
+});
+
+test("lists open orders with side, price and fill", () => {
+  const [row] = openOrderRows([{ id: "0xabc", status: "LIVE", outcome: "Yes", side: "buy", price: 0.04, shares: 50, filledShares: 10 }]);
+  assert.deepEqual(row, { id: "0xabc", side: "Buy", outcome: "Yes", price: "4¢", filled: "10 of 50", status: "live" });
 });

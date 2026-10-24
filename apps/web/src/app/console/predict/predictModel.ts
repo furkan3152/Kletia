@@ -1,12 +1,15 @@
 /**
  * The Predict view as pure functions (no React, no wallet): market rows with
  * implied probabilities, book depth, the ticket and the request it sends,
- * the checks the API repeats, quote rows (max loss, payout, fees), position
- * rows, the location note, and the signing run's step states. Node tests
- * load it directly.
+ * the checks the API repeats, quote rows (max loss, payout, fees), the
+ * user's Polymarket wallets (which one trades, its balances and moves),
+ * position and open-order rows, the location note, and the signing run's
+ * step states. Node tests load it directly.
  */
 import {
   PREDICTION_LIMITS,
+  type PolymarketWallet,
+  type PolymarketWalletAction,
   type PredictionBook,
   type PredictionMarket,
   type PredictionOrderType,
@@ -169,8 +172,8 @@ export function ticketProblems(ticket: PredictTicket, market: Pick<PredictionMar
   return problems;
 }
 
-/** The body of POST /v1/predictions/quote and /prepare for the ticket. */
-export function ticketRequest(ticket: PredictTicket, account: string | null, hasSession = false): PredictionRequest {
+/** The body of POST /v1/predictions/quote and /prepare for the ticket; `wallet`: the Polymarket wallet that trades. */
+export function ticketRequest(ticket: PredictTicket, account: string | null, hasSession = false, wallet: string | null = null): PredictionRequest {
   const amount = ticketAmount(ticket.amount) ?? "0";
   const limit = ticket.orderType === "limit" ? limitPrice(ticket.limitCents) : null;
   return {
@@ -182,7 +185,7 @@ export function ticketRequest(ticket: PredictTicket, account: string | null, has
     ...(ticket.side === "buy" ? { amountUsd: amount } : { shares: amount }),
     ...(limit ? { limitPrice: limit } : {}),
     ...(ticket.orderType === "market" ? { slippageBps: ticket.slippageBps } : {}),
-    ...(account ? { account, hasSession } : {}),
+    ...(account ? { account, hasSession, ...(wallet ? { wallet } : {}) } : {}),
   };
 }
 
@@ -248,6 +251,102 @@ export function positionRows(positions: readonly PredictionPosition[], filter: s
       conditionId: position.conditionId,
       tokenId: position.tokenId,
     }));
+}
+
+/* --------------------------------------------------- Polymarket wallets */
+
+export const WALLET_KIND_LABELS: Readonly<Record<PolymarketWallet["kind"], string>> = Object.freeze({ safe: "Safe", deposit: "Deposit Wallet", proxy: "Proxy wallet" });
+
+/** "0x1234…ab12". */
+export function shortAddress(address: string): string {
+  return address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
+}
+
+/** Who trades, as the ticket says it: "Your Polymarket wallet 0x…ab12, owned by 0x…cd34". */
+export function walletLine(wallet: Pick<PolymarketWallet, "address" | "owner">): string {
+  return `Your Polymarket wallet ${shortAddress(wallet.address)}, owned by ${shortAddress(wallet.owner)}`;
+}
+
+export interface WalletRow {
+  readonly address: string;
+  readonly kind: string;
+  readonly line: string;
+  readonly balance: string;
+  readonly tradable: boolean;
+  readonly onProfile: boolean;
+  readonly note: string | null;
+  readonly actions: readonly PolymarketWalletAction[];
+}
+
+function usdOf(value: string): string {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value;
+}
+
+/** One row per verified wallet: what it is, who owns it, its pUSD and USDC.e, whether Kletia trades it. */
+export function walletRows(wallets: readonly PolymarketWallet[]): WalletRow[] {
+  return wallets.map((wallet) => ({
+    address: wallet.address,
+    kind: WALLET_KIND_LABELS[wallet.kind],
+    line: walletLine(wallet),
+    balance: wallet.balances ? `${usdOf(wallet.balances.pusd)} pUSD · ${usdOf(wallet.balances.usdce)} USDC.e` : "Balance unavailable",
+    tradable: wallet.tradable,
+    onProfile: wallet.onProfile,
+    note: wallet.note,
+    actions: wallet.actions,
+  }));
+}
+
+/**
+ * The wallet the desk trades from: the one the person picked while it is
+ * still listed, else the one Polymarket's profile names, else the first
+ * tradable one, else the first; null when none was found (the account
+ * itself then trades, if it is a plain wallet).
+ */
+export function pickWallet(wallets: readonly PolymarketWallet[], picked: string | null): PolymarketWallet | null {
+  const chosen = picked ? wallets.find((wallet) => wallet.address.toLowerCase() === picked.toLowerCase()) : undefined;
+  return chosen ?? wallets.find((wallet) => wallet.onProfile) ?? wallets.find((wallet) => wallet.tradable) ?? wallets[0] ?? null;
+}
+
+export interface WalletMove {
+  readonly action: PolymarketWalletAction;
+  readonly asset: "pUSD" | "USDC.e";
+  /** As typed. */
+  readonly amount: string;
+}
+
+const MOVE_INPUT = /^\d{1,9}(?:\.\d{1,6})?$/u;
+
+/** What keeps a wallet move from being prepared (empty: it can be). */
+export function moveProblems(move: WalletMove, wallet: Pick<PolymarketWallet, "actions"> | null): string[] {
+  const problems: string[] = [];
+  if (!wallet) return ["Pick your Polymarket wallet."];
+  if (!wallet.actions.includes(move.action)) problems.push("Kletia does not build this move for this wallet; do it on polymarket.com.");
+  if (move.action === "wrap" && move.asset !== "USDC.e") problems.push("Wrapping turns USDC.e into pUSD.");
+  const amount = move.amount.trim();
+  if (!MOVE_INPUT.test(amount) || !(Number(amount) > 0)) problems.push("Enter a positive amount (up to 6 decimals).");
+  return problems;
+}
+
+export interface OpenOrderRow {
+  readonly id: string;
+  readonly side: string;
+  readonly outcome: string;
+  readonly price: string;
+  readonly filled: string;
+  readonly status: string;
+}
+
+/** Open orders as rows: side and outcome, limit price, filled of total shares. */
+export function openOrderRows(orders: readonly { readonly id: string; readonly status: string; readonly outcome: string | null; readonly side: "buy" | "sell" | null; readonly price: number | null; readonly shares: number | null; readonly filledShares: number | null }[]): OpenOrderRow[] {
+  return orders.map((order) => ({
+    id: order.id,
+    side: order.side === "sell" ? "Sell" : order.side === "buy" ? "Buy" : "-",
+    outcome: order.outcome ?? "-",
+    price: formatCents(order.price),
+    filled: `${formatShares(order.filledShares ?? 0)} of ${order.shares === null ? "-" : formatShares(order.shares)}`,
+    status: order.status.toLowerCase(),
+  }));
 }
 
 /* -------------------------------------------------------------- location */

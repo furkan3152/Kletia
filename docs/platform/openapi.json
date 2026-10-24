@@ -11267,7 +11267,7 @@
           "Predictions"
         ],
         "summary": "Prediction positions of a Polygon holder",
-        "description": "By `account` (CAIP-10) or `holder` (a Polymarket Deposit, Proxy or Safe wallet address, read only). Redeemable rows have resolved.",
+        "description": "By `account` (CAIP-10), `account` with `wallet` (the account's Polymarket wallet, verified as its own; 422 PREDICTION_WALLET_NOT_FOUND otherwise) or `holder` (any address, read only). Redeemable rows have resolved.",
         "parameters": [
           {
             "name": "account",
@@ -11275,6 +11275,14 @@
             "schema": {
               "type": "string",
               "maxLength": 200
+            }
+          },
+          {
+            "name": "wallet",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
             }
           },
           {
@@ -11304,6 +11312,71 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PredictionPositionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/wallets": {
+      "get": {
+        "operationId": "listPolymarketWallets",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "The account's Polymarket wallets (Safe, Deposit Wallet, Proxy)",
+        "description": "Derives each wallet Polymarket's factories give the account (CREATE2) and keeps those with code on Polygon that name the account as owner (Safe getOwners(), Deposit Wallet owner(); a Proxy wallet's clone code). Polymarket's public profile marks the wallet polymarket.com shows; it never adds one. Each wallet has its pUSD and USDC.e balance, whether Kletia trades it, and the wallet moves it builds. 502 RPC_UNAVAILABLE when Polygon cannot be read (never reported as no wallet).",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The verified wallets.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolymarketWalletsResponse"
                 }
               }
             }
@@ -11409,7 +11482,7 @@
           "Predictions"
         ],
         "summary": "Unsigned steps for a prediction order",
-        "description": "Kletia never signs: the answer is for the user's own wallet. Exact pUSD approvals (and a USDC.e wrap when pUSD is short), the ERC-1155 operator approval a sell or a negative-risk order needs (disclosed: it has no amount), the venue sign-in unless hasSession, and the EIP-712 order (EOA, signatureType 0). Valid 120 s. Refusals as for quote, plus 422 PREDICTION_ACCOUNT_UNSUPPORTED (smart wallets), PREDICTION_BALANCE_TOO_LOW, PREDICTION_ORDER_TOO_SMALL, PREDICTION_POSITION_NOT_FOUND.",
+        "description": "Kletia never signs: the answer is for the user's own wallet. Exact pUSD approvals (and a USDC.e wrap when pUSD is short), the ERC-1155 operator approval a sell or a negative-risk order needs (disclosed: it has no amount), the venue sign-in unless hasSession, and the EIP-712 order. With `wallet`, the account's Polymarket Safe trades (signatureType 2: maker = Safe, signer = account; its approvals and wrap run through the Safe's execTransaction, sent by the account) or its Deposit Wallet (signatureType 3: the account signs the ERC-7739 TypedDataSign wrapper; its approvals run through Polymarket's relayer, so a missing one is 422 PREDICTION_WALLET_SETUP_REQUIRED). Valid 120 s. Refusals as for quote, plus 422 PREDICTION_ACCOUNT_UNSUPPORTED (a Proxy wallet, or a smart account without `wallet`), PREDICTION_WALLET_NOT_FOUND, PREDICTION_BALANCE_TOO_LOW, PREDICTION_ORDER_TOO_SMALL, PREDICTION_POSITION_NOT_FOUND.",
         "requestBody": {
           "required": true,
           "content": {
@@ -11555,7 +11628,7 @@
           "Predictions"
         ],
         "summary": "Relay an order the account signed",
-        "description": "The ticket must match the order prepare built and the signature must recover to the account (400 PREDICTION_SIGNATURE_INVALID otherwise); send `session`, or `auth` to sign in on the way. A buy is not sent while Polymarket reports the relay's location as restricted (403 PREDICTION_GEOBLOCKED); a venue refusal is 422 PREDICTION_RELAY_REJECTED with its reason.",
+        "description": "The ticket must match the order prepare built and the signature must recover to the account; a wallet order's maker must still be the account's Safe or Deposit Wallet on Polygon, and a Deposit Wallet must accept the packed signature (ERC-1271) (400 PREDICTION_SIGNATURE_INVALID otherwise); send `session`, or `auth` to sign in on the way. A buy is not sent while Polymarket reports the relay's location as restricted (403 PREDICTION_GEOBLOCKED); a venue refusal is 422 PREDICTION_RELAY_REJECTED with its reason.",
         "requestBody": {
           "required": true,
           "content": {
@@ -11816,6 +11889,76 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/wallet": {
+      "post": {
+        "operationId": "preparePolymarketWalletAction",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Unsigned moves between the account and its Polymarket wallet",
+        "description": "Kletia never signs: the answer is for the user's own wallet. deposit: a plain pUSD or USDC.e transfer from the account to its verified Polymarket wallet; withdraw: the Safe sends pUSD or USDC.e to its owner (the account) and nowhere else; wrap: the Safe wraps its USDC.e into pUSD (CollateralOnramp). Safe moves are execTransaction calls the account sends (it pays POL gas). A Deposit Wallet's own moves run through Polymarket's relayer (422 PREDICTION_WALLET_SETUP_REQUIRED).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionWalletActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The steps.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionWalletActionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -28627,7 +28770,70 @@
           },
           "predictions": {
             "$ref": "#/components/schemas/DataSection",
-            "description": "Polymarket positions of the set's EVM wallets on Polygon (shares, average and current price, value, cost, PnL, redeemable) with the account."
+            "description": "Polymarket positions of the set's EVM wallets on Polygon and of the Polymarket wallet found for each (Safe, Deposit Wallet or Proxy; shares, average and current price, value, cost, PnL, redeemable) with the account and `holderKind` (account, safe, deposit, proxy)."
+          },
+          "predictionWallets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "account": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "safe",
+                    "proxy",
+                    "deposit"
+                  ]
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "tradable": {
+                  "type": "boolean"
+                },
+                "onProfile": {
+                  "type": "boolean"
+                },
+                "balances": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pusd": {
+                          "type": "string"
+                        },
+                        "usdce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "pusd",
+                        "usdce"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "account",
+                "address",
+                "kind",
+                "owner",
+                "tradable",
+                "onProfile",
+                "balances"
+              ]
+            },
+            "description": "The Polymarket wallets found for the set's EVM wallets (derived, then checked on Polygon) whose positions `predictions` includes."
           }
         },
         "required": [
@@ -28635,7 +28841,8 @@
           "orders",
           "automations",
           "agentSpend",
-          "predictions"
+          "predictions",
+          "predictionWallets"
         ]
       },
       "DataTxLeg": {
@@ -35095,14 +35302,300 @@
           },
           "tradable": {
             "type": "boolean",
-            "description": "False for a smart wallet (Polymarket Deposit, Proxy or Safe): read only."
+            "description": "Whether Kletia trades for the holder: a plain wallet, or the account's Safe or Deposit Wallet (with `wallet`). False for a Proxy wallet or another smart wallet: read only."
+          },
+          "wallet": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PolymarketWallet"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "holder",
           "positions",
           "truncated",
-          "tradable"
+          "tradable",
+          "wallet"
+        ]
+      },
+      "PolymarketWallet": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "safe",
+              "proxy",
+              "deposit"
+            ],
+            "description": "safe: Gnosis Safe of a browser-wallet account; deposit: Deposit Wallet (accounts since May 4, 2026); proxy: email or Google account (read only)."
+          },
+          "owner": {
+            "type": "string",
+            "description": "The EVM wallet (EOA) that owns it and signs for it."
+          },
+          "signatureType": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          },
+          "tradable": {
+            "type": "boolean"
+          },
+          "verifiedBy": {
+            "type": "string",
+            "description": "What was read on Polygon to accept it as the owner's."
+          },
+          "onProfile": {
+            "type": "boolean",
+            "description": "Polymarket's public profile of the owner names this wallet."
+          },
+          "balances": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "pusd": {
+                    "type": "string"
+                  },
+                  "usdce": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "pusd",
+                  "usdce"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "deposit",
+                "withdraw",
+                "wrap"
+              ]
+            }
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "address",
+          "kind",
+          "owner",
+          "signatureType",
+          "tradable",
+          "verifiedBy",
+          "onProfile",
+          "balances",
+          "actions",
+          "note"
+        ]
+      },
+      "PolymarketWalletsResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "plainWallet": {
+            "type": "boolean",
+            "description": "The account itself has no code (it can trade for itself where Polymarket allows it)."
+          },
+          "wallets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolymarketWallet"
+            }
+          },
+          "profile": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "listed",
+                  "unverified",
+                  "none",
+                  "unavailable"
+                ]
+              },
+              "wallet": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "wallet"
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "account",
+          "owner",
+          "plainWallet",
+          "wallets",
+          "profile",
+          "notes"
+        ]
+      },
+      "PredictionWalletActionRequest": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "CAIP-10 account on Polygon.",
+            "examples": [
+              "eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D"
+            ]
+          },
+          "wallet": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$",
+            "description": "The account's Polymarket wallet (GET /v1/predictions/wallets)."
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "deposit",
+              "withdraw",
+              "wrap"
+            ],
+            "description": "deposit: account to wallet (any kind); withdraw: Safe to its owner; wrap: the Safe's USDC.e into pUSD."
+          },
+          "amountUsd": {
+            "type": "string",
+            "pattern": "^\\d{1,9}(\\.\\d{1,6})?$"
+          },
+          "asset": {
+            "type": "string",
+            "enum": [
+              "pUSD",
+              "USDC.e"
+            ],
+            "description": "Default pUSD (wrap: USDC.e)."
+          }
+        },
+        "required": [
+          "account",
+          "wallet",
+          "action",
+          "amountUsd"
+        ]
+      },
+      "PredictionWalletActionResponse": {
+        "type": "object",
+        "properties": {
+          "prepared": {
+            "type": "object",
+            "properties": {
+              "venue": {
+                "type": "string",
+                "enum": [
+                  "polymarket",
+                  "limitless"
+                ]
+              },
+              "network": {
+                "type": "string"
+              },
+              "account": {
+                "type": "string"
+              },
+              "wallet": {
+                "type": "object",
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "safe",
+                      "proxy",
+                      "deposit"
+                    ],
+                    "description": "safe: Gnosis Safe of a browser-wallet account; deposit: Deposit Wallet (accounts since May 4, 2026); proxy: email or Google account (read only)."
+                  },
+                  "owner": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "address",
+                  "kind",
+                  "owner"
+                ]
+              },
+              "action": {
+                "type": "string"
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PredictionStep"
+                }
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "venue",
+              "network",
+              "account",
+              "wallet",
+              "action",
+              "steps",
+              "note"
+            ]
+          }
+        },
+        "required": [
+          "prepared"
         ]
       },
       "PredictionRequest": {
@@ -35173,6 +35666,11 @@
           "hasSession": {
             "type": "boolean",
             "description": "prepare: true when the caller holds a venue session (no sign-in step is added)."
+          },
+          "wallet": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$",
+            "description": "prepare: trade from the account's Polymarket Safe (signatureType 2) or Deposit Wallet (3); omitted, the account trades for itself (signatureType 0)."
           }
         },
         "required": [
@@ -35383,8 +35881,11 @@
           "signatureType": {
             "type": "integer",
             "enum": [
-              0
-            ]
+              0,
+              2,
+              3
+            ],
+            "description": "0 plain wallet; 2 Safe (maker = Safe, signer = account); 3 Deposit Wallet (maker = signer = wallet, ERC-1271)."
           },
           "timestamp": {
             "type": "string"
@@ -35460,6 +35961,26 @@
             "type": "string",
             "description": "What an operator approval allows (it has no amount)."
           },
+          "safeTx": {
+            "type": "object",
+            "properties": {
+              "safe": {
+                "type": "string"
+              },
+              "nonce": {
+                "type": "string"
+              },
+              "hash": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "safe",
+              "nonce",
+              "hash"
+            ],
+            "description": "A call run by the account's Safe (execTransaction sent by the account): the EIP-712 SafeTx hash at the Safe's nonce."
+          },
           "purpose": {
             "type": "string",
             "enum": [
@@ -35516,6 +36037,39 @@
           "account": {
             "type": "string"
           },
+          "wallet": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "safe",
+                      "proxy",
+                      "deposit"
+                    ],
+                    "description": "safe: Gnosis Safe of a browser-wallet account; deposit: Deposit Wallet (accounts since May 4, 2026); proxy: email or Google account (read only)."
+                  },
+                  "owner": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "address",
+                  "kind",
+                  "owner"
+                ],
+                "description": "The Polymarket wallet that trades (maker)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "quote": {
             "$ref": "#/components/schemas/PredictionQuote"
           },
@@ -35548,6 +36102,7 @@
           "venue",
           "network",
           "account",
+          "wallet",
           "quote",
           "steps",
           "order",
@@ -35778,6 +36333,11 @@
             "type": "string",
             "maxLength": 2200,
             "description": "The sealed venue session from POST /v1/predictions/session (opaque; lives 8 hours; places and cancels orders, moves no funds)."
+          },
+          "wallet": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$",
+            "description": "Only the orders this Polymarket wallet makes."
           }
         },
         "required": [
@@ -35895,6 +36455,16 @@
                       "type": "null"
                     }
                   ]
+                },
+                "maker": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
@@ -35908,7 +36478,8 @@
                 "shares",
                 "filledShares",
                 "orderType",
-                "createdAt"
+                "createdAt",
+                "maker"
               ]
             }
           }
@@ -35985,6 +36556,11 @@
           "conditionId": {
             "type": "string",
             "pattern": "^0x[0-9a-fA-F]{64}$"
+          },
+          "wallet": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$",
+            "description": "Redeem the shares the account's Safe holds."
           }
         },
         "required": [
@@ -36010,6 +36586,38 @@
               },
               "account": {
                 "type": "string"
+              },
+              "wallet": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "address": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "safe",
+                          "proxy",
+                          "deposit"
+                        ],
+                        "description": "safe: Gnosis Safe of a browser-wallet account; deposit: Deposit Wallet (accounts since May 4, 2026); proxy: email or Google account (read only)."
+                      },
+                      "owner": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "address",
+                      "kind",
+                      "owner"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "market": {
                 "type": "object",
@@ -36048,6 +36656,7 @@
               "venue",
               "network",
               "account",
+              "wallet",
               "market",
               "steps",
               "note"

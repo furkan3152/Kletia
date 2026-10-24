@@ -70,7 +70,7 @@ export const SEARCH_PREDICTION_MARKETS_TOOL: KletiaTool = {
 
 export const PLAN_PREDICTION_ORDER_TOOL: KletiaTool = {
   name: "plan_prediction_order",
-  description: `Quote and prepare (never submit) a Polymarket order for the user's own plain wallet on Polygon: max loss, payout if the outcome wins, fees, and the unsigned steps (exact pUSD approvals, any operator approval with its disclosure, the order-book sign-in, the EIP-712 order). The person signs every step in their wallet; Kletia relays the signed order only through POST /v1/predictions/submit. ${RISK} Agent keys need predictions.enabled in their rule book.`,
+  description: `Quote and prepare (never submit) a Polymarket order for the user's own wallet on Polygon (their Polymarket Safe or Deposit Wallet with \`wallet\`, from GET /v1/predictions/wallets; or the plain wallet itself): max loss, payout if the outcome wins, fees, and the unsigned steps (exact pUSD approvals, any operator approval with its disclosure, the order-book sign-in, the EIP-712 order). The person signs every step in their wallet; Kletia relays the signed order only through POST /v1/predictions/submit. ${RISK} Agent keys need predictions.enabled in their rule book.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -79,7 +79,8 @@ export const PLAN_PREDICTION_ORDER_TOOL: KletiaTool = {
       side: { type: "string", enum: ["buy", "sell"] },
       amountUsd: { type: "string", pattern: "^\\d{1,7}(\\.\\d{1,2})?$", description: "buy: USD to spend, fees included." },
       shares: { type: "string", pattern: "^\\d{1,9}(\\.\\d{1,2})?$", description: "sell: shares." },
-      account: { type: "string", maxLength: 200, description: "eip155:137:0x… (a plain wallet, not a smart wallet)." },
+      account: { type: "string", maxLength: 200, description: "eip155:137:0x…: the user's EVM wallet (the signer)." },
+      wallet: { type: "string", pattern: "^0x[0-9a-fA-F]{40}$", description: "The user's Polymarket wallet (Safe or Deposit Wallet) that holds the funds; omitted, the account trades for itself." },
     },
     required: ["marketId", "outcome", "side", "account"],
     additionalProperties: false,
@@ -89,6 +90,7 @@ export const PLAN_PREDICTION_ORDER_TOOL: KletiaTool = {
     const prepared = await preparePrediction({ venue: "polymarket", orderType: "market", ...args }, await callerPolicy(caller));
     return {
       quote: prepared.quote,
+      wallet: prepared.wallet,
       steps: prepared.steps.map((step) => ({ id: step.id, kind: step.kind, title: step.title, ...(step.kind === "transaction" && step.disclosure ? { disclosure: step.disclosure } : {}) })),
       expiresAt: prepared.expiresAt,
       warnings: prepared.warnings,

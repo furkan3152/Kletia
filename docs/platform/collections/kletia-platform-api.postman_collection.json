@@ -6815,13 +6815,45 @@
                   "disabled": true
                 },
                 {
+                  "key": "wallet",
+                  "value": "",
+                  "disabled": true
+                },
+                {
                   "key": "holder",
                   "value": "",
                   "disabled": true
                 }
               ]
             },
-            "description": "By `account` (CAIP-10) or `holder` (a Polymarket Deposit, Proxy or Safe wallet address, read only). Redeemable rows have resolved.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/predictions/positions` · operationId `listPredictionPositions` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "By `account` (CAIP-10), `account` with `wallet` (the account's Polymarket wallet, verified as its own; 422 PREDICTION_WALLET_NOT_FOUND otherwise) or `holder` (any address, read only). Redeemable rows have resolved.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/predictions/positions` · operationId `listPredictionPositions` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "94a3a7a1-3691-5a11-8d78-b41b50529547",
+          "name": "The account's Polymarket wallets (Safe, Deposit Wallet, Proxy)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/wallets?account=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "wallets"
+              ],
+              "query": [
+                {
+                  "key": "account",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Derives each wallet Polymarket's factories give the account (CREATE2) and keeps those with code on Polygon that name the account as owner (Safe getOwners(), Deposit Wallet owner(); a Proxy wallet's clone code). Polymarket's public profile marks the wallet polymarket.com shows; it never adds one. Each wallet has its pUSD and USDC.e balance, whether Kletia trades it, and the wallet moves it builds. 502 RPC_UNAVAILABLE when Polygon cannot be read (never reported as no wallet).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/predictions/wallets` · operationId `listPolymarketWallets` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -6891,7 +6923,7 @@
                 "prepare"
               ]
             },
-            "description": "Kletia never signs: the answer is for the user's own wallet. Exact pUSD approvals (and a USDC.e wrap when pUSD is short), the ERC-1155 operator approval a sell or a negative-risk order needs (disclosed: it has no amount), the venue sign-in unless hasSession, and the EIP-712 order (EOA, signatureType 0). Valid 120 s. Refusals as for quote, plus 422 PREDICTION_ACCOUNT_UNSUPPORTED (smart wallets), PREDICTION_BALANCE_TOO_LOW, PREDICTION_ORDER_TOO_SMALL, PREDICTION_POSITION_NOT_FOUND.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/prepare` · operationId `preparePrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "Kletia never signs: the answer is for the user's own wallet. Exact pUSD approvals (and a USDC.e wrap when pUSD is short), the ERC-1155 operator approval a sell or a negative-risk order needs (disclosed: it has no amount), the venue sign-in unless hasSession, and the EIP-712 order. With `wallet`, the account's Polymarket Safe trades (signatureType 2: maker = Safe, signer = account; its approvals and wrap run through the Safe's execTransaction, sent by the account) or its Deposit Wallet (signatureType 3: the account signs the ERC-7739 TypedDataSign wrapper; its approvals run through Polymarket's relayer, so a missing one is 422 PREDICTION_WALLET_SETUP_REQUIRED). Valid 120 s. Refusals as for quote, plus 422 PREDICTION_ACCOUNT_UNSUPPORTED (a Proxy wallet, or a smart account without `wallet`), PREDICTION_WALLET_NOT_FOUND, PREDICTION_BALANCE_TOO_LOW, PREDICTION_ORDER_TOO_SMALL, PREDICTION_POSITION_NOT_FOUND.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/prepare` · operationId `preparePrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -6961,7 +6993,7 @@
                 "submit"
               ]
             },
-            "description": "The ticket must match the order prepare built and the signature must recover to the account (400 PREDICTION_SIGNATURE_INVALID otherwise); send `session`, or `auth` to sign in on the way. A buy is not sent while Polymarket reports the relay's location as restricted (403 PREDICTION_GEOBLOCKED); a venue refusal is 422 PREDICTION_RELAY_REJECTED with its reason.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/submit` · operationId `submitPrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "The ticket must match the order prepare built and the signature must recover to the account; a wallet order's maker must still be the account's Safe or Deposit Wallet on Polygon, and a Deposit Wallet must accept the packed signature (ERC-1271) (400 PREDICTION_SIGNATURE_INVALID otherwise); send `session`, or `auth` to sign in on the way. A buy is not sent while Polymarket reports the relay's location as restricted (403 PREDICTION_GEOBLOCKED); a venue refusal is 422 PREDICTION_RELAY_REJECTED with its reason.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/submit` · operationId `submitPrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -7068,6 +7100,41 @@
               ]
             },
             "description": "Kletia never signs: the answer is for the user's own wallet. v1 markets: the collateral adapter's redeemPositions (both outcomes, paid in pUSD) after its operator approval; v2 markets: Router.redeem per outcome held. 422 PREDICTION_NOT_RESOLVED before the market resolves.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/redeem` · operationId `redeemPrediction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "78bc62b2-1962-56f5-a3df-0447bcc0de83",
+          "name": "Unsigned moves between the account and its Polymarket wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account\": \"eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D\",\n  \"wallet\": \"\",\n  \"action\": \"deposit\",\n  \"amountUsd\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/predictions/wallet",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "predictions",
+                "wallet"
+              ]
+            },
+            "description": "Kletia never signs: the answer is for the user's own wallet. deposit: a plain pUSD or USDC.e transfer from the account to its verified Polymarket wallet; withdraw: the Safe sends pUSD or USDC.e to its owner (the account) and nowhere else; wrap: the Safe wraps its USDC.e into pUSD (CollateralOnramp). Safe moves are execTransaction calls the account sends (it pays POL gas). A Deposit Wallet's own moves run through Polymarket's relayer (422 PREDICTION_WALLET_SETUP_REQUIRED).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/predictions/wallet` · operationId `preparePolymarketWalletAction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

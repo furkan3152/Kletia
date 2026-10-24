@@ -895,7 +895,7 @@
    }
   },
   "erin": {
-   "about": "EVM history read through Alchemy transfers (no fees reported) and a Solana history that hit the provider's page cap.",
+   "about": "EVM history read through Alchemy transfers (no fees reported) and a Solana history that hit the provider's page cap. Its Polymarket positions sit in its Polymarket Safe (rows recorded from a real Safe's Data API answer).",
    "evm": [
     "0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c"
    ],
@@ -1014,6 +1014,38 @@
       0.0
      ],
      "protocol": "jupiter"
+    }
+   ],
+   "polymarketWallets": [
+    {
+     "address": "0x1DaB69F26C401D587D9e4875e68Dd0D878818719",
+     "kind": "safe"
+    }
+   ],
+   "predictions": [
+    {
+     "title": "UFC 333: Alexander Volkanovski vs. Movsar Evloev (Featherweight, Main Card)",
+     "outcome": "Alexander Volkanovski",
+     "shares": 53.0612,
+     "avgPrice": 0.4899,
+     "currentPrice": 0.475,
+     "costUsd": 26.6629,
+     "valueUsd": 25.204,
+     "pnlUsd": -0.7959,
+     "redeemable": false,
+     "holderKind": "safe"
+    },
+    {
+     "title": "Will MetaMask launch a token in 2025?",
+     "outcome": "Yes",
+     "shares": 50.357,
+     "avgPrice": 0.0198,
+     "currentPrice": 0.0,
+     "costUsd": 0.9999,
+     "valueUsd": 0.0,
+     "pnlUsd": -0.9999,
+     "redeemable": true,
+     "holderKind": "safe"
     }
    ]
   }
@@ -2572,6 +2604,23 @@
     "subject": "predictions",
     "text": [
      "No Polymarket positions"
+    ]
+   }
+  },
+  {
+   "id": "PRD05",
+   "family": "predictions",
+   "wallet": "erin",
+   "ask": "what did I bet on polymarket?",
+   "expect": {
+    "status": "answered",
+    "subject": "predictions",
+    "facts": {
+     "Polymarket positions": "2",
+     "Read from": "your wallet and your Polymarket wallet (Safe)"
+    },
+    "text": [
+     "Polymarket wallet"
     ]
    }
   },

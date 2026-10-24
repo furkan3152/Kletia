@@ -4,8 +4,13 @@
  *
  * - Orders: the Exchange `Order` struct under the domain
  *   { "Polymarket CTF Exchange", "2" | "3", 137, exchange } (docs "Place
- *   Orders"; @polymarket/clob-client-v2 1.2.0 `exchangeOrderBuilderV2.js`),
- *   signed by an EOA (signatureType 0, maker = signer = the account).
+ *   Orders"; @polymarket/clob-client-v2 1.2.0 `exchangeOrderBuilderV2.js`).
+ *   signatureType 0: maker = signer = the account (a plain wallet);
+ *   2: maker = the account's Polymarket Safe, signer = the account, which
+ *   signs the order itself (the exchange checks the Safe is the signer's
+ *   factory Safe); 3: maker = signer = the account's Deposit Wallet (ERC-1271),
+ *   and the account signs the ERC-7739 `TypedDataSign` wrapper of the order,
+ *   which Kletia packs as the SDK's `buildOrderSignature` does.
  * - Sign-in: `ClobAuth` under { "ClobAuthDomain", "1", 137 } (docs "API
  *   Authentication"), which the CLOB exchanges for L2 credentials.
  * - L2 requests: HMAC-SHA256 over timestamp + method + path + body with the
@@ -13,7 +18,8 @@
  *
  * The relay fails closed: the order must be exactly the one prepare built
  * (Kletia's MAC over its typed-data hash, unexpired), and its signature
- * must recover to the account.
+ * must recover to the account (service.ts then reads the wallet's
+ * ownership, and a Deposit Wallet's own ERC-1271 answer, on Polygon).
  */
 import { createHmac } from "node:crypto";
 import {
@@ -25,7 +31,7 @@ import {
   type PolymarketOrderDraft,
   type PredictionTypedData,
 } from "@kletia/core";
-import { getAddress, hashTypedData, isAddress, recoverTypedDataAddress, type Hex } from "viem";
+import { concat, domainSeparator, getAddress, hashStruct, hashTypedData, isAddress, recoverTypedDataAddress, size, toHex, type Hex } from "viem";
 import { PlatformError } from "../errors.js";
 import { platformMac } from "../http/secrets.js";
 
@@ -51,6 +57,53 @@ export function orderTypedData(order: PolymarketOrderDraft): PredictionTypedData
       builder: order.builder,
     },
   };
+}
+
+/** The order struct as the exchange hashes it (EIP-712 `encodeType`). */
+const ORDER_TYPE_STRING = `Order(${POLYMARKET_ORDER_TYPES.Order.map((field) => `${field.type} ${field.name}`).join(",")})`;
+
+/**
+ * What the owner of a Deposit Wallet signs for an order (ERC-7739 nested
+ * typed data, @polymarket/clob-client-v2 `buildOrderSignature`): the order
+ * as `contents` of a `TypedDataSign` under the exchange's domain, naming
+ * the wallet's own domain ("DepositWallet", "1", 137, wallet, salt 0).
+ */
+export function depositOrderTypedData(order: PolymarketOrderDraft): PredictionTypedData {
+  const typed = orderTypedData(order);
+  return {
+    domain: typed.domain,
+    types: {
+      TypedDataSign: [
+        { name: "contents", type: "Order" },
+        { name: "name", type: "string" },
+        { name: "version", type: "string" },
+        { name: "chainId", type: "uint256" },
+        { name: "verifyingContract", type: "address" },
+        { name: "salt", type: "bytes32" },
+      ],
+      Order: POLYMARKET_ORDER_TYPES.Order,
+    },
+    primaryType: "TypedDataSign",
+    message: { contents: typed.message as Readonly<Record<string, string | number>>, name: "DepositWallet", version: "1", chainId: POLYMARKET_POLYGON.chainId, verifyingContract: order.signer, salt: BYTES32_ZERO },
+  };
+}
+
+/** What the wallet signs for this order: the order itself, or its TypedDataSign wrapper for a Deposit Wallet. */
+export function signedTypedData(order: PolymarketOrderDraft): PredictionTypedData {
+  return order.signatureType === 3 ? depositOrderTypedData(order) : orderTypedData(order);
+}
+
+/**
+ * A Deposit Wallet order's signature as the exchange checks it (ERC-7739
+ * TypedDataSign): the owner's 65 bytes, the exchange's domain separator,
+ * the order's struct hash, the order type string and its length (2 bytes).
+ */
+export function wrapDepositSignature(order: PolymarketOrderDraft, ownerSignature: Hex): Hex {
+  const typed = orderTypedData(order);
+  const separator = domainSeparator({ domain: { ...typed.domain, verifyingContract: order.exchange as Hex } });
+  const contents = hashStruct({ data: typed.message as Record<string, unknown>, primaryType: "Order", types: { Order: [...POLYMARKET_ORDER_TYPES.Order] } });
+  const typeString = toHex(ORDER_TYPE_STRING);
+  return concat([ownerSignature, separator, contents, typeString, toHex(size(typeString), { size: 2 })]);
 }
 
 type ViemTypedData = Parameters<typeof hashTypedData>[0];
@@ -100,7 +153,7 @@ export function readOrderDraft(input: unknown): PolymarketOrderDraft {
   for (const key of ["maker", "signer"] as const) if (typeof input[key] !== "string" || !ADDRESS.test(input[key] as string)) throw invalid(`order.${key} must be an address.`);
   for (const key of ["metadata", "builder"] as const) if (typeof input[key] !== "string" || !BYTES32.test(input[key] as string)) throw invalid(`order.${key} must be 32 bytes.`);
   if (input.side !== 0 && input.side !== 1) throw invalid("order.side must be 0 (buy) or 1 (sell).");
-  if (input.signatureType !== 0) throw invalid("Kletia relays EOA orders only (signatureType 0).");
+  if (input.signatureType !== 0 && input.signatureType !== 2 && input.signatureType !== 3) throw invalid("Kletia relays plain-wallet (0), Safe (2) and Deposit Wallet (3) orders only.");
   if (input.orderType !== "FAK" && input.orderType !== "GTC") throw invalid("order.orderType must be FAK or GTC.");
   const exchange = typeof input.exchange === "string" ? Object.keys(EXCHANGES).find((address) => address.toLowerCase() === (input.exchange as string).toLowerCase()) : undefined;
   if (!exchange || EXCHANGES[exchange] !== input.domainVersion) throw invalid("order.exchange and order.domainVersion must be a pinned Polymarket exchange.");
@@ -112,7 +165,7 @@ export function readOrderDraft(input: unknown): PolymarketOrderDraft {
     makerAmount: input.makerAmount as string,
     takerAmount: input.takerAmount as string,
     side: input.side,
-    signatureType: 0,
+    signatureType: input.signatureType,
     timestamp: input.timestamp as string,
     metadata: (input.metadata as string).toLowerCase(),
     builder: (input.builder as string).toLowerCase(),
@@ -123,28 +176,44 @@ export function readOrderDraft(input: unknown): PolymarketOrderDraft {
   };
 }
 
+export interface VerifiedOrder {
+  readonly orderHash: Hex;
+  /** The signature the venue checks: the account's own, or a Deposit Wallet's ERC-7739 wrapper of it. */
+  readonly signature: Hex;
+}
+
+/** The roles an order's signature type gives the account: maker and signer both, signer of its Safe, or owner of its Deposit Wallet. */
+function rolesMatch(order: PolymarketOrderDraft, account: string): boolean {
+  const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  if (order.signatureType === 0) return same(order.maker, account) && same(order.signer, account);
+  if (order.signatureType === 2) return same(order.signer, account) && !same(order.maker, account);
+  return same(order.maker, order.signer) && !same(order.maker, account);
+}
+
 /**
  * The relay's guard: the ticket matches this exact order (so prepare built
- * and checked it), it has not expired, maker and signer are the account, and
- * the signature recovers to the account. Throws PREDICTION_SIGNATURE_INVALID.
+ * and checked it), it has not expired, the order's maker and signer are the
+ * account's roles for its signature type, and the signature recovers to the
+ * account. Throws PREDICTION_SIGNATURE_INVALID. The wallet's ownership is
+ * read on Polygon by the caller.
  */
-export async function verifySignedOrder(order: PolymarketOrderDraft, ticket: unknown, signature: unknown, account: string, nowMs: number): Promise<Hex> {
+export async function verifySignedOrder(order: PolymarketOrderDraft, ticket: unknown, signature: unknown, account: string, nowMs: number): Promise<VerifiedOrder> {
   if (typeof ticket !== "string" || !/^\d{10}\.[\w-]{20,64}$/u.test(ticket)) throw invalid("Send the ticket exactly as prepare returned it.");
   const expiresAt = Number(ticket.split(".")[0]);
   if (nowMs / 1000 > expiresAt) throw invalid("The prepared order expired; prepare it again.");
   const expected = orderTicket(order, expiresAt);
   if (expected === null) throw new PlatformError("PREDICTION_SESSION_UNAVAILABLE", "This server cannot check prepared orders (no platform secret), so it relays none.", 503);
   if (expected !== ticket) throw invalid("The order differs from the one prepare built (or the ticket is not Kletia's).");
-  if (order.maker.toLowerCase() !== account.toLowerCase() || order.signer.toLowerCase() !== account.toLowerCase()) throw invalid("The order's maker and signer must be the account that prepared it.");
+  if (!rolesMatch(order, account)) throw invalid("The order's maker and signer are not the account (or its Polymarket wallet) that prepared it.");
   if (typeof signature !== "string" || !SIGNATURE.test(signature)) throw invalid("Send the 65-byte signature (0x + 130 hex characters).");
   let signer: string;
   try {
-    signer = await recoverTypedDataAddress({ ...viemTypedData(orderTypedData(order)), signature: signature as Hex });
+    signer = await recoverTypedDataAddress({ ...viemTypedData(signedTypedData(order)), signature: signature as Hex });
   } catch {
     throw invalid("The signature does not recover to an address.");
   }
   if (signer.toLowerCase() !== account.toLowerCase()) throw invalid("The signature is not the account's.");
-  return orderHash(order);
+  return { orderHash: orderHash(order), signature: order.signatureType === 3 ? wrapDepositSignature(order, signature as Hex) : (signature as Hex) };
 }
 
 /** A fresh order salt: random and within Number.MAX_SAFE_INTEGER (the CLOB body carries it as a JSON number). */

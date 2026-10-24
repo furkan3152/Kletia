@@ -16,7 +16,7 @@ import {
 } from "@kletia/core";
 import { DATA_CACHE_TTL_MS, HISTORY_LIMITS, MAX_PRICE_SYMBOLS, TRANSACTION_LIMITS, WALLET_LIMITS } from "../data/index.js";
 import { DATA_READS_PER_MINUTE } from "./limits.js";
-import { arrayOf, bool, errors, int, jsonBody, KEY_REQUIRED, num, obj, ok, ref, REQUEST_ID_HEADER, str, type JsonObject } from "./openapiKit.js";
+import { arrayOf, bool, errors, int, jsonBody, KEY_REQUIRED, nullable, num, obj, ok, ref, REQUEST_ID_HEADER, str, type JsonObject } from "./openapiKit.js";
 
 const TAGS = ["Data"];
 const ISO = str({ format: "date-time" });
@@ -162,9 +162,16 @@ export function dataSchemas(): JsonObject {
         orders: { ...ref("DataSection"), description: "Open native orders (CoW Protocol, Jupiter Trigger and Recurring)." },
         automations: { ...ref("DataSection"), description: "The caller's automations (an API key's or the desk wallet's)." },
         agentSpend: { ...ref("DataSection"), description: "24 h / 7 d USD spend of the agent keys below the calling API key." },
-        predictions: { ...ref("DataSection"), description: "Polymarket positions of the set's EVM wallets on Polygon (shares, average and current price, value, cost, PnL, redeemable) with the account." },
+        predictions: { ...ref("DataSection"), description: "Polymarket positions of the set's EVM wallets on Polygon and of the Polymarket wallet found for each (Safe, Deposit Wallet or Proxy; shares, average and current price, value, cost, PnL, redeemable) with the account and `holderKind` (account, safe, deposit, proxy)." },
+        predictionWallets: arrayOf(
+          obj(
+            { account: str(), address: str(), kind: str({ enum: ["safe", "proxy", "deposit"] }), owner: str(), tradable: bool(), onProfile: bool(), balances: nullable(obj({ pusd: str(), usdce: str() }, ["pusd", "usdce"])) },
+            ["account", "address", "kind", "owner", "tradable", "onProfile", "balances"],
+          ),
+          { description: "The Polymarket wallets found for the set's EVM wallets (derived, then checked on Polygon) whose positions `predictions` includes." },
+        ),
       },
-      ["perps", "orders", "automations", "agentSpend", "predictions"],
+      ["perps", "orders", "automations", "agentSpend", "predictions", "predictionWallets"],
     ),
     DataTxLeg: obj(
       {

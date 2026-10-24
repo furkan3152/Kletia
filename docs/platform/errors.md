@@ -137,8 +137,11 @@ relay. See [perps.md](perps.md).
 key's rule book: agent keys need `predictions.enabled`),
 `PREDICTION_STAKE_TOO_HIGH` (above `predictions.maxStakeUsd`),
 `PREDICTION_MARKET_CLOSED`, `PREDICTION_OUTCOME_UNKNOWN`,
-`PREDICTION_ORDER_TOO_SMALL`, `PREDICTION_ACCOUNT_UNSUPPORTED` (smart-contract
-wallets trade only through Polymarket), `PREDICTION_BALANCE_TOO_LOW` and
+`PREDICTION_ORDER_TOO_SMALL`, `PREDICTION_ACCOUNT_UNSUPPORTED` (a Proxy
+wallet, or a smart account that names no Polymarket wallet),
+`PREDICTION_WALLET_NOT_FOUND` (not the account's verified Safe or Deposit
+Wallet), `PREDICTION_WALLET_SETUP_REQUIRED` (not deployed, or a Deposit
+Wallet step only Polymarket's relayer runs), `PREDICTION_BALANCE_TOO_LOW` and
 `PREDICTION_PRICE_UNAVAILABLE` (an empty, unreadable or stale book: it never
 guesses). The relay answers `PREDICTION_SIGNATURE_INVALID` (not the order
 prepare built, expired, or not the account's signature),
@@ -468,7 +471,9 @@ funds where they are, or plan the rest again.
 | <a id="error-PREDICTION_VENUE_DISABLED"></a>`PREDICTION_VENUE_DISABLED` | 422 | no | Prediction venue not added | Kletia builds nothing for this venue (GET /v1/predictions/markets lists venues with disabledReason). Use Polymarket. |
 | <a id="error-PREDICTION_STAKE_TOO_HIGH"></a>`PREDICTION_STAKE_TOO_HIGH` | 422 | no | Stake above the cap | Lower the stake to the rule book's predictions.maxStakeUsd (error message), or ask a project key to raise it. |
 | <a id="error-PREDICTION_ORDER_TOO_SMALL"></a>`PREDICTION_ORDER_TOO_SMALL` | 422 | no | Order below the venue minimum | The order buys or sells fewer shares than the market's minimum order size; raise the amount. |
-| <a id="error-PREDICTION_ACCOUNT_UNSUPPORTED"></a>`PREDICTION_ACCOUNT_UNSUPPORTED` | 422 | no | Account kind not supported for trading | Kletia trades Polymarket only from a plain wallet (EOA) on Polygon that signs its own orders. Smart wallets (Polymarket Deposit, Proxy and Safe wallets) can read positions only. |
+| <a id="error-PREDICTION_ACCOUNT_UNSUPPORTED"></a>`PREDICTION_ACCOUNT_UNSUPPORTED` | 422 | no | Account kind not supported for trading | Trade from your Polymarket wallet: send it as `wallet` (GET /v1/predictions/wallets). Kletia trades a Safe or Deposit Wallet your EVM wallet signs for, or a plain wallet; Proxy wallets are read only. |
+| <a id="error-PREDICTION_WALLET_NOT_FOUND"></a>`PREDICTION_WALLET_NOT_FOUND` | 422 | no | Not this account's Polymarket wallet | Kletia could not verify this wallet on Polygon as the account's (derived address, code, owner). Use an address GET /v1/predictions/wallets lists for the account. |
+| <a id="error-PREDICTION_WALLET_SETUP_REQUIRED"></a>`PREDICTION_WALLET_SETUP_REQUIRED` | 422 | no | Polymarket wallet needs a step on polymarket.com | Only Polymarket's own app can do this step (deploying the wallet, or a Deposit Wallet's approvals via its relayer). Open polymarket.com once with the same EVM wallet, then retry. |
 | <a id="error-PREDICTION_BALANCE_TOO_LOW"></a>`PREDICTION_BALANCE_TOO_LOW` | 422 | no | Not enough pUSD or shares | Polymarket settles in pUSD on Polygon: hold enough pUSD (or USDC.e, which prepare wraps), or the shares you sell. The message lists the balances read. |
 | <a id="error-PREDICTION_POSITION_NOT_FOUND"></a>`PREDICTION_POSITION_NOT_FOUND` | 422 | no | No such position | The account holds no shares of that outcome. Read GET /v1/predictions/positions. |
 | <a id="error-PREDICTION_NOT_RESOLVED"></a>`PREDICTION_NOT_RESOLVED` | 422 | no | Market not resolved | Shares redeem only after the market resolves on-chain. Sell them instead, or wait for the resolution. |

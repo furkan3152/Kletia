@@ -567,6 +567,9 @@ async function automations(query: AssistantQuery, ctx: ExecContext): Promise<Exe
   });
 }
 
+/** Polymarket wallet kinds as answers name them. */
+const WALLET_KIND_NAMES = { safe: "Safe", deposit: "Deposit Wallet", proxy: "Proxy wallet" } as const;
+
 async function predictions(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
   const { extras } = await extrasOf(ctx);
   const facts = new FactList();
@@ -576,7 +579,13 @@ async function predictions(query: AssistantQuery, ctx: ExecContext): Promise<Exe
   if (ctx.set.evm.length === 0) return result("answered", "Prediction markets (Polymarket) are read for EVM wallets, and none is in this set.", facts, { gaps });
   if (section.asOf === null) return result("unknown", "Your prediction-market positions could not be read right now.", facts, { gaps });
   const rows = section.rows;
-  if (rows.length === 0) return result(gaps.length ? "partial" : "answered", "No Polymarket positions were found in your wallets. Shares bought through a Polymarket account wallet are held by that wallet's address, which the Predict view reads.", facts, { gaps, followUps: ["Show my transactions this month"] });
+  const wallets = extras.predictionWallets;
+  const kinds = [...new Set(wallets.map((wallet) => WALLET_KIND_NAMES[wallet.kind]))].join(" and ");
+  const readFrom = wallets.length > 0 ? facts.add("Read from", `your wallet${ctx.set.evm.length === 1 ? "" : "s"} and your Polymarket wallet${wallets.length === 1 ? "" : "s"} (${kinds})`, null, "text", "adapter", section.asOf) : null;
+  if (rows.length === 0) {
+    const none = readFrom ? `No Polymarket positions were found in ${readFrom.value}.` : "No Polymarket positions were found in your wallets, and no Polymarket wallet (Safe, Deposit Wallet or Proxy) was found for them.";
+    return result(gaps.length ? "partial" : "answered", none, facts, { gaps, followUps: ["Show my transactions this month"] });
+  }
   const round = (value: number) => Math.round(value * 100) / 100;
   const cost = round(rows.reduce((sum, row) => sum + row.costUsd, 0));
   const value = round(rows.reduce((sum, row) => sum + row.valueUsd, 0));
@@ -588,11 +597,12 @@ async function predictions(query: AssistantQuery, ctx: ExecContext): Promise<Exe
   const redeemable = rows.filter((row) => row.redeemable).length;
   const redeemFact = redeemable > 0 ? facts.add("Resolved, ready to redeem", String(redeemable), redeemable, "count", "adapter", section.asOf) : null;
   const sorted = [...rows].sort((a, b) => b.costUsd - a.costUsd);
-  return result(gaps.length ? "partial" : "answered", `You hold ${count.value} Polymarket position${rows.length === 1 ? "" : "s"}: ${costFact.value} staked, worth ${valueFact.value} at current prices (${pnlFact.value}).${redeemFact ? ` ${redeemFact.value} ${redeemable === 1 ? "has" : "have"} resolved and can be redeemed in the Predict view.` : ""} Each market is in the table.`, facts, {
+  const held = readFrom ? ` (read from ${readFrom.value})` : "";
+  return result(gaps.length ? "partial" : "answered", `You hold ${count.value} Polymarket position${rows.length === 1 ? "" : "s"}${held}: ${costFact.value} staked, worth ${valueFact.value} at current prices (${pnlFact.value}).${redeemFact ? ` ${redeemFact.value} ${redeemable === 1 ? "has" : "have"} resolved and can be redeemed in the Predict view.` : ""} Each market is in the table.`, facts, {
     gaps,
     table: {
-      columns: [{ key: "market", label: "Market" }, { key: "outcome", label: "Outcome" }, { key: "cost", label: "Cost", numeric: true }, { key: "value", label: "Value", numeric: true }, { key: "pnl", label: "PnL", numeric: true }],
-      rows: sorted.slice(0, 12).map((row) => ({ market: safeText(row.title), outcome: safeText(row.outcome, 24), cost: usd(row.costUsd), value: usd(row.valueUsd), pnl: signedUsd(round(row.pnlUsd)) })),
+      columns: [{ key: "market", label: "Market" }, { key: "outcome", label: "Outcome" }, { key: "held", label: "Held by" }, { key: "cost", label: "Cost", numeric: true }, { key: "value", label: "Value", numeric: true }, { key: "pnl", label: "PnL", numeric: true }],
+      rows: sorted.slice(0, 12).map((row) => ({ market: safeText(row.title), outcome: safeText(row.outcome, 24), held: row.holderKind === "account" ? "Your wallet" : `Polymarket ${WALLET_KIND_NAMES[row.holderKind]}`, cost: usd(row.costUsd), value: usd(row.valueUsd), pnl: signedUsd(round(row.pnlUsd)) })),
     },
     followUps: [query.aggregate === "total" ? "What did I bet on Polymarket?" : "What's my exposure?", "Show my transactions this month"],
   });

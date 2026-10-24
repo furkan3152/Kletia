@@ -2,8 +2,8 @@
  * /v1/predictions over HTTP on recorded Polymarket data: markets, one
  * market, positions, quote, prepare and the relay's refusals, the Rule Book
  * (agent keys refused until their rule book sets predictions.enabled, the
- * chain's stake cap), the MCP tools, the hand-off through ?clarify=true and
- * the OpenAPI entries.
+ * chain's stake cap), the account's Polymarket wallets and wallet moves, the
+ * MCP tools, the hand-off through ?clarify=true and the OpenAPI entries.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -57,6 +57,16 @@ describe("/v1/predictions", () => {
     assertError(await call(server, "GET", "/predictions/positions"), 400, "INVALID_REQUEST");
   });
 
+  it("finds the account's Polymarket wallets and refuses moves for a wallet that is not its own", async () => {
+    const wallets = await call<{ account: string; wallets: unknown[]; plainWallet: boolean; profile: { status: string } }>(server, "GET", `/predictions/wallets?account=${encodeURIComponent(ACCOUNT)}`);
+    assert.equal(wallets.status, 200, JSON.stringify(wallets.body));
+    assert.deepEqual([wallets.body.wallets.length, wallets.body.plainWallet, wallets.body.profile.status], [0, true, "none"], "no wallet is ever guessed");
+    assertError(await call(server, "GET", "/predictions/wallets"), 400, "ACCOUNT_INVALID");
+    const move = await call(server, "POST", "/predictions/wallet", { body: { account: ACCOUNT, wallet: "0x1dab69f26c401d587d9e4875e68dd0d878818719", action: "withdraw", amountUsd: "5" } });
+    assertError(move, 422, "PREDICTION_WALLET_NOT_FOUND");
+    assertError(await call(server, "POST", "/predictions/prepare", { body: { ...BUY, wallet: "0x1dab69f26c401d587d9e4875e68dd0d878818719" } }), 422, "PREDICTION_WALLET_NOT_FOUND");
+  });
+
   it("quotes and prepares without a key; the relay refuses what prepare did not build", async () => {
     const quote = await call<{ quote: { maxLossUsd: number } }>(server, "POST", "/predictions/quote", { body: BUY });
     assert.equal(quote.status, 200, JSON.stringify(quote.body));
@@ -102,7 +112,7 @@ describe("/v1/predictions", () => {
     const routes = [
       ["/v1/predictions/markets", "get"], ["/v1/predictions/markets/{id}", "get"], ["/v1/predictions/positions", "get"], ["/v1/predictions/quote", "post"],
       ["/v1/predictions/prepare", "post"], ["/v1/predictions/session", "post"], ["/v1/predictions/submit", "post"], ["/v1/predictions/orders", "post"],
-      ["/v1/predictions/orders/cancel", "post"], ["/v1/predictions/redeem", "post"],
+      ["/v1/predictions/orders/cancel", "post"], ["/v1/predictions/redeem", "post"], ["/v1/predictions/wallets", "get"], ["/v1/predictions/wallet", "post"],
     ] as const;
     for (const [path, method] of routes) assert.ok(reply.body.paths[path]?.[method], `${method} ${path}`);
   });

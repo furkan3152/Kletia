@@ -1,0 +1,154 @@
+{
+ "about": "Real EOA <-> Polymarket wallet pairs read on Polygon (read-only eth_call / eth_getCode at block 96112852 via polygon-bor-rpc.publicnode.com on 2026-10-24T20:44:09.454Z) and Polymarket's Gamma /public-profile; order vectors from @polymarket/clob-client-v2 1.2.0 ExchangeOrderBuilderV2/V3 (buildOrderHash, buildOrderSignature with a throwaway signer). Safe pairs from the Data API trades feed (proxyWallet -> getOwners), Deposit Wallet pairs (owner()), the Proxy pair from RelayHub TransactionRelayed logs (from -> derived proxy).",
+ "pairs": [
+  {
+   "kind": "safe",
+   "eoa": "0xF6d143B21Ce3b07DAE3AE0fa23B65e0449e21dC0",
+   "wallet": "0x1DaB69F26C401D587D9e4875e68Dd0D878818719",
+   "code": "0x6080604052600080546001600160a01b0316813563530ca43760e11b1415602857808252602082f35b3682833781823684845af490503d82833e806041573d82fd5b503d81f3fea264697066735822122015938e3bf2c49f5df5c1b7f9569fa85cc5d6f3074bb258a2dc0c7e299bc9e33664736f6c63430008040033",
+   "onchain": {
+    "exchangeGetSafeWalletAddress": "0x1DaB69F26C401D587D9e4875e68Dd0D878818719",
+    "exchangeGetProxyWalletAddress": "0xbD5bcEf29250f4668a7f63fc544F013516658672",
+    "safeFactoryComputeProxyAddress": "0x1DaB69F26C401D587D9e4875e68Dd0D878818719"
+   },
+   "balances": {
+    "pusd": "82344286",
+    "usdce": "2550"
+   },
+   "safe": {
+    "owners": [
+     "0xF6d143B21Ce3b07DAE3AE0fa23B65e0449e21dC0"
+    ],
+    "threshold": "1",
+    "version": "1.3.0",
+    "nonce": "16",
+    "getTransactionHash": {
+     "to": "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB",
+     "value": "0",
+     "data": "0x095ea7b3000000000000000000000000e111180000d2663c0091e4f400237545b87b996b0000000000000000000000000000000000000000000000000000000001312d00",
+     "operation": 0,
+     "nonce": "16",
+     "hash": "0x4575f12dd4302e37c077563f6d77c8a2dbb76e418f07a33948a92aee0ed59d5c"
+    }
+   },
+   "profileProxyWallet": "0x1dab69f26c401d587d9e4875e68dd0d878818719"
+  },
+  {
+   "kind": "safe",
+   "eoa": "0xB4A92C33bdADd8f100539c1D0B523b6454479CC9",
+   "wallet": "0x59bA2C04f3E91771688a35f4ab0e50F6CAF1f6a2",
+   "code": "0x6080604052600080546001600160a01b0316813563530ca43760e11b1415602857808252602082f35b3682833781823684845af490503d82833e806041573d82fd5b503d81f3fea264697066735822122015938e3bf2c49f5df5c1b7f9569fa85cc5d6f3074bb258a2dc0c7e299bc9e33664736f6c63430008040033",
+   "onchain": {
+    "exchangeGetSafeWalletAddress": "0x59bA2C04f3E91771688a35f4ab0e50F6CAF1f6a2",
+    "exchangeGetProxyWalletAddress": "0x8fA844c76cae2fEbe0f475003345a6687C77F820",
+    "safeFactoryComputeProxyAddress": "0x59bA2C04f3E91771688a35f4ab0e50F6CAF1f6a2"
+   },
+   "balances": {
+    "pusd": "58940930",
+    "usdce": "0"
+   },
+   "safe": {
+    "owners": [
+     "0xB4A92C33bdADd8f100539c1D0B523b6454479CC9"
+    ],
+    "threshold": "1",
+    "version": "1.3.0",
+    "nonce": "503",
+    "getTransactionHash": {
+     "to": "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB",
+     "value": "0",
+     "data": "0x095ea7b3000000000000000000000000e111180000d2663c0091e4f400237545b87b996b0000000000000000000000000000000000000000000000000000000001312d00",
+     "operation": 0,
+     "nonce": "503",
+     "hash": "0x02865c15422cf4894bb14d6d5168a35830a7bfa6595a9c3dfd5d37b82cde1e21"
+    }
+   },
+   "profileProxyWallet": "0x59ba2c04f3e91771688a35f4ab0e50f6caf1f6a2"
+  },
+  {
+   "kind": "deposit",
+   "eoa": "0xf8EfC72380dBbE184E39AA5b1F3595DB6f0C0789",
+   "wallet": "0x2a4E00E43232136eD816a5439A3AE9c4CA4A653B",
+   "code": "0x363d3d373d3d363d602036600436635c60da1b60e01b36527fa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50545afa5036515af43d6000803e604d573d6000fd5b3d6000f300000000000000000000000000000000000fb5c9adea0298d729a0cb3823cc07000000000000000000000000f8efc72380dbbe184e39aa5b1f3595db6f0c0789",
+   "onchain": {
+    "exchangeGetSafeWalletAddress": "0x4D48AE6B73b1b0Ea2C4e3d0158B404eb12413EBD",
+    "exchangeGetProxyWalletAddress": "0x18cb3a4434024c5a6c1318707b40FFE3Be4C2503",
+    "safeFactoryComputeProxyAddress": "0x4D48AE6B73b1b0Ea2C4e3d0158B404eb12413EBD"
+   },
+   "balances": {
+    "pusd": "43382366",
+    "usdce": "0"
+   },
+   "owner": "0xf8EfC72380dBbE184E39AA5b1F3595DB6f0C0789",
+   "profileProxyWallet": "0x2a4e00e43232136ed816a5439a3ae9c4ca4a653b"
+  },
+  {
+   "kind": "deposit",
+   "eoa": "0x8b949Db1f68A431290C49B483cb9365b08358988",
+   "wallet": "0x005ED998fCb786679Eb8Bfd0d20c15C0903D6D8E",
+   "code": "0x363d3d373d3d363d7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc545af43d6000803e6038573d6000fd5b3d6000f300000000000000000000000000000000000fb5c9adea0298d729a0cb3823cc070000000000000000000000008b949db1f68a431290c49b483cb9365b08358988",
+   "onchain": {
+    "exchangeGetSafeWalletAddress": "0x0Ba99B4DE0628aF10C72044730C5b5dE3DeC74f6",
+    "exchangeGetProxyWalletAddress": "0xe8F8c86987641148FCa3AeD0ac1CE30A0EF3bCA8",
+    "safeFactoryComputeProxyAddress": "0x0Ba99B4DE0628aF10C72044730C5b5dE3DeC74f6"
+   },
+   "balances": {
+    "pusd": "1735919027",
+    "usdce": "141965593"
+   },
+   "owner": "0x8b949Db1f68A431290C49B483cb9365b08358988",
+   "profileProxyWallet": "0x005ed998fcb786679eb8bfd0d20c15c0903d6d8e"
+  },
+  {
+   "kind": "proxy",
+   "eoa": "0xccBc0A9ec99e922984910ecA97d3128D371D0c30",
+   "wallet": "0x48Cd30F5939c7F192A6777F1Db222dF1af928D30",
+   "code": "0x363d3d373d3d3d363d7344e999d5c2f66ef0861317f9a4805ac2e90aeb4f5af43d82803e903d91602b57fd5bf3",
+   "onchain": {
+    "exchangeGetSafeWalletAddress": "0xeB04B10deA0606b9DA39044EC57EFB6Fe8E43F6A",
+    "exchangeGetProxyWalletAddress": "0x48Cd30F5939c7F192A6777F1Db222dF1af928D30",
+    "safeFactoryComputeProxyAddress": "0xeB04B10deA0606b9DA39044EC57EFB6Fe8E43F6A"
+   },
+   "balances": {
+    "pusd": "860401",
+    "usdce": "2904"
+   },
+   "profileProxyWallet": "0x48cd30f5939c7f192a6777f1db222df1af928d30"
+  }
+ ],
+ "orders": {
+  "base": {
+   "salt": "479249096354",
+   "tokenId": "59252515735652674747158950210016502214756531287333895140318848923768750410355",
+   "makerAmount": "5200000",
+   "takerAmount": "10000000",
+   "side": 0,
+   "timestamp": "1792829019509"
+  },
+  "safe": {
+   "maker": "0x1DaB69F26C401D587D9e4875e68Dd0D878818719",
+   "signer": "0xF6d143B21Ce3b07DAE3AE0fa23B65e0449e21dC0",
+   "hashes": {
+    "ctfExchange": "0x4fb3b1f0dff7003eb32a68c6d5d85815a6a7a20b433af5cb98f19218bf3f5481",
+    "negRiskCtfExchange": "0xa4bdc325e0f6f85bda1b66eb0103e6492a8e38af0ab2f0600102539b3e59cafd",
+    "exchangeV3": "0x46690ab3fe48d0ad79ce0054e98415882e8dc1d500a2a1e1fddb5773dc9d65ae"
+   }
+  },
+  "deposit": {
+   "wallet": "0x2a4E00E43232136eD816a5439A3AE9c4CA4A653B",
+   "throwawaySigner": "0x2568F2528A896F01aC2225CB921ecD5007A73B9f",
+   "ctfExchange": {
+    "orderHash": "0xd69fdf08a27a34577b40a009c04d76c5c85a97c9df15348915533f644d46e151",
+    "innerSignature": "0x774183492c70ff697496f6fa7e49dbb94bda152a7af7601e56a8433be41a594b65e00c6feb94cd3821a2179664d7fe5b0d2a940a0ca68f8caddf521c089639a61c",
+    "signature": "0x774183492c70ff697496f6fa7e49dbb94bda152a7af7601e56a8433be41a594b65e00c6feb94cd3821a2179664d7fe5b0d2a940a0ca68f8caddf521c089639a61c3264e159346253e26a64e00b69032db0e7d32f94628de3e6eecb50304d7af3d21682249f29685ba43945b0809b4e190c94bf8eb119fcacbb59a06c77bc367ebb4f726465722875696e743235362073616c742c61646472657373206d616b65722c61646472657373207369676e65722c75696e7432353620746f6b656e49642c75696e74323536206d616b6572416d6f756e742c75696e743235362074616b6572416d6f756e742c75696e743820736964652c75696e7438207369676e6174757265547970652c75696e743235362074696d657374616d702c62797465733332206d657461646174612c62797465733332206275696c6465722900ba",
+    "signedDigest": "0x6e6281151d4072f69c433fac7cbbc3ce079cb85533b5fed42566a81387d51669"
+   },
+   "exchangeV3": {
+    "orderHash": "0xe325430e3ac976007b5f2ea85f014f94dd911208275c0194610651b5dca5ff97",
+    "innerSignature": "0xba231007b01dfab63b3a3d29dbd50ca19bbddcaf14ed21710bc8d359b6f977280240a16bfca61fa3af25ce3b9e075206da047cf6c9cc926fc3e8fae757fdc66d1c",
+    "signature": "0xba231007b01dfab63b3a3d29dbd50ca19bbddcaf14ed21710bc8d359b6f977280240a16bfca61fa3af25ce3b9e075206da047cf6c9cc926fc3e8fae757fdc66d1c466c63910185bbd55e8679264200c4e0abdcbb0c6264eb3d41d13326022e095b1682249f29685ba43945b0809b4e190c94bf8eb119fcacbb59a06c77bc367ebb4f726465722875696e743235362073616c742c61646472657373206d616b65722c61646472657373207369676e65722c75696e7432353620746f6b656e49642c75696e74323536206d616b6572416d6f756e742c75696e743235362074616b6572416d6f756e742c75696e743820736964652c75696e7438207369676e6174757265547970652c75696e743235362074696d657374616d702c62797465733332206d657461646174612c62797465733332206275696c6465722900ba",
+    "signedDigest": "0x8a0461f2e48a16048901ea052958d20dbcdb52f3a9ff1fddb0ad490a61af7d10"
+   }
+  }
+ }
+}

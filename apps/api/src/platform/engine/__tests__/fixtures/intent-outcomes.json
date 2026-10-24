@@ -9638,6 +9638,102 @@
     "VEN022": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK001": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK002": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK003": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK004": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK005": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK006": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK007": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK008": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK009": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK010": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK011": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK012": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK013": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK018": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK019": {
+     "o": "asked",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
+    },
+    "ASK020": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK021": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK023": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK024": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     }
    },
    "plan": {
@@ -11374,6 +11470,102 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "VEN022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK001": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK002": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK003": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK004": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK005": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK006": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK007": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK008": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK009": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK010": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK011": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK012": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK013": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK018": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK019": {
+     "o": "asked",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
+    },
+    "ASK020": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK021": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK023": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK024": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     }
@@ -13114,6 +13306,102 @@
     "VEN022": {
      "o": "refused",
      "d": "VENUE_UNKNOWN"
+    },
+    "ASK001": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK002": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK003": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK004": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK005": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK006": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK007": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK008": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK009": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK010": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK011": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK012": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK013": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK018": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK019": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK020": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK021": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK023": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ASK024": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     }
    }
   }

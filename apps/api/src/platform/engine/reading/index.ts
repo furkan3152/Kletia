@@ -99,7 +99,7 @@ export function readingConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Read
 
 /* ------------------------------------------------------------ breaker, limits, cache */
 
-class Breaker {
+export class Breaker {
   private events: { at: number; failed: boolean }[] = [];
   private openUntil = 0;
   constructor(private readonly now: () => number) {}
@@ -122,7 +122,7 @@ class Breaker {
   }
 }
 
-class Limiter {
+export class Limiter {
   private readonly hits = new Map<string, number[]>();
   constructor(private readonly now: () => number) {}
   take(key: string, limit: number, windowMs: number): boolean {

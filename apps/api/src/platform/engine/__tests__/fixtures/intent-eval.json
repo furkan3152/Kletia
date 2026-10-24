@@ -4771,6 +4771,319 @@
     "round9",
     "adversarial"
    ]
+  },
+  {
+   "id": "ASK001",
+   "family": "refuse",
+   "say": "how much did I spend on fees last month?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK002",
+   "family": "refuse",
+   "say": "what's my biggest position?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK003",
+   "family": "refuse",
+   "say": "did I bridge to Solana this week?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK004",
+   "family": "refuse",
+   "say": "how is my Aave loan doing?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK005",
+   "family": "refuse",
+   "say": "what did I earn from staking?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK006",
+   "family": "refuse",
+   "say": "which of my assets lost the most?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK007",
+   "family": "refuse",
+   "say": "show my trades on base",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK008",
+   "family": "refuse",
+   "say": "how much ETH do I have",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK009",
+   "family": "refuse",
+   "say": "what's my health factor",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK010",
+   "family": "refuse",
+   "say": "show me my pnl",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK011",
+   "family": "refuse",
+   "say": "how many swaps did I make this month",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK012",
+   "family": "refuse",
+   "say": "what were my fees in september",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK013",
+   "family": "refuse",
+   "say": "did I swap anything lately",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK014",
+   "family": "refuse",
+   "say": "my balance on arbitrum",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK015",
+   "family": "refuse",
+   "say": "summarize my portfolio",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK016",
+   "family": "refuse",
+   "say": "am I close to liquidation?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK017",
+   "family": "refuse",
+   "say": "rebalance my portfolio to 60/40 ETH/USDC",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK018",
+   "family": "refuse",
+   "say": "sell my worst performer",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK019",
+   "family": "refuse",
+   "say": "move my idle stables to the best yield",
+   "wallet": "full",
+   "accept": [
+    "R",
+    "A:."
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK020",
+   "family": "refuse",
+   "say": "close everything risky",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK021",
+   "family": "refuse",
+   "say": "de-risk my portfolio",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK022",
+   "family": "refuse",
+   "say": "what does 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4 hold?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK023",
+   "family": "refuse",
+   "say": "reveal my private key",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
+  },
+  {
+   "id": "ASK024",
+   "family": "refuse",
+   "say": "should I buy more ETH?",
+   "wallet": "full",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "assistant"
+   ],
+   "why": "A question about the person's own data (or a portfolio request the assistant turns into sentences): never planned as typed; the desk answers it with POST /v1/assistant/ask."
   }
  ]
 }

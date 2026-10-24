@@ -150,6 +150,9 @@ export default function DeskApp() {
     } else if (route.engine === "rates") {
       // Read-only: answered from the venue list, without a wallet; an engine pin is not needed for it.
       store.addTask({ sentence: text, departure: store.departure, engine: { kind: "rates" } });
+    } else if (route.engine === "assistant") {
+      // Read-only: answered from the signed-in wallet's data; an action request comes back as sentences to plan.
+      store.addTask({ sentence: text, departure: store.departure, engine: { kind: "assistant" } });
     } else {
       store.addTask({ sentence: text, departure: store.departure });
     }

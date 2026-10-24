@@ -4,7 +4,7 @@
  *
  *   Desk        desk
  *   Tasks       tasks            (phones and tablets; the rail shows it wider)
- *   Portfolio   dashboard, holdings
+ *   Portfolio   dashboard, history, holdings
  *   Trade       perps, orders
  *   Automate    automations
  *   More        tools, activity
@@ -22,7 +22,7 @@ export type DeskSection = "desk" | "tasks" | "portfolio" | "trade" | "automate" 
 export const DESK_SECTION_VIEWS: Readonly<Record<DeskSection, readonly DeskView[]>> = Object.freeze({
   desk: ["desk"],
   tasks: ["tasks"],
-  portfolio: ["dashboard", "holdings"],
+  portfolio: ["dashboard", "history", "holdings"],
   trade: ["perps", "orders"],
   automate: ["automations"],
   more: ["tools", "activity"],

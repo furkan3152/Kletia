@@ -144,6 +144,7 @@ beforeEach(() => {
       : { collateralBase: 0n, debtBase: 0n, healthFactor: 2n ** 256n - 1n },
     aaveBaseUnit: async () => 100_000_000n,
     cometBorrow: async () => ({ borrowed: 0n, liquidatable: false }),
+    kaminoObligations: async () => [],
   });
 });
 
@@ -209,9 +210,8 @@ describe("data portfolio", () => {
     assert.equal(loans[0]?.healthFactor, 1.3);
     assert.equal(loans[0]?.status, "warning");
     assert.ok(body.portfolio.health.every((row) => row.status !== "no-debt"));
-    const kamino = body.portfolio.health.find((row) => row.protocol === "kamino");
-    assert.equal(kamino?.status, "unknown");
-    assert.equal(kamino?.healthFactor, null);
+    // Kamino obligations without debt are left out like any market without a loan.
+    assert.equal(body.portfolio.health.find((row) => row.protocol === "kamino"), undefined);
   });
 
   it("starts the estimates at the first reading and labels them", async () => {
@@ -348,10 +348,13 @@ describe("data export", () => {
 });
 
 describe("data routes", () => {
-  it("are all open to publishable keys, and only history requires a key", () => {
+  it("are all open to publishable keys except tracking, and only history requires a key", () => {
     const routes = PLATFORM_ROUTES.filter((route) => route.path.startsWith("/data/"));
-    assert.equal(routes.length, 7);
-    assert.ok(routes.every((route) => route.method === "get" && route.publishable === true));
+    assert.equal(routes.length, 15);
+    const reads = routes.filter((route) => route.path !== "/data/tracking");
+    assert.ok(reads.every((route) => route.method === "get" && route.publishable === true));
+    // Tracking takes a desk wallet session only: no key of any kind manages it.
+    assert.ok(routes.filter((route) => route.path === "/data/tracking").every((route) => route.publishable === undefined && route.auth === "public"));
     assert.deepEqual(routes.filter((route) => route.auth === "key").map((route) => route.path), ["/data/history"]);
   });
 });

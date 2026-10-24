@@ -5,6 +5,7 @@
  *   /app/tasks, /app/holdings,
  *   /app/activity, /app/orders    views of the same desk (phones and tablets)
  *   /app/dashboard                the Dashboard view (every width)
+ *   /app/history                  the History view (on-chain transactions)
  *   /app/perps                    the Perps view (markets, ticket, positions)
  *   /app/tools, /app/tools/<id>   Tools view, an open tool
  *   /app/automations              Automations view
@@ -24,6 +25,7 @@ export const DESK_VIEW_PATHS: Readonly<Record<Exclude<DeskView, "desk">, string>
   activity: "/app/activity",
   tools: "/app/tools",
   dashboard: "/app/dashboard",
+  history: "/app/history",
   automations: "/app/automations",
   orders: "/app/orders",
   perps: "/app/perps",

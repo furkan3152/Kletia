@@ -53,7 +53,7 @@
     },
     {
       "name": "Data",
-      "description": "Read-only dashboard data: a wallet set's holdings, positions, health and activity across every network, plus venue yields, prices and network status."
+      "description": "Read-only dashboard data: a wallet set's holdings, positions, health, on-chain history, PnL and value series across every network, plus venue yields, prices and network status."
     },
     {
       "name": "Intents",
@@ -6532,7 +6532,7 @@
           "Data"
         ],
         "summary": "Positions, debts and lending health of a wallet set",
-        "description": "The positions part of the portfolio read (same cache). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.",
+        "description": "The positions part of the portfolio read (same cache). With `extras=true`: open perps positions, open native orders, the caller's automations and its agent keys' spend, each with a reason when unread. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account (two with extras).",
         "parameters": [
           {
             "name": "evm",
@@ -6569,6 +6569,24 @@
                 "testnet"
               ]
             }
+          },
+          {
+            "name": "extras",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
           }
         ],
         "responses": {
@@ -6598,6 +6616,841 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/transactions": {
+      "get": {
+        "operationId": "listDataTransactions",
+        "tags": [
+          "Data"
+        ],
+        "summary": "On-chain transaction history of a wallet set",
+        "description": "Every transaction of every account, newest first, classified (send, receive, swap, bridge, deposit, borrow, stake, perp, order, prediction …) with legs, USD at the time (DefiLlama), fee, protocol from Kletia's registry and the Kletia intent it was a step of. EVM through Etherscan V2 (ETHERSCAN_API_KEY) or Alchemy (ALCHEMY_API_KEY); Solana through Helius (HELIUS_API_KEY) or plain RPC. Accounts without a configured provider are listed in `coverage` with the reason. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.",
+        "parameters": [
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "description": "Production networks (default) or test networks; the two never mix.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          },
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "description": "One network (its lane wins over `lane`).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "base",
+                "arbitrum",
+                "ethereum",
+                "optimism",
+                "polygon",
+                "arc",
+                "arbitrum-sepolia",
+                "solana",
+                "solana-devnet"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "send",
+                "receive",
+                "swap",
+                "bridge-out",
+                "bridge-in",
+                "deposit",
+                "withdraw",
+                "stake",
+                "unstake",
+                "borrow",
+                "repay",
+                "approve",
+                "perp",
+                "order",
+                "prediction",
+                "contract-call",
+                "failed",
+                "unknown"
+              ]
+            }
+          },
+          {
+            "name": "asset",
+            "in": "query",
+            "required": false,
+            "description": "Symbol or token address / mint.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "protocol",
+            "in": "query",
+            "required": false,
+            "description": "Protocol id or label (aave-v3, Polymarket).",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "kletiaOnly",
+            "in": "query",
+            "required": false,
+            "description": "Only transactions that were steps of the caller's Kletia intents.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of transactions.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataTransactionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/transactions/{id}": {
+      "get": {
+        "operationId": "getDataTransaction",
+        "tags": [
+          "Data"
+        ],
+        "summary": "One transaction of a wallet set",
+        "description": "`<network>:<hash or signature>` of a transaction that involves one of the wallets. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 140
+            }
+          },
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "description": "Production networks (default) or test networks; the two never mix.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          },
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The transaction.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataTransactionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/pnl": {
+      "get": {
+        "operationId": "getDataPnl",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Realized and unrealized PnL estimates by asset (FIFO)",
+        "description": "FIFO cost basis over the newest history (and a tracked set's cached transactions), valued now with the portfolio's prices. Moves between the set's own wallets, bridges, deposits, staking and loans neither acquire nor dispose. Unknown prices or older history make a part null and `totals.complete` false. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account.",
+        "parameters": [
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "description": "Production networks (default) or test networks; the two never mix.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PnL by asset.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataPnl"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/snapshots": {
+      "get": {
+        "operationId": "getDataSnapshots",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Value series of a tracked wallet set",
+        "description": "Hourly points for 24h and 7d, daily for 30d and all, written by the snapshot job (once an hour per tracked set, kept across restarts with a database). Untracked wallets answer an empty series with `tracked: false`. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.",
+        "parameters": [
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "description": "Production networks (default) or test networks; the two never mix.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ],
+              "default": "30d"
+            }
+          },
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The series.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSnapshotSeries"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/summary": {
+      "get": {
+        "operationId": "getDataSummary",
+        "tags": [
+          "Data"
+        ],
+        "summary": "One compact object about a wallet set, for an assistant",
+        "description": "Totals, top allocation slices and positions, risk flags (low health, liquidatable, perps near liquidation, concentration, unpriced, unread), activity counts of the newest history and PnL estimates, with every source named. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account.",
+        "parameters": [
+          {
+            "name": "evm",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "examples": [
+                "0x4f183e308f24c81c05303821AD025812fBFd807D"
+              ]
+            }
+          },
+          {
+            "name": "solana",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated Solana addresses (at most 2).",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "lane",
+            "in": "query",
+            "required": false,
+            "description": "Production networks (default) or test networks; the two never mix.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "testnet"
+              ]
+            }
+          },
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The summary.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/data/tracking": {
+      "get": {
+        "operationId": "getDataTracking",
+        "tags": [
+          "Data"
+        ],
+        "summary": "The tracked set of the signed-in desk wallet",
+        "description": "Desk wallet session only (first-party Origin). `tracking: null` when the wallet is not tracked.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tracked set.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataTrackingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "startDataTracking",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Turn tracking on (value snapshots and a transaction cache)",
+        "description": "Creates the set of the signed-in wallet, or adds wallets to it. Every other wallet must be proven by its own sign-in at the same site (its session token in `proofs`). At most 2 EVM and 2 Solana wallets; a wallet belongs to one set (409 DATA_WALLET_TRACKED).",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataTrackingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The tracked set.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataTrackingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "stopDataTracking",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Turn tracking off",
+        "description": "The set's creator deletes it with its snapshots and cached transactions; another member's wallet only leaves it.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stopped.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataTrackingStopped"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -6943,7 +7796,7 @@
           "Data"
         ],
         "summary": "Export holdings, positions or history as CSV or JSON",
-        "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after).",
+        "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit); `dataset=transactions` is one page of `GET /v1/data/transactions` with the same filters and caller rules (one row per leg). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after).",
         "parameters": [
           {
             "name": "dataset",
@@ -6954,7 +7807,8 @@
               "enum": [
                 "holdings",
                 "positions",
-                "history"
+                "history",
+                "transactions"
               ],
               "default": "holdings"
             }
@@ -7017,6 +7871,120 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 100
+            }
+          },
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "description": "One network (its lane wins over `lane`).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "base",
+                "arbitrum",
+                "ethereum",
+                "optimism",
+                "polygon",
+                "arc",
+                "arbitrum-sepolia",
+                "solana",
+                "solana-devnet"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "send",
+                "receive",
+                "swap",
+                "bridge-out",
+                "bridge-in",
+                "deposit",
+                "withdraw",
+                "stake",
+                "unstake",
+                "borrow",
+                "repay",
+                "approve",
+                "perp",
+                "order",
+                "prediction",
+                "contract-call",
+                "failed",
+                "unknown"
+              ]
+            }
+          },
+          {
+            "name": "asset",
+            "in": "query",
+            "required": false,
+            "description": "Symbol or token address / mint.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "protocol",
+            "in": "query",
+            "required": false,
+            "description": "Protocol id or label (aave-v3, Polymarket).",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "kletiaOnly",
+            "in": "query",
+            "required": false,
+            "description": "Only transactions that were steps of the caller's Kletia intents.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4000
+            }
+          },
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
             }
           }
         ],
@@ -26171,7 +27139,15 @@
               "lending-metrics",
               "health-probe",
               "snapshot",
-              "kletia"
+              "kletia",
+              "kamino-api",
+              "etherscan",
+              "alchemy",
+              "helius",
+              "solana-rpc",
+              "defillama",
+              "coingecko",
+              "fifo"
             ],
             "description": "Where the value comes from."
           },
@@ -26399,7 +27375,15 @@
               "lending-metrics",
               "health-probe",
               "snapshot",
-              "kletia"
+              "kletia",
+              "kamino-api",
+              "etherscan",
+              "alchemy",
+              "helius",
+              "solana-rpc",
+              "defillama",
+              "coingecko",
+              "fifo"
             ],
             "description": "Where the value comes from."
           },
@@ -26683,6 +27667,9 @@
             },
             "description": "Accounts, venues and markets that could not be read (unknown, never empty)."
           },
+          "extras": {
+            "$ref": "#/components/schemas/DataCoverageExtras"
+          },
           "asOf": {
             "type": "string",
             "format": "date-time"
@@ -26694,6 +27681,1095 @@
           "health",
           "failures",
           "asOf"
+        ]
+      },
+      "DataSection": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null when read in full; otherwise why rows are missing."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "perps",
+              "orders",
+              "automations",
+              "policy"
+            ]
+          },
+          "asOf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "rows",
+          "reason",
+          "source",
+          "asOf"
+        ]
+      },
+      "DataCoverageExtras": {
+        "type": "object",
+        "properties": {
+          "perps": {
+            "$ref": "#/components/schemas/DataSection",
+            "description": "Open perps positions (GMX v2, Hyperliquid, Drift) with the account."
+          },
+          "orders": {
+            "$ref": "#/components/schemas/DataSection",
+            "description": "Open native orders (CoW Protocol, Jupiter Trigger and Recurring)."
+          },
+          "automations": {
+            "$ref": "#/components/schemas/DataSection",
+            "description": "The caller's automations (an API key's or the desk wallet's)."
+          },
+          "agentSpend": {
+            "$ref": "#/components/schemas/DataSection",
+            "description": "24 h / 7 d USD spend of the agent keys below the calling API key."
+          }
+        },
+        "required": [
+          "perps",
+          "orders",
+          "automations",
+          "agentSpend"
+        ]
+      },
+      "DataTxLeg": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "object",
+            "properties": {
+              "symbol": {
+                "type": "string"
+              },
+              "address": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Contract or mint; null for the gas asset."
+              },
+              "decimals": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Kletia asset id when listed."
+              }
+            },
+            "required": [
+              "symbol",
+              "address",
+              "decimals",
+              "id"
+            ]
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out"
+            ]
+          },
+          "usdAtTime": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "USD at the transaction's time; null with a reason (unlisted token, no price found)."
+          },
+          "priceSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "defillama",
+              "coingecko",
+              null
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "amount",
+          "direction",
+          "usdAtTime",
+          "priceSource"
+        ]
+      },
+      "DataTransaction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`<network>:<hash or signature>`."
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "base",
+              "arbitrum",
+              "ethereum",
+              "optimism",
+              "polygon",
+              "arc",
+              "arbitrum-sepolia",
+              "solana",
+              "solana-devnet"
+            ]
+          },
+          "hash": {
+            "type": "string"
+          },
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "block": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "send",
+              "receive",
+              "swap",
+              "bridge-out",
+              "bridge-in",
+              "deposit",
+              "withdraw",
+              "stake",
+              "unstake",
+              "borrow",
+              "repay",
+              "approve",
+              "perp",
+              "order",
+              "prediction",
+              "contract-call",
+              "failed",
+              "unknown"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failed"
+            ]
+          },
+          "legs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataTxLeg"
+            }
+          },
+          "fee": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "asset": {
+                    "type": "object",
+                    "properties": {
+                      "symbol": {
+                        "type": "string"
+                      },
+                      "address": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Contract or mint; null for the gas asset."
+                      },
+                      "decimals": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Kletia asset id when listed."
+                      }
+                    },
+                    "required": [
+                      "symbol",
+                      "address",
+                      "decimals",
+                      "id"
+                    ]
+                  },
+                  "amount": {
+                    "type": "string"
+                  },
+                  "usd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "asset",
+                  "amount",
+                  "usd"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Paid by this wallet; null when someone else paid or the provider does not report fees."
+          },
+          "counterparty": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "protocol": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "label",
+                  "role"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kletiaIntentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Kletia intent this transaction was a step of, when the caller may see it."
+          },
+          "kletiaReceiptId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "etherscan",
+              "alchemy",
+              "helius",
+              "solana-rpc"
+            ]
+          },
+          "explorerUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "network",
+          "hash",
+          "account",
+          "time",
+          "block",
+          "kind",
+          "status",
+          "legs",
+          "fee",
+          "counterparty",
+          "protocol",
+          "method",
+          "kletiaIntentId",
+          "kletiaReceiptId",
+          "source",
+          "explorerUrl"
+        ]
+      },
+      "DataTxCoverage": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "base",
+              "arbitrum",
+              "ethereum",
+              "optimism",
+              "polygon",
+              "arc",
+              "arbitrum-sepolia",
+              "solana",
+              "solana-devnet"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "etherscan",
+              "alchemy",
+              "helius",
+              "solana-rpc",
+              null
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "partial",
+              "not-configured",
+              "unsupported",
+              "failed"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Environment variables that would enable this account's history."
+          }
+        },
+        "required": [
+          "account",
+          "network",
+          "provider",
+          "status"
+        ]
+      },
+      "DataTransactionPage": {
+        "type": "object",
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataTransaction"
+            }
+          },
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back for older rows; null at the end."
+          },
+          "coverage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataTxCoverage"
+            }
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "transactions",
+          "cursor",
+          "coverage",
+          "asOf"
+        ]
+      },
+      "DataTransactionResponse": {
+        "type": "object",
+        "properties": {
+          "transaction": {
+            "$ref": "#/components/schemas/DataTransaction"
+          }
+        },
+        "required": [
+          "transaction"
+        ]
+      },
+      "DataPnl": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "7d",
+              "30d",
+              "all"
+            ]
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "method": {
+            "type": "string",
+            "const": "fifo"
+          },
+          "estimate": {
+            "type": "boolean",
+            "const": true
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "symbol": {
+                  "type": "string"
+                },
+                "openQuantity": {
+                  "type": "number"
+                },
+                "costBasisUsd": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "realizedUsd": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "unrealizedUsd": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "currentUsd": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "symbol",
+                "openQuantity",
+                "costBasisUsd",
+                "realizedUsd",
+                "unrealizedUsd",
+                "currentUsd"
+              ]
+            }
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "realizedUsd": {
+                "type": "number"
+              },
+              "unrealizedUsd": {
+                "type": "number"
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "realizedUsd",
+              "unrealizedUsd",
+              "complete"
+            ]
+          },
+          "coverage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataTxCoverage"
+            }
+          },
+          "source": {
+            "type": "string",
+            "const": "fifo"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "period",
+          "since",
+          "method",
+          "estimate",
+          "assets",
+          "totals",
+          "coverage",
+          "source",
+          "asOf"
+        ]
+      },
+      "DataSnapshotSeries": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "7d",
+              "30d",
+              "all"
+            ]
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "usd": {
+                  "type": "number"
+                },
+                "complete": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "at",
+                "usd",
+                "complete"
+              ]
+            }
+          },
+          "change": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usd": {
+                    "type": "number"
+                  },
+                  "pct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "usd",
+                  "pct"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tracked": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "const": "snapshot"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "range",
+          "points",
+          "change",
+          "tracked",
+          "source",
+          "asOf"
+        ]
+      },
+      "DataSummary": {
+        "type": "object",
+        "properties": {
+          "wallets": {
+            "type": "object",
+            "properties": {
+              "evm": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "solana": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "production",
+                  "testnet"
+                ]
+              }
+            },
+            "required": [
+              "evm",
+              "solana",
+              "lane"
+            ]
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "netUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "walletUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "positionsUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "debtUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "netUsd",
+              "walletUsd",
+              "positionsUsd",
+              "debtUsd",
+              "complete"
+            ]
+          },
+          "change24h": {
+            "$ref": "#/components/schemas/DataValueChange"
+          },
+          "allocation": {
+            "type": "object",
+            "properties": {
+              "byNetwork": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DataAllocationSlice"
+                }
+              },
+              "byAsset": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DataAllocationSlice"
+                }
+              }
+            },
+            "required": [
+              "byNetwork",
+              "byAsset"
+            ]
+          },
+          "topPositions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "network": {
+                  "type": "string",
+                  "enum": [
+                    "base",
+                    "arbitrum",
+                    "ethereum",
+                    "optimism",
+                    "polygon",
+                    "arc",
+                    "arbitrum-sepolia",
+                    "solana",
+                    "solana-devnet"
+                  ]
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "usd": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "network",
+                "kind",
+                "usd"
+              ]
+            }
+          },
+          "perps": {
+            "type": "object",
+            "properties": {
+              "open": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unrealizedPnlUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "open",
+              "unrealizedPnlUsd"
+            ]
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "flag": {
+                  "type": "string",
+                  "enum": [
+                    "LOW_HEALTH",
+                    "LIQUIDATABLE",
+                    "PERP_NEAR_LIQUIDATION",
+                    "CONCENTRATION",
+                    "UNPRICED",
+                    "UNREAD",
+                    "HISTORY_INCOMPLETE"
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "info",
+                    "warning",
+                    "critical"
+                  ]
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "flag",
+                "severity",
+                "subject",
+                "message"
+              ]
+            }
+          },
+          "activity": {
+            "type": "object",
+            "properties": {
+              "last24h": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "last7d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "last30d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "byKind": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "last24h",
+              "last7d",
+              "last30d",
+              "byKind",
+              "complete"
+            ]
+          },
+          "pnl": {
+            "type": "object",
+            "properties": {
+              "realizedUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "unrealizedUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "estimate": {
+                "type": "boolean",
+                "const": true
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "realizedUsd",
+              "unrealizedUsd",
+              "estimate"
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "wallets",
+          "totals",
+          "change24h",
+          "allocation",
+          "topPositions",
+          "perps",
+          "risks",
+          "activity",
+          "pnl",
+          "sources",
+          "asOf"
+        ]
+      },
+      "DataSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/DataSummary"
+          }
+        },
+        "required": [
+          "summary"
+        ]
+      },
+      "DataTracking": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "wallets": {
+            "type": "object",
+            "properties": {
+              "evm": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "solana": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "evm",
+              "solana"
+            ]
+          },
+          "lane": {
+            "type": "string",
+            "enum": [
+              "production",
+              "testnet"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSnapshotAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "wallets",
+          "lane",
+          "createdAt",
+          "lastSnapshotAt"
+        ]
+      },
+      "DataTrackingResponse": {
+        "type": "object",
+        "properties": {
+          "tracking": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DataTracking"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "tracking"
+        ]
+      },
+      "DataTrackingRequest": {
+        "type": "object",
+        "properties": {
+          "lane": {
+            "type": "string",
+            "enum": [
+              "production",
+              "testnet"
+            ],
+            "default": "production"
+          },
+          "proofs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            },
+            "maxItems": 3,
+            "description": "Session tokens of other wallets signed in at the same site: each adds that wallet."
+          }
+        }
+      },
+      "DataTrackingStopped": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "True when the set was deleted (its creator); false when the wallet only left it."
+          }
+        },
+        "required": [
+          "deleted"
         ]
       },
       "DataHistoryEntry": {
@@ -26859,7 +28935,15 @@
               "lending-metrics",
               "health-probe",
               "snapshot",
-              "kletia"
+              "kletia",
+              "kamino-api",
+              "etherscan",
+              "alchemy",
+              "helius",
+              "solana-rpc",
+              "defillama",
+              "coingecko",
+              "fifo"
             ],
             "description": "Where the value comes from."
           },

@@ -85,6 +85,8 @@ export interface IntentStore {
    * custom stores).
    */
   listChangedSince?(statuses: readonly IntentStatus[], sinceIso: string, limit: number): Promise<IntentChange[]>;
+  /** Claimed references among `keys` (wallet history links; optional for custom stores). */
+  findReferences?(keys: readonly string[]): Promise<Map<string, { readonly intentId: string; readonly stepId: string }>>;
 }
 
 /** One row of `listChangedSince`. */
@@ -232,6 +234,15 @@ export class MemoryIntentStore implements IntentStore {
         this.claims.delete(oldest);
       }
     }
+  }
+
+  async findReferences(keys: readonly string[]): Promise<Map<string, { readonly intentId: string; readonly stepId: string }>> {
+    const found = new Map<string, { readonly intentId: string; readonly stepId: string }>();
+    for (const key of keys) {
+      const claim = this.claims.get(key);
+      if (claim) found.set(key, claim);
+    }
+    return found;
   }
 
   async listChangedSince(statuses: readonly IntentStatus[], sinceIso: string, limit: number): Promise<IntentChange[]> {
@@ -472,6 +483,15 @@ export class PostgresIntentStore implements IntentStore {
       status: row.status as IntentStatus,
       updatedAt: new Date(row.updated_at).toISOString(),
     }));
+  }
+
+  async findReferences(keys: readonly string[]): Promise<Map<string, { readonly intentId: string; readonly stepId: string }>> {
+    if (keys.length === 0) return new Map();
+    const result = await this.query<{ reference: string; intent_id: string; step_id: string }>(
+      "SELECT reference, intent_id, step_id FROM kletia_intent_references WHERE reference = ANY($1::text[])",
+      [[...keys]],
+    );
+    return new Map(result.rows.map((row) => [row.reference, { intentId: row.intent_id, stepId: row.step_id }]));
   }
 
   async close(): Promise<void> {

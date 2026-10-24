@@ -555,11 +555,11 @@ export function portalMetaFor(pathname: string): RouteMeta {
 }
 
 /**
- * Views of the desk at /app (tasks, holdings, activity, tools, perps, orders, dashboard, automations): the same
+ * Views of the desk at /app (tasks, holdings, activity, tools, perps, orders, dashboard, history, automations): the same
  * console route with their own HTML entry, so a static host without a
  * rewrite rule serves them. Their canonical URL stays /app.
  */
-export const CONSOLE_VIEW_PATHS: readonly string[] = Object.freeze(["/app/tasks", "/app/holdings", "/app/activity", "/app/tools", "/app/perps", "/app/orders", "/app/dashboard", "/app/automations"]);
+export const CONSOLE_VIEW_PATHS: readonly string[] = Object.freeze(["/app/tasks", "/app/holdings", "/app/activity", "/app/tools", "/app/perps", "/app/orders", "/app/dashboard", "/app/history", "/app/automations"]);
 
 /** Every /app path is the desk: one title, canonical /app, and only /app itself is indexed. */
 export function consoleMetaFor(pathname: string): RouteMeta {

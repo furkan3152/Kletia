@@ -1,0 +1,102 @@
+{
+ "recordedAt": "2026-10-24T08:38:36.432Z",
+ "note": "Recorded read-only from coins.llama.fi/batchHistorical (searchWidth 6h): the point DefiLlama returned closest to each asked hour, per coin.",
+ "prices": {
+  "base:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913": {
+   "1792400400": {
+    "timestamp": 1792400400,
+    "price": 0.9998272089739255
+   },
+   "1792501200": {
+    "timestamp": 1792501200,
+    "price": 0.9998956151914735
+   },
+   "1792551600": {
+    "timestamp": 1792551600,
+    "price": 0.9997238838852163
+   },
+   "1792598400": {
+    "timestamp": 1792598400,
+    "price": 0.9995201154462201
+   },
+   "1792699200": {
+    "timestamp": 1792699200,
+    "price": 0.9994664289649104
+   }
+  },
+  "coingecko:ethereum": {
+   "1792501200": {
+    "timestamp": 1792501200,
+    "price": 2393.789430147693
+   },
+   "1792540800": {
+    "timestamp": 1792540800,
+    "price": 2446.4878553971676
+   },
+   "1792551600": {
+    "timestamp": 1792551600,
+    "price": 2446.2965981415628
+   },
+   "1792576800": {
+    "timestamp": 1792576800,
+    "price": 2453.7815497079528
+   },
+   "1792598400": {
+    "timestamp": 1792598400,
+    "price": 2510.283206086773
+   },
+   "1792648800": {
+    "timestamp": 1792648800,
+    "price": 2436.7377870845185
+   },
+   "1792681200": {
+    "timestamp": 1792681200,
+    "price": 2410.98953336149
+   },
+   "1792699200": {
+    "timestamp": 1792699200,
+    "price": 2384.207064873581
+   }
+  },
+  "solana:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": {
+   "1792602000": {
+    "timestamp": 1792602000,
+    "price": 0.9996507020814199
+   },
+   "1792605600": {
+    "timestamp": 1792605600,
+    "price": 0.9996888810611054
+   },
+   "1792828800": {
+    "timestamp": 1792828800,
+    "price": 0.9996909351279905
+   }
+  },
+  "coingecko:solana": {
+   "1792602000": {
+    "timestamp": 1792602000,
+    "price": 108.24194119296929
+   },
+   "1792605600": {
+    "timestamp": 1792605600,
+    "price": 108.56379203883533
+   },
+   "1792828800": {
+    "timestamp": 1792828800,
+    "price": 101.75963454601025
+   }
+  },
+  "solana:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn": {
+   "1792602000": {
+    "timestamp": 1792601824,
+    "price": 141.40482769540327
+   }
+  },
+  "ethereum:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+   "1792490400": {
+    "timestamp": 1792490400,
+    "price": 0.9998990602835408
+   }
+  }
+ }
+}

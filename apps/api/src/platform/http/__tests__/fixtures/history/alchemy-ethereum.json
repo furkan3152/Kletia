@@ -1,0 +1,62 @@
+{
+ "note": "Constructed from Alchemy's documented alchemy_getAssetTransfers response (docs.alchemy.com/reference/alchemy-getassettransfers); the container had no ALCHEMY_API_KEY. Hashes, blocks and amounts are placeholders; the token is Ethereum USDC. Wallets: public addresses.",
+ "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+ "fromAddress": {
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+   "transfers": [
+    {
+     "blockNum": "0x15f9000",
+     "uniqueId": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1:external",
+     "hash": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+     "to": "0x4f183e308f24c81c05303821ad025812fbfd807d",
+     "value": 0.25,
+     "erc721TokenId": null,
+     "erc1155Metadata": null,
+     "tokenId": null,
+     "asset": "ETH",
+     "category": "external",
+     "rawContract": {
+      "value": "0x3782dace9d90000",
+      "address": null,
+      "decimal": "0x12"
+     },
+     "metadata": {
+      "blockTimestamp": "2026-10-21T10:00:00.000Z"
+     }
+    }
+   ]
+  }
+ },
+ "toAddress": {
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+   "transfers": [
+    {
+     "blockNum": "0x15f8000",
+     "uniqueId": "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2:log:12",
+     "hash": "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "from": "0x4f183e308f24c81c05303821ad025812fbfd807d",
+     "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+     "value": 1200,
+     "erc721TokenId": null,
+     "erc1155Metadata": null,
+     "tokenId": null,
+     "asset": "USDC",
+     "category": "erc20",
+     "rawContract": {
+      "value": "0x47868c00",
+      "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "decimal": "0x6"
+     },
+     "metadata": {
+      "blockTimestamp": "2026-10-20T10:00:00.000Z"
+     }
+    }
+   ]
+  }
+ }
+}

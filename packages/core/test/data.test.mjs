@@ -3,7 +3,7 @@
 // values as empty cells (never 0).
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { dataCsvCell, dataHistoryCsv, dataHoldingsCsv, dataPositionsCsv, LENDING_HEALTH_THRESHOLDS, toDataCsv } from "../dist/index.js";
+import { DATA_EXPORT_DATASETS, dataCsvCell, dataHistoryCsv, dataHoldingsCsv, dataPositionsCsv, dataTransactionsCsv, LENDING_HEALTH_THRESHOLDS, toDataCsv } from "../dist/index.js";
 
 describe("data CSV", () => {
   it("quotes commas, quotes and line breaks, doubling quotes", () => {
@@ -45,6 +45,24 @@ describe("data CSV", () => {
     assert.equal(positions.split("\r\n")[1], "eip155:8453:0xabc,base,aave-v3,Aave V3 USDC,supply,USDC,5,5,0.04,false,adapter,2026-10-23T00:00:00.000Z,");
     const history = dataHistoryCsv({ entries: [{ kind: "intent", id: "int_1", at: "2026-10-23T00:00:00.000Z", status: "completed", title: "Swap, then bridge", networks: ["base", "solana"], intentId: "int_1", source: "kletia" }] });
     assert.equal(history.split("\r\n")[1], '2026-10-23T00:00:00.000Z,intent,int_1,completed,"Swap, then bridge",base solana,int_1');
+  });
+
+  it("exports transactions one row per leg, and a transaction without legs as one row", () => {
+    const base = { network: "base", account: "eip155:8453:0xabc", block: 1, status: "success", counterparty: null, protocol: null, method: null, kletiaIntentId: null, kletiaReceiptId: null, source: "etherscan", explorerUrl: "" };
+    const csv = dataTransactionsCsv({
+      transactions: [
+        { ...base, id: "base:0x1", hash: "0x1", time: "2026-10-20T00:00:00.000Z", kind: "approve", legs: [], fee: { asset: { symbol: "ETH", address: null, decimals: 18, id: null }, amount: "0.0001", usd: null } },
+        {
+          ...base, id: "base:0x2", hash: "0x2", time: "2026-10-21T00:00:00.000Z", kind: "receive", fee: null, kletiaIntentId: "int_1",
+          legs: [{ asset: { symbol: "=USDC", address: "0x83", decimals: 6, id: null }, amount: "5", direction: "in", usdAtTime: 5, priceSource: "defillama" }],
+        },
+      ],
+    });
+    const rows = csv.split("\r\n");
+    assert.equal(rows[0], "time,network,hash,account,kind,status,direction,symbol,token,amount,usd_at_time,fee,fee_symbol,fee_usd,protocol,counterparty,kletia_intent_id,source");
+    assert.equal(rows[1], "2026-10-20T00:00:00.000Z,base,0x1,eip155:8453:0xabc,approve,success,,,,,,0.0001,ETH,,,,,etherscan");
+    assert.equal(rows[2], "2026-10-21T00:00:00.000Z,base,0x2,eip155:8453:0xabc,receive,success,in,'=USDC,0x83,5,5,,,,,,int_1,etherscan");
+    assert.ok(DATA_EXPORT_DATASETS.includes("transactions"));
   });
 
   it("flags health factors below 1.5 as warnings and below 1.1 as critical", () => {

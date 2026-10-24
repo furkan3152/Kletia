@@ -148,6 +148,12 @@
       "value": "",
       "type": "string",
       "description": "A logo file name (<sha256>.png or <sha256>.webp) from the project's logo.url."
+    },
+    {
+      "key": "dataTransactionId",
+      "value": "",
+      "type": "string",
+      "description": "A wallet transaction id (<network>:<hash or signature>) from GET /v1/data/transactions."
     }
   ],
   "item": [
@@ -505,7 +511,7 @@
     {
       "id": "7ea60e83-1b56-57b7-b6e8-3004cf448813",
       "name": "Data",
-      "description": "Read-only dashboard data: a wallet set's holdings, positions, health and activity across every network, plus venue yields, prices and network status.",
+      "description": "Read-only dashboard data: a wallet set's holdings, positions, health, on-chain history, PnL and value series across every network, plus venue yields, prices and network status.",
       "item": [
         {
           "id": "708fe3dc-867d-556c-8887-fb5125eb475b",
@@ -553,7 +559,14 @@
           "name": "Positions, debts and lending health of a wallet set",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/v1/data/positions",
               "host": [
@@ -582,10 +595,390 @@
                   "value": "production",
                   "description": "Production networks (default) or test networks; the two never mix.",
                   "disabled": true
+                },
+                {
+                  "key": "extras",
+                  "value": "",
+                  "disabled": true
                 }
               ]
             },
-            "description": "The positions part of the portfolio read (same cache). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/positions` · operationId `getDataPositions` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "The positions part of the portfolio read (same cache). With `extras=true`: open perps positions, open native orders, the caller's automations and its agent keys' spend, each with a reason when unread. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account (two with extras).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/positions` · operationId `getDataPositions` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "97949845-cd3e-5a55-88de-66098f9aea6f",
+          "name": "On-chain transaction history of a wallet set",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "description": "Production networks (default) or test networks; the two never mix.",
+                  "disabled": true
+                },
+                {
+                  "key": "network",
+                  "value": "base",
+                  "description": "One network (its lane wins over `lane`).",
+                  "disabled": true
+                },
+                {
+                  "key": "kind",
+                  "value": "send",
+                  "disabled": true
+                },
+                {
+                  "key": "asset",
+                  "value": "",
+                  "description": "Symbol or token address / mint.",
+                  "disabled": true
+                },
+                {
+                  "key": "protocol",
+                  "value": "",
+                  "description": "Protocol id or label (aave-v3, Polymarket).",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "kletiaOnly",
+                  "value": "",
+                  "description": "Only transactions that were steps of the caller's Kletia intents.",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Every transaction of every account, newest first, classified (send, receive, swap, bridge, deposit, borrow, stake, perp, order, prediction …) with legs, USD at the time (DefiLlama), fee, protocol from Kletia's registry and the Kletia intent it was a step of. EVM through Etherscan V2 (ETHERSCAN_API_KEY) or Alchemy (ALCHEMY_API_KEY); Solana through Helius (HELIUS_API_KEY) or plain RPC. Accounts without a configured provider are listed in `coverage` with the reason. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/transactions` · operationId `listDataTransactions` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "9fa16fc2-5a94-58a4-8512-e69fa08fff9d",
+          "name": "One transaction of a wallet set",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/transactions/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "transactions",
+                ":id"
+              ],
+              "query": [
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "description": "Production networks (default) or test networks; the two never mix.",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{dataTransactionId}}"
+                }
+              ]
+            },
+            "description": "`<network>:<hash or signature>` of a transaction that involves one of the wallets. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/transactions/{id}` · operationId `getDataTransaction` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "c9f51e6a-4fcd-5a15-8dc9-e1ecd13b1024",
+          "name": "Realized and unrealized PnL estimates by asset (FIFO)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/pnl",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "pnl"
+              ],
+              "query": [
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "description": "Production networks (default) or test networks; the two never mix.",
+                  "disabled": true
+                },
+                {
+                  "key": "period",
+                  "value": "all",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "FIFO cost basis over the newest history (and a tracked set's cached transactions), valued now with the portfolio's prices. Moves between the set's own wallets, bridges, deposits, staking and loans neither acquire nor dispose. Unknown prices or older history make a part null and `totals.complete` false. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/pnl` · operationId `getDataPnl` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "80a64971-2610-5b71-a352-63408e3706ac",
+          "name": "Value series of a tracked wallet set",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/snapshots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "snapshots"
+              ],
+              "query": [
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "description": "Production networks (default) or test networks; the two never mix.",
+                  "disabled": true
+                },
+                {
+                  "key": "range",
+                  "value": "30d",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Hourly points for 24h and 7d, daily for 30d and all, written by the snapshot job (once an hour per tracked set, kept across restarts with a database). Untracked wallets answer an empty series with `tracked: false`. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/snapshots` · operationId `getDataSnapshots` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "7ba66841-a818-5daf-ab5b-743aecacfc3c",
+          "name": "One compact object about a wallet set, for an assistant",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "description": "Production networks (default) or test networks; the two never mix.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Totals, top allocation slices and positions, risk flags (low health, liquidatable, perps near liquidation, concentration, unpriced, unread), activity counts of the newest history and PnL estimates, with every source named. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/summary` · operationId `getDataSummary` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "8edc57f7-5e59-57cc-957a-d817d4a7ffb1",
+          "name": "The tracked set of the signed-in desk wallet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/tracking",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "tracking"
+              ]
+            },
+            "description": "Desk wallet session only (first-party Origin). `tracking: null` when the wallet is not tracked.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/tracking` · operationId `getDataTracking` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "8e064ccb-0239-57d9-a326-acb4e11dedd3",
+          "name": "Turn tracking on (value snapshots and a transaction cache)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/tracking",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "tracking"
+              ]
+            },
+            "description": "Creates the set of the signed-in wallet, or adds wallets to it. Every other wallet must be proven by its own sign-in at the same site (its session token in `proofs`). At most 2 EVM and 2 Solana wallets; a wallet belongs to one set (409 DATA_WALLET_TRACKED).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/data/tracking` · operationId `startDataTracking` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -739,7 +1132,14 @@
           "name": "Export holdings, positions or history as CSV or JSON",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/v1/data/export",
               "host": [
@@ -784,10 +1184,82 @@
                   "value": "",
                   "description": "Newest entries to return (default 50).",
                   "disabled": true
+                },
+                {
+                  "key": "network",
+                  "value": "base",
+                  "description": "One network (its lane wins over `lane`).",
+                  "disabled": true
+                },
+                {
+                  "key": "kind",
+                  "value": "send",
+                  "disabled": true
+                },
+                {
+                  "key": "asset",
+                  "value": "",
+                  "description": "Symbol or token address / mint.",
+                  "disabled": true
+                },
+                {
+                  "key": "protocol",
+                  "value": "",
+                  "description": "Protocol id or label (aave-v3, Polymarket).",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "kletiaOnly",
+                  "value": "",
+                  "description": "Only transactions that were steps of the caller's Kletia intents.",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
                 }
               ]
             },
-            "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/export` · operationId `exportData` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit); `dataset=transactions` is one page of `GET /v1/data/transactions` with the same filters and caller rules (one row per leg). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/export` · operationId `exportData` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "64e12871-3cdb-5069-a789-39de8660df93",
+          "name": "Turn tracking off",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/tracking",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "tracking"
+              ]
+            },
+            "description": "The set's creator deletes it with its snapshots and cached transactions; another member's wallet only leaves it.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`DELETE /v1/data/tracking` · operationId `stopDataTracking` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

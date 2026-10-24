@@ -1,0 +1,159 @@
+{
+ "note": "Constructed from Helius's documented Enhanced Transactions response (docs.helius.dev, GET /v0/addresses/{address}/transactions); the container had no HELIUS_API_KEY. Signatures, slots and amounts are placeholders; programs and mints are the registry's (Jupiter, Orca Whirlpool, Jito stake pool, USDC, JitoSOL). Wallets: public addresses.",
+ "address": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+ "body": [
+  {
+   "description": "",
+   "type": "TRANSFER",
+   "source": "SYSTEM_PROGRAM",
+   "fee": 5000,
+   "feePayer": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+   "signature": "54545454545454545454545454545454545454545454ab",
+   "slot": 377000400,
+   "timestamp": 1792604000,
+   "nativeTransfers": [],
+   "tokenTransfers": [
+    {
+     "fromUserAccount": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+     "toUserAccount": "FHpcNSe6tb2n15bAdq4BkeYWGyZKFD7yLYrH92ng7wCT",
+     "fromTokenAccount": "",
+     "toTokenAccount": "",
+     "tokenAmount": 25.5,
+     "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "tokenStandard": "Fungible"
+    }
+   ],
+   "accountData": [],
+   "transactionError": null,
+   "instructions": [
+    {
+     "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+     "accounts": [],
+     "data": "",
+     "innerInstructions": []
+    }
+   ],
+   "events": {}
+  },
+  {
+   "description": "",
+   "type": "UNKNOWN",
+   "source": "UNKNOWN",
+   "fee": 5000,
+   "feePayer": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+   "signature": "53535353535353535353535353535353535353535353ab",
+   "slot": 377000300,
+   "timestamp": 1792603000,
+   "nativeTransfers": [],
+   "tokenTransfers": [],
+   "accountData": [],
+   "transactionError": {
+    "InstructionError": [
+     0,
+     {
+      "Custom": 6001
+     }
+    ]
+   },
+   "instructions": [
+    {
+     "programId": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+     "accounts": [],
+     "data": "",
+     "innerInstructions": []
+    }
+   ],
+   "events": {}
+  },
+  {
+   "description": "",
+   "type": "STAKE_SOL",
+   "source": "STAKE_POOL",
+   "fee": 5000,
+   "feePayer": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+   "signature": "52525252525252525252525252525252525252525252ab",
+   "slot": 377000200,
+   "timestamp": 1792602000,
+   "nativeTransfers": [
+    {
+     "fromUserAccount": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+     "toUserAccount": "BgKUXdS29YcHCFrPm5M8oLHiTzZaMDjsebggjoaQ6KFL",
+     "amount": 2000000000
+    }
+   ],
+   "tokenTransfers": [
+    {
+     "fromUserAccount": "",
+     "toUserAccount": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+     "fromTokenAccount": "",
+     "toTokenAccount": "",
+     "tokenAmount": 1.7,
+     "mint": "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+     "tokenStandard": "Fungible"
+    }
+   ],
+   "accountData": [],
+   "transactionError": null,
+   "instructions": [
+    {
+     "programId": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy",
+     "accounts": [],
+     "data": "",
+     "innerInstructions": []
+    }
+   ],
+   "events": {}
+  },
+  {
+   "description": "",
+   "type": "SWAP",
+   "source": "JUPITER",
+   "fee": 5000,
+   "feePayer": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+   "signature": "51515151515151515151515151515151515151515151ab",
+   "slot": 377000100,
+   "timestamp": 1792601000,
+   "nativeTransfers": [
+    {
+     "fromUserAccount": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+     "toUserAccount": "FHpcNSe6tb2n15bAdq4BkeYWGyZKFD7yLYrH92ng7wCT",
+     "amount": 1000000000
+    }
+   ],
+   "tokenTransfers": [
+    {
+     "fromUserAccount": "FHpcNSe6tb2n15bAdq4BkeYWGyZKFD7yLYrH92ng7wCT",
+     "toUserAccount": "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",
+     "fromTokenAccount": "",
+     "toTokenAccount": "",
+     "tokenAmount": 150,
+     "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "tokenStandard": "Fungible"
+    }
+   ],
+   "accountData": [],
+   "transactionError": null,
+   "instructions": [
+    {
+     "programId": "ComputeBudget111111111111111111111111111111",
+     "accounts": [],
+     "data": "",
+     "innerInstructions": []
+    },
+    {
+     "programId": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+     "accounts": [],
+     "data": "",
+     "innerInstructions": [
+      {
+       "programId": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+       "accounts": [],
+       "data": ""
+      }
+     ]
+    }
+   ],
+   "events": {}
+  }
+ ]
+}

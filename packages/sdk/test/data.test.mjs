@@ -81,3 +81,44 @@ test("exportCsv writes the dataset with empty cells for unknown values and a for
   assert.equal(header, "account,network,asset,symbol,amount,usd,source,as_of,reason");
   assert.equal(row, `eip155:8453:${EVM},base,eip155:8453/erc20:0x1,'=CMD,1,,unpriced,,No price source covers this asset.`);
 });
+
+const transaction = {
+  id: "base:0x02", network: "base", hash: "0x02", account: `eip155:8453:${EVM}`, time: "2026-10-20T00:00:00.000Z", block: 1, kind: "swap", status: "success",
+  legs: [
+    { asset: { symbol: "ETH", address: null, decimals: 18, id: "eip155:8453/slip44:60" }, amount: "0.1", direction: "out", usdAtTime: 300, priceSource: "defillama" },
+    { asset: { symbol: "USDC", address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", decimals: 6, id: null }, amount: "250", direction: "in", usdAtTime: null, priceSource: null, reason: "No historical price was found for this time." },
+  ],
+  fee: null, counterparty: null, protocol: { id: "kyberswap", label: "KyberSwap", role: "aggregator-router" }, method: "swap",
+  kletiaIntentId: null, kletiaReceiptId: null, source: "etherscan", explorerUrl: "https://basescan.org/tx/0x02",
+};
+
+test("transactions, transaction, pnl, snapshots and summary build their queries", async () => {
+  const { client, calls } = recording((call) => jsonResponse(
+    call.path.startsWith("/v1/data/transactions/") ? { transaction } : call.path.endsWith("/summary") ? { summary: { risks: [] } } : { transactions: [transaction], cursor: null, coverage: [], asOf: "x" },
+  ));
+  await client.data.transactions({ evm: EVM, kind: "swap", asset: "USDC", kletiaOnly: true, limit: 10, cursor: "abc" });
+  const one = await client.data.transaction("base:0x02", { evm: EVM });
+  assert.equal(one.kind, "swap");
+  await client.data.pnl({ solana: SOL, period: "30d" });
+  await client.data.snapshots({ evm: EVM, range: "7d" });
+  const summary = await client.data.summary({ evm: EVM });
+  assert.deepEqual(summary.risks, []);
+  await client.data.positions({ evm: EVM, extras: true });
+  assert.deepEqual(calls.map((call) => [call.path, call.query]), [
+    ["/v1/data/transactions", { evm: EVM, kind: "swap", asset: "USDC", cursor: "abc", kletiaOnly: "true", limit: "10" }],
+    ["/v1/data/transactions/base%3A0x02", { evm: EVM }],
+    ["/v1/data/pnl", { solana: SOL, period: "30d" }],
+    ["/v1/data/snapshots", { evm: EVM, range: "7d" }],
+    ["/v1/data/summary", { evm: EVM }],
+    ["/v1/data/positions", { evm: EVM, extras: "true" }],
+  ]);
+});
+
+test("exportCsv writes transactions one row per leg, unknown prices as empty cells", async () => {
+  const { client } = recording(() => jsonResponse({ transactions: [transaction], cursor: null, coverage: [], asOf: "x" }));
+  const csv = await client.data.exportCsv("transactions", { evm: EVM });
+  const rows = csv.trim().split("\r\n");
+  assert.equal(rows.length, 3);
+  assert.match(rows[1], /,swap,success,out,ETH,native,0\.1,300,/u);
+  assert.match(rows[2], /,in,USDC,0x833589fcd6edb6e08f4c7c32d4f71b54bda02913,250,,/u);
+});

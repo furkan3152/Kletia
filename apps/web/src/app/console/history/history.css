@@ -1,0 +1,168 @@
+/*
+ * The desk's History view. Colours come from the site's semantic tokens
+ * (--kl-*), so light and dark follow the site theme. Loaded with the view's
+ * lazy chunk, never with the entry stylesheet. Nothing here may widen the
+ * page: rows wrap and long addresses break.
+ */
+
+.khs {
+  min-width: 0;
+}
+
+.khs-card {
+  border: 2px solid var(--kl-control);
+  background: var(--kl-surface);
+  padding: 12px;
+}
+
+/* --- Filters --------------------------------------------------------------- */
+
+.khs-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .khs-filters {
+    grid-template-columns: repeat(3, minmax(0, 12rem)) auto auto;
+  }
+}
+
+.khs-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kl-muted);
+}
+
+.khs-check {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.khs-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--kl-accent);
+}
+
+/* --- List ------------------------------------------------------------------ */
+
+.khs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.khs-item {
+  min-width: 0;
+  border: 2px solid var(--kl-control);
+  border-left-width: 4px;
+  background: var(--kl-surface);
+}
+
+.khs-item[data-kind="failed"] {
+  border-left-color: var(--kl-danger);
+}
+
+.khs-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  min-height: 44px;
+  cursor: pointer;
+  padding: 10px 12px;
+  list-style: none;
+}
+
+.khs-summary::-webkit-details-marker {
+  display: none;
+}
+
+.khs-summary:focus-visible {
+  outline: 4px solid var(--kl-focus);
+  outline-offset: 2px;
+}
+
+.khs-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
+.khs-legs {
+  max-width: 50vw;
+  text-align: right;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.khs-legs [data-direction="in"] {
+  color: var(--kl-success);
+}
+
+.khs-badge {
+  display: inline-block;
+  margin-left: 6px;
+  border: 2px solid currentColor;
+  padding: 0 4px;
+  font-size: 0.6875rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kl-accent-text);
+}
+
+.khs-badge[data-tone="danger"] {
+  color: var(--kl-danger);
+}
+
+.khs-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--kl-line);
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+}
+
+.khs-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .khs-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.khs-facts dt {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kl-muted);
+}
+
+.khs-facts dd {
+  margin: 2px 0 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

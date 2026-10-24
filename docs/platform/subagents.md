@@ -8,7 +8,8 @@ signature, or a project key holder approves it in the portal. Sub-agents are
 permissionless by default: they plan and prepare intents inside their caps
 and never manage keys, webhooks, contracts, sessions, links or automations. Perps
 stay off unless the parent's chain trades them, at no higher leverage and on no
-other venue.
+other venue; so do [prediction markets](predictions.md), at no higher stake per
+order (`predictions.maxStakeUsd` must be set) and on no other venue.
 
 Kletia never holds keys and never signs. A sub-agent is an API key like any
 other agent key: every request it makes is checked against the whole chain

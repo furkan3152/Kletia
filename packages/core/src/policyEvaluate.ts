@@ -12,6 +12,7 @@ import { canonicalJson } from "./contracts.js";
 import { sha256Hex } from "./hash.js";
 import type { AssetAmount, IntentActionKind, IntentConstraints, IntentGraph, IntentRequest, PolicyChainLink } from "./intent.js";
 import { PERPS_LIMITS, PERPS_VENUE_IDS, type PerpsVenueId } from "./perps.js";
+import { PREDICTION_LIMITS, PREDICTION_VENUES, type PredictionVenueId } from "./predictions.js";
 import { PROTOCOLS, YIELD_VENUES, protocolDependencies, type ProtocolId } from "./protocols.js";
 import {
   accountMatchesPattern,
@@ -971,6 +972,42 @@ export function effectivePerps(chain: readonly Pick<PolicyChainEntry, "policy" |
     venues = venues.filter((venue) => (!allowed || allowed.includes(venue)) && (!protocolAllow || protocolAllow.includes(venue)) && !protocolDeny.includes(venue));
   }
   return { enabled: reason === null, maxLeverage: maxLeverage ?? PERPS_LIMITS.defaultMaxLeverage, venues, reason };
+}
+
+/** What a chain allows on /v1/predictions (predictions.* of every level, plus mode and protocol lists). */
+export interface PredictionPolicyView {
+  /** False when any level disables prediction markets (agents by default), pauses or only dry-runs. */
+  readonly enabled: boolean;
+  /** Lowest predictions.maxStakeUsd the chain sets (PREDICTION_LIMITS.defaultMaxStakeUsd when none sets one), per order. */
+  readonly maxStakeUsd: number;
+  /** Live venues every level allows (predictions.venues and protocols.allow / deny). */
+  readonly venues: readonly PredictionVenueId[];
+  /** Why prediction markets are disabled, when they are. */
+  readonly reason: string | null;
+}
+
+/** Prediction rights of a chain: AND of every level, the lowest stake cap, the intersection of venues. */
+export function effectivePredictions(chain: readonly Pick<PolicyChainEntry, "policy" | "defaults">[]): PredictionPolicyView {
+  let maxStake: number | null = null;
+  let venues: PredictionVenueId[] = PREDICTION_VENUES.filter((venue) => venue.enabled).map((venue) => venue.id);
+  let reason: string | null = null;
+  for (const entry of chain) {
+    const agent = entry.defaults === "agent";
+    const document = entry.policy ?? (agent ? OBSERVER_POLICY : null);
+    if (!document) continue;
+    if (!(document.predictions?.enabled ?? (agent ? AGENT_POLICY_DEFAULTS.predictionsEnabled : true))) {
+      reason ??= agent ? "Agent keys trade prediction markets only when their rule book sets predictions.enabled." : "A rule book of this key disables prediction markets.";
+    }
+    const mode = document.mode ?? "live";
+    if (mode !== "live") reason ??= `A rule book of this key is ${mode}.`;
+    const cap = document.predictions?.maxStakeUsd;
+    if (cap !== undefined) maxStake = Math.min(maxStake ?? Number(cap), Number(cap));
+    const allowed = document.predictions?.venues;
+    const protocolAllow = document.protocols?.allow as readonly string[] | undefined;
+    const protocolDeny = (document.protocols?.deny ?? []) as readonly string[];
+    venues = venues.filter((venue) => (!allowed || allowed.includes(venue)) && (!protocolAllow || protocolAllow.includes(venue)) && !protocolDeny.includes(venue));
+  }
+  return { enabled: reason === null, maxStakeUsd: maxStake ?? PREDICTION_LIMITS.defaultMaxStakeUsd, venues, reason };
 }
 
 /**

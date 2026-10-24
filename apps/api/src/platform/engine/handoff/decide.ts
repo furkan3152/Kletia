@@ -13,6 +13,11 @@
  *   without questions, and the draft is `planAutomationFromGoal`'s. A
  *   swap-like schedule with an end, or a take-profit sell of an exact amount,
  *   becomes the native order that runs without the person.
+ * - predictions: an odds question opens the market search; a buy
+ *   searches the market words and asks the person to pick when more than
+ *   one open market matches (never a guess), asks a missing outcome or
+ *   stake, and checks the rule book's stake cap; a sell opens the person's
+ *   positions matching the words.
  *
  * Nothing here quotes, prepares or stores: the surface does that after the
  * person confirms. Refusals throw PlatformError.
@@ -32,6 +37,8 @@ import {
   type IntentHandoff,
   type NetworkKey,
   type PerpsPolicyView,
+  type PredictionMarket,
+  type PredictionPolicyView,
   type ThreadHandoff,
 } from "@kletia/core";
 import { PlatformError, isPlatformError } from "../../errors.js";
@@ -41,6 +48,7 @@ import { networkName } from "../clarify/catalog.js";
 import type { TurnFacts } from "../clarify/facts.js";
 import type { Assumption, Question } from "../clarify/types.js";
 import { decimalOf, swapOfText } from "./read.js";
+import type { MarketCandidates } from "../../predictions/service.js";
 
 /** What the intent reader made of a run's sentence (decideTurn, replayed with the answers given). */
 export type InnerReading =
@@ -63,6 +71,9 @@ export interface HandoffEnv {
   readonly facts: TurnFacts;
   readonly now: number;
   readonly perps: PerpsPolicyView;
+  readonly predictions: PredictionPolicyView;
+  /** Open prediction markets the words name (Polymarket's search, narrowed). */
+  readonly findMarkets: (query: string) => Promise<MarketCandidates>;
   /** Reads a run's sentence with the answers given so far. */
   readonly inner: (text: string, answers: NonNullable<ThreadHandoff["inner"]>["answers"]) => Promise<InnerReading>;
   /** Null when `text` reads again without questions at run time (exact reading), else why not. */
@@ -186,6 +197,97 @@ function answerPerps(input: Input, field: string, option: string | undefined, te
       const match = /^\$?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(?:usdc|usd|dollars)?$/u.exec(value);
       if (!match) throw answerInvalid("Say an amount in dollars, e.g. 100.");
       return { ...input, [field]: decimalOf(match[1] as string) };
+    }
+    default:
+      throw answerInvalid("That question is not open.");
+  }
+}
+
+/* ------------------------------------------------------------- predictions */
+
+const marketLabel = (market: PredictionMarket) => clip(market.groupTitle ? `${market.groupTitle} · ${market.eventTitle ?? market.question}` : market.question, 48);
+const quoted = (text: string) => `"${clip(text, 60)}"`;
+
+async function decidePredictions(state: ThreadHandoff, env: HandoffEnv): Promise<HandoffOutcome> {
+  const input = state.input as Input;
+  const action = String(input.action);
+  const query = String(input.query ?? "");
+  if (action === "search") {
+    return { status: "handoff", assumptions: [], state, handoff: { surface: "predictions", input: { action: "search", query }, summary: `Odds on ${quoted(query)}`, execution: "signature" } };
+  }
+  if (!env.predictions.enabled) throw new PlatformError("PREDICTION_POLICY_DENIED", env.predictions.reason ?? "This key's rule book does not allow prediction markets.", 403);
+  if (!env.predictions.venues.includes("polymarket")) throw new PlatformError("PREDICTION_POLICY_DENIED", "This key's rule book does not allow Polymarket.", 403);
+  if (action === "sell") {
+    const outcome = str(input.outcome);
+    const shares = str(input.shares);
+    const summary = `Sell ${shares ? `${shares} ` : ""}${outcome ? `${outcome} ` : ""}shares matching ${quoted(query)}`;
+    return {
+      status: "handoff", state,
+      assumptions: [chip("position", "You pick the shares", "Predict lists your positions matching the words; you choose which to sell and see the price first.", true)],
+      handoff: { surface: "predictions", input: { action: "sell", query, ...(outcome ? { outcome } : {}), ...(shares ? { shares } : {}) }, summary, execution: "signature" },
+    };
+  }
+  const amount = str(input.amountUsd);
+  if (amount !== undefined && Number(amount) > env.predictions.maxStakeUsd) {
+    throw new PlatformError("PREDICTION_STAKE_TOO_HIGH", `${amount} USD is above the ${env.predictions.maxStakeUsd} USD cap per order (predictions.maxStakeUsd).`, 422, issues(`Stake above ${env.predictions.maxStakeUsd} USD.`));
+  }
+  const found = await env.findMarkets(query);
+  if (found.markets.length === 0) {
+    throw new PlatformError("PREDICTION_MARKET_NOT_FOUND", clip(`No open Polymarket market matches ${quoted(query)}. Try other words, or browse markets in Predict.`, 300), 422, issues("No market matches."));
+  }
+  const chosen = str(input.marketId);
+  const market = chosen ? found.markets.find((entry) => entry.id === chosen) : found.markets.length === 1 ? found.markets[0] : undefined;
+  if (chosen && !market) throw new PlatformError("PREDICTION_MARKET_NOT_FOUND", "That market no longer matches the words or is closed. Search again.", 422, issues("Market gone."));
+  if (!market) {
+    const options = found.markets.slice(0, 8).map((entry) => ({ id: entry.id, label: marketLabel(entry), value: {} }));
+    const more = found.markets.length > options.length ? " Say more words to narrow it." : "";
+    const prompt = found.exact ? `${found.markets.length} open markets match ${quoted(query)}. Which one?` : `No market holds every word of ${quoted(query)}. Did you mean one of these?`;
+    return ask(state, [question("handoff.marketId", "choice", "MARKET_AMBIGUOUS", prompt, `Kletia never picks a market for you.${more}`, options, true, "More words about the market")], []);
+  }
+  const assumptions: Assumption[] = [chip("market", `Market: ${clip(market.question, 36)}`, found.markets.length === 1 && found.exact ? `The only open market matching ${quoted(query)}.` : "The market you picked.", true, "context")];
+  const said = str(input.outcome);
+  const labels = market.outcomes.map((outcome) => outcome.label);
+  const outcome = said ? market.outcomes.find((entry) => entry.label.toLowerCase() === said.toLowerCase()) : undefined;
+  if (said && !outcome) {
+    throw new PlatformError("PREDICTION_OUTCOME_UNKNOWN", clip(`"${market.question}" is decided between ${labels.join(" and ")}, not ${said}. Say one of those.`, 300), 422, issues("Outcome not listed."));
+  }
+  if (!outcome) {
+    const options = market.outcomes.map((entry) => ({ id: entry.label.replace(/[^\w.:-]+/gu, "_").slice(0, 64) || "outcome", label: clip(entry.price !== null ? `${entry.label} · ${Math.round(entry.price * 100)}%` : entry.label, 48), value: {} }));
+    return ask({ ...state, input: { ...input, marketId: market.id } }, [question("handoff.outcome", "choice", "OUTCOME_MISSING", `Which outcome of "${clip(market.question, 90)}"?`, "Only you can say which side you take; each share pays 1 pUSD if it wins.", options, false)], assumptions);
+  }
+  if (input.saidThat === true) assumptions.push(chip("outcome", `Outcome: ${outcome.label}`, "You bet that it happens.", true, "context"));
+  if (amount === undefined) {
+    return ask({ ...state, input: { ...input, marketId: market.id } }, [question("handoff.amountUsd", "amount", "AMOUNT_MISSING", `How many dollars on ${outcome.label} for "${clip(market.question, 80)}"?`, "The stake is the most you can lose; fees are included in it.", [], true, "Amount in USD")], assumptions);
+  }
+  assumptions.push(chip("stake", "Fees come out of the stake", `The ticket spends at most ${amount} pUSD in total, fees included; you can lose all of it.`, true));
+  return {
+    status: "handoff", assumptions, state: { ...state, input: { ...input, marketId: market.id } },
+    handoff: {
+      surface: "predictions",
+      input: { action: "buy", venue: "polymarket", marketId: market.id, market: market.question, outcome: outcome.label, amountUsd: amount },
+      summary: `Buy ${amount} USD of ${outcome.label} on "${clip(market.question, 90)}"`,
+      execution: "signature",
+    },
+  };
+}
+
+function answerPredictions(input: Input, field: string, option: string | undefined, text: string | undefined): Input {
+  switch (field) {
+    case "marketId":
+      if (option) return { ...input, marketId: option };
+      if (text && text.trim()) {
+        const { marketId: _dropped, ...rest } = input;
+        return { ...rest, query: `${String(input.query ?? "")} ${text.trim()}`.trim().slice(0, 120) };
+      }
+      throw answerInvalid("Pick one of the markets, or say more words about it.");
+    case "outcome": {
+      if (!option) throw answerInvalid("Pick one of the outcomes.");
+      return { ...input, outcome: option.replace(/_/gu, " ") };
+    }
+    case "amountUsd": {
+      const match = /^\$?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(?:usdc|usd|pusd|dollars)?$/iu.exec((text ?? "").trim());
+      if (!match) throw answerInvalid("Say an amount in dollars, e.g. 20.");
+      return { ...input, amountUsd: decimalOf(match[1] as string) };
     }
     default:
       throw answerInvalid("That question is not open.");
@@ -519,6 +621,8 @@ export async function decideHandoff(state: ThreadHandoff, env: HandoffEnv): Prom
       return decidePerps(state, env);
     case "orders":
       return decideOrders(state, env);
+    case "predictions":
+      return decidePredictions(state, env);
     default:
       return decideAutomation(state, env);
   }
@@ -552,5 +656,6 @@ export function answerHandoff(state: ThreadHandoff, answer: { readonly question:
     if (!match) throw answerInvalid("Say an amount, e.g. 100.");
     return { ...state, input: { ...input, amount: decimalOf(match[1] as string) } };
   }
+  if (state.surface === "predictions") return { ...state, input: answerPredictions(input, field, answer.option, answer.text) };
   return { ...state, input: state.surface === "perps" ? answerPerps(input, field, answer.option, answer.text) : answerOrders(input, field, answer.option, answer.text) };
 }

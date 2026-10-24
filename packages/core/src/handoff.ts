@@ -1,17 +1,19 @@
 /**
- * the typed input of the surface that runs it. "long ETH 5x with 100 USDC"
- * opens the Perps ticket, "sell 1 WETH at 4000 on base" the Orders form,
- * "buy $50 of ETH every Monday" an automation draft. The reader validates the
- * input with each surface's own checks, asks for whatever is missing (never
- * guesses leverage, side, amount, price or period) and shows every assumption
- * as a chip. Nothing is executed: the person confirms and signs on the
+ * Hand-offs: a sentence the intent graph does not plan, read into the typed
+ * input of the surface that runs it. "long ETH 5x with 100 USDC" opens the
+ * Perps ticket, "sell 1 WETH at 4000 on base" the Orders form, "buy $50 of
+ * ETH every Monday" an automation draft, "bet $20 on yes for <market>" the
+ * Predict ticket. The reader validates the input with each surface's own
+ * checks, asks for whatever is missing (never guesses leverage, side,
+ * amount, price or period) and shows every assumption as a chip. Nothing is executed: the person confirms and signs on the
  * surface, which quotes and prepares again.
  */
 import type { NetworkKey } from "./chains.js";
 import type { ValidatedAutomationDraft } from "./automation.js";
 import type { PerpsSide, PerpsVenueId } from "./perps.js";
+import type { PredictionVenueId } from "./predictions.js";
 
-export const HANDOFF_SURFACES = Object.freeze(["perps", "orders", "automations"] as const);
+export const HANDOFF_SURFACES = Object.freeze(["perps", "orders", "automations", "predictions"] as const);
 export type HandoffSurface = (typeof HANDOFF_SURFACES)[number];
 
 /** The perps request as the sentence gave it (`planPerpsIntent` input; POST /v1/perps/quote after the desk adds the account). */
@@ -53,6 +55,26 @@ export interface AutomationsHandoffInput {
   readonly draft: ValidatedAutomationDraft;
 }
 
+/**
+ * A prediction-market sentence. A question ("what are the odds of
+ * X?") opens the market search; a buy names the market the person picked
+ * from the search (never a guess); a sell opens the person's positions
+ * matching the words, where they pick the shares.
+ */
+export type PredictionsHandoffInput =
+  | { readonly action: "search"; readonly query: string }
+  | {
+      readonly action: "buy";
+      readonly venue: PredictionVenueId;
+      readonly marketId: string;
+      /** The market's question as the venue lists it. */
+      readonly market: string;
+      readonly outcome: string;
+      /** USD to spend, fees included. */
+      readonly amountUsd: string;
+    }
+  | { readonly action: "sell"; readonly query: string; readonly outcome?: string; readonly shares?: string };
+
 interface HandoffBase {
   /** One line in Kletia's words ("Long ETH 5x with 100 USDC"). */
   readonly summary: string;
@@ -66,13 +88,15 @@ interface HandoffBase {
 export type IntentHandoff =
   | (HandoffBase & { readonly surface: "perps"; readonly input: PerpsHandoffInput })
   | (HandoffBase & { readonly surface: "orders"; readonly input: OrdersHandoffInput })
-  | (HandoffBase & { readonly surface: "automations"; readonly input: AutomationsHandoffInput });
+  | (HandoffBase & { readonly surface: "automations"; readonly input: AutomationsHandoffInput })
+  | (HandoffBase & { readonly surface: "predictions"; readonly input: PredictionsHandoffInput });
 
 /** The desk route each surface opens at, prefilled from the hand-off. */
 export const HANDOFF_VIEWS: Readonly<Record<HandoffSurface, string>> = Object.freeze({
   perps: "/app/perps",
   orders: "/app/orders",
   automations: "/app/automations",
+  predictions: "/app/predict",
 });
 
 /**

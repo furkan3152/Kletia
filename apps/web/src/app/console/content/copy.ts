@@ -31,6 +31,7 @@ const COPY = {
       dashboard: "Dashboard",
       automations: "Automations",
       perps: "Perps",
+      predictions: "Predict",
     },
     /** The six sections of the nav (state/deskNav.ts); views with siblings get sub-tabs. */
     sections: {
@@ -60,6 +61,10 @@ const COPY = {
 
   perps: {
     loading: "Opening Perps...",
+  },
+
+  predict: {
+    loading: "Opening Predict...",
   },
 
   wallets: {

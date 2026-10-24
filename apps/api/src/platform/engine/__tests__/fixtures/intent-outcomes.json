@@ -9638,6 +9638,98 @@
     "VEN022": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD001": {
+     "o": "ready",
+     "d": "predictions:buy Yes $20 #666861"
+    },
+    "PRD002": {
+     "o": "ready",
+     "d": "predictions:buy No $50 #666861"
+    },
+    "PRD003": {
+     "o": "ready",
+     "d": "predictions:buy No $10 #666861"
+    },
+    "PRD004": {
+     "o": "ready",
+     "d": "predictions:buy Yes $25 #561229"
+    },
+    "PRD005": {
+     "o": "asked",
+     "d": "handoff.marketId:MARKET_AMBIGUOUS"
+    },
+    "PRD006": {
+     "o": "asked",
+     "d": "handoff.outcome:OUTCOME_MISSING"
+    },
+    "PRD007": {
+     "o": "asked",
+     "d": "handoff.amountUsd:AMOUNT_MISSING"
+    },
+    "PRD008": {
+     "o": "ready",
+     "d": "predictions:search \"trump out as president\""
+    },
+    "PRD009": {
+     "o": "ready",
+     "d": "predictions:search \"a US recession in 2026\""
+    },
+    "PRD010": {
+     "o": "ready",
+     "d": "predictions:search \"fed cutting rates in december\""
+    },
+    "PRD011": {
+     "o": "ready",
+     "d": "predictions:sell \"trump\""
+    },
+    "PRD012": {
+     "o": "ready",
+     "d": "predictions:sell No \"trump out as president before 2027\""
+    },
+    "PRD013": {
+     "o": "ready",
+     "d": "predictions:sell 50 Yes \"trump out as president before 2027\""
+    },
+    "PRD014": {
+     "o": "ready",
+     "d": "predictions:buy Yes $20 #666861"
+    },
+    "PRD015": {
+     "o": "refused",
+     "d": "PREDICTION_STAKE_TOO_HIGH"
+    },
+    "PRD016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD018": {
+     "o": "asked",
+     "d": "handoff.marketId:MARKET_AMBIGUOUS"
+    },
+    "PRD019": {
+     "o": "asked",
+     "d": "handoff.marketId:MARKET_AMBIGUOUS"
+    },
+    "PRD020": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD021": {
+     "o": "asked",
+     "d": "handoff.marketId:MARKET_AMBIGUOUS"
+    },
+    "PRD022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD023": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     }
    },
    "plan": {
@@ -11374,6 +11466,98 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "VEN022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD001": {
+     "o": "ready",
+     "d": "predictions:buy Yes $20 #666861"
+    },
+    "PRD002": {
+     "o": "ready",
+     "d": "predictions:buy No $50 #666861"
+    },
+    "PRD003": {
+     "o": "ready",
+     "d": "predictions:buy No $10 #666861"
+    },
+    "PRD004": {
+     "o": "ready",
+     "d": "predictions:buy Yes $25 #561229"
+    },
+    "PRD005": {
+     "o": "asked",
+     "d": "handoff.marketId:MARKET_AMBIGUOUS"
+    },
+    "PRD006": {
+     "o": "asked",
+     "d": "handoff.outcome:OUTCOME_MISSING"
+    },
+    "PRD007": {
+     "o": "asked",
+     "d": "handoff.amountUsd:AMOUNT_MISSING"
+    },
+    "PRD008": {
+     "o": "ready",
+     "d": "predictions:search \"trump out as president\""
+    },
+    "PRD009": {
+     "o": "ready",
+     "d": "predictions:search \"a US recession in 2026\""
+    },
+    "PRD010": {
+     "o": "ready",
+     "d": "predictions:search \"fed cutting rates in december\""
+    },
+    "PRD011": {
+     "o": "ready",
+     "d": "predictions:sell \"trump\""
+    },
+    "PRD012": {
+     "o": "ready",
+     "d": "predictions:sell No \"trump out as president before 2027\""
+    },
+    "PRD013": {
+     "o": "ready",
+     "d": "predictions:sell 50 Yes \"trump out as president before 2027\""
+    },
+    "PRD014": {
+     "o": "ready",
+     "d": "predictions:buy Yes $20 #666861"
+    },
+    "PRD015": {
+     "o": "refused",
+     "d": "PREDICTION_STAKE_TOO_HIGH"
+    },
+    "PRD016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD018": {
+     "o": "asked",
+     "d": "handoff.marketId:MARKET_AMBIGUOUS"
+    },
+    "PRD019": {
+     "o": "asked",
+     "d": "handoff.marketId:MARKET_AMBIGUOUS"
+    },
+    "PRD020": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD021": {
+     "o": "asked",
+     "d": "handoff.marketId:MARKET_AMBIGUOUS"
+    },
+    "PRD022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD023": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     }
@@ -13114,6 +13298,98 @@
     "VEN022": {
      "o": "refused",
      "d": "VENUE_UNKNOWN"
+    },
+    "PRD001": {
+     "o": "ready",
+     "d": "predictions:buy Yes $20 #666861"
+    },
+    "PRD002": {
+     "o": "ready",
+     "d": "predictions:buy No $50 #666861"
+    },
+    "PRD003": {
+     "o": "ready",
+     "d": "predictions:buy No $10 #666861"
+    },
+    "PRD004": {
+     "o": "ready",
+     "d": "predictions:buy Yes $25 #561229"
+    },
+    "PRD005": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRD006": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRD007": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRD008": {
+     "o": "ready",
+     "d": "predictions:search \"trump out as president\""
+    },
+    "PRD009": {
+     "o": "ready",
+     "d": "predictions:search \"a US recession in 2026\""
+    },
+    "PRD010": {
+     "o": "ready",
+     "d": "predictions:search \"fed cutting rates in december\""
+    },
+    "PRD011": {
+     "o": "ready",
+     "d": "predictions:sell \"trump\""
+    },
+    "PRD012": {
+     "o": "ready",
+     "d": "predictions:sell No \"trump out as president before 2027\""
+    },
+    "PRD013": {
+     "o": "ready",
+     "d": "predictions:sell 50 Yes \"trump out as president before 2027\""
+    },
+    "PRD014": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRD015": {
+     "o": "refused",
+     "d": "PREDICTION_STAKE_TOO_HIGH"
+    },
+    "PRD016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD018": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRD019": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRD020": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD021": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRD022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRD023": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     }
    }
   }

@@ -245,14 +245,15 @@ flowchart LR
 | Arbitrum Sepolia (`eip155:421614`) | Testnet | Uniswap V3 test-token swaps (pool quote only, 1 % slippage cap); Aave V3 USDC supply; Circle CCTP V2 (sandbox) to Arc Testnet and Solana Devnet |
 | Solana Devnet | Testnet | Transfers, portfolio, native SOL staking and CCTP V2 arrivals |
 
-The registry lists **64 protocols, 45 of them executable through the API**,
+The registry lists **65 protocols, 45 of them executable through the API**,
 plus your own contracts (EVM calls and Solana Actions). The numbers are what
 `GET /v1/protocols` returns: every registry entry that is not an own-contract
 slot, and those whose `executable` flag is set because an active adapter
 serves them. The rest are naming, data, payment, console-only,
 [native-order](docs/platform/orders.md) entries (Jupiter Trigger and
 Recurring, CoW Protocol through `/v1/orders`) and [perps](docs/platform/perps.md)
-venues (GMX v2, Hyperliquid and Drift v2 through `/v1/perps`).
+venues (GMX v2, Hyperliquid and Drift v2 through `/v1/perps`) and the
+[prediction market](docs/platform/predictions.md) venue (Polymarket through `/v1/predictions`).
 
 Production and testnet capital never share one intent. Every venue contract,
 program, vault and market is pinned in the registry

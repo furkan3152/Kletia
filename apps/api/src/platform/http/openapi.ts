@@ -56,6 +56,7 @@ import { accountPaths, accountSchemas } from "./accounts/openapi.js";
 import { automationPaths, automationSchemas } from "../automation/openapi.js";
 import { orderPaths, orderSchemas } from "./orders/openapi.js";
 import { perpsPaths, perpsSchemas } from "./perps/openapi.js";
+import { predictionPaths, predictionSchemas } from "./predictions/openapi.js";
 import { agentPaths, agentSchemas } from "./agents/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
@@ -1643,6 +1644,7 @@ function schemas(): JsonObject {
     ...automationSchemas(),
     ...orderSchemas(),
     ...perpsSchemas(),
+    ...predictionSchemas(),
     ...agentSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
@@ -2051,6 +2053,7 @@ function paths(): JsonObject {
     ...automationPaths(),
     ...orderPaths(),
     ...perpsPaths(),
+    ...predictionPaths(),
     ...agentPaths(),
     "/v1/webhooks": {
       post: {
@@ -2432,6 +2435,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Blinks", description: "Solana Actions for eligible links (actions.json is served by the web origin)." },
       { name: "MCP", description: "Model Context Protocol server for agents: read-only tools, plus keyed creation of intents and links for a human to sign." },
       { name: "Perps", description: "Perpetual futures on GMX v2, Hyperliquid and Drift v2: markets, positions, quotes with liquidation estimates, unsigned payloads for the user's wallet, and the relay of user-signed Hyperliquid actions." },
+      { name: "Predictions", description: "Prediction markets on Polymarket (Polygon): market search, order books and implied probabilities, quotes with max loss and payout, unsigned approvals and EIP-712 orders for the user's own wallet, the order-book sign-in, the relay of user-signed orders, positions and redemption." },
     ],
     paths: paths(),
     webhooks: {

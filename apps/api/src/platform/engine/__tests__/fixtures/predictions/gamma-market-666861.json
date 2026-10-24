@@ -1,0 +1,32 @@
+{
+ "id": "666861",
+ "question": "Trump out as President before 2027?",
+ "conditionId": "0x48b0b0bca515f68fccf95af4793dbd0edbfec1f8ec6e8df2c0f69ba74f8c4722",
+ "slug": "trump-out-as-president-before-2027",
+ "endDate": "2027-01-01T04:59:00Z",
+ "liquidityNum": 372035.07861,
+ "outcomes": "[\"Yes\", \"No\"]",
+ "outcomePrices": "[\"0.0425\", \"0.9575\"]",
+ "volumeNum": 13062731.119242001,
+ "volume24hr": 14833.745942999998,
+ "active": true,
+ "closed": false,
+ "acceptingOrders": true,
+ "clobTokenIds": "[\"59252515735652674747158950210016502214756531287333895140318848923768750410355\", \"2849827372590072151380088930233312280478318575453624773762283369907909283027\"]",
+ "positionIds": [
+  "841010628826234876720206695337081918888800879442871024891813202589959323648",
+  "841010628826234876720206695337081918888800879442871024891813202589959323649"
+ ],
+ "version": "v1",
+ "negRisk": false,
+ "orderPriceMinTickSize": 0.001,
+ "orderMinSize": 5,
+ "feesEnabled": false,
+ "groupItemTitle": "",
+ "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/trump-out-as-president-by-march-31-c3SENQhH7Ao1.jpg",
+ "description": "This market will resolve to \u201cYes\u201d if Donald Trump resigns or is removed as President or otherwise ceases to be the President of the United States for any period of time by December 31, 2026, 11:59 PM ET. Otherwise, this market will resolve to \u201cNo\u201d.\n\nAn announcement of Donald Trum",
+ "enableOrderBook": true,
+ "bestBid": 0.042,
+ "bestAsk": 0.043,
+ "lastTradePrice": 0.043
+}

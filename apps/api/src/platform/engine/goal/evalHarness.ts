@@ -601,11 +601,25 @@ export function installOfflineFetch(): () => void {
     if (/\/tokens\/v\d+\/search\?/u.test(url)) {
       return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
     }
+    // Prediction hand-offs search Polymarket; the eval answers from recorded searches (unknown words: none).
+    if (/\/public-search\?/u.test(url)) {
+      const query = (new URL(url).searchParams.get("q") ?? "").toLowerCase();
+      return new Response(JSON.stringify(predictionSearches()[query] ?? { events: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     throw new TypeError(`offline eval: no network (${url.slice(0, 80)})`);
   }) as typeof fetch;
   return () => {
     globalThis.fetch = real;
   };
+}
+
+const PREDICTION_SEARCHES = new URL("../__tests__/fixtures/predictions/eval-search.json", import.meta.url);
+let predictionSearchCache: Record<string, unknown> | null = null;
+
+/** Recorded Polymarket searches of the eval's prediction prompts (Gamma /public-search, trimmed), keyed by lower-case words. */
+function predictionSearches(): Record<string, unknown> {
+  predictionSearchCache ??= existsSync(PREDICTION_SEARCHES) ? (JSON.parse(readFileSync(PREDICTION_SEARCHES, "utf8")) as Record<string, unknown>) : {};
+  return predictionSearchCache;
 }
 
 /** Runs every prompt offline, in corpus order; restores the holdings and price readers afterwards. */

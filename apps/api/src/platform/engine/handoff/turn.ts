@@ -9,6 +9,7 @@ import {
   CLARIFY_POLICY_VERSION,
   CONTROL_CANCEL_PATTERN,
   effectivePerps,
+  effectivePredictions,
   THREAD_LIMITS,
   THREAD_SPEC,
   type ClarifyThread,
@@ -23,6 +24,7 @@ import type { Question, TurnContext, TurnInput, TurnKindName } from "../clarify/
 import { answerHandoff, decideHandoff, type HandoffOutcome, type InnerReading } from "./decide.js";
 import { readHandoff } from "./read.js";
 import type { TurnDecision } from "../clarify/index.js";
+import { findPredictionMarkets } from "../../predictions/service.js";
 
 /** The decision layer the hand-off uses for a run's sentence (passed in: clarify/index.ts owns decideTurn). */
 export interface HandoffDeps {
@@ -32,6 +34,7 @@ export interface HandoffDeps {
 }
 
 const DEFAULT_PERPS = effectivePerps([]);
+const DEFAULT_PREDICTIONS = effectivePredictions([]);
 
 function wrapRun(text: string, error: unknown): never {
   if (isPlatformError(error) && error.code !== "THREAD_CLOSED") {
@@ -124,6 +127,8 @@ export async function handoffTurn(
     facts,
     now: factsNow(),
     perps: ctx.perps ?? DEFAULT_PERPS,
+    predictions: ctx.predictions ?? DEFAULT_PREDICTIONS,
+    findMarkets: (query: string) => findPredictionMarkets(query),
     inner: (text: string, answers: NonNullable<ThreadHandoff["inner"]>["answers"]) => innerReading(text, answers, ctx, deps),
     runReadable: (text: string) => runReadable(text, ctx, deps),
   };

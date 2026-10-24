@@ -55,6 +55,7 @@ const VARIABLES = [
   ["threadId", "", "A Kletia-held clarify thread id (th_…) from a turn with remember: true, or from listing threads."],
   ["projectId", "", "A project id (prj_…) from GET /v1/projects/current or the publishable profile."],
   ["file", "", "A logo file name (<sha256>.png or <sha256>.webp) from the project's logo.url."],
+  ["predictionMarketId", "", "A Polymarket market id (numeric Gamma id or 0x condition id) from GET /v1/predictions/markets."],
 ];
 
 /** Request bodies and query values that make a useful first call, keyed by operationId. */
@@ -163,7 +164,7 @@ function generate(document) {
     if (name === "accountId") return "accountId";
     const segments = path.split("/");
     const owner = segments[segments.indexOf(`{${name}}`) - 1] ?? "";
-    const singular = { intents: "intent", webhooks: "webhook", keys: "key", contracts: "contract", sessions: "session", links: "link", blinks: "link", automations: "automation", approvals: "approval", decisions: "decision", threads: "thread", orders: "order", agents: "key", requests: "subagentRequest" }[owner];
+    const singular = { intents: "intent", webhooks: "webhook", keys: "key", contracts: "contract", sessions: "session", links: "link", blinks: "link", automations: "automation", approvals: "approval", decisions: "decision", threads: "thread", orders: "order", agents: "key", requests: "subagentRequest", markets: "predictionMarket" }[owner];
     if (singular) return `${singular}Id`;
     if (name === "seq") return "batchSeq";
     return name;

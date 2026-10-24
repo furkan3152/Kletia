@@ -9,6 +9,9 @@
  *   automation:every 1 week mon max - => buy $50 of ETH on base
  *   automation:price SOL@solana below 120 => sell half of my SOL on solana
  *   automation:apy USDC base,arbitrum => rebalance 100
+ *   predictions:search "trump out as president"
+ *   predictions:buy Yes $20 #666861
+ *   predictions:sell Yes "trump"
  */
 import { parseAccountId, type IntentHandoff } from "@kletia/core";
 
@@ -43,12 +46,20 @@ function automationShape(input: Extract<IntentHandoff, { surface: "automations" 
   return `automation:${when} => ${run}`;
 }
 
+function predictionsShape(input: Extract<IntentHandoff, { surface: "predictions" }>["input"]): string {
+  if (input.action === "search") return `predictions:search "${input.query}"`;
+  if (input.action === "sell") return `predictions:sell ${input.shares ? `${input.shares} ` : ""}${input.outcome ? `${input.outcome} ` : ""}"${input.query}"`;
+  return `predictions:buy ${input.outcome} $${input.amountUsd} #${input.marketId}`;
+}
+
 export function handoffShape(handoff: IntentHandoff): string {
   switch (handoff.surface) {
     case "perps":
       return perpsShape(handoff.input);
     case "orders":
       return orderShape(handoff.input);
+    case "predictions":
+      return predictionsShape(handoff.input);
     default:
       return automationShape(handoff.input);
   }

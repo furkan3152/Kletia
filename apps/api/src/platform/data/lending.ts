@@ -14,10 +14,15 @@
  *   `Comet.isLiquidatable` per Comet pinned in YIELD_VENUES. Comet has no
  *   health factor; it is reported null with the reason.
  *   Interface: https://docs.compound.finance/collateral-and-borrowing/
- * - Kamino obligations are not read yet: their health is listed as unknown.
+ * - Kamino: every pinned Kamino market's obligations of a Solana account
+ *   from Kamino's API (`GET /kamino-market/{market}/users/{user}/obligations`,
+ *   USD figures Kamino refreshes from its oracles): collateral as a supply
+ *   position, debt as a borrow, health factor = liquidation limit /
+ *   borrow-factor-adjusted debt (Kamino liquidates when the adjusted debt
+ *   passes the limit), flagged like Aave's.
  *
- * Read-only `eth_call`s, each under its own timeout; a failed read is a
- * failure entry and an `unknown` health row, never "no debt".
+ * Read-only `eth_call`s and API reads, each under its own timeout; a failed
+ * read is a failure entry and an `unknown` health row, never "no debt".
  */
 import { getAddress, parseAbi, zeroAddress, type Address } from "viem";
 import {
@@ -40,7 +45,9 @@ import {
 import { evmClient, isEvmNetwork } from "../engine/chains/evm.js";
 import { listedAsset } from "../engine/holdings.js";
 import { quoteAsset } from "../engine/preview/pricer.js";
+import { KAMINO_API_URL } from "../../networks/solana/index.js";
 import { PlatformError, toPlatformError } from "../errors.js";
+import { historyFetch } from "./chain/fetch.js";
 
 const READ_TIMEOUT_MS = 4_000;
 const BASE_UNIT_TTL_MS = 60 * 60 * 1000;
@@ -69,6 +76,18 @@ export interface LendingReaders {
   /** Units per USD of the pool's base currency; null when the base currency is not USD. */
   aaveBaseUnit(network: NetworkKey, pool: string): Promise<bigint | null>;
   cometBorrow(network: NetworkKey, comet: string, owner: string): Promise<{ readonly borrowed: bigint; readonly liquidatable: boolean }>;
+  /** Kamino's obligations of `owner` in `market` (the API's JSON array). */
+  kaminoObligations(market: string, owner: string): Promise<readonly KaminoObligation[]>;
+}
+
+export interface KaminoObligation {
+  readonly obligationAddress?: string;
+  readonly refreshedStats?: {
+    readonly userTotalDeposit?: string;
+    readonly userTotalBorrow?: string;
+    readonly userTotalBorrowBorrowFactorAdjusted?: string;
+    readonly borrowLiquidationLimit?: string;
+  };
 }
 
 function client(network: NetworkKey) {
@@ -102,6 +121,11 @@ const DEFAULT_READERS: LendingReaders = {
       evm.readContract({ address: getAddress(comet), abi: COMET_ABI, functionName: "isLiquidatable", args: [account] }),
     ]);
     return { borrowed, liquidatable };
+  },
+  async kaminoObligations(market, owner) {
+    const body = await historyFetch(`${KAMINO_API_URL}/kamino-market/${market}/users/${owner}/obligations`, { provider: "Kamino", timeoutMs: READ_TIMEOUT_MS });
+    if (!Array.isArray(body)) throw new PlatformError("PROVIDER_UNAVAILABLE", "Kamino returned an invalid obligations response.", 502);
+    return body as KaminoObligation[];
   },
 };
 
@@ -169,10 +193,28 @@ function comets(network: NetworkKey): CometVenue[] {
   return YIELD_VENUES.filter((venue): venue is CometVenue => venue.kind === "comet" && venue.network === network);
 }
 
+/** Pinned Kamino markets of `network` with their names ("Kamino Main"). */
+function kaminoMarkets(network: NetworkKey): { readonly market: string; readonly name: string }[] {
+  const markets = new Map<string, string>();
+  for (const venue of YIELD_VENUES) {
+    if (venue.kind !== "kamino-reserve" || venue.network !== network || markets.has(venue.market)) continue;
+    markets.set(venue.market, venue.name.slice(0, venue.name.lastIndexOf(" ")));
+  }
+  return [...markets.entries()].map(([market, name]) => ({ market, name }));
+}
+
 export interface LendingAccountsResult {
   readonly debts: readonly DataPosition[];
   readonly health: readonly LendingHealth[];
   readonly failures: readonly DataFailure[];
+}
+
+interface LendingRead {
+  readonly debt: DataPosition | null;
+  /** Collateral the position reads do not see (Kamino obligations). */
+  readonly supply?: DataPosition | null;
+  readonly health: LendingHealth;
+  readonly failure: DataFailure | null;
 }
 
 function failureOf(subject: string, error: unknown): DataFailure {
@@ -251,16 +293,52 @@ async function cometAccount(account: AccountId, network: NetworkKey, owner: stri
   }
 }
 
+const usdFigure = (value: string | undefined): number | null => {
+  const parsed = Number(value);
+  return value !== undefined && Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
+/** One Kamino market of a Solana account: its obligations' collateral and debt (USD) and the lowest health factor. */
+async function kaminoAccount(account: AccountId, network: NetworkKey, owner: string, market: { readonly market: string; readonly name: string }, asOf: string): Promise<LendingRead> {
+  const id = `${network}:kamino:${market.market}`;
+  const base = { account, network, protocol: "kamino" as const, market: id };
+  try {
+    const obligations = await timed(readers.kaminoObligations(market.market, owner));
+    let deposit = 0;
+    let debt = 0;
+    let lowest: number | null = null;
+    for (const obligation of obligations) {
+      const stats = obligation.refreshedStats;
+      const [supplied, borrowed, adjusted, limit] = [stats?.userTotalDeposit, stats?.userTotalBorrow, stats?.userTotalBorrowBorrowFactorAdjusted, stats?.borrowLiquidationLimit].map(usdFigure);
+      if (supplied === null || borrowed === null || adjusted === null || limit === null) throw new PlatformError("PROVIDER_UNAVAILABLE", "Kamino reported an obligation without its figures.", 502);
+      deposit += supplied;
+      debt += borrowed;
+      if (adjusted > 0) lowest = Math.min(lowest ?? Number.POSITIVE_INFINITY, limit / adjusted);
+    }
+    const position = (kind: "supply" | "borrow", usd: number): DataPosition => ({
+      id: `${id}:${kind}`, account, network, protocol: "kamino", name: `${market.name} ${kind === "supply" ? "collateral" : "debt"}`, kind, symbol: "USD", amount: null,
+      value: { usd: Math.round(usd * 100) / 100, source: "kamino-api", asOf }, apy: null, inWallet: false,
+    });
+    const health: LendingHealth = lowest === null
+      ? { ...base, healthFactor: null, status: "no-debt", source: "kamino-api", asOf }
+      : { ...base, healthFactor: Math.round(lowest * 1e4) / 1e4, status: healthStatus(lowest), source: "kamino-api", asOf };
+    return { supply: deposit > 0 ? position("supply", deposit) : null, debt: debt > 0 ? position("borrow", debt) : null, health, failure: null };
+  } catch (error) {
+    const failure = failureOf(id, error);
+    return { debt: null, health: { ...base, healthFactor: null, status: "unknown", source: "kamino-api", asOf: null, reason: `The obligations could not be read (${failure.code}).` }, failure };
+  }
+}
+
 /**
- * Debt and health of every EVM account in `accounts` at the pinned Aave V3,
- * SparkLend and Compound V3 markets of its network (health rows for loans and
- * unreadable markets only), plus an unknown row per Solana account for Kamino
- * obligations. Preview accounts are never read.
+ * Debt and health of every account in `accounts`: EVM accounts at the pinned
+ * Aave V3, SparkLend and Compound V3 markets of their network, Solana
+ * accounts at the pinned Kamino markets (with the obligations' collateral);
+ * health rows for loans and unreadable markets only. Preview accounts are
+ * never read.
  */
 export async function readLendingAccounts(accounts: readonly AccountId[]): Promise<LendingAccountsResult> {
   const asOf = new Date().toISOString();
-  const reads: Promise<{ debt: DataPosition | null; health: LendingHealth; failure: DataFailure | null }>[] = [];
-  const health: LendingHealth[] = [];
+  const reads: Promise<LendingRead>[] = [];
   for (const account of accounts) {
     const parsed = parseAccountId(account);
     if (!parsed || isPreviewAccount(account)) continue;
@@ -268,15 +346,15 @@ export async function readLendingAccounts(accounts: readonly AccountId[]): Promi
     if (CHAINS[network].vm === "evm") {
       for (const pool of aavePools(network)) reads.push(aaveAccount(account, network, parsed.address, pool, asOf));
       for (const comet of comets(network)) reads.push(cometAccount(account, network, parsed.address, comet, asOf));
-    } else if (YIELD_VENUES.some((venue) => venue.kind === "kamino-reserve" && venue.network === network)) {
-      health.push({ account, network, protocol: "kamino", market: `${network}:kamino`, healthFactor: null, status: "unknown", source: "adapter", asOf: null, reason: "Kamino obligations (loans) are not read yet." });
+    } else {
+      for (const market of kaminoMarkets(network)) reads.push(kaminoAccount(account, network, parsed.address, market, asOf));
     }
   }
   const results = await Promise.all(reads);
   return {
-    debts: results.flatMap((result) => (result.debt ? [result.debt] : [])),
+    debts: results.flatMap((result) => [...(result.supply ? [result.supply] : []), ...(result.debt ? [result.debt] : [])]),
     // Markets without debt are left out: a health row is a loan, or a market that could not be read.
-    health: [...results.map((result) => result.health).filter((row) => row.status !== "no-debt"), ...health],
+    health: results.map((result) => result.health).filter((row) => row.status !== "no-debt"),
     failures: results.flatMap((result) => (result.failure ? [result.failure] : [])),
   };
 }

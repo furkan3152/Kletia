@@ -114,6 +114,7 @@ import { linkHandlers } from "./links/handlers.js";
 import { accountHandlers } from "./accounts/handlers.js";
 import { automationHandlers } from "../automation/handlers.js";
 import { startAutomationEvaluator } from "../automation/evaluator.js";
+import { startDataSnapshotJob } from "../data/index.js";
 import { orderHandlers } from "./orders/handlers.js";
 import { perpsHandlers } from "./perps/handlers.js";
 import { agentHandlers } from "./agents/handlers.js";
@@ -162,6 +163,16 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/data/markets/prices", auth: "public", publishable: true },
   { method: "get", path: "/data/markets/status", auth: "public", publishable: true },
   { method: "get", path: "/data/export", auth: "public", publishable: true },
+  // On-chain history (data/transactions.ts): an API key's named addresses, or a desk wallet session's tracked set.
+  { method: "get", path: "/data/transactions", auth: "public", publishable: true },
+  { method: "get", path: "/data/transactions/:id", auth: "public", publishable: true },
+  { method: "get", path: "/data/pnl", auth: "public", publishable: true },
+  { method: "get", path: "/data/snapshots", auth: "public", publishable: true },
+  { method: "get", path: "/data/summary", auth: "public", publishable: true },
+  // Tracking opt-in: a desk wallet session (first-party origin) only.
+  { method: "get", path: "/data/tracking", auth: "public" },
+  { method: "post", path: "/data/tracking", auth: "public" },
+  { method: "delete", path: "/data/tracking", auth: "public" },
   { method: "post", path: "/intents", auth: "public", publishable: true },
   // Model-assisted reading consent: browser callers only; server keys are refused in the handler.
   { method: "post", path: "/reading-consent", auth: "public", publishable: true },
@@ -1065,7 +1076,7 @@ let stopBackground: (() => void) | null = null;
 /**
  * Starts the settlement poller, the webhook dispatcher, the usage flusher,
  * the contract pin watcher, the receipt issuer and transparency log, the
- * automation evaluator, and the
+ * automation evaluator, the data snapshot job, and the
  * hourly pruning of idempotency records, delivery logs, expired sessions,
  * previews and clarify threads, once per process. Returns an idempotent stop function. Call it on long-running
  * hosts only (not in serverless request handlers; there usage is written
@@ -1088,6 +1099,7 @@ export function startPlatformBackground(options: PlatformBackgroundOptions = {})
     startPolicyBackground(),
     startLinkBackground(),
     startAutomationEvaluator(),
+    startDataSnapshotJob(),
   ];
   const stop = () => {
     if (stopBackground !== stop) return;

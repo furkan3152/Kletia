@@ -15,7 +15,7 @@ import { walletErrorText } from "../../admin/model/session";
 import { base58Encode } from "../../admin/model/signIn";
 import { accountApi, isPlatformError } from "./accountClient";
 import { accountChainId, accountErrorText, accountMessageProblems } from "./accountModel";
-import { setAccountSession } from "./accountSessionStore";
+import { setAccountSession, type AccountSessionState } from "./accountSessionStore";
 import { connectWallet, discoverEvmWallets, discoverSolanaWallets, signWithWallet, type ConnectedWallet, type WalletOption } from "./injectedWallets";
 
 /** Wall-clock time, read when a message arrives (never during render). */
@@ -30,9 +30,11 @@ interface Prepared {
 
 export interface AccountSignInProps {
   readonly onCancel: () => void;
+  /** Receives the session instead of making it this tab's session (a second wallet proving itself to the desk). */
+  readonly onSignedIn?: (session: AccountSessionState) => void;
 }
 
-export default function AccountSignIn({ onCancel }: AccountSignInProps) {
+export default function AccountSignIn({ onCancel, onSignedIn }: AccountSignInProps) {
   const [wallets, setWallets] = useState<readonly WalletOption[] | null>(null);
   const [scan, setScan] = useState(0);
   const [prepared, setPrepared] = useState<Prepared | null>(null);
@@ -80,7 +82,9 @@ export default function AccountSignIn({ onCancel }: AccountSignInProps) {
     try {
       const signature = await signWithWallet(prepared.option, prepared.connected, prepared.message, base58Encode);
       const signedIn = await accountApi.signIn(prepared.message, signature);
-      setAccountSession({ token: signedIn.token, walletKind: signedIn.session.walletKind, address: signedIn.session.address, expiresAt: signedIn.session.expiresAt });
+      const session: AccountSessionState = { token: signedIn.token, walletKind: signedIn.session.walletKind, address: signedIn.session.address, expiresAt: signedIn.session.expiresAt };
+      if (onSignedIn) onSignedIn(session);
+      else setAccountSession(session);
     } catch (failure) {
       // A failed attempt uses the message up: start again from a fresh one.
       setPrepared(null);

@@ -151,6 +151,7 @@ funds where they are, or plan the rest again.
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
 | <a id="error-AUTOMATION_DRAFT_INVALID"></a>`AUTOMATION_DRAFT_INVALID` | 400 | no | Invalid automation | Fix the fields listed in error.issues. validateAutomationDraft in @kletia/core reports the same issues locally. |
+| <a id="error-DATA_TRACKING_LIMIT"></a>`DATA_TRACKING_LIMIT` | 422 | no | Too many tracked wallets | A tracked set holds at most 2 EVM and 2 Solana wallets. Stop tracking one first. |
 | <a id="error-ACCOUNT_INVALID"></a>`ACCOUNT_INVALID` | 400 / 500 | no | Invalid account | Send accounts as CAIP-10 ids such as eip155:8453:0x… or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:<address>. |
 | <a id="error-ACTION_URL_FORBIDDEN"></a>`ACTION_URL_FORBIDDEN` | 422 | no | Action URL refused | Use public HTTPS URLs on the registered origin (port 443 or 1024+); private, loopback, credential and redirecting URLs are refused. |
 | <a id="error-AMOUNT_REQUIRED"></a>`AMOUNT_REQUIRED` | 400 | no | Amount required | Give every action an amount (a decimal, or max on a dependent step). |
@@ -192,6 +193,8 @@ funds where they are, or plan the rest again.
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
 | <a id="error-AUTOMATION_OWNER_REQUIRED"></a>`AUTOMATION_OWNER_REQUIRED` | 401 | no | Automations need an owner | Send a project or agent API key, or a wallet session (Kletia-Account-Session) from the Kletia desk. |
+| <a id="error-DATA_CALLER_REQUIRED"></a>`DATA_CALLER_REQUIRED` | 401 | no | History reads need a caller | Send an API key (publishable keys work) with evm= / solana= addresses, or a wallet session (Kletia-Account-Session) from the Kletia desk for a tracked wallet set. |
+| <a id="error-DATA_PROOF_INVALID"></a>`DATA_PROOF_INVALID` | 401 | no | Wallet proof invalid | Each wallet added to tracking needs its own live wallet sign-in from the same site. Sign in with that wallet again and send its session token in proofs. |
 | <a id="error-API_KEY_REQUIRED"></a>`API_KEY_REQUIRED` | 401 | no | API key required | Issue a key with POST /v1/keys and send it as Authorization: Bearer <key>. |
 | <a id="error-INVALID_API_KEY"></a>`INVALID_API_KEY` | 401 | no | Invalid or revoked API key | Check the key, or issue a new one. Revoked and expired rotated keys stop working within 15 seconds. |
 | <a id="error-INVALID_AUTHORIZATION"></a>`INVALID_AUTHORIZATION` | 401 | no | Malformed credentials | Send Authorization: Bearer <key> or X-Kletia-Key: <key>, not both with different keys. |
@@ -234,6 +237,8 @@ funds where they are, or plan the rest again.
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
 | <a id="error-AUTOMATION_NOT_FOUND"></a>`AUTOMATION_NOT_FOUND` | 404 | no | Automation not found | Check the id (au_ + 24 hex). GET /v1/automations lists the caller's own automations. |
+| <a id="error-DATA_NOT_TRACKED"></a>`DATA_NOT_TRACKED` | 404 | no | Wallet not tracked | Turn tracking on for the signed-in wallet with POST /v1/data/tracking (the desk's Dashboard does it), or read addresses with an API key instead. |
+| <a id="error-DATA_TRANSACTION_NOT_FOUND"></a>`DATA_TRANSACTION_NOT_FOUND` | 404 | no | Transaction not found for these wallets | Use an id (&lt;network&gt;:&lt;hash&gt;) from GET /v1/data/transactions of the same wallets; the transaction must involve one of them. |
 | <a id="error-APPROVAL_NOT_FOUND"></a>`APPROVAL_NOT_FOUND` | 404 | no | Approval not found | Check the approval id from the link (/approve#apr_…) or error.policy.approval. |
 | <a id="error-CONTRACT_NOT_FOUND"></a>`CONTRACT_NOT_FOUND` | 404 | no | Contract registration not found | List registrations with GET /v1/contracts; a key sees its own and the project-visible ones of its project. |
 | <a id="error-FLOW_UNKNOWN"></a>`FLOW_UNKNOWN` | 404 | no | Flow not found | Use the id of a flow stored in the project's settings; GET /v1/publishable/profile lists them. |
@@ -261,6 +266,7 @@ funds where they are, or plan the rest again.
 |---|---|---|---|---|
 | <a id="error-AUTOMATION_CONFLICT"></a>`AUTOMATION_CONFLICT` | 409 | yes | Automation changed | Another change to this automation landed first. Read it again and retry. |
 | <a id="error-AUTOMATION_ENDED"></a>`AUTOMATION_ENDED` | 409 | no | Automation ended | A completed or expired automation cannot resume. Create a new one. |
+| <a id="error-DATA_WALLET_TRACKED"></a>`DATA_WALLET_TRACKED` | 409 | no | Wallet tracked elsewhere | A wallet belongs to one tracked set at a time. Sign in with it and stop tracking there (DELETE /v1/data/tracking) first. |
 | <a id="error-AUTOMATION_LIMIT_REACHED"></a>`AUTOMATION_LIMIT_REACHED` | 409 | no | Too many automations | An owner holds at most 50 live automations and creates at most 30 an hour. Delete some first. |
 | <a id="error-AGENT_KEY_LIMIT_REACHED"></a>`AGENT_KEY_LIMIT_REACHED` | 409 | no | Too many agent keys | A project holds at most 100 active agent keys. Revoke one first. |
 | <a id="error-APPROVAL_DECIDED"></a>`APPROVAL_DECIDED` | 409 | no | Approval already decided | The approval was already approved, rejected or expired; a decision is final. Read it with GET /v1/policy/approvals/{id}. |
@@ -492,6 +498,7 @@ funds where they are, or plan the rest again.
 | <a id="error-PROVIDER_UNAVAILABLE"></a>`PROVIDER_UNAVAILABLE` | 502 | yes | Provider unavailable | A routing or data provider is temporarily unavailable. Retry shortly. Also returned as <PROVIDER>_UNAVAILABLE, e.g. RELAY_UNAVAILABLE. |
 | <a id="error-RELAY_QUOTE_INVALID"></a>`RELAY_QUOTE_INVALID` | 502 | yes | Relay quote refused | Relay returned a quote that failed Kletia's checks. Retry shortly. |
 | <a id="error-RPC_TIMEOUT"></a>`RPC_TIMEOUT` | 504 | yes | Network read timed out | Retry shortly. |
+| <a id="error-HISTORY_PROVIDER_UNAVAILABLE"></a>`HISTORY_PROVIDER_UNAVAILABLE` | 502 | yes | History provider unavailable | Etherscan, Alchemy, Helius or the Solana RPC refused or failed the read (error.message says which and why). Retry shortly; the other accounts of the listing are unaffected. |
 | <a id="error-RPC_UNAVAILABLE"></a>`RPC_UNAVAILABLE` | 502 | yes | Network read failed | A network RPC is temporarily unavailable. Retry shortly. |
 | <a id="error-SIMULATION_UNVERIFIED"></a>`SIMULATION_UNVERIFIED` | 502 | yes | Direct DEX simulation unverified | The RPC simulation lacks the required reviewed pool CPI evidence. Use a complete RPC simulation or another venue. |
 | <a id="error-SOLANA_FOREIGN_SIGNER"></a>`SOLANA_FOREIGN_SIGNER` | 502 | no | Unexpected signer | The provider's instructions required another signer and were refused. Retry, or try another route. |
@@ -513,6 +520,8 @@ funds where they are, or plan the rest again.
 | <a id="error-RECEIPTS_DISABLED"></a>`RECEIPTS_DISABLED` | 503 | yes | Receipts unavailable | Receipts are switched off or no signing key is configured on this deployment. Retry later; reads of existing receipts keep working. |
 | <a id="error-SIMULATION_UNAVAILABLE"></a>`SIMULATION_UNAVAILABLE` | 503 | yes | Simulation unavailable | No configured endpoint can simulate on this network now, and Kletia never prepares a custom contract step unsimulated. Retry shortly. |
 | <a id="error-STORE_UNAVAILABLE"></a>`STORE_UNAVAILABLE` | 503 | yes | Storage unavailable | Retry shortly. Presented API keys cannot be verified meanwhile. |
+| <a id="error-HISTORY_NOT_CONFIGURED"></a>`HISTORY_NOT_CONFIGURED` | 503 | no | History provider not configured | The operator must set ETHERSCAN_API_KEY (or ALCHEMY_API_KEY) for EVM history; Solana history works without a key (HELIUS_API_KEY makes it faster). |
+| <a id="error-DATA_TRACKING_FULL"></a>`DATA_TRACKING_FULL` | 503 | yes | Tracking full | This instance holds no more tracked sets in memory. Retry later; deployments with a database have no such limit. |
 | <a id="error-WEBHOOKS_NOT_CONFIGURED"></a>`WEBHOOKS_NOT_CONFIGURED` | 503 | no | Webhooks not configured | The operator must set KLETIA_PLATFORM_SECRET (at least 32 characters). |
 
 ### Internal

@@ -25,6 +25,7 @@ test("the old view URLs open their view inside the right section", () => {
     "/app": ["desk", "desk"],
     "/app/tasks": ["tasks", "tasks"],
     "/app/dashboard": ["dashboard", "portfolio"],
+    "/app/history": ["history", "portfolio"],
     "/app/holdings": ["holdings", "portfolio"],
     "/app/perps": ["perps", "trade"],
     "/app/orders": ["orders", "trade"],
@@ -43,12 +44,13 @@ test("the old view URLs open their view inside the right section", () => {
 test("desk commands still open their view; its section shows sub-tabs when it has siblings", () => {
   assert.equal(DESK_COMMANDS["show my holdings"], "holdings");
   assert.equal(DESK_COMMANDS["show my dashboard"], "dashboard");
+  assert.equal(DESK_COMMANDS["show my history"], "history");
   assert.equal(DESK_COMMANDS["show my orders"], "orders");
   assert.equal(DESK_COMMANDS["show my automations"], "automations");
   assert.equal(DESK_COMMANDS["show my activity"], "activity");
   for (const view of Object.values(DESK_COMMANDS)) assert.ok(siblingViews(view).includes(view), view);
   assert.deepEqual(siblingViews("orders"), ["perps", "orders"]);
-  assert.deepEqual(siblingViews("holdings"), ["dashboard", "holdings"]);
+  assert.deepEqual(siblingViews("holdings"), ["dashboard", "history", "holdings"]);
   assert.deepEqual(siblingViews("automations"), ["automations"]);
 });
 

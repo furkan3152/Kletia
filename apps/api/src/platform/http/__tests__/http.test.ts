@@ -559,7 +559,13 @@ describe("GET /v1/openapi.json", () => {
     const mentioned = new Set([...text.matchAll(/\b([A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+)\b/gu)].map((match) => match[1] as string));
     // Configuration variables the descriptions name (not error codes).
     // Clarify question reasons (ClarifyQuestion.reason) are not error codes either.
-    const ignored = new Set(["UPPER_SNAKE_CASE", "KLETIA_PLATFORM_SECRET", "KLETIA_OPERATOR_API_KEYS", "RENDER_GIT_COMMIT", "KLETIA_BUILD_COMMIT", ...CLARIFY_REASONS]);
+    // Data summary risk flags (DataRiskFlag.flag) are not error codes either.
+    const ignored = new Set([
+      "UPPER_SNAKE_CASE", "KLETIA_PLATFORM_SECRET", "KLETIA_OPERATOR_API_KEYS", "RENDER_GIT_COMMIT", "KLETIA_BUILD_COMMIT",
+      "ETHERSCAN_API_KEY", "ALCHEMY_API_KEY", "HELIUS_API_KEY",
+      "LOW_HEALTH", "LIQUIDATABLE", "PERP_NEAR_LIQUIDATION", "CONCENTRATION", "UNPRICED", "UNREAD", "HISTORY_INCOMPLETE",
+      ...CLARIFY_REASONS,
+    ]);
     const unknown = [...mentioned].filter((code) => !ignored.has(code) && !resolveErrorCode(code));
     assert.deepEqual(unknown, []);
   });

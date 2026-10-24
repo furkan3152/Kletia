@@ -8,13 +8,13 @@ header (`apps/web/src/app/console/state/deskNav.ts`):
 |---|---|---|
 | Desk | desk | `/app` |
 | Tasks | tasks (phones and tablets; the left rail shows the list from 1280 px, a header popover from 1024 px) | `/app/tasks` |
-| Portfolio | Dashboard, Holdings | `/app/dashboard`, `/app/holdings` |
+| Portfolio | Dashboard, History, Holdings | `/app/dashboard`, `/app/history`, `/app/holdings` |
 | Trade | Perps, Orders | `/app/perps`, `/app/orders` |
 | Automate | Automations | `/app/automations` |
 | More | Tools, Activity | `/app/tools`, `/app/tools/<id>`, `/app/activity` |
 
 - Every view keeps its own path, so old links, the pre-rendered pages and the
-  desk commands ("show my holdings", "show my orders", "show my dashboard",
+  desk commands ("show my holdings", "show my orders", "show my dashboard", "show my history",
   "show my automations", "show my activity", "open tools") open the same view
   as before, now inside its section.
 - A section tab opens the view already shown when it belongs to the section,

@@ -2,7 +2,8 @@
  * The desk's Dashboard view (/app/dashboard): one read-only page of the
  * connected wallets on every network of the lane. A KPI row (total value,
  * 24-hour change, positions, health warnings), allocation by network, asset
- * and protocol, the positions table with loan health, the best rates with
+ * and protocol, the positions table with loan health, the value over time
+ * and PnL estimates of the tracked set (ValueSection.tsx), the best rates with
  * "Move here" (puts a deposit sentence in the composer; nothing is sent), the
  * browser's activity and a CSV export. Loaded lazily by DeskApp; its styles
  * live in dashboard.css so they never reach the entry stylesheet.
@@ -32,6 +33,7 @@ import {
   type DashboardLane,
 } from "./dashboardModel";
 import { useDashboardData } from "./useDashboardData";
+import { ValueSection } from "./ValueSection";
 
 const copy = DESK_COPY.dashboard;
 
@@ -216,6 +218,8 @@ export default function DashboardView({ lane }: { readonly lane: DashboardLane }
           </section>
         </>
       ) : null}
+
+      <ValueSection lane={lane} />
 
       <section aria-labelledby="kdb-yields" className="flex flex-col gap-3">
         <h3 id="kdb-yields" className="kdb-subtitle">{copy.yields}</h3>

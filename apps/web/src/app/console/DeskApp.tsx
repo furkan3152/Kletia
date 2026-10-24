@@ -6,8 +6,8 @@
  * only when one is needed.
  *
  * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools, /app/perps,
- * /app/orders, /app/dashboard, /app/automations) are the same desk, grouped
- * into six nav sections with sub-tabs (state/deskNav.ts); Perps, Dashboard
+ * /app/orders, /app/dashboard, /app/history, /app/automations) are the same desk, grouped
+ * into six nav sections with sub-tabs (state/deskNav.ts); Perps, Dashboard, History
  * and Automations load as their own chunks. The thread stays mounted under
  * every view, because unmounting a task's execution would cancel its run. One task signs at a time (the
  * store's signing lock, enforced by the execution hook).
@@ -62,6 +62,8 @@ const AutomationsView = lazy(() => import("./automations/AutomationsView"));
 
 /** The Dashboard view, read-only and loaded only when opened. */
 const DashboardView = lazy(() => import("./dashboard/DashboardView"));
+/** The History view (on-chain transactions of the tracked set), loaded only when opened. */
+const HistoryView = lazy(() => import("./history/HistoryView"));
 /** Loaded only when the Perps view opens. */
 const PerpsView = lazy(() => import("./perps/PerpsView"));
 
@@ -288,6 +290,11 @@ export default function DeskApp() {
         {view === "dashboard" ? (
           <Suspense fallback={<p className="text-sm font-bold">{copy.dashboard.loading}</p>}>
             <DashboardView lane={lane} />
+          </Suspense>
+        ) : null}
+        {view === "history" ? (
+          <Suspense fallback={<p className="text-sm font-bold">{copy.history.loading}</p>}>
+            <HistoryView lane={lane} />
           </Suspense>
         ) : null}
         {view === "automations" ? (

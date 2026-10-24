@@ -2,6 +2,7 @@ import {
   dataHistoryCsv,
   dataHoldingsCsv,
   dataPositionsCsv,
+  dataTransactionsCsv,
   isContractId,
   isLinkId,
   isSessionId,
@@ -21,8 +22,16 @@ import {
   type DataHistory,
   type DataMarketStatus,
   type DataPortfolio,
+  type DataPnl,
+  type DataPnlPeriod,
   type DataPositions,
   type DataPrices,
+  type DataSnapshotRange,
+  type DataSnapshotSeries,
+  type DataSummary,
+  type DataTransaction,
+  type DataTransactionPage,
+  type DataTxQuery,
   type DataYields,
   type IntentGraph,
   type IntentPreview,
@@ -490,7 +499,7 @@ export function turnRetryClass(request: IntentTurnRequest, options: { readonly d
 const PUBLISHABLE_ROUTES: readonly { readonly method: string; readonly pattern: RegExp }[] = [
   { method: "GET", pattern: /^\/(?:health|networks|protocols|assets|venues|errors|openapi\.json|status\/badge|publishable\/profile)$/iu },
   { method: "GET", pattern: /^\/portfolio(?:\/[^/]+)?$/iu },
-  { method: "GET", pattern: /^\/data\/(?:portfolio|positions|history|export|markets\/(?:yields|prices|status))$/iu },
+  { method: "GET", pattern: /^\/data\/(?:portfolio|positions|history|export|transactions(?:\/[^/]+)?|pnl|snapshots|summary|markets\/(?:yields|prices|status))$/iu },
   { method: "POST", pattern: /^\/(?:quotes|intents|mcp|policy\/validate)$/iu },
   { method: "GET", pattern: /^\/intents\/[^/]+(?:\/(?:events|journey|preview|receipt|receipts|receipt\/shares))?$/iu },
   { method: "POST", pattern: /^\/intents\/[^/]+\/(?:refresh|cancel|stop|preview|receipt\/shares)$/iu },
@@ -974,9 +983,42 @@ export class KletiaClient {
       const body = await this.request<{ portfolio: DataPortfolio }>("GET", "/data/portfolio", undefined, { ...options, query: walletQuery(wallets, true) });
       return body.portfolio;
     },
-    /** Positions, debts and lending health of the wallets. */
-    positions: async (wallets: DataWalletQuery, options: RequestOptions = {}): Promise<DataPositions> =>
-      this.request<DataPositions>("GET", "/data/positions", undefined, { ...options, query: walletQuery(wallets, true) }),
+    /** Positions, debts and lending health of the wallets; `extras` adds perps, open orders, automations and agent spend. */
+    positions: async (wallets: DataWalletQuery & { readonly extras?: boolean }, options: RequestOptions = {}): Promise<DataPositions> => {
+      const { extras, ...set } = wallets;
+      return this.request<DataPositions>("GET", "/data/positions", undefined, { ...options, query: { ...walletQuery(set, true), extras: extras ? "true" : undefined } });
+    },
+    /**
+     * On-chain history of the wallets (needs a key), newest first, classified and priced at the time.
+     * Pass `cursor` from the previous page for older rows; `coverage` says which accounts were read.
+     */
+    transactions: (query: DataWalletQuery & Omit<DataTxQuery, "kletiaOnly"> & { readonly kletiaOnly?: boolean }, options: RequestOptions = {}): Promise<DataTransactionPage> => {
+      const { evm, solana, lane, kletiaOnly, limit, ...filters } = query;
+      return this.request<DataTransactionPage>("GET", "/data/transactions", undefined, {
+        ...options,
+        query: { ...walletQuery({ evm, solana, lane }, true), ...filters, kletiaOnly: kletiaOnly ? "true" : undefined, limit: limit === undefined ? undefined : String(limit) },
+      });
+    },
+    /** One transaction (`<network>:<hash>`) of the wallets. */
+    transaction: async (id: string, wallets: DataWalletQuery, options: RequestOptions = {}): Promise<DataTransaction> => {
+      const body = await this.request<{ transaction: DataTransaction }>("GET", `/data/transactions/${encodeSegment(id, "id")}`, undefined, { ...options, query: walletQuery(wallets, true) });
+      return body.transaction;
+    },
+    /** FIFO realized and unrealized PnL estimates by asset over `period` (default all). */
+    pnl: (query: DataWalletQuery & { readonly period?: DataPnlPeriod }, options: RequestOptions = {}): Promise<DataPnl> => {
+      const { period, ...wallets } = query;
+      return this.request<DataPnl>("GET", "/data/pnl", undefined, { ...options, query: { ...walletQuery(wallets, true), period } });
+    },
+    /** Value series of a tracked set (untracked wallets: an empty series with `tracked: false`). */
+    snapshots: (query: DataWalletQuery & { readonly range?: DataSnapshotRange }, options: RequestOptions = {}): Promise<DataSnapshotSeries> => {
+      const { range, ...wallets } = query;
+      return this.request<DataSnapshotSeries>("GET", "/data/snapshots", undefined, { ...options, query: { ...walletQuery(wallets, true), range } });
+    },
+    /** One compact object for an assistant: totals, top positions, risk flags, activity counts and PnL estimates. */
+    summary: async (wallets: DataWalletQuery, options: RequestOptions = {}): Promise<DataSummary> => {
+      const body = await this.request<{ summary: DataSummary }>("GET", "/data/summary", undefined, { ...options, query: walletQuery(wallets, true) });
+      return body.summary;
+    },
     /** The calling key's intents, receipts and links, newest first; with wallets, only intents planned for them. */
     history: async (filter: DataWalletQuery & { readonly limit?: number } = {}, options: RequestOptions = {}): Promise<DataHistory> => {
       const { limit, ...wallets } = filter;
@@ -1000,10 +1042,11 @@ export class KletiaClient {
     status: (options: RequestOptions = {}): Promise<DataMarketStatus> => this.request<DataMarketStatus>("GET", "/data/markets/status", undefined, options),
     /**
      * A dataset as CSV, built here from the JSON read with the same columns
-     * and escaping as `GET /v1/data/export?format=csv`. `history` needs a key.
+     * and escaping as `GET /v1/data/export?format=csv`. `history` and `transactions` need a key.
      */
     exportCsv: async (dataset: DataExportDataset, query: DataWalletQuery & { readonly limit?: number } = {}, options: RequestOptions = {}): Promise<string> => {
       if (dataset === "history") return dataHistoryCsv(await this.data.history(query, options));
+      if (dataset === "transactions") return dataTransactionsCsv(await this.data.transactions(query, options));
       const portfolio = await this.data.portfolio(query, options);
       return dataset === "holdings" ? dataHoldingsCsv(portfolio) : dataPositionsCsv(portfolio);
     },

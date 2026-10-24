@@ -146,7 +146,7 @@ export function ticketStampOf(task: {
   readonly signature?: SignatureState;
   readonly engine?: { readonly kind: string };
 }): TicketStamp | null {
-  if (task.engine?.kind === "rates") return null;
+  if (task.engine?.kind === "rates" || task.engine?.kind === "assistant") return null;
   if (task.status === "question" || task.status === "unsupported" || task.status === "engine" || task.status === "handoff") return null;
   const signature = task.signature ?? "unknown";
   const state = stampFor(task.status, signature);
@@ -164,7 +164,7 @@ export function ticketStampOf(task: {
 
 /** What the ticket says (visually hidden) when it carries no stamp. */
 export function unstampedSentence(status: TaskStatus, engine?: { readonly kind: string }): string {
-  if (engine?.kind === "rates") return "Read only. Nothing was planned and nothing can be signed.";
+  if (engine?.kind === "rates" || engine?.kind === "assistant") return "Read only. Nothing was planned and nothing can be signed.";
   if (status === "unsupported") return "Kletia can't do that yet. Nothing was planned or signed.";
   if (status === "engine") return "Handed to a network engine. Nothing has been signed.";
   if (status === "handoff") return "Opened in its own view to check and sign there. Nothing has been signed.";
@@ -179,6 +179,9 @@ export function taskStatusLabel(task: {
 }): string {
   if (task.engine?.kind === "rates") {
     return task.status === "planning" ? DESK_COPY.rates.reading : task.status === "failed" ? DESK_COPY.tasks.status.failed : DESK_COPY.rates.readOnly;
+  }
+  if (task.engine?.kind === "assistant") {
+    return task.status === "planning" ? DESK_COPY.assistant.reading : task.status === "failed" ? DESK_COPY.tasks.status.failed : DESK_COPY.assistant.answered;
   }
   if (task.status === "executing" && task.signature === "none") return DESK_COPY.tasks.awaitingApproval;
   if (task.status === "executing" && task.signature === "unknown") return DESK_COPY.tasks.inWallet;

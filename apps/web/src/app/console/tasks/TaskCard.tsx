@@ -24,6 +24,7 @@ import { useDeskSlots } from "../hooks/useDeskSlots";
 import { EngineTaskBody } from "./EngineTaskBody";
 import { PlatformTaskBody } from "./PlatformTaskBody";
 import { RatesTaskBody } from "./RatesTaskBody";
+import { AssistantTaskBody } from "../assistant/AssistantTaskBody";
 import { answerLabel, turnAnswer } from "./questionModel";
 import { registerDeskTaskSlots } from "./registerSlots";
 import { isDeskQuestion } from "./slots";
@@ -189,6 +190,8 @@ export function TaskCard({ task, newest }: TaskCardProps) {
           <EngineTaskBody task={task} />
         ) : task.engine.kind === "rates" ? (
           <RatesTaskBody task={task} />
+        ) : task.engine.kind === "assistant" ? (
+          <AssistantTaskBody task={task} />
         ) : (
           <PlatformTaskBody task={task} />
         )}

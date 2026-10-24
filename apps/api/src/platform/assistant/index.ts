@@ -1,0 +1,9 @@
+/**
+ * The portfolio assistant (docs/platform/assistant.md): questions about a
+ * person's own wallets answered from the data API, portfolio requests turned
+ * into sentences for the normal plan, confirm and sign flow.
+ */
+export { ask, EXAMPLE_QUESTIONS, refusalOf, walletLabels, type AskInput } from "./service.js";
+export { dataServicePort, intentTransactions, type AssistantDataPort, type AssistantPnl, type AssistantPnlRow, type AssistantSummary, type AssistantTransaction, type AssistantTransactions } from "./dataPort.js";
+export { checkGrounding } from "./grounding.js";
+export { assistantModel, AssistantModel, assistantModelConfigFromEnv, configureAssistantModel, type AssistantModelConfig } from "./model.js";

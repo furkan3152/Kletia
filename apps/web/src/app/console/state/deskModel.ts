@@ -5,6 +5,7 @@
  * node --test loads it (ported from the round-6 prototype `deskModel.mjs`).
  */
 import {
+  assistantRouteOf,
   CHAINS,
   NETWORK_KEYS,
   formatAccountId,
@@ -279,6 +280,8 @@ export type SubmissionRoute =
   | { readonly engine: "platform" }
   /** A read-only rate question: answered from Kletia's venue list, no wallet needed. */
   | { readonly engine: "rates" }
+  /** A question about the person's own data, a portfolio request or a market question: answered by the assistant from data. */
+  | { readonly engine: "assistant" }
   | { readonly engine: "network"; readonly network: LegacyNetwork; readonly why: "tool" | "fallback" }
   | { readonly engine: "offer"; readonly networks: readonly LegacyNetwork[] }
   | { readonly engine: "none"; readonly why: "refused" | "solana" | "network-without-engine" };
@@ -303,6 +306,8 @@ export function routeSubmission({
 }): SubmissionRoute {
   // Reading rates needs no wallet and no network engine, whoever pinned one.
   if (!platformError && isRateQuestion(text)) return { engine: "rates" };
+  // Questions are answered from the wallet's data and portfolio requests become sentences to plan (POST /v1/assistant/ask).
+  if (!platformError && !enginePin && assistantRouteOf(text)) return { engine: "assistant" };
   if (enginePin) return { engine: "network", network: enginePin, why: "tool" };
   if (!platformError) return { engine: "platform" };
   if (platformError !== "INTENT_UNSUPPORTED") return { engine: "none", why: "refused" };

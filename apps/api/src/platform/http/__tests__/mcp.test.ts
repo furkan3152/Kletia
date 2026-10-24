@@ -143,6 +143,7 @@ describe("POST /v1/mcp (2026-07-28)", () => {
     const tools = (reply.body.result?.tools ?? []) as { name: string; annotations?: Record<string, unknown>; inputSchema: { type: string } }[];
     const names = tools.map((tool) => tool.name).sort();
     assert.deepEqual(names, [
+      "ask_portfolio",
       "check_intent",
       "claim_subagent",
       "create_intent",

@@ -794,6 +794,82 @@
       ]
     },
     {
+      "id": "69012fe6-e097-5b6b-bce0-37ba2d7aae34",
+      "name": "Assistant",
+      "description": "Questions about the caller's own wallets answered from the data API, every number with its source; portfolio requests turned into sentences for the normal plan, confirm and sign flow.",
+      "item": [
+        {
+          "id": "23e4ba37-863e-50f3-8fe9-3a300fd2578e",
+          "name": "Ask about your own portfolio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: the desk's wallet session (first-party origin only). The answer covers that wallet.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"How much did I spend on fees last month?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/assistant/ask",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assistant",
+                "ask"
+              ]
+            },
+            "description": "Answers a question about the caller's own wallets (holdings, positions, loan health, fees, transactions, results) from the data API, deterministically first: the question is read into a typed query, run in code, and every number in the answer is one of `facts` (with source and reading time). A portfolio request that wants action (rebalance to 60/40, sell the worst performer, move idle stables to the best yield, close everything risky) returns `action.sentences` built from the real holdings; plan each one normally, which confirms before anything is signed. Owner: an API key with `wallets` (agent keys only accounts their rule book pins; publishable keys never), or without a key the desk's wallet session for its own wallet; else 401 ASSISTANT_OWNER_REQUIRED, another wallet 403 ASSISTANT_ACCOUNT_FORBIDDEN. Questions about someone else's wallet, keys or seed phrases are answered `refused`. The model steps run only when the deployment turns them on, with `model: \"on\"` and consent (server keys: the project setting `modelReading: \"enabled\"`); without them a question the parser cannot read answers `needs-model`. Spends the data budget (one unit per account).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/assistant/ask` · operationId `askAssistant` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "9b8e4ad3-b0bb-52cd-91fc-0d2af389a634",
+          "name": "Turn on model help for a desk session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "Without an API key: the desk's wallet session (first-party origin only). The answer covers that wallet.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assistant/consent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assistant",
+                "consent"
+              ]
+            },
+            "description": "Desk only (wallet session from the first-party origin): a session consent token bound to the signed-in wallet, sent back as `consent` with `model: \"on\"`. Server keys are refused (403 CONFIRM_AUTHORITY_REQUIRED); 503 ASSISTANT_MODEL_NOT_CONFIGURED when the model steps are not configured.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/assistant/consent` · operationId `assistantConsent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "id": "2912b41f-fc1b-5d82-882b-19fb9128be7b",
       "name": "Intents",
       "description": "Plan, prepare, submit, verify and cancel intents.",
@@ -5925,7 +6001,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -5963,7 +6039,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -6001,7 +6077,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `ask_portfolio`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

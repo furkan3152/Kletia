@@ -125,6 +125,7 @@ import { streamIntentEvents, type StreamOptions } from "./sse.js";
 import { startThreadPruner } from "./threads.js";
 import { parseUsageWindow, startUsageFlusher, usageCounter, usageReport } from "./usage.js";
 import { createWebhook, deleteWebhook, listWebhooks } from "./webhooks.js";
+import { assistantHandlers } from "./assistant.js";
 import { dataHandlers } from "./data.js";
 
 export const MAX_BODY_BYTES = 64 * 1024;
@@ -162,6 +163,9 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/data/markets/prices", auth: "public", publishable: true },
   { method: "get", path: "/data/markets/status", auth: "public", publishable: true },
   { method: "get", path: "/data/export", auth: "public", publishable: true },
+  // Portfolio assistant (assistant/): an API key's named wallets, or (without a key) a desk wallet session's own.
+  { method: "post", path: "/assistant/ask", auth: "public" },
+  { method: "post", path: "/assistant/consent", auth: "public" },
   { method: "post", path: "/intents", auth: "public", publishable: true },
   // Model-assisted reading consent (design A.7.6): browser callers only; server keys are refused in the handler.
   { method: "post", path: "/reading-consent", auth: "public", publishable: true },
@@ -940,6 +944,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ...linkHandlers(),
     ...accountHandlers(),
     ...dataHandlers(),
+    ...assistantHandlers(),
     ...automationHandlers(),
     ...orderHandlers(),
     ...perpsHandlers(),

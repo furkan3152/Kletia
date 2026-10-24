@@ -12,6 +12,8 @@ import {
   type AccountId,
   type AnyKletiaEvent,
   type AssetDescriptor,
+  type AssistantAnswer,
+  type AssistantAskRequest,
   type ContractDefinition,
   type ContractInspection,
   type ContractTestRequest,
@@ -1006,6 +1008,22 @@ export class KletiaClient {
       if (dataset === "history") return dataHistoryCsv(await this.data.history(query, options));
       const portfolio = await this.data.portfolio(query, options);
       return dataset === "holdings" ? dataHoldingsCsv(portfolio) : dataPositionsCsv(portfolio);
+    },
+  };
+
+  /**
+   * The portfolio assistant (`POST /v1/assistant/ask`): a question about the
+   * user's own wallets answered from Kletia's data. Every number in
+   * `answer.text` is one of `answer.facts` (with source and reading time); a
+   * portfolio request that wants action returns `answer.action.sentences` to
+   * plan with `intents.create`, which the user confirms and signs. Needs a
+   * project or agent key and `wallets`.
+   */
+  readonly assistant = {
+    ask: async (request: AssistantAskRequest, options: RequestOptions = {}): Promise<AssistantAnswer> => {
+      if (typeof request.question !== "string" || request.question.trim().length === 0 || request.question.length > 500) throw new RangeError("question takes 1 to 500 characters.");
+      const body = await this.request<{ answer: AssistantAnswer }>("POST", "/assistant/ask", request, options);
+      return body.answer;
     },
   };
 

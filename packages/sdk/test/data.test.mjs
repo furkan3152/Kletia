@@ -81,3 +81,13 @@ test("exportCsv writes the dataset with empty cells for unknown values and a for
   assert.equal(header, "account,network,asset,symbol,amount,usd,source,as_of,reason");
   assert.equal(row, `eip155:8453:${EVM},base,eip155:8453/erc20:0x1,'=CMD,1,,unpriced,,No price source covers this asset.`);
 });
+
+test("assistant.ask posts the question and unwraps the answer", async () => {
+  const answer = { route: "portfolio-question", status: "answered", text: "You hold 0.05 ETH.", facts: [], query: null, followUps: [], assumptions: [], gaps: [], wording: "template", understoodBy: "parser", wallets: [], asOf: "x" };
+  const { client, calls } = recording(() => jsonResponse({ answer }));
+  const read = await client.assistant.ask({ question: "how much ETH do I have?", wallets: { evm: [EVM] } });
+  assert.equal(read.text, "You hold 0.05 ETH.");
+  assert.deepEqual([calls[0].method, calls[0].path], ["POST", "/v1/assistant/ask"]);
+  await assert.rejects(() => client.assistant.ask({ question: " " }), RangeError);
+  assert.equal(calls.length, 1, "an empty question is refused locally");
+});

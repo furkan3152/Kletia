@@ -163,6 +163,7 @@ function parseEngine(value: unknown): TaskEngine | null {
   if (!isRecord(value)) return null;
   if (value.kind === "platform") return { kind: "platform" };
   if (value.kind === "rates") return { kind: "rates" };
+  if (value.kind === "assistant") return { kind: "assistant" };
   if (value.kind === "network" && isLegacyNetwork(value.network) && (value.why === "tool" || value.why === "fallback" || value.why === "offer")) {
     return { kind: "network", network: value.network, why: value.why };
   }

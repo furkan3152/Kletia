@@ -51,6 +51,8 @@ export type TaskEngine =
   | { readonly kind: "platform" }
   /** A read-only rate question answered from `GET /v1/venues` (nothing is planned or signed). */
   | { readonly kind: "rates" }
+  /** A question answered by the portfolio assistant from the signed-in wallet's data (nothing is planned or signed). */
+  | { readonly kind: "assistant" }
   | { readonly kind: "network"; readonly network: LegacyNetwork; readonly why: "tool" | "fallback" | "offer" };
 
 export type TaskStatus =

@@ -36,3 +36,4 @@ export * from "./automation.js";
 export * from "./perps.js";
 export * from "./handoff.js";
 export * from "./subagents.js";
+export * from "./assistant.js";

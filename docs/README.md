@@ -32,6 +32,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Quickstart](platform/quickstart.md): three paths (static site, server, agent) from nothing to a working integration, on the sandbox or dry runs.
 - [Projects, publishable keys and flows](platform/projects.md): project settings, domain verification, browser-safe `kl_pub_` keys, stored flows and the logo.
 - [Developer accounts](platform/accounts.md): signing in to keep and recover your projects and their keys.
+- [Portfolio assistant](platform/assistant.md): questions about your own wallets answered from the Data API with every number sourced, and portfolio requests turned into sentences to plan (`POST /v1/assistant/ask`, MCP `ask_portfolio`, the desk's answer cards).
 - [Data API](platform/data.md): a wallet set's holdings, positions, loan health and activity on every network, venue rates, prices and network status, and CSV export (`/v1/data/*`, the desk's Dashboard).
 - [Journey](platform/journey.md): where the money is after every step, who holds it, refunds, gas on arrival and stopping between steps.
 - [Clarifying questions](platform/clarify.md): `?clarify=true`, questions and chips, and client-held or Kletia-held threads.

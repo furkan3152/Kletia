@@ -50,6 +50,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Automations](platform/automations.md) — schedule, price, balance, yield and incoming-transfer rules that plan intents for the owner to sign.
 - [Desk navigation](platform/desk.md) — the desk's six sections and sub-tabs, how the old `/app/*` paths map to them, and the shared view conventions.
 - [Native orders](platform/orders.md) — limit and DCA orders the protocol fills after one signature: Jupiter on Solana, CoW Protocol on Ethereum, Arbitrum and Base.
+- [Predictions](platform/predictions.md) — Polymarket prediction markets: search and books, quotes with max loss and payout, exact approvals and EIP-712 orders for a plain wallet, the order-book sign-in, the relay, positions, redemption and the Rule Book `predictions` section (Limitless not added, Kalshi not integrated).
 - [Perps](platform/perps.md) — GMX v2 and Hyperliquid perpetuals (Drift v2 read-only): markets, quotes with liquidation estimates, unsigned payloads, the Hyperliquid relay and the Rule Book `perps` section.
 - [MCP server](platform/mcp.md) — read-only Model Context Protocol tools at `/v1/mcp` for AI agents.
 - [Embed web component](platform/embed.md) — `<kletia-intent>` and `mountKletiaIntent()` for any site, the frame bridge protocol and server-side verification.

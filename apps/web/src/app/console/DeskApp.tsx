@@ -5,7 +5,7 @@
  * tools, with the network engines (Base, Arbitrum One, Arc) as inline engine
  * tasks loaded only when one is needed.
  *
- * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools, /app/perps,
+ * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools, /app/perps, /app/predict,
  * /app/orders, /app/dashboard, /app/automations) are the same desk, grouped
  * into six nav sections with sub-tabs (state/deskNav.ts); Perps, Dashboard
  * and Automations load as their own chunks. The thread stays mounted under
@@ -64,6 +64,8 @@ const AutomationsView = lazy(() => import("./automations/AutomationsView"));
 const DashboardView = lazy(() => import("./dashboard/DashboardView"));
 /** Loaded only when the Perps view opens. */
 const PerpsView = lazy(() => import("./perps/PerpsView"));
+/** Loaded only when the Predict view opens (prediction markets, round 10). */
+const PredictView = lazy(() => import("./predict/PredictView"));
 
 /** Networks whose engine must be mounted: engine tasks and restored workflow threads. */
 function useEngineNetworks(): readonly LegacyNetwork[] {
@@ -299,6 +301,11 @@ export default function DeskApp() {
         {view === "perps" ? (
           <Suspense fallback={<p role="status">{copy.perps.loading}</p>}>
             <PerpsView />
+          </Suspense>
+        ) : null}
+        {view === "predictions" ? (
+          <Suspense fallback={<p role="status">{copy.predict.loading}</p>}>
+            <PredictView />
           </Suspense>
         ) : null}
         {emptyDesk ? (

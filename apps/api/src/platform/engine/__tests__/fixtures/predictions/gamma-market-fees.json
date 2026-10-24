@@ -1,0 +1,46 @@
+{
+ "id": "5537168",
+ "question": "Arsenal FC vs. Everton FC: O/U 2.5",
+ "conditionId": "0x1a89417472dcc0f6c729b82f283652a883d9a1318d43d5e0da3321d973b74ead",
+ "slug": "epl-ars-eve-2026-10-24-total-2pt5",
+ "endDate": "2026-10-24T14:00:00Z",
+ "liquidityNum": 264533.2434,
+ "outcomes": "[\"Over\", \"Under\"]",
+ "outcomePrices": "[\"0.545\", \"0.455\"]",
+ "volumeNum": 724066.8470980001,
+ "volume24hr": 724026.730609,
+ "active": true,
+ "closed": false,
+ "acceptingOrders": true,
+ "clobTokenIds": "[\"81175457374403300795300286618952018108510621983405946540686274886580727957576\", \"101180972071418308336657076045106228263477880551640887653846101236451017817138\"]",
+ "positionIds": [
+  "685271838796317033933489468138468598503943769603296528557998500425490235392",
+  "685271838796317033933489468138468598503943769603296528557998500425490235393"
+ ],
+ "version": "v1",
+ "negRisk": false,
+ "orderPriceMinTickSize": 0.01,
+ "orderMinSize": 5,
+ "feesEnabled": true,
+ "feeSchedule": {
+  "exponent": 1,
+  "rate": 0.05,
+  "takerOnly": true,
+  "rebateRate": 0.15
+ },
+ "groupItemTitle": "O/U 2.5",
+ "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/Repetitive-markets/premier+league.jpg",
+ "description": "In the upcoming Premier League game between Arsenal FC and Everton FC, scheduled for October 24 at 10:00 AM ET:\n\nThis market will resolve to \"Over\" if Arsenal FC and Everton FC combine to score 3 or more goals in this game.\n\nIf the combined total is less than 3, this market will ",
+ "secondsDelay": 1,
+ "enableOrderBook": true,
+ "bestBid": 0.54,
+ "bestAsk": 0.55,
+ "lastTradePrice": 0.55,
+ "events": [
+  {
+   "id": "1168867",
+   "title": "Arsenal FC vs. Everton FC - More Markets",
+   "slug": "epl-ars-eve-2026-10-24-more-markets"
+  }
+ ]
+}

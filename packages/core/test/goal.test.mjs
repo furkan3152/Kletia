@@ -262,14 +262,14 @@ test("goal: the new reasons of reading and placement are purpose questions with 
     assert.ok(PURPOSE_REASONS.has(reason), `${reason} is a purpose question`);
     assert.ok(UNSUGGESTED_REASONS.has(reason), `${reason} carries no suggestion`);
   }
-  assert.deepEqual(CLARIFY_REASONS.slice(-16, -5), added, "appended in order (existing order unchanged)");
+  assert.deepEqual(CLARIFY_REASONS.slice(-18, -7), added, "appended in order (existing order unchanged)");
 });
 
-test("goal: the hand-off reasons (round 9) are purpose questions with no suggestion, appended at the end", () => {
-  const added = ["LEVERAGE_MISSING", "SIDE_MISSING", "PRICE_MISSING", "PERIOD_MISSING", "DIRECTION_MISSING"];
+test("goal: the hand-off reasons (rounds 9 and 10) are purpose questions with no suggestion, appended at the end", () => {
+  const added = ["LEVERAGE_MISSING", "SIDE_MISSING", "PRICE_MISSING", "PERIOD_MISSING", "DIRECTION_MISSING", "MARKET_AMBIGUOUS", "OUTCOME_MISSING"];
   for (const reason of added) {
     assert.ok(PURPOSE_REASONS.has(reason), `${reason} is a purpose question`);
     assert.ok(UNSUGGESTED_REASONS.has(reason), `${reason} carries no suggestion`);
   }
-  assert.deepEqual(CLARIFY_REASONS.slice(-5), added, "appended at the end (existing order unchanged)");
+  assert.deepEqual(CLARIFY_REASONS.slice(-7), added, "appended at the end (existing order unchanged)");
 });

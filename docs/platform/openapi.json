@@ -126,6 +126,10 @@
     {
       "name": "Perps",
       "description": "Perpetual futures on GMX v2, Hyperliquid and Drift v2: markets, positions, quotes with liquidation estimates, unsigned payloads for the user's wallet, and the relay of user-signed Hyperliquid actions."
+    },
+    {
+      "name": "Predictions",
+      "description": "Prediction markets on Polymarket (Polygon): market search, order books and implied probabilities, quotes with max loss and payout, unsigned approvals and EIP-712 orders for the user's own wallet, the order-book sign-in, the relay of user-signed orders, positions and redemption."
     }
   ],
   "paths": {
@@ -9990,6 +9994,738 @@
         }
       }
     },
+    "/v1/predictions/markets": {
+      "get": {
+        "operationId": "listPredictionMarkets",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Open prediction markets: search, category, busiest or soonest ending",
+        "description": "Polymarket markets that are open and take orders (Gamma API, cached 15 s), with outcome prices as implied probabilities. Limitless Exchange is listed as a venue that is not added (disabledReason). Kalshi is not integrated: it needs KYC and holds funds in custodial accounts.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "politics",
+                "sports",
+                "crypto",
+                "economy",
+                "finance",
+                "tech",
+                "geopolitics"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "volume",
+                "ending"
+              ],
+              "default": "volume"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Venues and markets.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionMarketsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/markets/{id}": {
+      "get": {
+        "operationId": "getPredictionMarket",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "One market with each outcome's order book and a week of prices",
+        "description": "By Gamma market id, or by the condition id positions carry.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:\\d{1,20}|0x[0-9a-fA-F]{64})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The market.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionMarketResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/positions": {
+      "get": {
+        "operationId": "listPredictionPositions",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Prediction positions of a Polygon holder",
+        "description": "By `account` (CAIP-10) or `holder` (a Polymarket Deposit, Proxy or Safe wallet address, read only). Redeemable rows have resolved.",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "holder",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Positions.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionPositionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/quote": {
+      "post": {
+        "operationId": "quotePrediction",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Quote a prediction order: implied probability, max loss, payout, fees",
+        "description": "You can lose the whole stake: a share pays 1 pUSD if its outcome wins and 0 if it loses; prices are the market's odds, not guarantees. A market buy's amount is all-in (fees included). Refusals: 422 PREDICTION_MARKET_CLOSED, PREDICTION_OUTCOME_UNKNOWN, PREDICTION_STAKE_TOO_HIGH, PREDICTION_VENUE_DISABLED; 403 PREDICTION_POLICY_DENIED; 503 PREDICTION_PRICE_UNAVAILABLE.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The quote.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionQuoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/prepare": {
+      "post": {
+        "operationId": "preparePrediction",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Unsigned steps for a prediction order",
+        "description": "Kletia never signs: the answer is for the user's own wallet. Exact pUSD approvals (and a USDC.e wrap when pUSD is short), the ERC-1155 operator approval a sell or a negative-risk order needs (disclosed: it has no amount), the venue sign-in unless hasSession, and the EIP-712 order (EOA, signatureType 0). Valid 120 s. Refusals as for quote, plus 422 PREDICTION_ACCOUNT_UNSUPPORTED (smart wallets), PREDICTION_BALANCE_TOO_LOW, PREDICTION_ORDER_TOO_SMALL, PREDICTION_POSITION_NOT_FOUND.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The steps, in order.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionPrepareResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/session": {
+      "post": {
+        "operationId": "predictionSession",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Sign in to Polymarket's order book",
+        "description": "{ account } returns the ClobAuth typed data to sign (no funds move); { account, auth } checks the signature, has the CLOB derive (or create) the account's API credentials, and returns them sealed for this account as `session`. Kletia stores nothing; the session lives 8 hours.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What to sign, or the session.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/submit": {
+      "post": {
+        "operationId": "submitPrediction",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Relay an order the account signed",
+        "description": "The ticket must match the order prepare built and the signature must recover to the account (400 PREDICTION_SIGNATURE_INVALID otherwise); send `session`, or `auth` to sign in on the way. A buy is not sent while Polymarket reports the relay's location as restricted (403 PREDICTION_GEOBLOCKED); a venue refusal is 422 PREDICTION_RELAY_REJECTED with its reason.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Polymarket accepted the order.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionSubmitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/orders": {
+      "post": {
+        "operationId": "listPredictionOrders",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Open orders of the session's account",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionOrdersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Open orders.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionOrdersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/orders/cancel": {
+      "post": {
+        "operationId": "cancelPredictionOrder",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Cancel a resting order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionCancelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The cancel result.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionCancelResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/predictions/redeem": {
+      "post": {
+        "operationId": "redeemPrediction",
+        "tags": [
+          "Predictions"
+        ],
+        "summary": "Unsigned redemption of resolved shares",
+        "description": "Kletia never signs: the answer is for the user's own wallet. v1 markets: the collateral adapter's redeemPositions (both outcomes, paid in pUSD) after its operator approval; v2 markets: Router.redeem per outcome held. 422 PREDICTION_NOT_RESOLVED before the market resolves.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionRedeemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The steps.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionRedeemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/v1/agents/{id}/subagents": {
       "post": {
         "operationId": "requestSubagent",
@@ -12886,7 +13622,7 @@
           "MCP"
         ],
         "summary": "Model Context Protocol server (Streamable HTTP)",
-        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
+        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`, `search_prediction_markets`, `plan_prediction_order`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -13937,6 +14673,7 @@
           "gmx-v2",
           "hyperliquid",
           "drift-v2",
+          "polymarket",
           "custom-call",
           "solana-actions"
         ]
@@ -15670,7 +16407,8 @@
               "data",
               "token-program",
               "custom",
-              "perps"
+              "perps",
+              "prediction"
             ]
           },
           "networks": {
@@ -30917,6 +31655,1617 @@
           "response"
         ]
       },
+      "PredictionVenue": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "polymarket",
+              "limitless"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "collateral": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "False: Kletia builds nothing for the venue (disabledReason says why)."
+          },
+          "disabledReason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accounts": {
+            "type": "string",
+            "description": "Account kinds Kletia trades for."
+          },
+          "website": {
+            "type": "string"
+          },
+          "termsUrl": {
+            "type": "string"
+          },
+          "restrictionNote": {
+            "type": "string",
+            "description": "What the venue says about restricted places; shown beside every ticket."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "network",
+          "collateral",
+          "enabled",
+          "disabledReason",
+          "accounts",
+          "website",
+          "termsUrl",
+          "restrictionNote"
+        ]
+      },
+      "PredictionOutcome": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string",
+            "description": "The id the venue trades (CTF token id, or Protocol V2 position id), decimal."
+          },
+          "price": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "tokenId",
+          "price"
+        ]
+      },
+      "PredictionMarket": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "polymarket",
+              "limitless"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "Gamma market id."
+          },
+          "slug": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "eventId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventTitle": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "groupTitle": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "image": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endDate": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "acceptingOrders": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string",
+            "enum": [
+              "v1",
+              "v2"
+            ],
+            "description": "v1 trades ConditionalTokens ids on CTF Exchange V2; v2 PositionManager ids on ExchangeV3."
+          },
+          "conditionId": {
+            "type": "string"
+          },
+          "negRisk": {
+            "type": "boolean"
+          },
+          "tickSize": {
+            "type": "string"
+          },
+          "minOrderSize": {
+            "type": "number"
+          },
+          "outcomes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PredictionOutcome"
+            }
+          },
+          "volumeUsd": {
+            "type": "number"
+          },
+          "volume24hUsd": {
+            "type": "number"
+          },
+          "liquidityUsd": {
+            "type": "number"
+          },
+          "fees": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "rate": {
+                    "type": "number"
+                  },
+                  "exponent": {
+                    "type": "number"
+                  },
+                  "takerOnly": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "rate",
+                  "exponent",
+                  "takerOnly"
+                ],
+                "description": "fee = shares · rate · (p(1 − p))^exponent, taker only."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "matchDelaySeconds": {
+            "type": "number"
+          },
+          "resolved": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          },
+          "description": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "venue",
+          "id",
+          "slug",
+          "question",
+          "eventId",
+          "eventTitle",
+          "groupTitle",
+          "category",
+          "image",
+          "endDate",
+          "active",
+          "closed",
+          "acceptingOrders",
+          "version",
+          "conditionId",
+          "negRisk",
+          "tickSize",
+          "minOrderSize",
+          "outcomes",
+          "volumeUsd",
+          "volume24hUsd",
+          "liquidityUsd",
+          "fees",
+          "matchDelaySeconds",
+          "resolved",
+          "url",
+          "description"
+        ]
+      },
+      "PredictionMarketsResponse": {
+        "type": "object",
+        "properties": {
+          "venues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PredictionVenue"
+            }
+          },
+          "markets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PredictionMarket"
+            }
+          },
+          "query": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "politics",
+                  "sports",
+                  "crypto",
+                  "economy",
+                  "finance",
+                  "tech",
+                  "geopolitics"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "volume",
+              "ending"
+            ]
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "venues",
+          "markets",
+          "query",
+          "category",
+          "sort",
+          "categories"
+        ]
+      },
+      "PredictionBook": {
+        "type": "object",
+        "properties": {
+          "tokenId": {
+            "type": "string"
+          },
+          "bids": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "price": {
+                  "type": "number"
+                },
+                "size": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "price",
+                "size"
+              ]
+            },
+            "description": "Best (highest) first."
+          },
+          "asks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "price": {
+                  "type": "number"
+                },
+                "size": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "price",
+                "size"
+              ]
+            },
+            "description": "Best (lowest) first."
+          },
+          "tickSize": {
+            "type": "string"
+          },
+          "minOrderSize": {
+            "type": "number"
+          },
+          "negRisk": {
+            "type": "boolean"
+          },
+          "lastTradePrice": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "type": "integer",
+            "description": "Unix seconds."
+          }
+        },
+        "required": [
+          "tokenId",
+          "bids",
+          "asks",
+          "tickSize",
+          "minOrderSize",
+          "negRisk",
+          "lastTradePrice",
+          "observedAt"
+        ]
+      },
+      "PredictionMarketResponse": {
+        "type": "object",
+        "properties": {
+          "market": {
+            "$ref": "#/components/schemas/PredictionMarket"
+          },
+          "outcomes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "tokenId": {
+                  "type": "string"
+                },
+                "price": {
+                  "oneOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "book": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PredictionBook"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "history": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "t": {
+                        "type": "integer"
+                      },
+                      "p": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "t",
+                      "p"
+                    ]
+                  },
+                  "description": "A week of prices, six-hour points."
+                },
+                "unavailable": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "label",
+                "tokenId",
+                "price",
+                "book",
+                "history",
+                "unavailable"
+              ]
+            }
+          },
+          "restrictionNote": {
+            "type": "string"
+          },
+          "termsUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "market",
+          "outcomes",
+          "restrictionNote",
+          "termsUrl"
+        ]
+      },
+      "PredictionPosition": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "polymarket",
+              "limitless"
+            ]
+          },
+          "holder": {
+            "type": "string"
+          },
+          "conditionId": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventSlug": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "outcomeIndex": {
+            "type": "integer"
+          },
+          "shares": {
+            "type": "number"
+          },
+          "avgPrice": {
+            "type": "number"
+          },
+          "currentPrice": {
+            "type": "number"
+          },
+          "valueUsd": {
+            "type": "number"
+          },
+          "costUsd": {
+            "type": "number"
+          },
+          "pnlUsd": {
+            "type": "number"
+          },
+          "redeemable": {
+            "type": "boolean",
+            "description": "Resolved: redeem it (a losing outcome redeems for 0)."
+          },
+          "negRisk": {
+            "type": "boolean"
+          },
+          "endDate": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "venue",
+          "holder",
+          "conditionId",
+          "tokenId",
+          "title",
+          "slug",
+          "eventSlug",
+          "outcome",
+          "outcomeIndex",
+          "shares",
+          "avgPrice",
+          "currentPrice",
+          "valueUsd",
+          "costUsd",
+          "pnlUsd",
+          "redeemable",
+          "negRisk",
+          "endDate"
+        ]
+      },
+      "PredictionPositionsResponse": {
+        "type": "object",
+        "properties": {
+          "holder": {
+            "type": "string"
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PredictionPosition"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "tradable": {
+            "type": "boolean",
+            "description": "False for a smart wallet (Polymarket Deposit, Proxy or Safe): read only."
+          }
+        },
+        "required": [
+          "holder",
+          "positions",
+          "truncated",
+          "tradable"
+        ]
+      },
+      "PredictionRequest": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "polymarket",
+              "limitless"
+            ]
+          },
+          "marketId": {
+            "type": "string",
+            "examples": [
+              "666861"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "examples": [
+              "Yes"
+            ]
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "sell"
+            ]
+          },
+          "orderType": {
+            "type": "string",
+            "enum": [
+              "market",
+              "limit"
+            ],
+            "default": "market",
+            "description": "market: fill now (FAK, the rest is cancelled); limit: rest on the book (GTC)."
+          },
+          "amountUsd": {
+            "type": "string",
+            "pattern": "^\\d{1,7}(\\.\\d{1,2})?$",
+            "description": "buy: USD to spend, fees included."
+          },
+          "shares": {
+            "type": "string",
+            "pattern": "^\\d{1,9}(\\.\\d{1,2})?$"
+          },
+          "limitPrice": {
+            "type": "string",
+            "pattern": "^0?\\.\\d{1,4}$"
+          },
+          "slippageBps": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 2000,
+            "default": 200
+          },
+          "account": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "CAIP-10 account on Polygon.",
+            "examples": [
+              "eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D"
+            ]
+          },
+          "hasSession": {
+            "type": "boolean",
+            "description": "prepare: true when the caller holds a venue session (no sign-in step is added)."
+          }
+        },
+        "required": [
+          "marketId",
+          "outcome",
+          "side"
+        ],
+        "additionalProperties": false
+      },
+      "PredictionQuote": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "polymarket",
+              "limitless"
+            ]
+          },
+          "marketId": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "sell"
+            ]
+          },
+          "orderType": {
+            "type": "string",
+            "enum": [
+              "market",
+              "limit"
+            ]
+          },
+          "impliedProbability": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "Best price on the side the order takes (0 to 1)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "avgPrice": {
+            "type": "number"
+          },
+          "worstPrice": {
+            "type": "number",
+            "description": "Worst price the signed order accepts."
+          },
+          "shares": {
+            "type": "number"
+          },
+          "notionalUsd": {
+            "type": "number"
+          },
+          "spendCapUsd": {
+            "oneOf": [
+              {
+                "type": "number",
+                "description": "buy: the most the signed order may spend before fees."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feeUsd": {
+            "type": "number"
+          },
+          "maxLossUsd": {
+            "type": "number",
+            "description": "buy: the most it can cost, fees included (never above the stake)."
+          },
+          "payoutIfWinUsd": {
+            "type": "number"
+          },
+          "profitIfWinUsd": {
+            "type": "number"
+          },
+          "fillable": {
+            "type": "number"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "venue",
+          "marketId",
+          "question",
+          "outcome",
+          "tokenId",
+          "side",
+          "orderType",
+          "impliedProbability",
+          "avgPrice",
+          "worstPrice",
+          "shares",
+          "notionalUsd",
+          "spendCapUsd",
+          "feeUsd",
+          "maxLossUsd",
+          "payoutIfWinUsd",
+          "profitIfWinUsd",
+          "fillable",
+          "warnings"
+        ]
+      },
+      "PredictionQuoteResponse": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/PredictionRequest"
+          },
+          "market": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "endDate": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "url": {
+                "type": "string"
+              },
+              "negRisk": {
+                "type": "boolean"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "question",
+              "endDate",
+              "url",
+              "negRisk",
+              "version"
+            ]
+          },
+          "quote": {
+            "$ref": "#/components/schemas/PredictionQuote"
+          }
+        },
+        "required": [
+          "request",
+          "market",
+          "quote"
+        ]
+      },
+      "PredictionOrder": {
+        "type": "object",
+        "properties": {
+          "salt": {
+            "type": "string"
+          },
+          "maker": {
+            "type": "string"
+          },
+          "signer": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "makerAmount": {
+            "type": "string"
+          },
+          "takerAmount": {
+            "type": "string"
+          },
+          "side": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          },
+          "signatureType": {
+            "type": "integer",
+            "enum": [
+              0
+            ]
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "string"
+          },
+          "builder": {
+            "type": "string"
+          },
+          "expiration": {
+            "type": "string"
+          },
+          "orderType": {
+            "type": "string",
+            "enum": [
+              "FAK",
+              "GTC"
+            ]
+          },
+          "exchange": {
+            "type": "string"
+          },
+          "domainVersion": {
+            "type": "string",
+            "enum": [
+              "2",
+              "3"
+            ]
+          }
+        },
+        "required": [
+          "salt",
+          "maker",
+          "signer",
+          "tokenId",
+          "makerAmount",
+          "takerAmount",
+          "side",
+          "signatureType",
+          "timestamp",
+          "metadata",
+          "builder",
+          "expiration",
+          "orderType",
+          "exchange",
+          "domainVersion"
+        ],
+        "description": "The order as prepared; send it back unchanged."
+      },
+      "PredictionStep": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "transaction",
+              "typed-data"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "transaction": {
+            "type": "object",
+            "properties": {},
+            "description": "kind transaction: an EVM transaction on Polygon for the wallet."
+          },
+          "disclosure": {
+            "type": "string",
+            "description": "What an operator approval allows (it has no amount)."
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "clob-auth",
+              "order"
+            ]
+          },
+          "typedData": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "object",
+                "properties": {}
+              },
+              "types": {
+                "type": "object",
+                "properties": {}
+              },
+              "primaryType": {
+                "type": "string"
+              },
+              "message": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": [
+              "domain",
+              "types",
+              "primaryType",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "title"
+        ]
+      },
+      "PredictionPrepared": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "polymarket",
+              "limitless"
+            ]
+          },
+          "network": {
+            "type": "string"
+          },
+          "account": {
+            "type": "string"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/PredictionQuote"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PredictionStep"
+            }
+          },
+          "order": {
+            "$ref": "#/components/schemas/PredictionOrder"
+          },
+          "orderHash": {
+            "type": "string"
+          },
+          "ticket": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "integer"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "venue",
+          "network",
+          "account",
+          "quote",
+          "steps",
+          "order",
+          "orderHash",
+          "ticket",
+          "expiresAt",
+          "warnings"
+        ]
+      },
+      "PredictionPrepareResponse": {
+        "type": "object",
+        "properties": {
+          "prepared": {
+            "$ref": "#/components/schemas/PredictionPrepared"
+          }
+        },
+        "required": [
+          "prepared"
+        ]
+      },
+      "PredictionSessionRequest": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "CAIP-10 account on Polygon.",
+            "examples": [
+              "eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D"
+            ]
+          },
+          "auth": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "integer"
+              },
+              "signature": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{130}$"
+              }
+            },
+            "required": [
+              "timestamp",
+              "signature"
+            ],
+            "description": "The signed sign-in (ClobAuth) of the account."
+          }
+        },
+        "required": [
+          "account"
+        ]
+      },
+      "PredictionSessionResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "typedData": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "object",
+                "properties": {}
+              },
+              "types": {
+                "type": "object",
+                "properties": {}
+              },
+              "primaryType": {
+                "type": "string"
+              },
+              "message": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": [
+              "domain",
+              "types",
+              "primaryType",
+              "message"
+            ]
+          },
+          "session": {
+            "type": "string",
+            "maxLength": 2200,
+            "description": "The sealed venue session from POST /v1/predictions/session (opaque; lives 8 hours; places and cancels orders, moves no funds)."
+          },
+          "expiresAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "account"
+        ]
+      },
+      "PredictionSubmitRequest": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "enum": [
+              "polymarket",
+              "limitless"
+            ]
+          },
+          "account": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "CAIP-10 account on Polygon.",
+            "examples": [
+              "eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D"
+            ]
+          },
+          "order": {
+            "$ref": "#/components/schemas/PredictionOrder"
+          },
+          "ticket": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{130}$"
+          },
+          "session": {
+            "type": "string",
+            "maxLength": 2200,
+            "description": "The sealed venue session from POST /v1/predictions/session (opaque; lives 8 hours; places and cancels orders, moves no funds)."
+          },
+          "auth": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "integer"
+              },
+              "signature": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{130}$"
+              }
+            },
+            "required": [
+              "timestamp",
+              "signature"
+            ]
+          }
+        },
+        "required": [
+          "account",
+          "order",
+          "ticket",
+          "signature"
+        ]
+      },
+      "PredictionSubmitResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted"
+            ]
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "orderStatus": {
+            "type": "string",
+            "description": "live (resting), matched, delayed or unmatched."
+          },
+          "makingAmount": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "takingAmount": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transactionsHashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "session": {
+            "type": "string",
+            "maxLength": 2200,
+            "description": "The sealed venue session from POST /v1/predictions/session (opaque; lives 8 hours; places and cancels orders, moves no funds)."
+          },
+          "sessionExpiresAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "orderId",
+          "orderStatus",
+          "makingAmount",
+          "takingAmount",
+          "transactionsHashes"
+        ]
+      },
+      "PredictionOrdersRequest": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "CAIP-10 account on Polygon.",
+            "examples": [
+              "eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D"
+            ]
+          },
+          "session": {
+            "type": "string",
+            "maxLength": 2200,
+            "description": "The sealed venue session from POST /v1/predictions/session (opaque; lives 8 hours; places and cancels orders, moves no funds)."
+          }
+        },
+        "required": [
+          "account",
+          "session"
+        ]
+      },
+      "PredictionOrdersResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "orders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "conditionId": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "tokenId": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "outcome": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "side": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "buy",
+                        "sell"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "price": {
+                  "oneOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "shares": {
+                  "oneOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "filledShares": {
+                  "oneOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "orderType": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "createdAt": {
+                  "oneOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "conditionId",
+                "tokenId",
+                "outcome",
+                "side",
+                "price",
+                "shares",
+                "filledShares",
+                "orderType",
+                "createdAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "account",
+          "orders"
+        ]
+      },
+      "PredictionCancelRequest": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "CAIP-10 account on Polygon.",
+            "examples": [
+              "eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D"
+            ]
+          },
+          "session": {
+            "type": "string",
+            "maxLength": 2200,
+            "description": "The sealed venue session from POST /v1/predictions/session (opaque; lives 8 hours; places and cancels orders, moves no funds)."
+          },
+          "orderId": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{64}$"
+          }
+        },
+        "required": [
+          "account",
+          "session",
+          "orderId"
+        ]
+      },
+      "PredictionCancelResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string"
+          },
+          "canceled": {
+            "type": "boolean"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "orderId",
+          "canceled",
+          "reason"
+        ]
+      },
+      "PredictionRedeemRequest": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "CAIP-10 account on Polygon.",
+            "examples": [
+              "eip155:137:0x4f183e308f24c81c05303821AD025812fBFd807D"
+            ]
+          },
+          "conditionId": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{64}$"
+          }
+        },
+        "required": [
+          "account",
+          "conditionId"
+        ]
+      },
+      "PredictionRedeemResponse": {
+        "type": "object",
+        "properties": {
+          "prepared": {
+            "type": "object",
+            "properties": {
+              "venue": {
+                "type": "string",
+                "enum": [
+                  "polymarket",
+                  "limitless"
+                ]
+              },
+              "network": {
+                "type": "string"
+              },
+              "account": {
+                "type": "string"
+              },
+              "market": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "question": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  },
+                  "negRisk": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "question",
+                  "version",
+                  "negRisk"
+                ]
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PredictionStep"
+                }
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "venue",
+              "network",
+              "account",
+              "market",
+              "steps",
+              "note"
+            ]
+          }
+        },
+        "required": [
+          "prepared"
+        ]
+      },
       "SubagentRequestCreate": {
         "type": "object",
         "properties": {
@@ -32938,12 +35287,14 @@
               "SIDE_MISSING",
               "PRICE_MISSING",
               "PERIOD_MISSING",
-              "DIRECTION_MISSING"
+              "DIRECTION_MISSING",
+              "MARKET_AMBIGUOUS",
+              "OUTCOME_MISSING"
             ]
           },
           "purpose": {
             "type": "boolean",
-            "description": "True when only the person can answer (AMOUNT_MISSING, AMOUNT_BALANCE_UNKNOWN, DESTINATION_MISSING, OUTPUT_ASSET_MISSING, INPUT_ASSET_MISSING, RECIPIENT_MISSING, SOURCE_MISSING, TRANSFER_NETWORK, COUNTERPART_MISSING, NETWORK_HANDOFF, FUNDS_ELSEWHERE, AMOUNT_FORMAT_AMBIGUOUS, ASSET_AMBIGUOUS, ASSET_LOOKALIKE, ASSET_NOT_ON_NETWORK, RECIPIENT_UNRESOLVED, RECIPIENT_NAME_MOVED, RECIPIENT_NETWORK_MISMATCH, RECIPIENT_CHECKSUM, VERB_AMBIGUOUS, EDIT_TARGET_AMBIGUOUS, AMOUNT_EXCEEDS_BALANCE, SCOPE_AMBIGUOUS, EARN_KIND, ASSET_TYPO, INTERPRETATION_CONFIRM, AMOUNT_VAGUE, REFERENCE_AMBIGUOUS, RECIPIENT_EACH, SPEND_CONFLICT, STAKE_INPUT_MISMATCH, NETWORK_CONTRADICTION, PAIRING_AMBIGUOUS, DELIVERY_AMOUNT, GAS_ON_ARRIVAL, FEE_HIGH, PLAN_TOO_LARGE, LEVERAGE_MISSING, SIDE_MISSING, PRICE_MISSING, PERIOD_MISSING, DIRECTION_MISSING): agents relay these and never pick an option themselves."
+            "description": "True when only the person can answer (AMOUNT_MISSING, AMOUNT_BALANCE_UNKNOWN, DESTINATION_MISSING, OUTPUT_ASSET_MISSING, INPUT_ASSET_MISSING, RECIPIENT_MISSING, SOURCE_MISSING, TRANSFER_NETWORK, COUNTERPART_MISSING, NETWORK_HANDOFF, FUNDS_ELSEWHERE, AMOUNT_FORMAT_AMBIGUOUS, ASSET_AMBIGUOUS, ASSET_LOOKALIKE, ASSET_NOT_ON_NETWORK, RECIPIENT_UNRESOLVED, RECIPIENT_NAME_MOVED, RECIPIENT_NETWORK_MISMATCH, RECIPIENT_CHECKSUM, VERB_AMBIGUOUS, EDIT_TARGET_AMBIGUOUS, AMOUNT_EXCEEDS_BALANCE, SCOPE_AMBIGUOUS, EARN_KIND, ASSET_TYPO, INTERPRETATION_CONFIRM, AMOUNT_VAGUE, REFERENCE_AMBIGUOUS, RECIPIENT_EACH, SPEND_CONFLICT, STAKE_INPUT_MISMATCH, NETWORK_CONTRADICTION, PAIRING_AMBIGUOUS, DELIVERY_AMOUNT, GAS_ON_ARRIVAL, FEE_HIGH, PLAN_TOO_LARGE, LEVERAGE_MISSING, SIDE_MISSING, PRICE_MISSING, PERIOD_MISSING, DIRECTION_MISSING, MARKET_AMBIGUOUS, OUTCOME_MISSING): agents relay these and never pick an option themselves."
           },
           "prompt": {
             "type": "string",
@@ -33900,7 +36251,8 @@
                 "enum": [
                   "perps",
                   "orders",
-                  "automations"
+                  "automations",
+                  "predictions"
                 ]
               },
               "input": {
@@ -34472,7 +36824,8 @@
             "enum": [
               "perps",
               "orders",
-              "automations"
+              "automations",
+              "predictions"
             ]
           },
           "input": {

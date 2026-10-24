@@ -1,0 +1,155 @@
+{
+ "data": [
+  {
+   "timestamp": 1792216800,
+   "price": 0.0395,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792238400,
+   "price": 0.0395,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792260000,
+   "price": 0.039,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792281600,
+   "price": 0.0395,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792303200,
+   "price": 0.0395,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792324800,
+   "price": 0.0395,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792346400,
+   "price": 0.038,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792368000,
+   "price": 0.04,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792389600,
+   "price": 0.0395,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792411200,
+   "price": 0.0375,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792432800,
+   "price": 0.0365,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792454400,
+   "price": 0.0385,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792476000,
+   "price": 0.0415,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792497600,
+   "price": 0.0425,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792519200,
+   "price": 0.0455,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792540800,
+   "price": 0.046,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792562400,
+   "price": 0.0455,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792584000,
+   "price": 0.0455,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792605600,
+   "price": 0.0455,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792627200,
+   "price": 0.0465,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792648800,
+   "price": 0.0465,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792670400,
+   "price": 0.0425,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792692000,
+   "price": 0.036,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792713600,
+   "price": 0.0375,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792735200,
+   "price": 0.0385,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792756800,
+   "price": 0.0405,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792778400,
+   "price": 0.0405,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792800000,
+   "price": 0.0415,
+   "resolution_seconds": 21600
+  },
+  {
+   "timestamp": 1792829517,
+   "price": 0.0425,
+   "resolution_seconds": 0
+  }
+ ],
+ "pagination": {
+  "limit": 10000,
+  "offset": 0,
+  "has_more": false,
+  "next_cursor": null
+ }
+}

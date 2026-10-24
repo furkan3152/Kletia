@@ -4,14 +4,46 @@
  * from `handoff.input`. The person checks the form, quotes and signs there:
  * nothing here quotes, prepares or signs. node --test loads it.
  */
-import type { IntentHandoff, PerpsHandoffInput, ValidatedAutomationDraft } from "@kletia/core";
+import type { IntentHandoff, PerpsHandoffInput, PredictionsHandoffInput, ValidatedAutomationDraft } from "@kletia/core";
 import { ORDER_NETWORK_KEYS, ORDER_PERIODS, type OrderFormState, type OrderNetworkKey, type OrderPeriodName } from "../orders/ordersModel.ts";
 import { DEFAULT_TICKET, type PerpsTicket } from "../perps/perpsModel.ts";
+import type { PredictTicket } from "../predict/predictModel.ts";
+
+/** The view a hand-off opens, as the nav names it. */
+export function handoffViewName(surface: IntentHandoff["surface"]): string {
+  return surface === "perps" ? "Perps" : surface === "orders" ? "Orders" : surface === "predictions" ? "Predict" : "Automations";
+}
 
 /** One line for the task thread: what Kletia read and where it goes. */
 export function handoffLine(handoff: Pick<IntentHandoff, "surface" | "summary">): string {
-  const where = handoff.surface === "perps" ? "Perps" : handoff.surface === "orders" ? "Orders" : "Automations";
-  return `${handoff.summary}. Opened in ${where}: check it there, then sign. Nothing was signed here.`;
+  if (handoff.surface === "predictions" && handoff.summary.startsWith("Odds on")) return `${handoff.summary}: opened in Predict. Nothing is bought or signed.`;
+  return `${handoff.summary}. Opened in ${handoffViewName(handoff.surface)}: check it there, then sign. Nothing was signed here.`;
+}
+
+export interface PredictPrefill {
+  /** Words the market search opens with, or null. */
+  readonly search: string | null;
+  /** The ticket of a buy (the market the person picked), or null. */
+  readonly ticket: (Partial<PredictTicket> & { readonly marketId: string }) | null;
+  /** A sell: the positions shown are those matching these words; the person picks the shares. */
+  readonly positionFilter: string | null;
+  note(summary: string): string;
+}
+
+/** The Predict view's state from a prediction hand-off: a search, a buy ticket, or the positions to sell from. */
+export function predictPrefill(input: PredictionsHandoffInput): PredictPrefill {
+  if (input.action === "search") {
+    return { search: input.query, ticket: null, positionFilter: null, note: (summary) => `${summary}: the matching markets are below; nothing is bought until you sign.` };
+  }
+  if (input.action === "sell") {
+    return { search: null, ticket: null, positionFilter: input.query, note: (summary) => `${summary}: pick the shares in your positions below, check the price, then sign.` };
+  }
+  return {
+    search: null,
+    ticket: { marketId: input.marketId, outcome: input.outcome, side: "buy", orderType: "market", amount: input.amountUsd },
+    positionFilter: null,
+    note: (summary) => `${summary}: check the ticket, quote it, then sign. You can lose the whole stake.`,
+  };
 }
 
 export interface PerpsPrefill {

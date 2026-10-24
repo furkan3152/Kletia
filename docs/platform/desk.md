@@ -9,7 +9,7 @@ header (`apps/web/src/app/console/state/deskNav.ts`):
 | Desk | desk | `/app` |
 | Tasks | tasks (phones and tablets; the left rail shows the list from 1280 px, a header popover from 1024 px) | `/app/tasks` |
 | Portfolio | Dashboard, Holdings | `/app/dashboard`, `/app/holdings` |
-| Trade | Perps, Orders | `/app/perps`, `/app/orders` |
+| Trade | Perps, Orders, Predict | `/app/perps`, `/app/orders`, `/app/predict` |
 | Automate | Automations | `/app/automations` |
 | More | Tools, Activity | `/app/tools`, `/app/tools/<id>`, `/app/activity` |
 

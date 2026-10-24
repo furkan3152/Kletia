@@ -80,8 +80,9 @@ describe("adapter registry order", () => {
     ]);
     // Round 7 lists seven more ids, each with a live adapter; the routing design adds the wrap venue (B.3, D10) and
     // the optional aggregator (B.4 RC5, O5), which is not executable unless the server enables it; round 9 seven more
-    // with a live adapter, plus three native-order protocols and three perps venues (no adapter).
-    assert.equal(PROTOCOLS.length, 66);
+    // with a live adapter, plus three native-order protocols and three perps venues (no adapter); round 10 one
+    // prediction venue (no adapter).
+    assert.equal(PROTOCOLS.length, 67);
   });
 });
 

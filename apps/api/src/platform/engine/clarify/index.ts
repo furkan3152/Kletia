@@ -534,6 +534,8 @@ export interface ClarifyTurnOptions {
   readonly modelFamilies?: number;
   /** The caller's perps rights (the key's rule book chain) for perps hand-offs; absent: the project defaults. */
   readonly perps?: TurnContext["perps"];
+  /** The caller's prediction-market rights (round 10); absent: the project defaults. */
+  readonly predictions?: TurnContext["predictions"];
 }
 
 function turnInput(request: IntentTurnRequest): TurnInput {
@@ -578,6 +580,7 @@ export async function clarifyTurn(request: IntentTurnRequest, options: ClarifyTu
     ...(options.confirmAuthority ? { confirmAuthority: options.confirmAuthority } : {}),
     ...(turn.textOrigin ? { textOrigin: turn.textOrigin } : {}),
     ...(options.perps ? { perps: options.perps } : {}),
+    ...(options.predictions ? { predictions: options.predictions } : {}),
   };
   let decision: TurnDecision;
   try {

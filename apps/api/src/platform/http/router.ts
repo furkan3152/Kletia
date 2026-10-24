@@ -116,6 +116,7 @@ import { automationHandlers } from "../automation/handlers.js";
 import { startAutomationEvaluator } from "../automation/evaluator.js";
 import { orderHandlers } from "./orders/handlers.js";
 import { perpsHandlers } from "./perps/handlers.js";
+import { predictionHandlers } from "./predictions/handlers.js";
 import { agentHandlers } from "./agents/handlers.js";
 import { afterLinkSubmit, beforeLinkPrepare } from "./links/uses.js";
 import { startLinkBackground } from "./links/watcher.js";
@@ -310,6 +311,18 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/perps/quote", auth: "public", publishable: true },
   { method: "post", path: "/perps/prepare", auth: "public", publishable: true },
   { method: "post", path: "/perps/submit", auth: "public", publishable: true },
+  // Prediction markets (round 10): Polymarket markets, books, quotes, unsigned payloads, the venue sign-in, the relay
+  // of user-signed orders, open orders and cancels, positions and redemption.
+  { method: "get", path: "/predictions/markets", auth: "public", publishable: true },
+  { method: "get", path: "/predictions/markets/:id", auth: "public", publishable: true },
+  { method: "get", path: "/predictions/positions", auth: "public", publishable: true },
+  { method: "post", path: "/predictions/quote", auth: "public", publishable: true },
+  { method: "post", path: "/predictions/prepare", auth: "public", publishable: true },
+  { method: "post", path: "/predictions/session", auth: "public", publishable: true },
+  { method: "post", path: "/predictions/submit", auth: "public", publishable: true },
+  { method: "post", path: "/predictions/orders", auth: "public", publishable: true },
+  { method: "post", path: "/predictions/orders/cancel", auth: "public", publishable: true },
+  { method: "post", path: "/predictions/redeem", auth: "public", publishable: true },
   // Sub-agents (agents/): requests by main agents, owner-wallet or project-key decisions, the one-time claim.
   { method: "get", path: "/agents/tree", auth: "key" },
   { method: "get", path: "/agents/pending", auth: "public" },
@@ -943,6 +956,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ...automationHandlers(),
     ...orderHandlers(),
     ...perpsHandlers(),
+    ...predictionHandlers(),
     ...agentHandlers(),
     "post /webhooks": [
       requireApiKey,

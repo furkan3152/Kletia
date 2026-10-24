@@ -9,7 +9,13 @@
  *   rule book chain pins (`accounts.allow`, every pinned level), and the set
  *   is narrowed to them; publishable keys never;
  * - without a key, a desk wallet session (`Kletia-Account-Session` from the
- *   first-party origin) answers for its own wallet only.
+ *   first-party origin) answers for its tracked set (its own wallets, each
+ *   proven by a sign-in), or for its own wallet alone while tracking is off,
+ *   when history and results answer that tracking must be turned on.
+ *
+ * History, PnL and the positions' extras come from the data API
+ * (data/api.ts) under the same scope as its routes: an API key reads the
+ * addresses it names and links only its own intents and automations.
  *
  * The model steps need the switch (`KLETIA_ASSISTANT=on`) plus consent:
  * server keys the project setting `modelReading: "enabled"` and
@@ -20,8 +26,8 @@
 import type { Request, RequestHandler } from "express";
 import { accountMatchesPattern, ACCOUNT_SESSION_HEADER, ASSISTANT_LIMITS, type AssistantAskRequest, type DataWalletSet } from "@kletia/core";
 import { issueReadingConsentToken, verifyReadingConsentToken } from "../../shared/intent/semanticConsent.js";
-import { ask, assistantModel, dataServicePort, type AskInput } from "../assistant/index.js";
-import { parseWalletSet } from "../data/index.js";
+import { ask, assistantModel, dataApiPort, type AskInput } from "../assistant/index.js";
+import { parseWalletSet, sessionScope, type DataScope } from "../data/index.js";
 import { assertNoSecret } from "../engine/secretScreen.js";
 import { PlatformError } from "../errors.js";
 import { accountSessionOf, requireAccountOrigin, requireAccountSession } from "./accounts/auth.js";
@@ -84,8 +90,13 @@ export type AssistantOwner = Pick<AskInput, "set" | "port" | "model" | "modelUna
 
 const unavailable = () => (assistantModel().configured ? ("no-consent" as const) : ("off" as const));
 
+/** The data scope of an API key over `set` (already narrowed for an agent key): public reads of those addresses, the key's own intents and automations; its agent keys' spend with its auth. */
+function keyScope(set: DataWalletSet, key: { readonly keyId: string; readonly projectId?: string }, auth: AuthContext | null): DataScope {
+  return { wallets: set, viewer: { kind: "key", keyId: key.keyId }, tracking: null, automationOwner: { kind: "key", keyId: key.keyId, projectId: key.projectId ?? null }, keyAuth: auth };
+}
+
 /** An API key's owner: its named wallets (an agent key narrowed to its pins); the model with the project setting and `model: "on"`. */
-export async function keyOwner(key: { readonly keyId: string; readonly keyKind?: AuthContext["keyKind"]; readonly projectId?: string }, body: AssistantAskRequest): Promise<AssistantOwner> {
+export async function keyOwner(key: { readonly keyId: string; readonly keyKind?: AuthContext["keyKind"]; readonly projectId?: string }, body: AssistantAskRequest, auth: AuthContext | null = null): Promise<AssistantOwner> {
   if (key.keyKind === "publishable") throw forbidden("Publishable keys cannot ask about wallets; ask from a server with a project key, or from the Kletia desk.");
   if (!body.wallets) throw invalidRequest("Name the wallets to ask about: wallets: { evm?, solana? }.", [{ path: "wallets", message: "Required with an API key." }]);
   let set = setOf(body.wallets);
@@ -94,7 +105,7 @@ export async function keyOwner(key: { readonly keyId: string; readonly keyKind?:
   const consented = model.configured && body.model === "on" && key.projectId !== undefined && (await projectReadingEnabled(key.projectId));
   return {
     set,
-    port: dataServicePort(key.keyId),
+    port: dataApiPort({ scope: keyScope(set, key, auth), history: "open" }),
     model: consented ? { model, scope: { scope: `key:${key.keyId}`, project: key.projectId ?? key.keyId } } : null,
     modelUnavailable: unavailable(),
   };
@@ -103,17 +114,20 @@ export async function keyOwner(key: { readonly keyId: string; readonly keyKind?:
 /** Who asks and about which wallets: an API key, else the desk's wallet session (its own wallet only). */
 async function ownerOf(req: Request, body: AssistantAskRequest): Promise<AssistantOwner> {
   const auth = authOf(req);
-  if (auth.keyId) return keyOwner({ keyId: auth.keyId, ...(auth.keyKind ? { keyKind: auth.keyKind } : {}), ...(auth.projectId ? { projectId: auth.projectId } : {}) }, body);
+  if (auth.keyId) return keyOwner({ keyId: auth.keyId, ...(auth.keyKind ? { keyKind: auth.keyKind } : {}), ...(auth.projectId ? { projectId: auth.projectId } : {}) }, body, auth);
   const { wallet } = accountSessionOf(req);
-  const own = wallet.walletKind === "evm" ? { evm: [wallet.address] } : { solana: [wallet.address] };
+  const tracked = await sessionScope(wallet);
+  const mine = (address: string) => address.toLowerCase() === wallet.address.toLowerCase() || [...(tracked?.wallets.evm ?? []), ...(tracked?.wallets.solana ?? [])].some((entry) => entry.toLowerCase() === address.toLowerCase());
   const named = [...(body.wallets?.evm ?? []), ...(body.wallets?.solana ?? [])];
-  if (named.some((address) => address.toLowerCase() !== wallet.address.toLowerCase())) throw forbidden("A wallet session answers for its own wallet only.");
-  const set = setOf({ ...own, ...(body.wallets?.lane ? { lane: body.wallets.lane } : {}) });
+  if (named.some((address) => !mine(address))) throw forbidden("A wallet session answers for its own tracked wallets only.");
+  const own = wallet.walletKind === "evm" ? { evm: [wallet.address] } : { solana: [wallet.address] };
+  const set = tracked?.wallets ?? setOf({ ...own, ...(body.wallets?.lane ? { lane: body.wallets.lane } : {}) });
+  const scope: DataScope = tracked ?? { wallets: set, viewer: { kind: "wallet" }, tracking: null, automationOwner: { kind: "wallet", walletKind: wallet.walletKind, address: wallet.address }, keyAuth: null };
   const model = assistantModel();
   const token = body.model === "on" && body.consent ? verifyReadingConsentToken(body.consent, { wallet: wallet.address }) : null;
   return {
     set,
-    port: dataServicePort(null),
+    port: dataApiPort({ scope, history: tracked ? "open" : "tracking-off" }),
     model: model.configured && token?.scope === "session" ? { model, scope: { scope: `wallet:${wallet.address.toLowerCase()}` } } : null,
     modelUnavailable: unavailable(),
   };

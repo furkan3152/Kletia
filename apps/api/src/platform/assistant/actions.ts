@@ -145,21 +145,27 @@ async function sellPerformer(sentence: string, ctx: ExecContext, now: number): P
   const best = /\b(?:best|strongest|top|winners?)\b/u.test(sentence);
   const said = entitiesOf(sentence).window;
   const window = resolveWindow(said ?? { name: "last_days", days: 30, assumed: true }, now);
-  const assumptions = said ? [] : [`Performance over ${window.label}.`];
   const read = await ctx.port.pnl(ctx.set, { from: window.from, to: window.to, by: "asset" });
+  // The history service's periods are fixed: a wider one is said, never passed off as the window asked.
+  const span = read.exact || !read.covered ? window.label : read.covered;
+  const assumptions = [...(said ? [] : [`Performance over ${window.label}.`]), ...(span !== window.label ? [`Results are computed over ${span}, the nearest period the history service offers.`] : [])];
   const rows = read.rows.filter((row) => row.symbol !== null && row.change.usd !== null && !(row.network ? isStable({ network: row.network, symbol: row.symbol }) : /^(?:usd|dai|pyusd|eurc)/iu.test(row.symbol)));
-  if (rows.length === 0) return done("unknown", `Which asset performed ${best ? "best" : "worst"} over ${window.label} is not known yet${read.reason ? `: ${read.reason}` : "."} Nothing was planned.`, facts, { assumptions, gaps: read.reason ? [read.reason] : [] });
-  const score = (row: (typeof rows)[number]) => row.pct ?? (row.change.usd as number);
+  if (rows.length === 0) return done("unknown", `Which asset performed ${best ? "best" : "worst"} over ${span} is not known yet${read.reason ? `: ${read.reason}` : "."} Nothing was planned.`, facts, { assumptions, gaps: read.reason ? [read.reason] : [] });
+  // Ranked in dollars: a percentage exists only for some rows (nothing realized), and mixing the two would rank units, not results.
+  const score = (row: (typeof rows)[number]) => row.change.usd as number;
   const pick = [...rows].sort((a, b) => (best ? score(b) - score(a) : score(a) - score(b)))[0] as (typeof rows)[number];
   const symbol = pick.symbol as string;
-  const change = facts.add(`${safeSymbol(symbol)} change over ${window.label}`, `${signedUsd(pick.change.usd as number)}${pick.pct !== null ? ` (${pct(pick.pct, true)})` : ""}`, pick.change.usd, "usd", pick.change.source, pick.change.asOf);
+  const change = facts.add(`${safeSymbol(symbol)} change over ${span}`, `${signedUsd(pick.change.usd as number)}${pick.pct !== null ? ` (${pct(pick.pct, true)})` : ""}`, pick.change.usd, "usd", pick.change.source, pick.change.asOf);
   const summary = await ctx.port.summary(ctx.set);
   const target = facts.add("Swapped to", "USDC", null, "text", "kletia", summary.asOf);
-  const held = summary.holdings.filter((holding) => holding.symbol.toLowerCase() === symbol.toLowerCase() && tradable(holding.network, holding.symbol) && tradable(holding.network, "USDC"));
-  if (held.length === 0) return done("answered", `Your ${best ? "best" : "worst"} performer over ${window.label} was ${safeSymbol(symbol)} (${change.value}), but none of it is in your wallets now where it can be swapped. Nothing was planned.`, facts, { assumptions });
+  const all = summary.holdings.filter((holding) => holding.symbol.toLowerCase() === symbol.toLowerCase() && tradable(holding.network, holding.symbol) && tradable(holding.network, "USDC"));
+  // As for risky holdings: a swap of a few dollars would mostly pay the network fee.
+  const held = all.filter((holding) => (holding.value.usd ?? 0) >= MIN_SELL_USD);
+  if (held.length < all.length) assumptions.push(`Holdings worth less than ${usd(MIN_SELL_USD)} are left out.`);
+  if (held.length === 0) return done("answered", `Your ${best ? "best" : "worst"} performer over ${span} was ${safeSymbol(symbol)} (${change.value}), but ${all.length > 0 ? "what is left in your wallets is too small to swap" : "none of it is in your wallets now where it can be swapped"}. Nothing was planned.`, facts, { assumptions });
   for (const holding of held) facts.add(`${safeSymbol(symbol)} on ${networkName(holding.network)}`, `${holding.formatted} ${safeSymbol(symbol)}${holding.value.usd !== null ? ` (${usd(holding.value.usd)})` : ""}`, Number(holding.formatted), "amount", holding.value.source, holding.value.asOf);
   const sentences = held.map((holding) => `swap all my ${symbol} on ${networkWord(holding.network)} to USDC`);
-  return done("answered", `Your ${best ? "best" : "worst"} performer over ${window.label} was ${safeSymbol(symbol)} (${change.value}). Selling it means swapping it to ${target.value} on ${held.map((holding) => networkName(holding.network)).join(" and ")}; Kletia keeps enough for network fees and shows each swap for you to confirm.`, facts, {
+  return done("answered", `Your ${best ? "best" : "worst"} performer over ${span} was ${safeSymbol(symbol)} (${change.value}). Selling it means swapping it to ${target.value} on ${held.map((holding) => networkName(holding.network)).join(" and ")}; Kletia keeps enough for network fees and shows each swap for you to confirm.`, facts, {
     assumptions,
     action: { goal: "sell", summary: `Sell ${safeSymbol(symbol)} for USDC`, sentences: sentences.slice(0, ASSISTANT_LIMITS.sentences) },
   });

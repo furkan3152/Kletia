@@ -6,11 +6,13 @@
  * is said, never filled in.
  */
 import {
+  CHAINS,
   getProtocol,
   LENDING_HEALTH_THRESHOLDS,
   type AssistantChart,
   type AssistantFact,
   type AssistantFactUnit,
+  type AssistantLink,
   type AssistantQuery,
   type AssistantStatus,
   type AssistantTable,
@@ -20,7 +22,7 @@ import {
   type DataSource,
   type DataWalletSet,
 } from "@kletia/core";
-import type { AssistantDataPort, AssistantPnlRow, AssistantTransaction } from "./dataPort.js";
+import { coverageGaps, type AssistantDataPort, type AssistantPnl, type AssistantPnlRow, type AssistantTransaction, type AssistantTransactions } from "./dataPort.js";
 import { addDecimals, dateOf, networkName, pct, signedUsd, usd } from "./format.js";
 
 export interface ExecContext {
@@ -47,8 +49,8 @@ export function safeSymbol(symbol: string): string {
 
 class FactList {
   readonly list: AssistantFact[] = [];
-  add(label: string, value: string, number: number | null, unit: AssistantFactUnit, source: DataSource | "chain", asOf: string | null): AssistantFact {
-    const fact = { id: `f${this.list.length + 1}`, label, value, number, unit, source, asOf };
+  add(label: string, value: string, number: number | null, unit: AssistantFactUnit, source: DataSource | "chain", asOf: string | null, link?: AssistantLink): AssistantFact {
+    const fact = { id: `f${this.list.length + 1}`, label, value, number, unit, source, asOf, ...(link ? { link } : {}) };
     this.list.push(fact);
     return fact;
   }
@@ -239,18 +241,22 @@ async function health(query: AssistantQuery, ctx: ExecContext): Promise<ExecResu
 
 /* ------------------------------------------------------------ activity */
 
+const DIRECTION: Readonly<Record<"out" | "in", readonly string[]>> = { out: ["send", "bridge-out"], in: ["receive", "bridge-in"] };
+
 function txMatches(query: AssistantQuery, tx: AssistantTransaction): boolean {
-  const { kinds, assets, networks, destinations, protocols } = query.filter;
+  const { kinds, assets, networks, destinations, protocols, direction } = query.filter;
   const symbols = [...tx.sent, ...tx.received].map((legs) => legs.symbol.toLowerCase());
   return (!kinds?.length || kinds.includes(tx.kind))
     && (!assets?.length || assets.some((asset) => symbols.includes(asset.toLowerCase())))
     && (!networks?.length || networks.includes(tx.network))
     && (!destinations?.length || (tx.destination !== null && destinations.includes(tx.destination)))
-    && (!protocols?.length || (tx.protocol !== null && protocols.includes(tx.protocol)));
+    && (!protocols?.length || (tx.protocol !== null && protocols.includes(tx.protocol)))
+    && (!direction || (tx.kind !== "transfer" && tx.kind !== "bridge") || DIRECTION[direction].includes(tx.detail));
 }
 
 const KIND_NOUN: Readonly<Record<string, string>> = {
-  swap: "swap", bridge: "bridge", transfer: "transfer", deposit: "deposit", withdraw: "withdrawal", stake: "stake", unstake: "unstake", borrow: "borrow", repay: "repayment", claim: "claim", other: "transaction",
+  swap: "swap", bridge: "bridge", transfer: "transfer", deposit: "deposit", withdraw: "withdrawal", stake: "stake", unstake: "unstake", borrow: "borrow", repay: "repayment", claim: "claim",
+  perp: "perps transaction", order: "order transaction", prediction: "prediction-market transaction", approve: "approval", failed: "failed transaction", other: "transaction",
 };
 
 function txNoun(query: AssistantQuery, count: number): string {
@@ -258,55 +264,86 @@ function txNoun(query: AssistantQuery, count: number): string {
   const noun = kinds.length === 1 ? (KIND_NOUN[kinds[0] as string] as string) : "transaction";
   const plural = count === 1 ? noun : `${noun}${noun.endsWith("h") ? "es" : "s"}`;
   const to = query.filter.destinations?.length ? ` to ${query.filter.destinations.map(networkName).join(" or ")}` : "";
-  return `${plural}${to}${where(query)}`;
+  const venue = query.filter.protocols?.length ? ` on ${query.filter.protocols.map(protocolName).join(" or ")}` : "";
+  return `${plural}${to}${venue}${where(query)}`;
 }
 
 function legsText(legs: AssistantTransaction["sent"]): string {
-  return legs.map((leg) => `${leg.amount} ${safeSymbol(leg.symbol)}`).join(" + ");
+  return legs.map((leg) => `${leg.amount ?? "an unknown amount of"} ${safeSymbol(leg.symbol)}`).join(" + ");
 }
 
+const txLink = (tx: AssistantTransaction): AssistantLink => ({ kind: "transaction", id: tx.id });
+
 function txTable(transactions: readonly AssistantTransaction[]): AssistantTable {
+  const rows = transactions.slice(0, 12);
   return {
     columns: [{ key: "date", label: "Date" }, { key: "kind", label: "Kind" }, { key: "network", label: "Network" }, { key: "sent", label: "Sent", numeric: true }, { key: "received", label: "Received", numeric: true }, { key: "fee", label: "Fee", numeric: true }],
-    rows: transactions.slice(0, 12).map((tx) => ({
+    rows: rows.map((tx) => ({
       date: dateOf(tx.at),
-      kind: tx.kind,
-      network: tx.destination ? `${networkName(tx.network)} → ${networkName(tx.destination)}` : networkName(tx.network),
+      kind: tx.status === "failed" ? "failed" : tx.detail,
+      network: networkName(tx.network),
       sent: legsText(tx.sent),
       received: legsText(tx.received),
-      fee: tx.fee.usd === null ? "" : usd(tx.fee.usd),
+      fee: tx.fee?.usd == null ? "" : usd(tx.fee.usd),
     })),
+    links: rows.map(txLink),
   };
+}
+
+/** Gap lines of a history read: unread accounts (with the variables to set), a cut window, bridges whose destination the chain does not show. */
+function historyGaps(page: AssistantTransactions, query: AssistantQuery, ctx: ExecContext): string[] {
+  const gaps = coverageGaps(page.unread, ctx.labelOf);
+  if (page.truncated) gaps.push("Only the newest transactions of this period were read; older ones are not counted.");
+  const destinations = query.filter.destinations ?? [];
+  if (destinations.length > 0) {
+    // The chain shows where a bridge arrived, not where a departure went: departures without an arrival in these wallets may have gone there too.
+    const departures = page.transactions.filter((tx) => tx.detail === "bridge-out" && txMatches({ ...query, filter: { ...query.filter, destinations: [] } }, tx)).length;
+    const arrivals = page.transactions.filter((tx) => tx.detail === "bridge-in").length;
+    const unmatched = departures - arrivals;
+    if (unmatched > 0) gaps.push(`${unmatched} bridge departure${unmatched === 1 ? "" : "s"} in this period ${unmatched === 1 ? "has" : "have"} no arrival in your wallets, and the chain does not show where ${unmatched === 1 ? "it" : "they"} went; only arrivals are counted.`);
+    for (const network of destinations) {
+      const vm = CHAINS[network].vm === "svm" ? ctx.set.solana : ctx.set.evm;
+      if (vm.length === 0) gaps.push(`No ${CHAINS[network].vm === "svm" ? "Solana" : "EVM"} wallet is in this set, so arrivals on ${networkName(network)} cannot be seen.`);
+    }
+  }
+  return gaps;
 }
 
 async function readTransactions(query: AssistantQuery, ctx: ExecContext) {
   const page = await ctx.port.transactions(ctx.set, { from: query.window?.from ?? null, ...(query.window ? { to: query.window.to } : {}) });
-  const matched = page.transactions.filter((tx) => tx.status !== "failed" && txMatches(query, tx));
-  return { page, matched };
+  const failed = query.filter.kinds?.includes("failed") ?? false;
+  const matched = page.transactions.filter((tx) => (failed || tx.status !== "failed") && txMatches(query, tx));
+  return { page, matched, gaps: historyGaps(page, query, ctx) };
 }
 
+const complete = (page: AssistantTransactions, gaps: readonly string[]) => page.complete && gaps.length === 0;
+
 async function transactions(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
-  const { page, matched } = await readTransactions(query, ctx);
+  const { page, matched, gaps } = await readTransactions(query, ctx);
   const facts = new FactList();
-  const gaps = page.reason ? [page.reason] : [];
-  if (page.coverage === "none") return result("unknown", "Your transaction history is not available yet, so this cannot be answered.", facts, { gaps, followUps: ["Show my portfolio"] });
-  const status: AssistantStatus = page.complete ? "answered" : "partial";
+  if (page.coverage === "none") return result("unknown", `Your transaction history is not available, so this cannot be answered: ${page.reason ?? "it could not be read."}`, facts, { gaps, followUps: ["Show my portfolio"] });
+  const whole = complete(page, gaps);
+  const status: AssistantStatus = whole ? "answered" : "partial";
   const period = windowText(query);
-  const count = facts.add(`${txNoun(query, 2)}${period}`.replace(/^./u, (c) => c.toUpperCase()), String(matched.length), matched.length, "count", page.coverage === "chain" ? "chain" : "kletia", page.asOf);
-  const caveat = page.complete ? "" : ` This counts only the history Kletia can read: ${page.reason ?? "it may be incomplete."}`;
+  const count = facts.add(`${txNoun(query, 2)}${period}`.replace(/^./u, (c) => c.toUpperCase()), String(matched.length), matched.length, "count", "chain", page.asOf);
+  const caveat = whole ? "" : " Some history was not read (see the gaps), so there may be more.";
   if (matched.length === 0) {
     const text = query.aggregate === "exists" ? `No: no ${txNoun(query, 2)} were found${period}.${caveat}` : `No ${txNoun(query, 2)} were found${period}.${caveat}`;
     return result(status, text, facts, { gaps, followUps: ["Show my transactions this month", "Show my portfolio"] });
   }
   const latest = matched[0] as AssistantTransaction;
-  const latestDate = facts.add("Most recent", dateOf(latest.at), null, "date", latest.source, latest.at);
+  const latestDate = facts.add("Most recent", dateOf(latest.at), null, "date", latest.source, latest.at, txLink(latest));
   const table = txTable(matched);
   if (query.aggregate === "total") {
-    const priced = matched.filter((tx) => tx.sent.every((leg) => leg.usd !== null));
-    const sum = priced.reduce((total, tx) => total + tx.sent.reduce((part, leg) => part + (leg.usd as number), 0), 0);
-    const value = facts.add(`Value sent in ${txNoun(query, 2)}${period}`, usd(sum), sum, "usd", latest.source, page.asOf);
+    // Arrivals carry what was delivered; everything else what the wallet sent.
+    const arrivals = (query.filter.destinations?.length ?? 0) > 0;
+    const legs = (tx: AssistantTransaction) => (arrivals && tx.detail === "bridge-in" ? tx.received : tx.sent);
+    const priced = matched.filter((tx) => legs(tx).length > 0 && legs(tx).every((leg) => leg.usd !== null));
+    const total = Math.round(priced.reduce((sum, tx) => sum + legs(tx).reduce((part, leg) => part + (leg.usd as number), 0), 0) * 100) / 100;
+    const verb = arrivals ? "Value delivered" : "Value sent";
+    const value = facts.add(`${verb} in ${txNoun(query, 2)}${period}`, usd(total), total, "usd", "chain", page.asOf);
     const unpriced = matched.length - priced.length;
-    return result(unpriced > 0 ? "partial" : status, `You sent ${value.value} in ${count.value} ${txNoun(query, matched.length)}${period}${unpriced ? ` (${unpriced} without a price are not counted)` : ""}.${caveat}`, facts, { gaps, table });
+    return result(unpriced > 0 ? "partial" : status, `${arrivals ? "You moved" : "You sent"} ${value.value} in ${count.value} ${txNoun(query, matched.length)}${period}${unpriced ? ` (${unpriced} without a price at the time are not counted)` : ""}.${caveat}`, facts, { gaps, table });
   }
   if (query.aggregate === "top") {
     const sent = facts.add("Sent", legsText(latest.sent) || "nothing", null, "text", latest.source, latest.at);
@@ -322,20 +359,25 @@ async function transactions(query: AssistantQuery, ctx: ExecContext): Promise<Ex
 }
 
 async function fees(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
-  const { page, matched } = await readTransactions(query, ctx);
+  const { page, gaps } = await readTransactions(query, ctx);
   const facts = new FactList();
-  const gaps = page.reason ? [page.reason] : [];
-  if (page.coverage === "none") return result("unknown", "Your transaction history is not available yet, so the fees you paid cannot be added up.", facts, { gaps });
-  const known = matched.filter((tx) => tx.fee.usd !== null);
-  const sum = known.reduce((total, tx) => total + (tx.fee.usd as number), 0);
+  if (page.coverage === "none") return result("unknown", `Your transaction history is not available, so the fees you paid cannot be added up: ${page.reason ?? "it could not be read."}`, facts, { gaps });
+  // A reverted transaction still paid its fee: it counts under the kind asked only when no kind was named.
+  const paying = page.transactions.filter((tx) => tx.fee !== null && (txMatches(query, tx) || (tx.status === "failed" && !query.filter.kinds?.length && txMatches({ ...query, filter: { ...query.filter, kinds: [] } }, tx))));
+  const known = paying.filter((tx) => tx.fee?.usd != null);
+  const sum = Math.round(known.reduce((total, tx) => total + (tx.fee?.usd as number), 0) * 100) / 100;
   const period = windowText(query);
   const kinds = query.filter.kinds?.length ? ` on ${txNoun(query, 2)}` : where(query);
-  const paid = facts.add(`Fees paid${kinds}${period}`, usd(sum), sum, "usd", known[0]?.fee.source ?? (page.coverage === "chain" ? "chain" : "kletia"), page.asOf);
-  const count = facts.add("Transactions counted", String(known.length), known.length, "count", page.coverage === "chain" ? "chain" : "kletia", page.asOf);
-  const missing = matched.length - known.length;
-  if (missing > 0) gaps.push(`${missing} transaction${missing === 1 ? " has" : "s have"} no fee reading and ${missing === 1 ? "is" : "are"} not counted.`);
-  const caveat = page.complete ? "" : ` Only the history Kletia can read is counted: ${page.reason ?? "it may be incomplete."}`;
-  return result(missing > 0 || !page.complete ? "partial" : "answered", `You paid ${paid.value} in fees${kinds}${period}, over ${count.value} transaction${known.length === 1 ? "" : "s"}.${caveat}`, facts, {
+  const paid = facts.add(`Fees paid${kinds}${period}`, usd(sum), sum, "usd", "chain", page.asOf);
+  const count = facts.add("Transactions counted", String(known.length), known.length, "count", "chain", page.asOf);
+  const reverted = known.filter((tx) => tx.status === "failed").length;
+  const failedFact = reverted > 0 && !query.filter.kinds?.includes("failed") ? facts.add("Of them reverted", String(reverted), reverted, "count", "chain", page.asOf) : null;
+  const missing = paying.length - known.length;
+  const why = paying.find((tx) => tx.fee?.usd == null)?.fee?.reason;
+  if (missing > 0) gaps.push(`${missing} transaction${missing === 1 ? " has" : "s have"} no fee price and ${missing === 1 ? "is" : "are"} not counted${why ? ` (${why.replace(/\.$/u, "")})` : ""}.`);
+  for (const reason of new Set(known.map((tx) => tx.fee?.reason).filter((entry): entry is string => Boolean(entry)))) gaps.push(reason);
+  const caveat = complete(page, gaps) ? "" : " Some fees were not read (see the gaps), so the total may be higher.";
+  return result(missing > 0 || !complete(page, gaps) ? "partial" : "answered", `You paid ${paid.value} in fees${kinds}${period}, over ${count.value} transaction${known.length === 1 ? "" : "s"}${failedFact ? ` (${failedFact.value} of them reverted)` : ""}.${caveat}`, facts, {
     gaps,
     table: txTable(known),
     followUps: ["Show my transactions this month", "Which of my assets lost the most this month?"],
@@ -344,32 +386,50 @@ async function fees(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult
 
 /* ------------------------------------------------------------ results */
 
+/** The span a PnL read covers: the window asked, or the data API's wider period (said, never passed off as the window). */
+function pnlSpan(query: AssistantQuery, read: AssistantPnl): { readonly text: string; readonly gaps: string[] } {
+  if (read.exact || !read.covered) return { text: windowText(query), gaps: [] };
+  const asked = query.window ? query.window.label : "the period asked";
+  return { text: ` over ${read.covered}`, gaps: [`Results are computed over ${read.covered}, the nearest period the history service offers, not exactly ${asked}.`] };
+}
+
+function pnlGaps(read: AssistantPnl, ctx: ExecContext): string[] {
+  return [...coverageGaps(read.unread, ctx.labelOf), ...(read.reason ? [read.reason] : []), ...(read.unread.length === 0 && !read.complete && read.rows.length > 0 ? ["Some costs or prices are unknown, or older history was not read: the totals cover the known part."] : [])];
+}
+
 async function pnl(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
   const read = await ctx.port.pnl(ctx.set, { from: query.window?.from ?? null, ...(query.window ? { to: query.window.to } : {}), by: "asset" });
   const facts = new FactList();
-  const gaps = read.reason ? [read.reason] : [];
-  const period = windowText(query);
+  const span = pnlSpan(query, read);
+  const gaps = [...span.gaps, ...pnlGaps(read, ctx)];
+  const period = span.text;
+  const partial = gaps.length > 0 || !read.complete;
   if (query.aggregate === "total" || !query.by) {
-    if (read.total.usd === null) return result("unknown", `How your portfolio changed${period} is not known yet${read.total.reason ? `: ${read.total.reason}` : "."}`, facts, { gaps });
-    const change = facts.add(`Value change${period} (estimate)`, signedUsd(read.total.usd), read.total.usd, "usd", read.total.source, read.total.asOf);
-    return result("answered", `Your portfolio changed by ${change.value}${period}. This is an estimate from Kletia's readings and prices, not realised profit or loss.`, facts, { gaps, followUps: ["Which of my assets lost the most this month?"] });
+    if (read.total.usd === null) return result("unknown", `How your portfolio did${period} is not known yet: ${read.total.reason ?? "it could not be read."}`, facts, { gaps: gaps.filter((gap) => gap !== read.total.reason) });
+    const total = facts.add(`Result${period} (estimate)`, signedUsd(read.total.usd), read.total.usd, "usd", read.total.source, read.total.asOf);
+    const realized = read.realizedUsd !== null ? facts.add(`Realized${period}`, signedUsd(read.realizedUsd), read.realizedUsd, "usd", "snapshot", read.asOf) : null;
+    const unrealized = read.unrealizedUsd !== null ? facts.add("Unrealized on what you still hold", signedUsd(read.unrealizedUsd), read.unrealizedUsd, "usd", "snapshot", read.asOf) : null;
+    const value = read.valueChange?.usd != null ? facts.add(`Value change of your tracked wallets${period}`, signedUsd(read.valueChange.usd), read.valueChange.usd, "usd", "snapshot", read.valueChange.asOf) : null;
+    const parts = [realized ? `${realized.value} realized` : null, unrealized ? `${unrealized.value} unrealized` : null].filter(Boolean).join(", ");
+    return result(partial ? "partial" : "answered", `Your result${period} is ${total.value}${parts ? ` (${parts})` : ""}, a FIFO estimate from your transaction history and today's prices, not tax-grade.${value ? ` Your tracked wallets' value changed by ${value.value} over the same span, deposits and withdrawals included.` : ""}`, facts, { gaps, followUps: ["Which of my assets lost the most this month?", "What's my perps PnL?"] });
   }
   const rows = read.rows.filter((row) => row.change.usd !== null && matchesSymbol(query, row.symbol ?? "") && (row.network === null || matchesNetwork(query, row.network)));
-  if (rows.length === 0) return result("unknown", `Which assets gained or lost${period} is not known yet${read.reason ? `: ${read.reason}` : "."}`, facts, { gaps });
+  if (rows.length === 0) return result("unknown", `Which assets gained or lost${period} is not known yet: ${read.reason ?? "no result with a known cost and price was found."}`, facts, { gaps });
   const sorted = [...rows].sort((a, b) => (query.aggregate === "top" ? (b.change.usd as number) - (a.change.usd as number) : (a.change.usd as number) - (b.change.usd as number)));
   const picked = query.aggregate === "list" ? sorted.slice(0, 12) : sorted.slice(0, query.limit ?? 1);
-  const shown = picked.map((row) => [row, facts.add(`${pnlLabel(row)} change${period}`, signedUsd(row.change.usd as number), row.change.usd, "usd", row.change.source, row.change.asOf)] as const);
-  const pctFacts = picked.filter((row) => row.pct !== null).map((row) => facts.add(`${pnlLabel(row)} change in percent`, pct(row.pct as number, true), row.pct, "fraction", row.change.source, row.change.asOf));
+  const shown = picked.map((row) => [row, facts.add(`${pnlLabel(row)} result${period}`, signedUsd(row.change.usd as number), row.change.usd, "usd", row.change.source, row.change.asOf)] as const);
+  const pctFacts = picked.filter((row) => row.pct !== null).map((row) => facts.add(`${pnlLabel(row)} unrealized in percent`, pct(row.pct as number, true), row.pct, "fraction", row.change.source, row.change.asOf));
   const table: AssistantTable = {
-    columns: [{ key: "asset", label: "Asset" }, { key: "change", label: "Change", numeric: true }, { key: "pct", label: "%", numeric: true }],
-    rows: sorted.slice(0, 12).map((row) => ({ asset: pnlLabel(row), change: signedUsd(row.change.usd as number), pct: row.pct === null ? "" : pct(row.pct, true) })),
+    columns: [{ key: "asset", label: "Asset" }, { key: "realized", label: "Realized", numeric: true }, { key: "unrealized", label: "Unrealized", numeric: true }, { key: "change", label: "Result", numeric: true }],
+    rows: sorted.slice(0, 12).map((row) => ({ asset: pnlLabel(row), realized: row.realizedUsd === null ? "" : signedUsd(row.realizedUsd), unrealized: row.unrealizedUsd === null ? "" : signedUsd(row.unrealizedUsd), change: signedUsd(row.change.usd as number) })),
   };
-  const chart: AssistantChart = { kind: "bar", label: `Change by asset${period}`, unit: "usd", points: sorted.slice(0, 8).map((row) => ({ label: pnlLabel(row), value: row.change.usd as number })) };
+  const chart: AssistantChart = { kind: "bar", label: `Result by asset${period}`, unit: "usd", points: sorted.slice(0, 8).map((row) => ({ label: pnlLabel(row), value: row.change.usd as number })) };
   const [first] = shown;
+  const note = "Results are realized plus unrealized FIFO estimates from your history, not tax-grade.";
   const text = query.aggregate === "list"
-    ? `Change by asset${period}: ${shown.map(([row, fact]) => `${pnlLabel(row)} ${fact.value}`).join(", ")}. These are estimates, not realised profit or loss.`
-    : `${query.aggregate === "bottom" ? (((first![0].change.usd as number) < 0) ? "Your biggest loser" : "Your weakest asset") : "Your best performer"}${period} was ${pnlLabel(first![0])}: ${first![1].value}${pctFacts[0] ? ` (${pctFacts[0].value})` : ""}. This is an estimate, not realised profit or loss.`;
-  return result(read.reason ? "partial" : "answered", text, facts, { gaps, table, chart, followUps: query.aggregate === "bottom" ? ["Sell my worst performer", "Show my portfolio"] : ["Show my portfolio"] });
+    ? `Result by asset${period}: ${shown.map(([row, fact]) => `${pnlLabel(row)} ${fact.value}`).join(", ")}. ${note}`
+    : `${query.aggregate === "bottom" ? (((first![0].change.usd as number) < 0) ? "Your biggest loss" : "Your weakest asset") : "Your best performer"}${period} was ${pnlLabel(first![0])}: ${first![1].value}${pctFacts[0] ? ` (${pctFacts[0].value} unrealized)` : ""}. ${note}`;
+  return result(partial ? "partial" : "answered", text, facts, { gaps, table, chart, followUps: query.aggregate === "bottom" ? ["Sell my worst performer", "Show my portfolio"] : ["Show my portfolio"] });
 }
 
 function pnlLabel(row: AssistantPnlRow): string {
@@ -382,7 +442,7 @@ const EARN_KIND: Readonly<Record<string, readonly string[]>> = { stake: ["stakin
 async function earnings(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
   const read = await ctx.port.pnl(ctx.set, { from: query.window?.from ?? null, ...(query.window ? { to: query.window.to } : {}), by: "position" });
   const facts = new FactList();
-  const gaps = read.reason ? [read.reason] : [];
+  const gaps = pnlGaps(read, ctx);
   const kinds = (query.filter.kinds ?? []).flatMap((kind) => EARN_KIND[kind] ?? []);
   const rows = read.rows.filter((row) => row.earned !== null
     && (kinds.length === 0 || (row.kind !== null && kinds.includes(row.kind)))
@@ -391,15 +451,182 @@ async function earnings(query: AssistantQuery, ctx: ExecContext): Promise<ExecRe
   const period = windowText(query);
   const what = kinds.includes("staking") ? "staking" : kinds.length ? "lending and vaults" : query.filter.protocols?.length ? query.filter.protocols.map(protocolName).join(" and ") : "your positions";
   const known = rows.filter((row) => row.earned?.usd !== null);
-  if (known.length === 0) return result("unknown", `What you earned from ${what}${period} is not known yet${read.reason ? `: ${read.reason}` : "."}`, facts, { gaps, followUps: ["Show my positions"] });
+  if (known.length === 0) return result("unknown", `What you earned from ${what}${period} is not known yet: ${read.reason ?? "no reading of it was found."}`, facts, { gaps, followUps: ["Show my positions", "Show my pnl by asset"] });
   const sum = known.reduce((total, row) => total + (row.earned?.usd as number), 0);
   const total = facts.add(`Earned from ${what}${period}`, usd(sum), sum, "usd", known[0]!.earned!.source, known[0]!.earned!.asOf);
   for (const row of known.slice(0, 6)) facts.add(`Earned: ${pnlLabel(row)}${row.protocol ? ` (${protocolName(row.protocol)})` : ""}`, usd(row.earned!.usd as number), row.earned!.usd, "usd", row.earned!.source, row.earned!.asOf);
   const missing = rows.length - known.length;
-  return result(missing > 0 || read.reason ? "partial" : "answered", `You earned ${total.value} from ${what}${period}.`, facts, {
+  return result(missing > 0 || gaps.length > 0 ? "partial" : "answered", `You earned ${total.value} from ${what}${period}.`, facts, {
     gaps,
     table: { columns: [{ key: "position", label: "Position" }, { key: "earned", label: "Earned", numeric: true }], rows: known.slice(0, 12).map((row) => ({ position: pnlLabel(row), earned: usd(row.earned!.usd as number) })) },
     followUps: ["Show my positions", "Move my idle stables to the best yield"],
+  });
+}
+
+/* ------------------------------------------------------------ extras */
+
+/** A venue's text (a market title, an automation label) as shown in a table: printable, one line, bounded; never in the answer text. */
+export function safeText(text: string, max = 80): string {
+  const clean = text
+    .replace(/[\p{C}]/gu, " ")
+    .replace(/\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/gu, "[address]")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+}
+
+async function extrasOf(ctx: ExecContext) {
+  const read = await ctx.port.positions(ctx.set, { extras: true });
+  return { read, extras: read.extras ?? null };
+}
+
+function sectionGaps(reason: string | null | undefined, ctx: ExecContext): string[] {
+  return reason ? [ctx.labelOf(reason)] : [];
+}
+
+async function perps(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
+  const { extras } = await extrasOf(ctx);
+  const facts = new FactList();
+  if (!extras) return result("unknown", "Your perps positions could not be read right now.", facts);
+  const gaps = sectionGaps(extras.perps.reason, ctx);
+  const rows = extras.perps.rows.filter((row) => matchesSymbol(query, row.symbol) && matchesNetwork(query, row.network) && (!query.filter.protocols?.length || (query.filter.protocols as readonly string[]).includes(row.venue)));
+  const status: AssistantStatus = gaps.length > 0 ? "partial" : "answered";
+  const venue = query.filter.protocols?.length ? ` on ${query.filter.protocols.map(protocolName).join(" or ")}` : "";
+  if (rows.length === 0) return result(status, `No open perps positions were found${venue}.${gaps.length ? " Some venues could not be read (see the gaps)." : ""}`, facts, { gaps, followUps: ["What's my exposure?"] });
+  const ordered = query.aggregate === "top" ? [...rows].sort((a, b) => b.sizeUsd - a.sizeUsd).slice(0, query.limit ?? 1) : rows.slice(0, 12);
+  const count = facts.add(`Open perps positions${venue}`, String(rows.length), rows.length, "count", "adapter", extras.perps.asOf);
+  const known = rows.filter((row) => row.unrealizedPnlUsd !== null);
+  const pnlSum = Math.round(known.reduce((sum, row) => sum + (row.unrealizedPnlUsd as number), 0) * 100) / 100;
+  const pnlFact = known.length > 0 ? facts.add("Unrealized PnL at the mark", signedUsd(pnlSum), pnlSum, "usd", "adapter", extras.perps.asOf) : null;
+  const shown = ordered.map((row) => facts.add(`${safeSymbol(row.symbol)} ${row.side} (${protocolName(row.venue)})`, usd(row.sizeUsd), row.sizeUsd, "usd", "adapter", extras.perps.asOf));
+  if (known.length < rows.length) gaps.push(`${rows.length - known.length} position${rows.length - known.length === 1 ? " has" : "s have"} no mark price, so ${rows.length - known.length === 1 ? "its" : "their"} PnL is not counted.`);
+  gaps.push("Closed positions, funding and fees are not included: this is the open positions' price PnL at the mark.");
+  const lead = query.aggregate === "total"
+    ? `Your open perps positions${venue} show ${pnlFact?.value ?? "no known"} unrealized PnL at the mark, across ${count.value} position${rows.length === 1 ? "" : "s"}.`
+    : query.aggregate === "top"
+      ? `Your biggest perps position${venue} is ${shown.map((fact) => `${fact.label} at ${fact.value}`).join("; ")}, of ${count.value} open.`
+      : `You have ${count.value} open perps position${rows.length === 1 ? "" : "s"}${venue}: ${shown.map((fact) => `${fact.label} ${fact.value}`).join("; ")}.${pnlFact ? ` Unrealized PnL at the mark: ${pnlFact.value}.` : ""}`;
+  // A PnL question is only partly answered: closed positions, funding and fees are not read.
+  const partial = known.length < rows.length || status === "partial" || query.aggregate === "total";
+  return result(partial ? "partial" : "answered", lead, facts, {
+    gaps,
+    table: {
+      columns: [{ key: "market", label: "Market" }, { key: "side", label: "Side" }, { key: "size", label: "Size", numeric: true }, { key: "leverage", label: "Leverage", numeric: true }, { key: "liquidation", label: "Liquidation", numeric: true }, { key: "pnl", label: "PnL", numeric: true }],
+      rows: ordered.map((row) => ({
+        market: `${safeSymbol(row.symbol)} (${protocolName(row.venue)})`,
+        side: row.side,
+        size: usd(row.sizeUsd),
+        leverage: row.leverage === null ? "" : `${row.leverage.toFixed(1)}x`,
+        liquidation: row.liquidationPrice === null ? "" : usd(row.liquidationPrice),
+        pnl: row.unrealizedPnlUsd === null ? "" : signedUsd(row.unrealizedPnlUsd),
+      })),
+    },
+    followUps: ["What's my exposure?", "Show my open orders"],
+  });
+}
+
+async function orders(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
+  const { extras } = await extrasOf(ctx);
+  const facts = new FactList();
+  if (!extras) return result("unknown", "Your open orders could not be read right now.", facts);
+  const gaps = sectionGaps(extras.orders.reason, ctx);
+  const rows = extras.orders.rows.filter((row) => matchesNetwork(query, row.network) && (!query.filter.assets?.length || matchesSymbol(query, row.sell.symbol) || (row.buy !== null && matchesSymbol(query, row.buy.symbol))));
+  const status: AssistantStatus = gaps.length > 0 ? "partial" : "answered";
+  if (rows.length === 0) return result(status, `No open orders were found${where(query)}.${gaps.length ? " Some order venues could not be read (see the gaps)." : ""}`, facts, { gaps, followUps: ["Show my automations"] });
+  const count = facts.add(`Open orders${where(query)}`, String(rows.length), rows.length, "count", "adapter", extras.orders.asOf);
+  const shown = rows.slice(0, 6).map((row) => facts.add(`Sell ${safeSymbol(row.sell.symbol)}${row.buy ? ` for ${safeSymbol(row.buy.symbol)}` : ""} (${protocolName(row.protocol)} on ${networkName(row.network)})`, `${row.sell.amount} ${safeSymbol(row.sell.symbol)}`, Number(row.sell.amount), "amount", "adapter", extras.orders.asOf));
+  return result(status, query.aggregate === "count" ? `You have ${count.value} open order${rows.length === 1 ? "" : "s"}${where(query)}.` : `You have ${count.value} open order${rows.length === 1 ? "" : "s"}${where(query)}: ${shown.map((fact) => `${fact.label}: ${fact.value}`).join("; ")}.`, facts, {
+    gaps,
+    table: {
+      columns: [{ key: "sell", label: "Sell", numeric: true }, { key: "buy", label: "For", numeric: true }, { key: "venue", label: "Venue" }, { key: "created", label: "Placed" }],
+      rows: rows.slice(0, 12).map((row) => ({ sell: `${row.sell.amount} ${safeSymbol(row.sell.symbol)}`, buy: row.buy ? `${row.buy.amount} ${safeSymbol(row.buy.symbol)}` : "", venue: `${protocolName(row.protocol)} (${networkName(row.network)})`, created: row.createdAt ? dateOf(row.createdAt) : "" })),
+    },
+    followUps: ["What's my exposure?", "Show my automations"],
+  });
+}
+
+async function automations(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
+  const { extras } = await extrasOf(ctx);
+  const facts = new FactList();
+  if (!extras) return result("unknown", "Your automations could not be read right now.", facts);
+  const section = extras.automations;
+  const gaps = sectionGaps(section.reason, ctx);
+  if (section.rows.length === 0) return result(section.asOf === null ? "unknown" : gaps.length ? "partial" : "answered", `No automations were found.${gaps.length ? " They could not all be read (see the gaps)." : ""}`, facts, { gaps });
+  const count = facts.add("Automations", String(section.rows.length), section.rows.length, "count", "kletia", section.asOf);
+  const active = section.rows.filter((row) => row.status === "active").length;
+  const activeFact = facts.add("Active", String(active), active, "count", "kletia", section.asOf);
+  const spent = Math.round(section.rows.reduce((sum, row) => sum + (Number(row.spentUsd) || 0), 0) * 100) / 100;
+  const spentFact = facts.add("Spent by automations", usd(spent), spent, "usd", "kletia", section.asOf);
+  return result(gaps.length ? "partial" : "answered", `You have ${count.value} automation${section.rows.length === 1 ? "" : "s"}, ${activeFact.value} active; together they have spent ${spentFact.value}.`, facts, {
+    gaps,
+    table: {
+      columns: [{ key: "automation", label: "Automation" }, { key: "status", label: "Status" }, { key: "runs", label: "Runs", numeric: true }, { key: "spent", label: "Spent", numeric: true }, { key: "next", label: "Next run" }],
+      rows: section.rows.slice(0, 12).map((row) => ({ automation: safeText(row.label ?? row.trigger, 60), status: row.status, runs: String(row.runs), spent: usd(Number(row.spentUsd) || 0), next: row.nextRunAt ? dateOf(row.nextRunAt) : "" })),
+    },
+    followUps: query.aggregate === "count" ? ["Show my automations"] : ["Show my open orders"],
+  });
+}
+
+async function predictions(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
+  const { extras } = await extrasOf(ctx);
+  const facts = new FactList();
+  if (!extras) return result("unknown", "Your prediction-market positions could not be read right now.", facts);
+  const section = extras.predictions;
+  const gaps = sectionGaps(section.reason, ctx);
+  if (ctx.set.evm.length === 0) return result("answered", "Prediction markets (Polymarket) are read for EVM wallets, and none is in this set.", facts, { gaps });
+  if (section.asOf === null) return result("unknown", "Your prediction-market positions could not be read right now.", facts, { gaps });
+  const rows = section.rows;
+  if (rows.length === 0) return result(gaps.length ? "partial" : "answered", "No Polymarket positions were found in your wallets. Shares bought through a Polymarket account wallet are held by that wallet's address, which the Predict view reads.", facts, { gaps, followUps: ["Show my transactions this month"] });
+  const round = (value: number) => Math.round(value * 100) / 100;
+  const cost = round(rows.reduce((sum, row) => sum + row.costUsd, 0));
+  const value = round(rows.reduce((sum, row) => sum + row.valueUsd, 0));
+  const result_ = round(rows.reduce((sum, row) => sum + row.pnlUsd, 0));
+  const count = facts.add("Polymarket positions", String(rows.length), rows.length, "count", "adapter", section.asOf);
+  const costFact = facts.add("Staked (cost)", usd(cost), cost, "usd", "adapter", section.asOf);
+  const valueFact = facts.add("Worth at current prices", usd(value), value, "usd", "adapter", section.asOf);
+  const pnlFact = facts.add("Result so far", signedUsd(result_), result_, "usd", "adapter", section.asOf);
+  const redeemable = rows.filter((row) => row.redeemable).length;
+  const redeemFact = redeemable > 0 ? facts.add("Resolved, ready to redeem", String(redeemable), redeemable, "count", "adapter", section.asOf) : null;
+  const sorted = [...rows].sort((a, b) => b.costUsd - a.costUsd);
+  return result(gaps.length ? "partial" : "answered", `You hold ${count.value} Polymarket position${rows.length === 1 ? "" : "s"}: ${costFact.value} staked, worth ${valueFact.value} at current prices (${pnlFact.value}).${redeemFact ? ` ${redeemFact.value} ${redeemable === 1 ? "has" : "have"} resolved and can be redeemed in the Predict view.` : ""} Each market is in the table.`, facts, {
+    gaps,
+    table: {
+      columns: [{ key: "market", label: "Market" }, { key: "outcome", label: "Outcome" }, { key: "cost", label: "Cost", numeric: true }, { key: "value", label: "Value", numeric: true }, { key: "pnl", label: "PnL", numeric: true }],
+      rows: sorted.slice(0, 12).map((row) => ({ market: safeText(row.title), outcome: safeText(row.outcome, 24), cost: usd(row.costUsd), value: usd(row.valueUsd), pnl: signedUsd(round(row.pnlUsd)) })),
+    },
+    followUps: [query.aggregate === "total" ? "What did I bet on Polymarket?" : "What's my exposure?", "Show my transactions this month"],
+  });
+}
+
+async function exposure(query: AssistantQuery, ctx: ExecContext): Promise<ExecResult> {
+  const [summaryRead, { extras }] = await Promise.all([ctx.port.summary(ctx.set), extrasOf(ctx)]);
+  const facts = new FactList();
+  const gaps = [...failureGaps(summaryRead.failures, ctx), ...sectionGaps(extras?.perps.reason, ctx), ...sectionGaps(extras?.predictions.reason, ctx)];
+  if (!extras) gaps.push("Perps and prediction positions could not be read right now.");
+  const spotUsd = Math.round(((summaryRead.totals.wallet.usd ?? 0) + (summaryRead.totals.positions.usd ?? 0)) * 100) / 100;
+  const spot = facts.add("Spot holdings and positions", usd(spotUsd), spotUsd, "usd", "kletia", summaryRead.asOf);
+  const top = summaryRead.allocation.byAsset.slice(0, 3).map((slice) => facts.add(`Share: ${safeSymbol(slice.label)}`, pct(slice.share), slice.share, "fraction", "adapter", summaryRead.asOf));
+  const perpRows = (extras?.perps.rows ?? []).filter((row) => matchesSymbol(query, row.symbol));
+  const longUsd = Math.round(perpRows.filter((row) => row.side === "long").reduce((sum, row) => sum + row.sizeUsd, 0) * 100) / 100;
+  const shortUsd = Math.round(perpRows.filter((row) => row.side === "short").reduce((sum, row) => sum + row.sizeUsd, 0) * 100) / 100;
+  const long = perpRows.length > 0 ? facts.add("Perps long (notional)", usd(longUsd), longUsd, "usd", "adapter", extras?.perps.asOf ?? null) : null;
+  const short = perpRows.length > 0 ? facts.add("Perps short (notional)", usd(shortUsd), shortUsd, "usd", "adapter", extras?.perps.asOf ?? null) : null;
+  const bets = extras?.predictions.rows ?? [];
+  const betUsd = Math.round(bets.reduce((sum, row) => sum + row.valueUsd, 0) * 100) / 100;
+  const bet = bets.length > 0 ? facts.add("Prediction positions at current prices", usd(betUsd), betUsd, "usd", "adapter", extras?.predictions.asOf ?? null) : null;
+  const text = [
+    `Spot: ${spot.value} in your wallets and venue positions${top.length ? ` (largest: ${top.map((fact) => `${fact.label.replace("Share: ", "")} ${fact.value}`).join(", ")})` : ""}.`,
+    long && short ? `Perps: ${long.value} long and ${short.value} short.` : "No open perps positions.",
+    bet ? `Prediction markets: ${bet.value} at current prices.` : "",
+  ].filter(Boolean).join(" ");
+  const bySymbol = new Map<string, number>();
+  for (const slice of summaryRead.allocation.byAsset) bySymbol.set(safeSymbol(slice.label), (bySymbol.get(safeSymbol(slice.label)) ?? 0) + slice.usd);
+  for (const row of perpRows) bySymbol.set(safeSymbol(row.symbol), (bySymbol.get(safeSymbol(row.symbol)) ?? 0) + (row.side === "long" ? row.sizeUsd : -row.sizeUsd));
+  const points = [...bySymbol.entries()].map(([label, value]) => ({ label, value: Math.round(value * 100) / 100 })).sort((a, b) => Math.abs(b.value) - Math.abs(a.value)).slice(0, 8);
+  return result(gaps.length > 0 || !summaryRead.totals.complete ? "partial" : "answered", text, facts, {
+    gaps,
+    chart: { kind: "bar", label: "Net exposure by asset (spot plus perps; shorts negative)", unit: "usd", points },
+    followUps: ["What's my perps PnL?", "What did I bet on Polymarket?"],
   });
 }
 
@@ -445,7 +672,8 @@ async function yields(query: AssistantQuery, ctx: ExecContext): Promise<ExecResu
   const facts = new FactList();
   const rows = read.yields.filter((row) => row.apy !== null && row.executable).sort((a, b) => (b.apy as number) - (a.apy as number)).slice(0, Math.max(1, query.limit ?? 3));
   if (rows.length === 0) return result("unknown", `No ${asset ? `${safeSymbol(asset)} ` : ""}rate could be read right now${where(query)}.`, facts);
-  const shown = rows.map((row) => facts.add(`${row.name} on ${networkName(row.network)} (supply APY)`, pct(row.apy as number), row.apy, "fraction", row.source, row.asOf));
+  // Each rate leads to the same deposit sentence as the dashboard's "Move here".
+  const shown = rows.map((row) => facts.add(`${row.name} on ${networkName(row.network)} (supply APY)`, pct(row.apy as number), row.apy, "fraction", row.source, row.asOf, row.depositText ? { kind: "deposit", sentence: row.depositText } : undefined));
   const text = `The best ${asset ? `${safeSymbol(asset)} ` : ""}rate${shown.length > 1 ? "s" : ""} Kletia reads${where(query)}: ${shown.map((fact) => `${fact.label.replace(" (supply APY)", "")} at ${fact.value}`).join(", ")}. Rates change; past rates do not promise future ones.`;
   return result("answered", text, facts, { followUps: ["Move my idle stables to the best yield", "What did I earn from staking?"] });
 }
@@ -475,5 +703,15 @@ export function executeQuery(query: AssistantQuery, ctx: ExecContext): Promise<E
       return prices(query, ctx);
     case "yields":
       return yields(query, ctx);
+    case "perps":
+      return perps(query, ctx);
+    case "orders":
+      return orders(query, ctx);
+    case "automations":
+      return automations(query, ctx);
+    case "predictions":
+      return predictions(query, ctx);
+    case "exposure":
+      return exposure(query, ctx);
   }
 }

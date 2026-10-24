@@ -5,11 +5,13 @@
  * (POST /v1/assistant/ask) from the signed-in wallet's data: the answer, the
  * facts it used with their sources, a small table or chart, "Ask a
  * follow-up", and for a request the sentences it computed, each planned as a
- * new task through the normal review, confirm and sign flow. Nothing here
- * plans or signs; the answer is never stored.
+ * new task through the normal review, confirm and sign flow. A fact or row
+ * about a transaction opens its row in History; a rate offers the same
+ * "Move here" deposit sentence as the dashboard. Nothing here plans or
+ * signs; the answer is never stored.
  */
 import React, { Suspense, useEffect, useRef, useState } from "react";
-import type { AssistantAnswer } from "@kletia/core";
+import type { AssistantAnswer, AssistantLink } from "@kletia/core";
 
 import { useAccountSession } from "../../pages/developers/keys/accountSession";
 import { isPlatformError } from "../../pages/developers/keys/accountClient";
@@ -23,6 +25,7 @@ import { PANEL_TITLE, VIEW_PANEL } from "../shell/viewStyles";
 import { getDeskStore, type TaskRecord } from "../state/deskStore";
 import { PlanningSkeleton } from "../tasks/PlanningSkeleton";
 import { TaskTicket } from "../tasks/TaskTicket";
+import { requestHistoryFocus } from "../history/historyModel";
 import { assistantApi } from "./assistantClient";
 import { barRows, readConsent, rememberConsent, shortAddress, sourceName } from "./assistantModel";
 
@@ -40,6 +43,31 @@ function failureText(failure: unknown): string {
   return isPlatformError(failure) && failure.status > 0 && failure.status < 500 ? failure.message : copy.failed;
 }
 
+const LINK_BUTTON = "inline-flex min-h-11 items-center text-xs font-black uppercase tracking-wider text-[var(--kl-accent-text)] underline underline-offset-4 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]";
+
+/** Where a fact or row leads: its transaction's History row, or a deposit sentence in the composer (the dashboard's "Move here"). */
+function useFollowLink(): (link: AssistantLink) => void {
+  const actions = useDeskActions();
+  return (link) => {
+    if (link.kind === "transaction") {
+      requestHistoryFocus(link.id);
+      actions.openView("history");
+    } else {
+      actions.fill(link.sentence);
+    }
+  };
+}
+
+function FactLink({ link, label }: { readonly link: AssistantLink; readonly label: string }) {
+  const follow = useFollowLink();
+  const transaction = link.kind === "transaction";
+  return (
+    <button type="button" className={LINK_BUTTON} aria-label={transaction ? copy.openInHistoryLabel(label) : copy.moveHereLabel(label.replace(/ \(supply APY\)$/u, ""))} onClick={() => follow(link)}>
+      {transaction ? copy.openInHistory : copy.moveHere}
+    </button>
+  );
+}
+
 function Facts({ answer }: { readonly answer: AssistantAnswer }) {
   if (answer.facts.length === 0) return null;
   return (
@@ -51,6 +79,7 @@ function Facts({ answer }: { readonly answer: AssistantAnswer }) {
             <dt className="break-words text-xs font-semibold text-muted">{fact.label}</dt>
             <dd className="m-0 break-words font-code text-base font-bold">{fact.value}</dd>
             <dd className="m-0 text-xs text-muted">{copy.source(sourceName(fact.source), fact.asOf ? (formatUtcMinutes(fact.asOf) ?? "") : "")}</dd>
+            {fact.link ? <dd className="m-0"><FactLink link={fact.link} label={fact.label} /></dd> : null}
           </div>
         ))}
       </dl>
@@ -79,6 +108,7 @@ function Chart({ answer }: { readonly answer: AssistantAnswer }) {
 }
 
 function Table({ answer }: { readonly answer: AssistantAnswer }) {
+  const follow = useFollowLink();
   const table = answer.table;
   if (!table || table.rows.length === 0 || (answer.chart && answer.chart.points.length >= 2)) return null;
   return (
@@ -91,6 +121,7 @@ function Table({ answer }: { readonly answer: AssistantAnswer }) {
                 {column.label}
               </th>
             ))}
+            {table.links ? <th scope="col"><span className="sr-only">{copy.openRow}</span></th> : null}
           </tr>
         </thead>
         <tbody>
@@ -101,6 +132,15 @@ function Table({ answer }: { readonly answer: AssistantAnswer }) {
                   {row[column.key] ?? ""}
                 </td>
               ))}
+              {table.links ? (
+                <td className="px-2 py-1 align-top">
+                  {table.links[index] ? (
+                    <button type="button" className={LINK_BUTTON} aria-label={copy.openRowLabel(index + 1)} onClick={() => follow(table.links![index]!)}>
+                      {copy.openRow}
+                    </button>
+                  ) : null}
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>

@@ -153,7 +153,7 @@ export function dataSchemas(): JsonObject {
       ["accounts", "positions", "health", "failures", "asOf"],
     ),
     DataSection: obj(
-      { rows: arrayOf({ type: "object" }), reason: { ...NULLABLE_STRING, description: "Null when read in full; otherwise why rows are missing." }, source: str({ enum: ["perps", "orders", "automations", "policy"] }), asOf: NULLABLE_ISO },
+      { rows: arrayOf({ type: "object" }), reason: { ...NULLABLE_STRING, description: "Null when read in full; otherwise why rows are missing." }, source: str({ enum: ["perps", "orders", "automations", "policy", "predictions"] }), asOf: NULLABLE_ISO },
       ["rows", "reason", "source", "asOf"],
     ),
     DataCoverageExtras: obj(
@@ -162,8 +162,9 @@ export function dataSchemas(): JsonObject {
         orders: { ...ref("DataSection"), description: "Open native orders (CoW Protocol, Jupiter Trigger and Recurring)." },
         automations: { ...ref("DataSection"), description: "The caller's automations (an API key's or the desk wallet's)." },
         agentSpend: { ...ref("DataSection"), description: "24 h / 7 d USD spend of the agent keys below the calling API key." },
+        predictions: { ...ref("DataSection"), description: "Polymarket positions of the set's EVM wallets on Polygon (shares, average and current price, value, cost, PnL, redeemable) with the account." },
       },
-      ["perps", "orders", "automations", "agentSpend"],
+      ["perps", "orders", "automations", "agentSpend", "predictions"],
     ),
     DataTxLeg: obj(
       {

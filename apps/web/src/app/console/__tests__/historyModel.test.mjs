@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { amountText, coverageNotes, EMPTY_FILTERS, filterQuery, historyNotConfigured, historyRow, legValue, pnlRows, valueChart } from "../history/historyModel.ts";
+import { amountText, coverageNotes, EMPTY_FILTERS, filterQuery, clearHistoryFocus, focusFilters, focusNetwork, historyNotConfigured, historyRow, legValue, peekHistoryFocus, pnlRows, requestHistoryFocus, valueChart } from "../history/historyModel.ts";
 
 const ACCOUNT = "eip155:8453:0x4f183e308f24c81c05303821AD025812fBFd807D";
 
@@ -85,4 +85,21 @@ test("PnL rows keep unknown parts unknown and tone the known total", () => {
   });
   assert.deepEqual(rows.map((row) => [row.symbol, row.realized, row.unrealized, row.tone]), [["ETH", "+$2,500.00", "+$500.00", "up"], ["USDC", "Unknown", "$0.00", "flat"]]);
   assert.match(rows[1].note, /More was disposed/u);
+});
+
+test("an answer's transaction opens in History once, with its network filtered", () => {
+  const id = `base:0x${"74".repeat(32)}`;
+  assert.equal(focusNetwork(id), "base");
+  assert.equal(focusNetwork("solana:5h6xBEauJ3PK6SWCZ1PGjBvj8vDdWG3KpwATGy1ARAXFSDwt8GFXM7W5Ncn16wmqokgpiKRLuS83KUxyZyv2sUYv"), "solana");
+  assert.equal(focusNetwork("mars:0x01"), null);
+  assert.equal(focusNetwork("base:<script>"), null);
+  requestHistoryFocus(id);
+  assert.equal(peekHistoryFocus(), id);
+  assert.equal(peekHistoryFocus(), id, "a second read in the same render sees it too");
+  clearHistoryFocus(id);
+  assert.equal(peekHistoryFocus(), null, "once shown, a later visit to History opens nothing");
+  requestHistoryFocus("javascript:alert(1)");
+  assert.equal(peekHistoryFocus(), null);
+  assert.deepEqual(focusFilters(id), { ...EMPTY_FILTERS, network: "base" });
+  assert.deepEqual(focusFilters(null), EMPTY_FILTERS);
 });

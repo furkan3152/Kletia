@@ -16,6 +16,10 @@ test("questions and portfolio requests go to the assistant; instructions, rates 
     "did I bridge to Solana this week?",
     "how is my Aave loan doing?",
     "show my trades on base",
+    "what did I bet on Polymarket?",
+    "what's my perps PnL?",
+    "show my open orders",
+    "what was my biggest loss this month?",
     "rebalance my portfolio to 60/40 ETH/USDC",
     "sell my worst performer",
     "move my idle stables to the best yield",
@@ -43,6 +47,10 @@ test("an answer is shown only with the shape the card needs", () => {
   assert.equal(parseAnswer({ answer: { ...answer, status: "confirmed" } }), null);
   assert.equal(parseAnswer({ answer: { ...answer, facts: [{ label: 1 }] } }), null);
   assert.equal(parseAnswer({ answer: { ...answer, action: { sentences: [1] } } }), null);
+  const linked = { ...answer, facts: [{ ...answer.facts[0], link: { kind: "transaction", id: "base:0x7431" } }], table: { columns: [], rows: [{}], links: [{ kind: "deposit", sentence: "Deposit [EDIT AMOUNT] USDC into Aave V3 USDC on Base" }] } };
+  assert.equal(parseAnswer({ answer: linked })?.facts[0]?.link?.id, "base:0x7431", "links to a History row or a deposit sentence are kept");
+  assert.equal(parseAnswer({ answer: { ...answer, facts: [{ ...answer.facts[0], link: { kind: "url", href: "https://evil.example" } }] } }), null, "any other link refuses the answer");
+  assert.equal(parseAnswer({ answer: { ...linked, table: { columns: [], rows: [{}], links: [{ kind: "transaction", id: 7 }] } } }), null);
   assert.equal(parseAnswer(null), null);
 });
 

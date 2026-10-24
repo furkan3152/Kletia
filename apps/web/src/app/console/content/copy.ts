@@ -361,6 +361,12 @@ const COPY = {
     modelOn: "Turn on model help",
     modelUnavailable: "Model help is not configured on this deployment.",
     sentenceForgotten: "This answer was not kept after the page reloaded: your wallet's data stays out of storage. Ask again for a fresh one.",
+    openInHistory: "Open in History",
+    openInHistoryLabel: (label: string) => `Open "${label}" in History`,
+    openRow: "Open",
+    openRowLabel: (row: number) => `Open row ${row} in History`,
+    moveHere: "Move here",
+    moveHereLabel: (label: string) => `Put a deposit into ${label} in the composer`,
   },
 
   holdings: {
@@ -541,6 +547,8 @@ const COPY = {
     receipt: "Kletia receipt",
     failed: "Failed",
     valueAt: "Value at the time",
+    focusOlder: "The transaction from the answer is older than the rows read so far: Load older to reach it.",
+    focusMissing: "The transaction from the answer is not in this history (it may belong to a wallet that is no longer tracked).",
   },
 
   tools: {

@@ -40,9 +40,13 @@ question ([clarify](clarify.md)), so a question can never become a plan.
 2. **Deterministic reading.** A typed query planner reads the question into an
    `AssistantQuery`: a subject (`summary`, `holdings`, `positions`, `health`,
    `transactions`, `fees`, `pnl`, `earnings`, `allocation`, `prices`,
-   `yields`), filters (activity kinds, assets, networks, bridge destinations,
-   protocols), a time window and an aggregate (`list`, `total`, `top`,
-   `bottom`, `count`, `exists`).
+   `yields`, `perps`, `orders`, `automations`, `predictions`, `exposure`),
+   filters (activity kinds, assets, networks, bridge destinations, protocols,
+   and for transfers the direction), a time window and an aggregate (`list`,
+   `total`, `top`, `bottom`, `count`, `exists`). Open perps, orders,
+   automations and prediction positions are read from the positions'
+   extras; with a window and a yes/no or count shape ("did I bet on
+   Polymarket this week?") the history answers instead.
 3. **Computed in code.** The query runs against the data, and every number the
    answer states is a **fact** with its `source` and `asOf`. Unknown or
    partial data is said (`status: "unknown"` or `"partial"` with `gaps`),
@@ -126,8 +130,12 @@ over the window (default the last 30 days), stablecoins excluded.
   **Publishable keys** are refused. The Kletia history a key can see is its
   own intents.
 - **The desk** (no key) uses the signed-in wallet session
-  (`Kletia-Account-Session`, first-party origin): answers cover that wallet
-  only; naming another wallet is `403 ASSISTANT_ACCOUNT_FORBIDDEN`.
+  (`Kletia-Account-Session`, first-party origin): answers cover its tracked
+  set (its own wallets, each proven by a sign-in), or the session wallet
+  alone while tracking is off; naming any other wallet is
+  `403 ASSISTANT_ACCOUNT_FORBIDDEN`. With tracking off, history and results
+  answer `unknown` with the desk step: Portfolio, then History, then "Turn on
+  tracking".
 - Neither: `401 ASSISTANT_OWNER_REQUIRED`.
 
 Every ask spends the data budget like a portfolio read (one unit per
@@ -168,24 +176,62 @@ says plainly when a question needs the model.
 ## The data behind it
 
 The engine reads through a narrow port (`apps/api/src/platform/assistant/dataPort.ts`):
-`summary`, `transactions(query)`, `pnl(query)`, `positions`, `snapshots`,
-`yields` and `prices`, in the shapes of `packages/core/src/data.ts`. Today it
-is backed by the data service: holdings, positions, loan health, yields and
-prices are complete; transaction history is the calling key's Kletia-planned
-transactions only (a desk session has none yet, answered `unknown`), and
-per-asset results and earnings need price history that is not connected yet.
-Answers say so instead of guessing.
+`summary`, `transactions(query)`, `pnl(query)`, `positions({ extras })`,
+`snapshots`, `yields` and `prices`. `dataApiPort` backs it with the data
+API's typed functions ([data](data.md), `data/api.ts`) under one `DataScope`:
+an API key's named wallets (`walletScope` semantics: links to its own intents
+and automations only), or a desk session's tracked set (`sessionScope`).
+
+- **Transactions**: the on-chain history, read for the question's window up to
+  4 pages of 100 rows. The data API's 18 kinds fold into the planner's:
+  send and receive are a `transfer` ("what did I send" and "what did I
+  receive" keep the direction), bridge-out and bridge-in a `bridge`,
+  `approve`, `perp`, `order`, `prediction`, `failed` (a reverted
+  transaction, whatever it tried), `claim` (a contract call whose method
+  claims), the rest `other`. A bridge's destination is the network of its
+  arrival in your wallets: departures without an arrival are said in the
+  gaps, never counted to a destination. Fees count every transaction the
+  wallet paid for, reverted ones included; a missing fee price (or Alchemy,
+  which reports no fees) is a gap, never $0.
+- **Coverage**: each account the history could not read in full is a gap line
+  with the variables that would enable it (`ETHERSCAN_API_KEY` or
+  `ALCHEMY_API_KEY` for EVM, `HELIUS_API_KEY` for faster Solana history);
+  nothing read at all is `unknown`, part of it `partial`.
+- **Results**: FIFO realized plus unrealized by asset (`/v1/data/pnl`) over
+  the history service's nearest period at or above the window (24 hours, 7
+  or 30 days, all time); a wider period is said in the gaps, never passed off
+  as the window. A tracked set adds its value change from snapshots.
+  Earnings per position (rewards, interest) are not read yet and answer
+  `unknown`.
+- **Extras**: open perps (unrealized PnL at the mark; closed positions,
+  funding and fees are not included), open native orders, automations and
+  Polymarket positions (market titles appear only in the table, sanitized,
+  never in the answer text).
+
+### Links in the desk
+
+A fact or table row about a transaction carries `link: { kind:
+"transaction", id }`: the desk's answer card opens that row in History (its
+network filtered, the row open). A rate carries `link: { kind: "deposit",
+sentence }` with the same sentence as the dashboard's "Move here", which the
+card puts in the composer; nothing is planned until it is sent.
 
 ## Eval
 
 `npm run eval:assistant -w @kletia/api` runs the assistant corpus
 (`apps/api/src/platform/assistant/__tests__/fixtures/assistant-corpus.json`:
-fixture wallets, prices, yields and over 60 questions with the facts and
-answers expected, including prompt injection in token names and transaction
-symbols, questions about someone else's wallet, requests for keys, advice and
-ambiguous time windows) offline on the deterministic path and enforces: at
+fixture wallets, prices, yields and 120 questions with the facts and
+answers expected, including prompt injection in token names, transaction
+symbols and prediction-market titles, questions about someone else's wallet,
+requests for keys, advice and ambiguous time windows) offline on the
+deterministic path and enforces: at
 least 90% correct, 0 answers with an ungrounded number, asset, network or
 month, 0 answers that mention another fixture wallet, and every action
 sentence read by the intent engine as a plan or a question for the same
-holdings. The intent corpus (`eval:intents`) holds the same question shapes in
+holdings. The fixture wallets are recorded data API reads (on-chain history
+with per-network coverage, a provider not configured, Alchemy without fees,
+a Solana read cut short, FIFO PnL, snapshots, perps, orders, automations and
+Polymarket positions) served through the real `dataApiPort`, so the eval
+exercises the same mapping, paging and coverage handling as the API. The
+intent corpus (`eval:intents`) holds the same question shapes in
 its `refuse` family, so a question can never become a plan.

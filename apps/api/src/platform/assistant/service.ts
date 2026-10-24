@@ -47,7 +47,8 @@ const OTHER_PEOPLE = /\b(?:someone\s+else'?s?|somebody\s+else'?s?|another\s+(?:p
 /** "how much eth does bob have", "what's bob's balance": a question about someone else. */
 const OTHER_SUBJECT = /\b(?:does|did|has)\s+(?!i\b|it\b|my\b|the\b|this\b|that\b|kletia\b)[a-z]+\s+(?:have|hold|own|earn|spend|pay|bridge|swap)\b|\b(?!what|that|it|let|today|there|here|who|where|how)[a-z]+'s\s+(?:wallets?|portfolio|balances?|holdings|positions?|address|transactions|net\s+worth)\b/u;
 /** Advice and predictions: the assistant reads data, it does not recommend or forecast. */
-const ADVICE = /\b(?:should\s+i|is\s+it\s+(?:a\s+)?(?:good|bad)\s+(?:time|idea)|will\s+[a-z0-9]+\s+(?:go|pump|dump|rise|fall|moon|crash)|predict\w*|price\s+target|financial\s+advice|what\s+(?:should|to)\s+(?:i\s+)?buy|worth\s+buying)\b/u;
+/** "show my predictions" is about prediction-market positions; "predict", "your predictions" and price predictions are forecasts. */
+const ADVICE = /\b(?:should\s+i|is\s+it\s+(?:a\s+)?(?:good|bad)\s+(?:time|idea)|will\s+[a-z0-9]+\s+(?:go|pump|dump|rise|fall|moon|crash)|predict(?:s|ed|ing)?|(?:your|price)\s+predictions?|price\s+target|financial\s+advice|what\s+(?:should|to)\s+(?:i\s+)?buy|worth\s+buying)\b/u;
 const NAME = /\b[a-z0-9-]+\.(?:eth|sol)\b/iu;
 
 export const EXAMPLE_QUESTIONS = Object.freeze([

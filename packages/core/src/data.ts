@@ -8,6 +8,7 @@ import type { AccountId, AssetId } from "./caip.js";
 import type { NetworkKey } from "./chains.js";
 import type { JourneyValueSource } from "./journey.js";
 import type { PerpsPosition } from "./perps.js";
+import type { PredictionPosition } from "./predictions.js";
 import type { ProtocolId } from "./protocols.js";
 
 /**
@@ -478,11 +479,16 @@ export interface DataSection<T> {
   readonly rows: readonly T[];
   /** Null when everything was read; otherwise why rows are missing. */
   readonly reason: string | null;
-  readonly source: "perps" | "orders" | "automations" | "policy";
+  readonly source: "perps" | "orders" | "automations" | "policy" | "predictions";
   readonly asOf: string | null;
 }
 
 export interface DataPerpRow extends PerpsPosition {
+  readonly account: AccountId;
+}
+
+/** A prediction-market position (Polymarket) of one of the set's EVM wallets, as the venue's data API reports it. */
+export interface DataPredictionRow extends PredictionPosition {
   readonly account: AccountId;
 }
 
@@ -516,12 +522,13 @@ export interface DataAgentSpendRow {
   readonly weekUsd: string;
 }
 
-/** Perps, open native orders, automations and sub-agent spend of the caller. */
+/** Perps, open native orders, automations, sub-agent spend and prediction-market positions of the caller. */
 export interface DataCoverageExtras {
   readonly perps: DataSection<DataPerpRow>;
   readonly orders: DataSection<DataOrderRow>;
   readonly automations: DataSection<DataAutomationRow>;
   readonly agentSpend: DataSection<DataAgentSpendRow>;
+  readonly predictions: DataSection<DataPredictionRow>;
 }
 
 /* --------------------------------------------------------------- summary */

@@ -22,8 +22,19 @@ export type AssistantRoute =
   /** A market question not about the person ("what's the price of ETH"): answered from market data. */
   | "market-question";
 
-export type AssistantTxKind = "swap" | "bridge" | "transfer" | "deposit" | "withdraw" | "stake" | "unstake" | "borrow" | "repay" | "claim" | "other";
-export const ASSISTANT_TX_KINDS: readonly AssistantTxKind[] = Object.freeze(["swap", "bridge", "transfer", "deposit", "withdraw", "stake", "unstake", "borrow", "repay", "claim", "other"]);
+/**
+ * Kinds of activity a question can name. The data API's 18 transaction kinds
+ * (data.ts `DataTxKind`) fold into these: send and receive are a `transfer`,
+ * bridge-out and bridge-in a `bridge`, contract calls and unknown rows
+ * `other` (or `claim` when the method says so), and a reverted transaction is
+ * `failed` whatever it tried to do.
+ */
+export type AssistantTxKind =
+  | "swap" | "bridge" | "transfer" | "deposit" | "withdraw" | "stake" | "unstake" | "borrow" | "repay" | "claim"
+  | "perp" | "order" | "prediction" | "approve" | "failed" | "other";
+export const ASSISTANT_TX_KINDS: readonly AssistantTxKind[] = Object.freeze([
+  "swap", "bridge", "transfer", "deposit", "withdraw", "stake", "unstake", "borrow", "repay", "claim", "perp", "order", "prediction", "approve", "failed", "other",
+]);
 
 /** Named time windows (UTC); the API resolves them against its clock. `month` names a calendar month, `last_days` a count of days. */
 export type AssistantWindowName =
@@ -48,9 +59,20 @@ export interface AssistantWindow {
 }
 
 export type AssistantSubject =
-  | "summary" | "holdings" | "positions" | "health" | "transactions" | "fees" | "pnl" | "earnings" | "allocation" | "prices" | "yields";
+  | "summary" | "holdings" | "positions" | "health" | "transactions" | "fees" | "pnl" | "earnings" | "allocation" | "prices" | "yields"
+  /** Open perps positions and their unrealized PnL. */
+  | "perps"
+  /** Open native orders (limit, TWAP, recurring). */
+  | "orders"
+  /** The caller's automations. */
+  | "automations"
+  /** Prediction-market positions (Polymarket). */
+  | "predictions"
+  /** Spot holdings, perps notional and prediction stakes together. */
+  | "exposure";
 export const ASSISTANT_SUBJECTS: readonly AssistantSubject[] = Object.freeze([
   "summary", "holdings", "positions", "health", "transactions", "fees", "pnl", "earnings", "allocation", "prices", "yields",
+  "perps", "orders", "automations", "predictions", "exposure",
 ]);
 
 export type AssistantAggregate = "list" | "total" | "top" | "bottom" | "count" | "exists";
@@ -68,6 +90,8 @@ export interface AssistantQuery {
     /** Destination networks of a bridge ("to Solana"). */
     readonly destinations?: readonly NetworkKey[];
     readonly protocols?: readonly ProtocolId[];
+    /** Transfers and bridges only: what left the wallets ("sent") or arrived ("received"). */
+    readonly direction?: "out" | "in";
   };
   readonly window?: AssistantWindow;
   readonly aggregate: AssistantAggregate;
@@ -76,6 +100,16 @@ export interface AssistantQuery {
 }
 
 export type AssistantFactUnit = "usd" | "count" | "fraction" | "amount" | "ratio" | "date" | "text";
+
+/**
+ * Where a fact or a table row leads in the desk: a transaction opens its row
+ * in History (`id` is the data API's `<network>:<hash>`); a deposit puts the
+ * same sentence the dashboard's "Move here" uses in the composer (nothing is
+ * planned until the person sends it).
+ */
+export type AssistantLink =
+  | { readonly kind: "transaction"; readonly id: string }
+  | { readonly kind: "deposit"; readonly sentence: string };
 
 /** One computed number or value an answer may state, with where it comes from. */
 export interface AssistantFact {
@@ -88,11 +122,14 @@ export interface AssistantFact {
   readonly unit: AssistantFactUnit;
   readonly source: DataSource | "chain";
   readonly asOf: string | null;
+  readonly link?: AssistantLink;
 }
 
 export interface AssistantTable {
   readonly columns: readonly { readonly key: string; readonly label: string; readonly numeric?: true }[];
   readonly rows: readonly Readonly<Record<string, string>>[];
+  /** One per row when rows lead somewhere (null for a row that does not). */
+  readonly links?: readonly (AssistantLink | null)[];
 }
 
 export interface AssistantChart {
@@ -180,7 +217,7 @@ const ACTION_REQUESTS: readonly RegExp[] = [
 const ACTION_VERB = /^(?:please\s+)?(?:swap|bridge|send|transfer|deposit|supply|lend|stake|unstake|withdraw|buy|sell|borrow|repay|move|put|pay|wrap|unwrap|convert|exchange|trade|long|short|open|close|claim|earn|make|keep|get|give|top|fund|prepare|exit|go|hold|park|rebalance|split|cancel|set|create|schedule|dca|limit)\b/u;
 const QUESTION_OPENER = /^(?:what|whats|what's|how|which|did|do|does|have|has|had|was|were|when|where|why|is|are|am|can\s+you\s+(?:tell|show|list|summari[sz]e)|could\s+you\s+(?:tell|show|list)|tell\s+me|show(?:\s+me)?|list|summari[sz]e|give\s+me\s+(?:a\s+)?(?:summary|breakdown|overview)|display|break\s+down|explain|any)\b/u;
 const PERSONAL = /\b(?:my|mine|i|i've|ive|i'm|im|i'd|me|myself|our|ours|we)\b/u;
-const DATA_WORDS = /\b(?:portfolio|balances?|holdings?|hold|have|own|worth|net\s+worth|value|positions?|loans?|debts?|borrow(?:ed|ing)?|health|fees?|gas|spen[dt]|paid|pay|earn(?:ed|ings)?|made|pnl|p&l|profits?|loss(?:es)?|lost|gains?|gained|performance|perform(?:ed|ing)?|performers?|trades?|traded|swaps?|swapped|bridges?|bridged|transactions?|txs?|transfers?|transferred|deposits?|deposited|withdrawals?|withdrew|history|activity|allocation|exposure|staking|staked|stakes?|rewards?|yields?|apys?|assets?|tokens?|coins?|wallets?|sent|received|bought|sold|summary|overview|breakdown|biggest|largest|smallest|top|worst|best|stables?|stablecoins?|eth|sol|usdc|usdt|btc)\b/u;
+const DATA_WORDS = /\b(?:bets?|betted|wagers?|polymarket|predictions?|perps?|perpetuals?|orders?|automations?|approvals?|failed|portfolio|balances?|holdings?|hold|have|own|worth|net\s+worth|value|positions?|loans?|debts?|borrow(?:ed|ing)?|health|fees?|gas|spen[dt]|paid|pay|earn(?:ed|ings)?|made|pnl|p&l|profits?|loss(?:es)?|lost|gains?|gained|performance|perform(?:ed|ing)?|performers?|trades?|traded|swaps?|swapped|bridges?|bridged|transactions?|txs?|transfers?|transferred|deposits?|deposited|withdrawals?|withdrew|history|activity|allocation|exposure|staking|staked|stakes?|rewards?|yields?|apys?|assets?|tokens?|coins?|wallets?|sent|received|bought|sold|summary|overview|breakdown|biggest|largest|smallest|top|worst|best|stables?|stablecoins?|eth|sol|usdc|usdt|btc)\b/u;
 const MARKET_WORDS = /\b(?:price|prices|trading\s+at|cost|costs|worth|market|yields?|apys?|aprs?|rates?)\b/u;
 const ADDRESS_OR_NAME = /\b0x[0-9a-f]{40}\b|\b[1-9a-hj-np-z]{32,44}\b|\b[a-z0-9-]+\.(?:eth|sol|base\.eth)\b/iu;
 

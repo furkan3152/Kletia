@@ -2,18 +2,18 @@
  * The assistant engine offline: routing, time windows, the question reader,
  * the grounding check, the model steps with scripted providers (what is
  * sent, when a worded answer is kept or replaced), the eval corpus' gates and
- * today's data service adapter.
+ * the data API port (kinds, coverage, paging, periods, tracking off).
  *
  *   cd apps/api && node --import tsx --test src/platform/assistant/__tests__/assistant.test.ts
  */
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import { assistantRouteOf, type IntentGraph } from "@kletia/core";
+import { assistantRouteOf, type DataTransaction, type DataTransactionPage } from "@kletia/core";
 import { scriptedProvider } from "../../engine/reading/scripted.js";
 import { ReadingTransportError } from "../../engine/reading/provider.js";
-import { intentTransactions } from "../dataPort.js";
-import { assistantGates, fixturePort, loadAssistantCorpus, runAssistantEval, walletSetOf } from "../evalHarness.js";
+import { assistantTransaction, dataApiPort, HISTORY_READ, periodFor, TRACKING_OFF } from "../dataPort.js";
+import { assistantGates, fixtureAccess, fixturePort, fixtureReader, loadAssistantCorpus, runAssistantEval, walletSetOf } from "../evalHarness.js";
 import { checkGrounding } from "../grounding.js";
 import { AssistantModel, assistantModelConfigFromEnv, maskQuestion, validateModelQuery } from "../model.js";
 import { parseQuestion } from "../parse.js";
@@ -153,17 +153,59 @@ describe("assistant eval corpus", () => {
   });
 });
 
-describe("assistant data adapter", () => {
-  it("turns executed steps of the caller's intents into transactions, and nothing else", () => {
-    const step = (id: string, account: string, references: string[]) => ({
-      id, index: 0, kind: "swap", network: "base", account, protocol: "uniswap-v3", status: "confirmed", references, feesUsd: 0.12,
-      input: { symbol: "USDC", formatted: "10", usd: 10 }, expectedOutput: { symbol: "ETH", formatted: "0.003", usd: 9.9 },
-    });
-    const intent = {
-      id: "int_1", updatedAt: "2026-10-20T00:00:00.000Z",
-      steps: [step("s1", `eip155:8453:${alice.evm[0]}`, ["0xabc"]), step("s2", `eip155:8453:${alice.evm[0]}`, []), step("s3", "eip155:8453:0x5B38Da6a701c568545dCfcB03FcB875f56beddC4", ["0xdef"])],
-    } as unknown as IntentGraph;
-    const transactions = intentTransactions(intent, walletSetOf(alice));
-    assert.deepEqual(transactions.map((tx) => [tx.id, tx.kind, tx.fee.usd, tx.hash]), [["int_1:s1", "swap", 0.12, "0xabc"]]);
+describe("assistant data API port", () => {
+  const set = walletSetOf(alice);
+
+  it("folds the data API's kinds into the assistant's and keeps the History id, the arrival network and who paid the fee", async () => {
+    const page = await fixturePort(corpus, alice).transactions(set, { from: null });
+    const byHash = (prefix: string) => page.transactions.find((tx) => tx.hash.startsWith(prefix))!;
+    const out = byHash("0x7431000");
+    assert.deepEqual([out.id, out.kind, out.detail, out.destination, out.fee?.usd], ["base:0x7431000000000000000000000000000000000000000000000000000000000000", "bridge", "bridge-out", null, 0.4]);
+    const arrival = page.transactions.find((tx) => tx.detail === "bridge-in" && tx.network === "solana")!;
+    assert.deepEqual([arrival.kind, arrival.destination, arrival.fee], ["bridge", "solana", null], "a relayed arrival: the wallet paid nothing");
+    assert.deepEqual([byHash("0x74314").kind, byHash("0x74314").status], ["failed", "failed"]);
+    assert.equal(page.transactions.find((tx) => tx.detail === "receive")?.kind, "transfer");
+    assert.equal(page.complete, true);
+    const claim = assistantTransaction({ ...(page.transactions[0] as unknown as DataTransaction), id: "base:0x1", network: "base", hash: "0x1", account: set.accounts[0]!, time: corpus.now, block: null, kind: "contract-call", status: "success", legs: [], fee: null, counterparty: null, protocol: null, method: "claimRewards", kletiaIntentId: null, kletiaReceiptId: null, source: "alchemy", explorerUrl: "" }, "alchemy");
+    assert.deepEqual([claim.kind, claim.fee?.usd, claim.fee?.reason], ["claim", null, "Alchemy does not report fees; ETHERSCAN_API_KEY on the API reads them."]);
+  });
+
+  it("names the missing provider variables instead of an empty history", async () => {
+    const dave = corpus.wallets.dave!;
+    const answer = await ask({ question: "How much did I spend on fees last month?", set: walletSetOf(dave), port: fixturePort(corpus, dave), model: null, modelUnavailable: "off", now: NOW });
+    assert.equal(answer.status, "unknown");
+    assert.ok(answer.gaps.some((gap) => /ETHERSCAN_API_KEY or ALCHEMY_API_KEY/u.test(gap) && /EVM wallet 1 on Base/u.test(gap)), answer.gaps.join("\n"));
+    assert.doesNotMatch(JSON.stringify([answer.text, answer.gaps]), /0x78731D3C/iu, "accounts are labelled, never printed");
+  });
+
+  it("answers history with the desk step while tracking is off, and still reads holdings", async () => {
+    const carol = corpus.wallets.carol!;
+    const port = fixturePort(corpus, carol);
+    const page = await port.transactions(walletSetOf(carol), { from: null });
+    assert.deepEqual([page.coverage, page.reason], ["none", TRACKING_OFF]);
+    assert.match(TRACKING_OFF, /Portfolio, then History, then "Turn on tracking"/u);
+    assert.equal((await port.pnl(walletSetOf(carol), { by: "asset" })).total.usd, null);
+    assert.equal((await port.summary(walletSetOf(carol))).holdings.length, 2);
+  });
+
+  it("reads a window page by page and says when it stopped early", async () => {
+    const reader = fixtureReader(corpus, alice);
+    let calls = 0;
+    const endless = { ...reader, async transactions(): Promise<DataTransactionPage> {
+      calls += 1;
+      const base = await reader.transactions(fixtureAccess(alice).scope, { limit: 1 });
+      return { ...base, cursor: "more" };
+    } };
+    const page = await dataApiPort(fixtureAccess(alice), endless, () => NOW).transactions(set, { from: null });
+    assert.equal(calls, HISTORY_READ.pages);
+    assert.deepEqual([page.truncated, page.complete], [true, false]);
+  });
+
+  it("maps a window to the history service's nearest period and says when it is wider", () => {
+    const day = 86_400_000;
+    assert.deepEqual(periodFor(new Date(NOW - 30 * day).toISOString(), undefined, NOW), { period: "30d", label: "the last 30 days", range: "30d", exact: true });
+    assert.deepEqual(periodFor(new Date(NOW - 23 * day).toISOString(), undefined, NOW), { period: "30d", label: "the last 30 days", range: "30d", exact: false });
+    assert.equal(periodFor(new Date(NOW - 40 * day).toISOString(), new Date(NOW - 10 * day).toISOString(), NOW).period, "all");
+    assert.deepEqual(periodFor(null, undefined, NOW), { period: "all", label: "all time", range: "all", exact: true });
   });
 });

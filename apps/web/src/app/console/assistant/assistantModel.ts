@@ -4,7 +4,7 @@
  * wallet address and the session's model-help consent (sessionStorage, per
  * tab, never the answer itself). No React: node --test loads it.
  */
-import type { AssistantAnswer, AssistantChart } from "@kletia/core";
+import type { AssistantAnswer, AssistantChart, AssistantLink } from "@kletia/core";
 
 const STATUSES = new Set(["answered", "partial", "unknown", "refused", "needs-model"]);
 
@@ -14,6 +14,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const strings = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((entry) => typeof entry === "string");
 
+/** A link the card can follow: a History row id, or a deposit sentence for the composer. */
+export function isLink(value: unknown): value is AssistantLink {
+  if (!isRecord(value)) return false;
+  if (value.kind === "transaction") return typeof value.id === "string" && value.id.length <= 140;
+  return value.kind === "deposit" && typeof value.sentence === "string" && value.sentence.length <= 500;
+}
+
 /** The answer of `{ answer }`, or null when it does not have the shape the card needs (never shown half-read). */
 export function parseAnswer(body: unknown): AssistantAnswer | null {
   const answer = isRecord(body) ? body.answer : null;
@@ -21,6 +28,9 @@ export function parseAnswer(body: unknown): AssistantAnswer | null {
   if (!Array.isArray(answer.facts) || !answer.facts.every((fact) => isRecord(fact) && typeof fact.label === "string" && typeof fact.value === "string")) return null;
   if (!strings(answer.followUps) || !strings(answer.assumptions) || !strings(answer.gaps) || !Array.isArray(answer.wallets)) return null;
   if (answer.action !== undefined && !(isRecord(answer.action) && strings(answer.action.sentences))) return null;
+  if (!answer.facts.every((fact) => isRecord(fact) && (fact.link === undefined || isLink(fact.link)))) return null;
+  const table = answer.table;
+  if (table !== undefined && isRecord(table) && table.links !== undefined && !(Array.isArray(table.links) && table.links.every((link) => link === null || isLink(link)))) return null;
   return answer as unknown as AssistantAnswer;
 }
 

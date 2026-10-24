@@ -4,7 +4,7 @@
  * the requesting IP). Prepare, session and submit are never retried by the
  * client: a repeated relay could place an order twice.
  */
-import type { PolymarketOrderDraft, PredictionBook, PredictionMarket, PredictionPosition, PredictionPrepared, PredictionPricePoint, PredictionQuote, PredictionRequest, PredictionTypedData, PredictionVenue } from "@kletia/core";
+import type { PolymarketOrderDraft, PolymarketWallet, PolymarketWalletAction, PredictionBook, PredictionMarket, PredictionPosition, PredictionPrepared, PredictionPricePoint, PredictionQuote, PredictionRequest, PredictionTypedData, PredictionVenue } from "@kletia/core";
 import { POLYMARKET_POLYGON } from "@kletia/core";
 
 import { getKletiaClient } from "../../../shared/platform/kletiaClient";
@@ -39,6 +39,40 @@ export interface PredictionPositionsResponse {
   readonly positions: readonly PredictionPosition[];
   readonly truncated: boolean;
   readonly tradable: boolean;
+  readonly wallet: PolymarketWallet | null;
+}
+
+/** GET /v1/predictions/wallets: the account's Polymarket wallets, derived and verified on Polygon. */
+export interface PolymarketWalletsResponse {
+  readonly account: string;
+  readonly owner: string;
+  readonly plainWallet: boolean;
+  readonly wallets: readonly PolymarketWallet[];
+  readonly profile: { readonly status: "listed" | "unverified" | "none" | "unavailable"; readonly wallet: string | null };
+  readonly notes: readonly string[];
+}
+
+export interface PredictionWalletActionPrepared {
+  readonly account: string;
+  readonly wallet: Pick<PolymarketWallet, "address" | "kind" | "owner">;
+  readonly action: PolymarketWalletAction;
+  readonly steps: PredictionPrepared["steps"];
+  readonly note: string;
+}
+
+export interface PredictionOpenOrder {
+  readonly id: string;
+  readonly status: string;
+  readonly conditionId: string | null;
+  readonly tokenId: string | null;
+  readonly outcome: string | null;
+  readonly side: "buy" | "sell" | null;
+  readonly price: number | null;
+  readonly shares: number | null;
+  readonly filledShares: number | null;
+  readonly orderType: string | null;
+  readonly createdAt: number | null;
+  readonly maker: string | null;
 }
 
 export interface PredictionQuoteResponse {
@@ -92,13 +126,23 @@ export const predictApi = {
     return getKletiaClient().request<PredictionMarketsResponse>("GET", "/predictions/markets", undefined, { query: params, ...(signal ? { signal } : {}) });
   },
   market: (id: string, signal?: AbortSignal) => getKletiaClient().request<PredictionMarketResponse>("GET", `/predictions/markets/${encodeURIComponent(id)}`, undefined, { ...(signal ? { signal } : {}) }),
-  positions: (account: string, signal?: AbortSignal) =>
-    getKletiaClient().request<PredictionPositionsResponse>("GET", "/predictions/positions", undefined, { query: { account }, ...(signal ? { signal } : {}) }),
+  positions: (account: string, wallet: string | null, signal?: AbortSignal) =>
+    getKletiaClient().request<PredictionPositionsResponse>("GET", "/predictions/positions", undefined, { query: { account, ...(wallet ? { wallet } : {}) }, ...(signal ? { signal } : {}) }),
+  wallets: (account: string, signal?: AbortSignal) =>
+    getKletiaClient().request<PolymarketWalletsResponse>("GET", "/predictions/wallets", undefined, { query: { account }, ...(signal ? { signal } : {}) }),
+  walletAction: (body: { readonly account: string; readonly wallet: string; readonly action: PolymarketWalletAction; readonly amountUsd: string; readonly asset: "pUSD" | "USDC.e" }) =>
+    getKletiaClient().request<{ readonly prepared: PredictionWalletActionPrepared }>("POST", "/predictions/wallet", body, { maxRetries: 0 }).then((answer) => answer.prepared),
+  session: (account: string, auth: { readonly timestamp: number; readonly signature: string }) =>
+    getKletiaClient().request<{ readonly session: string; readonly expiresAt: number }>("POST", "/predictions/session", { account, auth }, { maxRetries: 0 }),
+  orders: (account: string, session: string, wallet: string | null) =>
+    getKletiaClient().request<{ readonly orders: readonly PredictionOpenOrder[] }>("POST", "/predictions/orders", { account, session, ...(wallet ? { wallet } : {}) }, { maxRetries: 0 }),
+  cancel: (account: string, session: string, orderId: string) =>
+    getKletiaClient().request<{ readonly orderId: string; readonly canceled: boolean; readonly reason: string | null }>("POST", "/predictions/orders/cancel", { account, session, orderId }, { maxRetries: 0 }),
   quote: (request: PredictionRequest) => getKletiaClient().request<PredictionQuoteResponse>("POST", "/predictions/quote", request, { maxRetries: 0 }),
   prepare: (request: PredictionRequest) => getKletiaClient().request<{ readonly prepared: PredictionPrepared }>("POST", "/predictions/prepare", request, { maxRetries: 0 }).then((body) => body.prepared),
   submit: (body: PredictionSubmitBody) => getKletiaClient().request<PredictionSubmitResponse>("POST", "/predictions/submit", body, { maxRetries: 0 }),
-  redeem: (account: string, conditionId: string) =>
-    getKletiaClient().request<{ readonly prepared: PredictionRedeemPrepared }>("POST", "/predictions/redeem", { account, conditionId }, { maxRetries: 0 }).then((body) => body.prepared),
+  redeem: (account: string, conditionId: string, wallet: string | null) =>
+    getKletiaClient().request<{ readonly prepared: PredictionRedeemPrepared }>("POST", "/predictions/redeem", { account, conditionId, ...(wallet ? { wallet } : {}) }, { maxRetries: 0 }).then((body) => body.prepared),
   signIn: (account: string) => getKletiaClient().request<{ readonly typedData: PredictionTypedData }>("POST", "/predictions/session", { account }, { maxRetries: 0 }),
 };
 

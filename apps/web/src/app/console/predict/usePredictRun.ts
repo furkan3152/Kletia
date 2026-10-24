@@ -8,8 +8,9 @@
  *   order is relayed with it;
  * - the order step is signed (eth_signTypedData_v4) and relayed by
  *   POST /v1/predictions/submit.
- * The venue session the relay returns is kept in memory for this tab only
- * (never in storage): reloading signs in again. Nothing is retried on its own.
+ * The venue session the relay returns (or the open-orders sign-in, `signIn`)
+ * is kept in memory for this tab only (never in storage): reloading signs in
+ * again. Nothing is retried on its own.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EvmTransactionRequest, PredictionPrepared, PredictionStep } from "@kletia/core";
@@ -32,6 +33,11 @@ export function heldSession(account: string, nowMs: number): string | null {
   return held && held.expiresAt * 1000 > nowMs + 60_000 ? held.session : null;
 }
 
+/** Keeps a venue session for this tab (the open-orders sign-in, or the one the relay returned). */
+export function rememberSession(account: string, session: string, expiresAt: number): void {
+  sessions.set(account.toLowerCase(), { session, expiresAt });
+}
+
 export interface PredictRun {
   readonly run: RunState | null;
   readonly busy: boolean;
@@ -40,6 +46,8 @@ export interface PredictRun {
   begin(account: string, steps: readonly PredictionStep[], order: PredictionPrepared | null, warnings: readonly string[]): void;
   advance(): Promise<void>;
   reset(): void;
+  /** Signs in to the venue's order book (ClobAuth, no funds move) and keeps the session; returns it. */
+  signIn(account: string): Promise<string>;
 }
 
 export function usePredictRun(onFinished: () => void): PredictRun {
@@ -120,7 +128,7 @@ export function usePredictRun(onFinished: () => void): PredictRun {
             signature,
             ...(auth.current ? { auth: auth.current } : session ? { session } : {}),
           });
-          if (answer.session && answer.sessionExpiresAt) sessions.set(prepared.account.toLowerCase(), { session: answer.session, expiresAt: answer.sessionExpiresAt });
+          if (answer.session && answer.sessionExpiresAt) rememberSession(prepared.account, answer.session, answer.sessionExpiresAt);
           current = { ...current, result: orderStatusLine(answer.orderStatus) };
         }
       }
@@ -136,5 +144,25 @@ export function usePredictRun(onFinished: () => void): PredictRun {
     }
   }, [onFinished, prepared, run, signers.evm, walletClient]);
 
-  return { run, busy, prepared, begin, advance, reset };
+  const signIn = useCallback(async (account: string): Promise<string> => {
+    if (!walletClient?.account) throw new Error("Your EVM wallet is not ready to sign. Reconnect it and try again.");
+    if (!getDeskStore().getState().acquireSigning(LOCK_ID)) throw new Error(PREDICT_COPY.steps.locked);
+    try {
+      const { typedData } = await predictApi.signIn(account);
+      const signature = await walletClient.signTypedData({
+        account: walletClient.account,
+        domain: { name: typedData.domain.name, version: typedData.domain.version, chainId: typedData.domain.chainId },
+        types: typedData.types as Record<string, { name: string; type: string }[]>,
+        primaryType: typedData.primaryType,
+        message: typedData.message,
+      });
+      const made = await predictApi.session(account, { timestamp: Number(typedData.message.timestamp), signature });
+      rememberSession(account, made.session, made.expiresAt);
+      return made.session;
+    } finally {
+      getDeskStore().getState().releaseSigning(LOCK_ID);
+    }
+  }, [walletClient]);
+
+  return { run, busy, prepared, begin, advance, reset, signIn };
 }

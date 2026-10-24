@@ -122,12 +122,18 @@ and `asOf`:
   wallet's);
 - `agentSpend`: for an API key, the 24 h / 7 d USD spend of every agent key
   below it;
-- `predictions`: Polymarket positions of every EVM address (Polymarket's
-  public positions API, mainnet only): market title, outcome, shares, average
-  and current price, value, cost, PnL and whether it can be redeemed, with
-  the account. Shares held through a Polymarket Deposit, Proxy or Safe wallet
-  belong to that wallet's address (the Predict view reads it); a read cut at
-  100 positions says so in `reason`.
+- `predictions`: Polymarket positions of every EVM address and of the
+  Polymarket wallet found for it (its Safe, Deposit Wallet or Proxy wallet,
+  derived and checked on Polygon: [predictions](predictions.md#your-polymarket-wallet);
+  Polymarket's public positions API, mainnet only): market title, outcome,
+  shares, average and current price, value, cost, PnL and whether it can be
+  redeemed, with the account and `holderKind` (`account`, `safe`, `deposit`,
+  `proxy`); a read cut at 100 positions, or a wallet check that failed, says
+  so in `reason`;
+- `predictionWallets`: the Polymarket wallets read (address, kind, owner,
+  whether Kletia trades it, whether Polymarket's profile names it, pUSD and
+  USDC.e). History labels a Polygon transaction with the set's own
+  Polymarket wallet as "Your Polymarket wallet".
 
 ### Yields
 

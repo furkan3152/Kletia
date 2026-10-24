@@ -11,6 +11,7 @@
 import { readFileSync } from "node:fs";
 import { POLYMARKET_POLYGON } from "@kletia/core";
 import { decodeFunctionData, encodeAbiParameters, erc20Abi, parseAbi, type Hex } from "viem";
+import { PlatformError } from "../../errors.js";
 import type { PredictionsIo, VenueRequest, VenueResponse } from "../../predictions/io.js";
 
 export const loadPrediction = (name: string): unknown => JSON.parse(readFileSync(new URL(`./fixtures/predictions/${name}`, import.meta.url), "utf8"));
@@ -23,6 +24,7 @@ export const SEARCHES = { "trump out as president": loadPrediction("gamma-search
 export const EVENTS_POLITICS = loadPrediction("gamma-events-politics.json");
 export const POSITIONS_OPEN = loadPrediction("data-positions-open.json");
 export const HISTORY_YES = loadPrediction("data-history-666861-yes.json");
+export const POSITIONS_SAFE = loadPrediction("data-positions-safe.json");
 
 export const YES_TOKEN = "59252515735652674747158950210016502214756531287333895140318848923768750410355";
 export const NO_TOKEN = "2849827372590072151380088930233312280478318575453624773762283369907909283027";
@@ -43,8 +45,18 @@ export interface ChainState {
   /** Share balance per token or position id. */
   readonly shares?: Readonly<Record<string, bigint>>;
   readonly payoutDenominator?: bigint;
-  /** Code at the account (default: a plain wallet). */
+  /** Code at any address without an entry in `codes` (default: a plain wallet). */
   readonly code?: Hex;
+  /** Code per lower-case address (Polymarket wallets). */
+  readonly codes?: Readonly<Record<string, Hex>>;
+  /** Safe getOwners / getThreshold / nonce per lower-case Safe. */
+  readonly safes?: Readonly<Record<string, { readonly owners: readonly string[]; readonly threshold?: bigint; readonly nonce?: bigint }>>;
+  /** Deposit Wallet owner() per lower-case wallet. */
+  readonly depositOwners?: Readonly<Record<string, string>>;
+  /** What a Deposit Wallet's isValidSignature answers (default: the ERC-1271 magic value). */
+  readonly accepts1271?: boolean;
+  /** Polygon reads fail (RPC_UNAVAILABLE). */
+  readonly unreadable?: boolean;
 }
 
 export interface PredictionFixtureOptions {
@@ -57,6 +69,10 @@ export interface PredictionFixtureOptions {
   readonly derive?: VenueResponse;
   readonly markets?: Readonly<Record<string, unknown>>;
   readonly books?: Readonly<Record<string, unknown>>;
+  /** Answer of Gamma /public-profile (default: 404). */
+  readonly profile?: VenueResponse;
+  /** Data API positions per lower-case user (default: POSITIONS_OPEN). */
+  readonly positions?: Readonly<Record<string, unknown>>;
 }
 
 export interface RecordedRequest {
@@ -74,6 +90,11 @@ const readAbi = parseAbi([
   "function isApprovedForAll(address account, address operator) view returns (bool)",
   "function balanceOf(address account, uint256 id) view returns (uint256)",
   "function payoutDenominator(bytes32 conditionId) view returns (uint256)",
+  "function getOwners() view returns (address[])",
+  "function getThreshold() view returns (uint256)",
+  "function nonce() view returns (uint256)",
+  "function owner() view returns (address)",
+  "function isValidSignature(bytes32 hash, bytes signature) view returns (bytes4)",
 ]);
 
 const ok = (body: unknown): VenueResponse => ({ status: 200, body });
@@ -95,6 +116,7 @@ export function predictionFixtureIo(options: PredictionFixtureOptions = {}): Pre
         if (path === "/events") return ok(EVENTS_POLITICS);
         const byId = /^\/markets\/(\d+)$/u.exec(path);
         if (byId) return markets[byId[1] as string] ? ok(markets[byId[1] as string]) : { status: 404, body: { error: "not found" } };
+        if (path === "/public-profile") return options.profile ?? { status: 404, body: { type: "not found", error: "profile not found" } };
         if (path === "/markets" && parsed.searchParams.get("condition_ids")) {
           const wanted = parsed.searchParams.get("condition_ids")?.toLowerCase();
           return ok(Object.values(markets).filter((market) => String((market as Record<string, unknown>).conditionId).toLowerCase() === wanted));
@@ -118,16 +140,29 @@ export function predictionFixtureIo(options: PredictionFixtureOptions = {}): Pre
         }
       }
       if (parsed.hostname === "data-api.polymarket.com") {
-        if (path === "/v2/positions") return ok(POSITIONS_OPEN);
+        if (path === "/v2/positions") return ok(options.positions?.[(parsed.searchParams.get("user") ?? "").toLowerCase()] ?? POSITIONS_OPEN);
         if (path === "/v2/prices-history") return ok(parsed.searchParams.get("token_id") === YES_TOKEN ? HISTORY_YES : { data: [] });
       }
       if (url === POLYMARKET_POLYGON.geoblockApi) return ok(options.geoblock ?? { blocked: false, ip: "203.0.113.42", country: "PT", region: "11" });
       throw new Error(`unrecorded request ${url}`);
     },
     async polygonCall(to, data) {
+      if (chain.unreadable) throw new PlatformError("RPC_UNAVAILABLE", "Polygon could not be read. Try again shortly.", 502);
       const call = decodeFunctionData({ abi: readAbi, data });
       const target = to.toLowerCase();
+      const safe = chain.safes?.[target];
       switch (call.functionName) {
+        case "getOwners":
+          if (!safe) throw new PlatformError("RPC_UNAVAILABLE", "execution reverted", 502);
+          return encodeAbiParameters([{ type: "address[]" }], [safe.owners as Hex[]]);
+        case "getThreshold":
+          return uint(safe?.threshold ?? 1n);
+        case "nonce":
+          return uint(safe?.nonce ?? 0n);
+        case "owner":
+          return encodeAbiParameters([{ type: "address" }], [(chain.depositOwners?.[target] ?? "0x0000000000000000000000000000000000000000") as Hex]);
+        case "isValidSignature":
+          return encodeAbiParameters([{ type: "bytes4" }], [chain.accepts1271 === false ? "0xffffffff" : "0x1626ba7e"]);
         case "balanceOf":
           if (call.args.length === 2) return uint(chain.shares?.[String(call.args[1])] ?? 0n);
           return uint(target === POLYMARKET_POLYGON.pusd.toLowerCase() ? chain.pusd ?? 0n : chain.usdce ?? 0n);
@@ -141,8 +176,9 @@ export function predictionFixtureIo(options: PredictionFixtureOptions = {}): Pre
           throw new Error(`unrecorded eth_call ${data.slice(0, 10)}`);
       }
     },
-    async polygonCode() {
-      return chain.code ?? "0x";
+    async polygonCode(address) {
+      if (chain.unreadable) throw new PlatformError("RPC_UNAVAILABLE", "Polygon could not be read. Try again shortly.", 502);
+      return chain.codes?.[address.toLowerCase()] ?? chain.code ?? "0x";
     },
     now: () => options.now ?? RECORDED_NOW,
   };

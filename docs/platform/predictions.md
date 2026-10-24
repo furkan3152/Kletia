@@ -13,7 +13,7 @@ payout.
 
 | Venue | Network | Status |
 | --- | --- | --- |
-| Polymarket | Polygon PoS | Live: markets, books, quotes, orders from a plain wallet (EOA), positions, redemption |
+| Polymarket | Polygon PoS | Live: markets, books, quotes, orders from the user's own Polymarket wallet (Safe or Deposit Wallet, found from their EVM wallet) or a plain wallet, positions, open orders, redemption, deposits and withdrawals |
 | Limitless Exchange | Base | Not added (below) |
 | Kalshi | (custodial) | Not integrated: it requires KYC and holds funds in custodial accounts, which a non-custodial product cannot offer |
 
@@ -26,20 +26,23 @@ surface `service` (`GET /v1/protocols`); it is not an intent-engine adapter.
 | --- | --- |
 | `GET /v1/predictions/markets` | Open markets that take orders: `?q=` (search), `?category=` (politics, sports, crypto, economy, finance, tech, geopolitics), `?sort=volume` (busiest today) or `ending`. Cached 15 s. Lists the venues too, with Limitless's `disabledReason`. |
 | `GET /v1/predictions/markets/{id}` | One market (Gamma id, or the condition id positions carry): each outcome's order book (best first) and a week of prices, plus Polymarket's location note and terms link. |
-| `GET /v1/predictions/positions?account=` | Positions of a Polygon account (`eip155:137:0x…`), or `?holder=0x…` for a Polymarket Deposit, Proxy or Safe wallet (read only). `tradable` says whether Kletia can trade and redeem for it. |
+| `GET /v1/predictions/wallets?account=` | The account's Polymarket wallets ([below](#your-polymarket-wallet)): derived, checked on Polygon, with pUSD and USDC.e balances, whether Kletia trades each, and the moves it builds. |
+| `GET /v1/predictions/positions?account=` | Positions of a Polygon account (`eip155:137:0x…`); `&wallet=0x…` for its Polymarket wallet (verified as the account's), or `?holder=0x…` for any address (read only). `tradable` says whether Kletia can trade and redeem for it. |
 | `POST /v1/predictions/quote` | Implied probability, average and worst price, shares, the most you can lose, payout and profit if the outcome wins, fees. |
 | `POST /v1/predictions/prepare` | The steps for the wallet, in order, valid 120 s, and the relay `ticket`. |
 | `POST /v1/predictions/session` | `{ account }`: the sign-in to sign; `{ account, auth }`: the sealed venue session. |
 | `POST /v1/predictions/submit` | Relays the signed order (with `session`, or `auth` to sign in on the way). |
-| `POST /v1/predictions/orders` | Open orders of the session's account. |
+| `POST /v1/predictions/orders` | Open orders of the session's account (`wallet`: only those its Polymarket wallet makes). |
 | `POST /v1/predictions/orders/cancel` | Cancels one resting order. |
-| `POST /v1/predictions/redeem` | Unsigned redemption of a resolved market's shares. |
+| `POST /v1/predictions/redeem` | Unsigned redemption of a resolved market's shares (`wallet`: those the account's Safe holds). |
+| `POST /v1/predictions/wallet` | Unsigned moves between the account and its Polymarket wallet: `deposit`, `withdraw`, `wrap`. |
 
 A request (`PredictionRequest` in `@kletia/core`):
 
 ```json
 { "venue": "polymarket", "marketId": "666861", "outcome": "Yes", "side": "buy",
-  "orderType": "market", "amountUsd": "20", "slippageBps": 200, "account": "eip155:137:0x…" }
+  "orderType": "market", "amountUsd": "20", "slippageBps": 200, "account": "eip155:137:0x…",
+  "wallet": "0x… (the account's Polymarket wallet; omitted: the account trades for itself)" }
 ```
 
 `side` is `buy` (spend `amountUsd`, fees included) or `sell` (`shares`).
@@ -60,9 +63,13 @@ Quote and prepare refuse, before anything is built:
 - a market whose version, outcome ids, tick size or fee schedule cannot be
   read, an empty or stale (over 60 s) book (`PREDICTION_PRICE_UNAVAILABLE`);
 - an order below the market's minimum shares (`PREDICTION_ORDER_TOO_SMALL`);
-- a smart-contract wallet (`PREDICTION_ACCOUNT_UNSUPPORTED`), too little
-  pUSD (and USDC.e) or too few shares (`PREDICTION_BALANCE_TOO_LOW`,
-  `PREDICTION_POSITION_NOT_FOUND`).
+- a `wallet` that is not the account's Safe or Deposit Wallet on Polygon
+  now (`PREDICTION_WALLET_NOT_FOUND`), one not deployed yet or a Deposit
+  Wallet step only Polymarket's relayer runs
+  (`PREDICTION_WALLET_SETUP_REQUIRED`), a Proxy wallet or, with no `wallet`,
+  an account that is a smart contract (`PREDICTION_ACCOUNT_UNSUPPORTED`);
+- too little pUSD (and USDC.e) or too few shares in the wallet that trades
+  (`PREDICTION_BALANCE_TOO_LOW`, `PREDICTION_POSITION_NOT_FOUND`).
 
 The math (`@kletia/core` `predictions.ts`):
 
@@ -77,23 +84,102 @@ The math (`@kletia/core` `predictions.ts`):
   `getMarketOrderRawAmounts` / `getOrderRawAmounts` (tests). The worst price
   is on the tick grid: rounded up for a buy, down for a sell.
 
-## Accounts and approvals
+## Your Polymarket wallet
 
-Kletia trades Polymarket only from a **plain wallet (EOA) that signs its own
-orders** (`signatureType` 0, maker = signer = the account). Polymarket's own
-accounts are smart wallets: Deposit Wallets (every account created since May
-4, 2026), and legacy Proxy and Safe wallets. Their positions are read; their
-trading needs Polymarket's relayer and wrapped (ERC-7739) signatures that
-Kletia does not build, so it says "not supported" instead. Polymarket's docs
-describe EOA trading for wallets the venue allows; an EOA it does not accept
-gets the CLOB's own refusal, shown as `PREDICTION_RELAY_REJECTED`.
+polymarket.com does not trade from the wallet a person connects: it creates
+an account wallet for it, and the funds and shares live there. Kletia finds
+that wallet from the connected EVM wallet and trades from it, so the desk
+shows what polymarket.com shows. Sources: docs.polymarket.com
+"Wallets and Authentication" and "Contracts" (Wallet Factory Contracts),
+`@polymarket/client` 0.14.0 (`walletDerivation`, wallet-type detection),
+`@polymarket/builder-relayer-client` 0.0.10 (`derive.js`, Safe transaction
+builder), `@polymarket/clob-client-v2` 1.2.0 (signature types, order and
+ERC-7739 signature builders), and the exchanges' `Signatures.sol`
+(Polymarket/ctf-exchange-v2), all read on 2026-10-24.
+
+| Kind | Who has it | Address (CREATE2 of the owner EOA) | Kletia |
+| --- | --- | --- | --- |
+| Deposit Wallet (`signatureType` 3, POLY_1271) | Every account wallet deployed since May 4, 2026 | Deposit Wallet factory `0x00000000000Fb5C9ADea0298D729A0CB3823Cc07`, salt `keccak256(abi.encode(factory, bytes32(owner)))`, Solady ERC-1967 beacon proxy of beacon `0x7A18…fc3a` (since June 29, 2026) or UUPS proxy of `0x58CA…B1eB` (before) | Trades (orders); its own transactions run through Polymarket's relayer, so approvals, wrapping, withdrawals and redemption stay on polymarket.com |
+| Safe (`signatureType` 2, POLY_GNOSIS_SAFE) | Browser-wallet (MetaMask, Rabby) accounts before May 2026 | Safe factory `0xaacF…541b`, salt `keccak256(abi.encode(owner))`, init code hash `0x2bce…cecf` | Trades, approves, wraps, redeems and withdraws (the owner sends the Safe's `execTransaction`) |
+| Proxy (`signatureType` 1, POLY_PROXY) | Email and Google sign-ins (Magic) before May 2026 | Proxy factory `0xaB45…4052`, salt `keccak256(abi.encodePacked(owner))`, EIP-1167 clone of `0x44e9…EB4f` (init code hash `0xd21d…0a00b`) | Read only: the owner key is Magic's, so its orders are signed on polymarket.com |
+
+**Discovery** (`GET /v1/predictions/wallets`, `polymarketWalletsOf`)
+derives the four addresses, reads their code on Polygon and keeps a wallet
+only when it is the owner's now: a Safe's `getOwners()` lists the EOA, a
+Deposit Wallet's `owner()` is the EOA, a Proxy address holds exactly the
+factory's clone code. The derivation is the one the exchanges themselves
+check (`getSafeWalletAddress`, `getProxyWalletAddress`); tests hold it to
+real pairs read on Polygon and to those on-chain answers. Polymarket's public
+profile (`gamma-api.polymarket.com/public-profile?address=`) is a
+cross-check: it marks the wallet polymarket.com shows (`onProfile`, picked
+first) and never adds one; a profile wallet Kletia cannot verify is named
+in `notes` and not used. Anything unread is an error (`RPC_UNAVAILABLE`),
+never "no wallet". A Safe that needs more than one signature is read only.
+
+**Trading from a Safe** is what polymarket.com does for Safe accounts: the
+order's maker is the Safe, its signer the owner EOA, `signatureType` 2; the
+EOA signs the order itself, and signs in to the CLOB (ClobAuth) for its L2
+credentials, as `@polymarket/clob-client-v2` does with a funder address.
+Approvals, a USDC.e wrap and redemption are calls the Safe makes: each step
+is the Safe's `execTransaction(to, 0, data, CALL, 0, 0, 0, 0x0, 0x0,
+signature)` sent by the owner, with Safe 1.3.0's pre-validated owner
+signature (r = owner, s = 0, v = 1: valid because the owner itself sends
+it), so nothing else is signed and the owner pays the POL gas. Each step
+carries `safeTx` (the Safe, its nonce, the EIP-712 SafeTx hash, equal to the
+Safe's own `getTransactionHash`).
+
+**Trading from a Deposit Wallet**: maker = signer = the wallet,
+`signatureType` 3. The EOA signs the ERC-7739 `TypedDataSign` wrapper of
+the order (domain: the exchange's; `contents`: the order; the wallet's own
+domain "DepositWallet", "1"), and the relay packs the signature as the SDK's
+`buildOrderSignature` (signature, exchange domain separator, order struct
+hash, the `Order(...)` type string and its length). Prepare refuses
+(`PREDICTION_WALLET_SETUP_REQUIRED`) when the wallet still lacks an
+approval or pUSD: those transactions run only through Polymarket's relayer.
+
+**The relay's guard** for wallet orders: the ticket and the signature (it
+must recover to the account) as for any order, then a fresh read on
+Polygon: the maker is the account's Safe (derived from it, deployed,
+`getOwners()` lists it) or Deposit Wallet (derived, deployed, `owner()`),
+and a Deposit Wallet's own `isValidSignature(orderHash, packed signature)`
+returns the ERC-1271 magic value, as the exchange checks it. Any read that
+fails refuses. `balance-allowance/update` and the order carry the wallet's
+signature type.
+
+**Wallet moves** (`POST /v1/predictions/wallet`): `deposit` is a plain pUSD
+or USDC.e `transfer` from the EOA to its verified Polymarket wallet (any
+kind); `withdraw` makes the Safe `transfer` pUSD or USDC.e to its owner and
+to no other address; `wrap` approves CollateralOnramp exactly and wraps the
+Safe's USDC.e into pUSD. A Safe or Deposit Wallet that is not deployed yet
+is created on polymarket.com (it does that for free when the EVM wallet
+signs in); Kletia does not deploy one, since new accounts get a Deposit
+Wallet, which only Polymarket's relayer deploys.
+
+**Gasless relayer (not used).** Polymarket's relayer
+(`relayer-v2.polymarket.com/submit`, docs relayer-openapi) accepts only
+requests authenticated with Builder API keys (`POLY_BUILDER_*`, a builder
+account's secret) or Relayer API keys that belong to the user's own
+address. Kletia would have to hold a builder secret for its users, so it
+sends Safe calls from the owner instead (it pays POL gas) and leaves
+Deposit Wallet transactions to polymarket.com. An owner who wants gasless
+moves would add builder credentials (`POLYMARKET_BUILDER_API_KEY`,
+`POLYMARKET_BUILDER_SECRET`, `POLYMARKET_BUILDER_PASSPHRASE`) and the
+relayer path; this release reads none of them.
+
+A plain wallet (no code) can still trade for itself (`signatureType` 0,
+maker = signer = the account). Polymarket's docs describe EOA trading for
+allowlisted wallets; an EOA it does not accept gets the CLOB's own refusal,
+shown as `PREDICTION_RELAY_REJECTED`.
+
+## Approvals
 
 Collateral is **pUSD** (Polymarket USD, 6 decimals, backed by USDC). When the
-wallet's pUSD does not cover the stake but USDC.e does, prepare adds an exact
+trading wallet's pUSD does not cover the stake but USDC.e does, prepare adds an exact
 USDC.e approval to CollateralOnramp and a `wrap` (1:1). Native USDC is not
 wrapped by the onramp: swap it to USDC.e first.
 
-Prepare checks every allowance and adds only what is missing:
+Prepare checks every allowance of the wallet that trades and adds only what
+is missing (for a Safe, as its `execTransaction` calls):
 
 | Order | Approval | Kind |
 | --- | --- | --- |
@@ -128,6 +214,9 @@ stores nothing and never logs it; the desk keeps it in memory for the tab
 (8 hours at most). The credentials place and cancel orders; they cannot move
 funds. Without a platform secret, sessions and relay tickets are unavailable
 (`PREDICTION_SESSION_UNAVAILABLE`).
+
+For a Safe or Deposit Wallet order the session is still the owner EOA's
+(it signs in; the CLOB keys credentials to the signer).
 
 `POST /v1/predictions/submit` relays only an order prepare built: the
 `ticket` is Kletia's MAC over the order's typed-data hash, its unsigned fields
@@ -197,9 +286,26 @@ market's name; Predict's search takes any words.
 ## MCP
 
 `search_prediction_markets` (words, category or sort) and
-`plan_prediction_order` (the quote and the unsigned steps' titles for a
-plain wallet; it never submits: the person signs in their wallet). See
-[MCP](mcp.md).
+`plan_prediction_order` (the quote and the unsigned steps' titles, from the
+user's Polymarket wallet with `wallet` or a plain wallet; it never submits:
+the person signs in their wallet). See [MCP](mcp.md).
+
+## Desk, data and assistant
+
+The Predict view looks up the connected EVM wallet's Polymarket wallets
+first and trades from the one polymarket.com shows (a pick when there are
+several). It shows that wallet's pUSD and USDC.e, its positions and its open
+orders (after a sign-in that moves no funds), the moves Kletia builds for
+it, and on the ticket "Trades from: Your Polymarket wallet 0x…ab12, owned by
+0x…cd34". A Proxy wallet is shown read only, with why.
+
+`GET /v1/data/positions?extras=true` reads the positions of each EVM wallet
+and of each Polymarket wallet found for it (`predictions` rows carry
+`holderKind`; `predictionWallets` lists the wallets read). History labels a
+Polygon transaction whose counterparty is the set's own Polymarket wallet as
+"Your Polymarket wallet" (a call through a Safe is a prediction-market
+transaction). The assistant's prediction answers read the same extras and
+say which wallets they read.
 
 ## Limitless Exchange (not added)
 
@@ -224,8 +330,9 @@ Keyless public endpoints; each base URL can be overridden (https only):
 | `POLYGON_RPC_URL` | keyless public RPCs (balances, allowances, wallet code) |
 
 No builder or relayer key is needed: Kletia attaches no builder code and
-does not use Polymarket's gasless relayer (Deposit Wallets). Sessions and
-relay tickets need `KLETIA_PLATFORM_SECRET`.
+does not use Polymarket's gasless relayer ([above](#your-polymarket-wallet)).
+Wallet discovery reads Gamma's public profile (`POLYMARKET_GAMMA_URL`).
+Sessions and relay tickets need `KLETIA_PLATFORM_SECRET`.
 
 ## Pinned contracts (Polygon, chain 137)
 
@@ -249,3 +356,18 @@ version and address):
 | Router | `0x12121212006e4CD160D18e3f00711DA5c3372600` |
 | CtfCollateralAdapter | `0xAdA100Db00Ca00073811820692005400218FcE1f` |
 | NegRiskCtfCollateralAdapter | `0xadA2005600Dec949baf300f4C6120000bDB6eAab` |
+| Deposit Wallet Factory | `0x00000000000Fb5C9ADea0298D729A0CB3823Cc07` |
+| Deposit Wallet Beacon | `0x7A18EDfe055488A3128f01F563e5B479D92ffc3a` |
+| Deposit Wallet implementation (UUPS wallets) | `0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB` |
+| Gnosis Safe Factory ("Polymarket Contract Proxy Factory") | `0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b` |
+| Polymarket Proxy Factory | `0xaB45c5A4B0c941a2F231C04C3f49182e1A254052` |
+| Proxy wallet implementation | `0x44e999d5c2F66Ef0861317f9A4805AC2e90aEB4f` |
+
+The wallet factories come from the same docs page (Wallet Factory
+Contracts) and `@polymarket/client` 0.14.0; the Proxy implementation and the
+Deposit Wallet implementation from that SDK's `walletDerivation`. Read back
+on Polygon on 2026-10-24: real Safes (Safe 1.3.0, threshold 1), Deposit
+Wallets (beacon and UUPS) and Proxy clones sit at the derived addresses of
+their owners, and CTF Exchange `getSafeWalletAddress` / `getProxyWalletAddress`
+and the Safe factory's `computeProxyAddress` return the same addresses
+(fixtures/predictions/polymarket-wallets.json).

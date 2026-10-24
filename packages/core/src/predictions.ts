@@ -23,6 +23,13 @@
  *   docs.polymarket.com/trading/place-orders, /trading/fees and
  *   /market-data/market-details; the SDK's `ctfExchangeV2TypedData.js`,
  *   `roundingConfig.js`, `getMarketOrderRawAmounts.js` and `fees/index.js`.
+ * - Polymarket account wallets (Safe, Proxy, Deposit Wallet): docs.polymarket.com
+ *   /trading/wallets-auth and /resources/contracts ("Wallet Factory
+ *   Contracts"); the derivation inputs of @polymarket/client 0.14.0
+ *   (`walletDerivation`) and @polymarket/builder-relayer-client 0.0.10
+ *   (`SAFE_INIT_CODE_HASH`, `PROXY_INIT_CODE_HASH`, `deriveSafe`,
+ *   `deriveProxyWallet`, `deriveBeaconDepositWallet`); signature types of
+ *   @polymarket/clob-client-v2 1.2.0 (`SignatureTypeV2`).
  * - Limitless Exchange (Base): docs.limitless.exchange/developers/authentication.
  */
 import type { NetworkKey } from "./chains.js";
@@ -67,7 +74,7 @@ export interface PredictionVenue {
   /** False while Kletia builds nothing for the venue; `disabledReason` says why. */
   readonly enabled: boolean;
   readonly disabledReason: string | null;
-  /** Account kinds Kletia trades for (Polymarket: a plain wallet that signs its own orders). */
+  /** Account kinds Kletia trades for (Polymarket: the user's Safe or Deposit Wallet, or a plain wallet). */
   readonly accounts: string;
   readonly website: string;
   /** The venue's own terms, linked wherever Kletia offers a trade. */
@@ -84,7 +91,7 @@ export const PREDICTION_VENUES: readonly PredictionVenue[] = Object.freeze([
     collateral: "pUSD",
     enabled: true,
     disabledReason: null,
-    accounts: "A plain wallet (EOA) that holds pUSD on Polygon and signs its own orders. Polymarket Deposit, Proxy and Safe wallets: positions are read, trading is not supported.",
+    accounts: "Your Polymarket wallet, found from your EVM wallet: a Safe (browser-wallet accounts) or a Deposit Wallet (accounts since May 2026) trades with your wallet signing; a Proxy wallet (email and Google accounts) is read only. A plain wallet (EOA) trades when Polymarket allows it.",
     website: "https://polymarket.com",
     termsUrl: "https://polymarket.com/tos",
     restrictionNote:
@@ -142,6 +149,63 @@ export const POLYMARKET_POLYGON = Object.freeze({
   /** Answers for the requesting IP only (docs "Geographic Restrictions"). */
   geoblockApi: "https://polymarket.com/api/geoblock",
 });
+
+/**
+ * Polymarket's account-wallet factories on Polygon (docs "Contracts", Wallet
+ * Factory Contracts). Each wallet's address is a CREATE2 address of its
+ * owner's EOA, so it can be derived and then checked on-chain:
+ * - Safe: Gnosis Safe 1.3.0 proxy from the Safe factory, salt
+ *   keccak256(abi.encode(owner)), init code hash `safeInitCodeHash`;
+ * - Proxy: EIP-1167 clone of `proxyImplementation` from the proxy factory,
+ *   salt keccak256(abi.encodePacked(owner)), init code hash `proxyInitCodeHash`;
+ * - Deposit Wallet: ERC-1967 beacon proxy (since June 29, 2026) or UUPS proxy
+ *   (before) from the Deposit Wallet factory, salt keccak256(abi.encode(factory, bytes32(owner))).
+ */
+export const POLYMARKET_WALLET_FACTORIES = Object.freeze({
+  safeFactory: "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b",
+  safeInitCodeHash: "0x2bce2127ff07fb632d16c8347c4ebf501f4841168bed00d9e6ef715ddb6fcecf",
+  proxyFactory: "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052",
+  proxyImplementation: "0x44e999d5c2F66Ef0861317f9A4805AC2e90aEB4f",
+  proxyInitCodeHash: "0xd21df8dc65880a8606f09fe0ce3df9b8869287ab0b058be05aa9e8af6330a00b",
+  depositWalletFactory: "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07",
+  depositWalletBeacon: "0x7A18EDfe055488A3128f01F563e5B479D92ffc3a",
+  depositWalletImplementation: "0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB",
+  /** Public profile lookup: an EOA or wallet address answers with the account's wallet (`proxyWallet`). */
+  profileApi: "https://gamma-api.polymarket.com/public-profile",
+});
+
+/** A Polymarket account wallet: safe (MetaMask-style signers, legacy), proxy (Magic email/Google, legacy), deposit (every account since May 4, 2026). */
+export type PolymarketWalletKind = "safe" | "proxy" | "deposit";
+
+/** The order `signatureType` per account kind (@polymarket/clob-client-v2 SignatureTypeV2). */
+export const POLYMARKET_SIGNATURE_TYPES = Object.freeze({ eoa: 0, proxy: 1, safe: 2, deposit: 3 } as const);
+
+/** Signature types Kletia builds orders for: 0 plain wallet, 2 Safe (signer = owner EOA), 3 Deposit Wallet (ERC-1271, POLY_1271). */
+export type PolymarketOrderSignatureType = 0 | 2 | 3;
+
+/** Wallet actions Kletia builds for a Polymarket wallet (POST /v1/predictions/wallet). */
+export type PolymarketWalletAction = "deposit" | "withdraw" | "wrap";
+
+/** One Polymarket wallet of an EVM wallet, found by derivation and checked on Polygon. */
+export interface PolymarketWallet {
+  readonly address: string;
+  readonly kind: PolymarketWalletKind;
+  /** The EVM wallet (EOA) that owns it and signs for it. */
+  readonly owner: string;
+  readonly signatureType: 1 | 2 | 3;
+  /** True when Kletia builds orders for it (Safe, Deposit Wallet); a Proxy wallet is read only. */
+  readonly tradable: boolean;
+  /** What was read on Polygon to accept it as the owner's (never a guess). */
+  readonly verifiedBy: string;
+  /** True when Polymarket's public profile of the owner names this wallet (the one polymarket.com shows). */
+  readonly onProfile: boolean;
+  /** pUSD and USDC.e held by the wallet (decimal strings), or null when they could not be read. */
+  readonly balances: { readonly pusd: string; readonly usdce: string } | null;
+  /** Wallet actions Kletia builds for it. */
+  readonly actions: readonly PolymarketWalletAction[];
+  /** Why it is read only, or what it needs first; null when nothing. */
+  readonly note: string | null;
+}
 
 /** Market protocol generation (Gamma `version`): v1 trades CTF token ids, v2 PositionManager position ids. */
 export type PolymarketVersion = "v1" | "v2";
@@ -307,6 +371,8 @@ export interface PredictionRequest {
   readonly account?: string;
   /** prepare: the caller already holds a venue session (no sign-in step is added). */
   readonly hasSession?: boolean;
+  /** The account's Polymarket wallet (Safe or Deposit Wallet) that holds the funds and the shares; omitted: the account itself. */
+  readonly wallet?: string;
 }
 
 export interface PredictionQuote {
@@ -347,7 +413,8 @@ export interface PredictionTypedData {
   readonly domain: { readonly name: string; readonly version: string; readonly chainId: number; readonly verifyingContract?: string };
   readonly types: Readonly<Record<string, readonly { readonly name: string; readonly type: string }[]>>;
   readonly primaryType: string;
-  readonly message: Readonly<Record<string, string | number>>;
+  /** Field values; a nested struct (a Deposit Wallet order's `contents`) is an object of its fields. */
+  readonly message: Readonly<Record<string, string | number | Readonly<Record<string, string | number>>>>;
 }
 
 /** The order fields a Polymarket order signs, plus what travels with it unsigned. */
@@ -360,8 +427,8 @@ export interface PolymarketOrderDraft {
   readonly takerAmount: string;
   /** 0 buy, 1 sell. */
   readonly side: 0 | 1;
-  /** 0: EOA (the only kind Kletia builds). */
-  readonly signatureType: 0;
+  /** 0: plain wallet (maker = signer); 2: Safe (maker = Safe, signer = its owner); 3: Deposit Wallet (maker = signer = the wallet, ERC-1271). */
+  readonly signatureType: PolymarketOrderSignatureType;
   /** Unix milliseconds. */
   readonly timestamp: string;
   readonly metadata: string;
@@ -382,12 +449,14 @@ export type PredictionStep =
       readonly transaction: TransactionRequest;
       /** What the approval allows, said plainly (operator approvals cover every share on that ledger). */
       readonly disclosure?: string;
+      /** A call run by the user's Polymarket Safe: the Safe, its nonce when prepared, and the EIP-712 SafeTx hash the Safe executes. */
+      readonly safeTx?: { readonly safe: string; readonly nonce: string; readonly hash: string };
     }
   | {
       readonly kind: "typed-data";
       readonly id: string;
       readonly title: string;
-      /** clob-auth: proves the wallet to the venue's order book (no funds move); order: the order itself. */
+      /** clob-auth: proves the wallet to the venue's order book (no funds move); order: the order itself (a Deposit Wallet order is signed wrapped, ERC-7739 TypedDataSign). */
       readonly purpose: "clob-auth" | "order";
       readonly typedData: PredictionTypedData;
     };
@@ -397,6 +466,8 @@ export interface PredictionPrepared {
   readonly venue: PredictionVenueId;
   readonly network: NetworkKey;
   readonly account: string;
+  /** The Polymarket wallet that trades (maker), or null when the account trades for itself. */
+  readonly wallet: Pick<PolymarketWallet, "address" | "kind" | "owner"> | null;
   readonly quote: PredictionQuote;
   readonly steps: readonly PredictionStep[];
   /** The order as prepared; send it back unchanged with the signature (POST /v1/predictions/submit). */
@@ -719,7 +790,7 @@ export function validatePredictionRequest(input: unknown): PredictionRequestVali
   const issues: ValidationIssue[] = [];
   if (!isRecord(input)) return { ok: false, value: null, issues: [{ path: "", message: "Send a JSON object." }] };
   for (const key of Object.keys(input)) {
-    if (!["venue", "marketId", "outcome", "side", "orderType", "amountUsd", "shares", "limitPrice", "slippageBps", "account", "hasSession"].includes(key)) issues.push({ path: key, message: "Unknown field." });
+    if (!["venue", "marketId", "outcome", "side", "orderType", "amountUsd", "shares", "limitPrice", "slippageBps", "account", "hasSession", "wallet"].includes(key)) issues.push({ path: key, message: "Unknown field." });
   }
   const venue = input.venue ?? "polymarket";
   if (!(PREDICTION_VENUE_IDS as readonly unknown[]).includes(venue)) issues.push({ path: "venue", message: `Use one of ${PREDICTION_VENUE_IDS.join(", ")}.` });
@@ -744,6 +815,7 @@ export function validatePredictionRequest(input: unknown): PredictionRequestVali
   }
   if (input.account !== undefined && (typeof input.account !== "string" || input.account.length > 200)) issues.push({ path: "account", message: "Use a CAIP-10 account id on Polygon (eip155:137:0x…)." });
   if (input.hasSession !== undefined && typeof input.hasSession !== "boolean") issues.push({ path: "hasSession", message: "Use true or false." });
+  if (input.wallet !== undefined && (typeof input.wallet !== "string" || !/^0x[0-9a-fA-F]{40}$/u.test(input.wallet))) issues.push({ path: "wallet", message: "Use your Polymarket wallet's address (0x…), as GET /v1/predictions/wallets lists it." });
   if (issues.length === 0) {
     if (input.side === "buy" && orderType === "market" && amountUsd === undefined) issues.push({ path: "amountUsd", message: "A market buy needs amountUsd (fees included)." });
     if (input.side === "buy" && orderType === "market" && shares !== undefined) issues.push({ path: "shares", message: "A market buy spends amountUsd; give shares with a limit order." });
@@ -766,6 +838,7 @@ export function validatePredictionRequest(input: unknown): PredictionRequestVali
     ...(slippageBps !== undefined ? { slippageBps: slippageBps as number } : {}),
     ...(input.account !== undefined ? { account: input.account as string } : {}),
     ...(input.hasSession !== undefined ? { hasSession: input.hasSession as boolean } : {}),
+    ...(input.wallet !== undefined ? { wallet: input.wallet as string } : {}),
   };
   return { ok: true, value, issues: [] };
 }

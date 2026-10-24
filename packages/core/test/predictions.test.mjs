@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   POLYMARKET_POLYGON,
+  POLYMARKET_SIGNATURE_TYPES,
+  POLYMARKET_WALLET_FACTORIES,
   PREDICTION_LIMITS,
   PREDICTION_VENUES,
   checkSubagentPolicy,
@@ -162,6 +164,9 @@ test("validation: shapes per side and order type", () => {
   assert.deepEqual(bad({ marketId: "1", outcome: "Yes", side: "buy", amountUsd: "0.5" }), ["amountUsd"]);
   assert.deepEqual(bad({ marketId: "1", outcome: "Yes", side: "buy", amountUsd: "20", extra: 1 }), ["extra"]);
   assert.deepEqual(bad({ marketId: "x y", outcome: "Yes", side: "buy", amountUsd: "20" }), ["marketId"]);
+  const safe = "0x1DaB69F26C401D587D9e4875e68Dd0D878818719";
+  assert.equal(validatePredictionRequest({ marketId: "1", outcome: "Yes", side: "buy", amountUsd: "20", wallet: safe }).value.wallet, safe, "the Polymarket wallet that trades");
+  assert.deepEqual(bad({ marketId: "1", outcome: "Yes", side: "buy", amountUsd: "20", wallet: "0x1234" }), ["wallet"]);
   assert.equal(predictionStakeUsd({ side: "buy", amountUsd: "20" }), 20);
   assert.equal(predictionStakeUsd({ side: "buy", shares: "10", limitPrice: "0.4" }), 4);
   assert.equal(predictionStakeUsd({ side: "sell", shares: "10" }), 0);
@@ -206,4 +211,13 @@ test("sub-agents: prediction markets only where the parent trades them, at no hi
   assert.deepEqual(paths(check({ enabled: true, maxStakeUsd: "10" })), ["predictions.venues"]);
   const off = checkSubagentPolicy({ child: { schema: "kletia.policy/v1", predictions: { enabled: true, maxStakeUsd: "1", venues: ["polymarket"] } }, chain: [project, { ...parent, policy: { schema: "kletia.policy/v1" } }], childDepth: 2 });
   assert.deepEqual(paths(off), ["predictions.enabled"]);
+});
+
+test("Polymarket wallets: factories from the docs' contract list and the SDKs' signature types", () => {
+  // docs.polymarket.com/resources/contracts "Wallet Factory Contracts"; @polymarket/clob-client-v2 SignatureTypeV2.
+  assert.equal(POLYMARKET_WALLET_FACTORIES.safeFactory.toLowerCase(), "0xaacfeea03eb1561c4e67d661e40682bd20e3541b");
+  assert.equal(POLYMARKET_WALLET_FACTORIES.proxyFactory, "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052");
+  assert.equal(POLYMARKET_WALLET_FACTORIES.depositWalletFactory, "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07");
+  assert.equal(POLYMARKET_WALLET_FACTORIES.depositWalletBeacon, "0x7A18EDfe055488A3128f01F563e5B479D92ffc3a");
+  assert.deepEqual({ ...POLYMARKET_SIGNATURE_TYPES }, { eoa: 0, proxy: 1, safe: 2, deposit: 3 });
 });

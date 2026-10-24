@@ -172,7 +172,7 @@ describe("predictions: EIP-712 orders and the relay guard", () => {
     const ticket = orderTicket(order, expiresAt) as string;
     const typed = { domain: { name: "Polymarket CTF Exchange", version: "2", chainId: 137, verifyingContract: P.ctfExchange as Hex }, types: { Order: [...(await import("@kletia/core")).POLYMARKET_ORDER_TYPES.Order] }, primaryType: "Order" as const, message: { ...order, side: 0, signatureType: 0 } };
     const signature = await wallet.signTypedData(typed as never);
-    assert.equal(await verifySignedOrder(order, ticket, signature, wallet.address, RECORDED_NOW), orderHash(order));
+    assert.deepEqual(await verifySignedOrder(order, ticket, signature, wallet.address, RECORDED_NOW), { orderHash: orderHash(order), signature });
     const fail = (promise: Promise<unknown>) => assert.rejects(promise, (error: unknown) => error instanceof PlatformError && error.code === "PREDICTION_SIGNATURE_INVALID");
     await fail(verifySignedOrder({ ...order, makerAmount: "5200001" }, ticket, signature, wallet.address, RECORDED_NOW));
     await fail(verifySignedOrder(order, ticket, signature, wallet.address, (expiresAt + 1) * 1000));

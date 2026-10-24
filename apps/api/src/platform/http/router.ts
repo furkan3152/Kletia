@@ -331,6 +331,7 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/predictions/markets", auth: "public", publishable: true },
   { method: "get", path: "/predictions/markets/:id", auth: "public", publishable: true },
   { method: "get", path: "/predictions/positions", auth: "public", publishable: true },
+  { method: "get", path: "/predictions/wallets", auth: "public", publishable: true },
   { method: "post", path: "/predictions/quote", auth: "public", publishable: true },
   { method: "post", path: "/predictions/prepare", auth: "public", publishable: true },
   { method: "post", path: "/predictions/session", auth: "public", publishable: true },
@@ -338,6 +339,7 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/predictions/orders", auth: "public", publishable: true },
   { method: "post", path: "/predictions/orders/cancel", auth: "public", publishable: true },
   { method: "post", path: "/predictions/redeem", auth: "public", publishable: true },
+  { method: "post", path: "/predictions/wallet", auth: "public", publishable: true },
   // Sub-agents (agents/): requests by main agents, owner-wallet or project-key decisions, the one-time claim.
   { method: "get", path: "/agents/tree", auth: "key" },
   { method: "get", path: "/agents/pending", auth: "public" },

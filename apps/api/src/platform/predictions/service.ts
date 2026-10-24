@@ -9,10 +9,12 @@
  * a rule book that does not allow prediction markets or the venue, a stake
  * above the rule book's cap, a market that is closed or not taking orders,
  * an outcome the market does not list, an unreadable fee schedule, an
- * empty or stale book, an order below the venue's minimum, a smart-contract
- * wallet, and too little pUSD (or shares). The relay sends only an order
- * prepare built (Kletia's ticket) and the account signed, and never works
- * around the venue's location rules. Kletia never signs.
+ * empty or stale book, an order below the venue's minimum, a wallet that is
+ * not the account's verified Polymarket Safe or Deposit Wallet (or, with none
+ * named, an account that is not a plain wallet), and too little pUSD (or
+ * shares). The relay sends only an order prepare built (Kletia's ticket) and
+ * the account signed, reads the wallet's ownership on Polygon again, and
+ * never works around the venue's location rules. Kletia never signs.
  */
 import {
   effectivePredictions,
@@ -29,6 +31,8 @@ import {
   quotePredictionOrder,
   validatePredictionRequest,
   type PolymarketOrderDraft,
+  type PolymarketWallet,
+  type PolymarketWalletAction,
   type PredictionBook,
   type PredictionMarket,
   type PredictionOutcome,
@@ -43,21 +47,23 @@ import {
   type PredictionVenue,
   type PredictionVenueId,
 } from "@kletia/core";
-import { getAddress } from "viem";
+import { getAddress, type Hex } from "viem";
 import { PlatformError } from "../errors.js";
 import {
-  approveTransaction,
+  approveCall,
   ctfPayoutDenominator,
   erc20Allowance,
   erc20Balance,
   isPlainWallet,
   operatorApproved,
+  operatorCall,
   operatorDisclosure,
-  operatorTransaction,
-  redeemCtfTransaction,
-  redeemV2Transaction,
+  redeemCtfCall,
+  redeemV2Call,
   shareBalance,
-  wrapTransaction,
+  transferCall,
+  wrapCall,
+  type WalletCall,
 } from "./chain.js";
 import { predictionsIo, type PredictionsIo } from "./io.js";
 import {
@@ -82,13 +88,25 @@ import {
   orderHash,
   orderSalt,
   orderTicket,
-  orderTypedData,
   readOrderDraft,
+  signedTypedData,
   verifyClobAuth,
   verifySignedOrder,
   ZERO_BYTES32,
   type ClobCredentials,
 } from "./signing.js";
+import {
+  cachedPolymarketWallets,
+  holderTransaction,
+  polymarketWalletsOf,
+  safeNonce,
+  safeTransactionHash,
+  tradingHolder,
+  validContractSignature,
+  walletLine,
+  type PolymarketWalletsView,
+  type TradingHolder,
+} from "./wallets.js";
 
 /** What an unauthenticated caller (the desk) may do: the project defaults. */
 export const DEFAULT_PREDICTIONS_POLICY: PredictionPolicyView = effectivePredictions([]);
@@ -120,6 +138,11 @@ function guardStake(stakeUsd: number, policy: PredictionPolicyView): void {
 
 function invalid(issues: readonly { path: string; message: string }[]): PlatformError {
   return new PlatformError("INVALID_REQUEST", "The prediction order is invalid.", 400, [...issues]);
+}
+
+/** The account's trading holder: itself (a plain wallet) or its verified Polymarket Safe or Deposit Wallet. */
+function holderOf(io: PredictionsIo, account: string, wallet: string | undefined): Promise<TradingHolder> {
+  return tradingHolder(io, account, wallet, (address) => isPlainWallet(io, address));
 }
 
 /** The Polygon address of a CAIP-10 account (eip155:137:0x…). */
@@ -307,7 +330,14 @@ export async function quotePrediction(body: unknown, policy: PredictionPolicyVie
 
 /* ------------------------------------------------------------- prepare */
 
-function orderDraft(account: string, guarded: Guarded, nowMs: number): PolymarketOrderDraft {
+/** maker, signer and signatureType of the holder's orders (@polymarket/clob-client-v2 createMarketOrder / createOrder). */
+function orderRoles(holder: TradingHolder): Pick<PolymarketOrderDraft, "maker" | "signer" | "signatureType"> {
+  if (holder.kind === "safe") return { maker: holder.address, signer: holder.owner, signatureType: 2 };
+  if (holder.kind === "deposit") return { maker: holder.address, signer: holder.address, signatureType: 3 };
+  return { maker: holder.owner, signer: holder.owner, signatureType: 0 };
+}
+
+function orderDraft(holder: TradingHolder, guarded: Guarded, nowMs: number): PolymarketOrderDraft {
   const { request, market, outcome, book, quote } = guarded;
   const buy = request.side === "buy";
   const price = request.orderType === "limit" ? (request.limitPrice as string) : priceOnTick(quote.worstPrice, book.tickSize, buy ? "up" : "down");
@@ -321,13 +351,11 @@ function orderDraft(account: string, guarded: Guarded, nowMs: number): Polymarke
   const exchange = polymarketExchange(market.version, book.negRisk);
   return {
     salt: orderSalt(),
-    maker: account,
-    signer: account,
+    ...orderRoles(holder),
     tokenId: outcome.tokenId,
     makerAmount: amounts.makerAmount.toString(),
     takerAmount: amounts.takerAmount.toString(),
     side: buy ? 0 : 1,
-    signatureType: 0,
     timestamp: String(nowMs),
     metadata: ZERO_BYTES32,
     builder: ZERO_BYTES32,
@@ -338,49 +366,86 @@ function orderDraft(account: string, guarded: Guarded, nowMs: number): Polymarke
   };
 }
 
-/** Collateral steps of a buy: pUSD to cover `need` (wrapping USDC.e when short), and exact allowances. */
-async function buySteps(io: PredictionsIo, account: string, market: PredictionMarket, exchange: string, need: bigint): Promise<PredictionStep[]> {
-  const steps: PredictionStep[] = [];
-  const [pusd, usdce] = await Promise.all([erc20Balance(io, P.pusd, account), erc20Balance(io, P.usdce, account)]);
+/** A transaction step before it is bound to the holder (sent directly, or run through its Safe). */
+interface CallStep {
+  readonly id: string;
+  readonly title: string;
+  readonly call: WalletCall;
+  readonly disclosure?: string;
+}
+
+const holderName = (holder: TradingHolder) => (holder.kind === "account" ? "This wallet" : walletLine(holder));
+
+/** Collateral steps of a buy: pUSD to cover `need` (wrapping USDC.e when short), and exact allowances, all of the holder. */
+async function buySteps(io: PredictionsIo, holder: TradingHolder, market: PredictionMarket, exchange: string, need: bigint): Promise<CallStep[]> {
+  const steps: CallStep[] = [];
+  const at = holder.address;
+  const [pusd, usdce] = await Promise.all([erc20Balance(io, P.pusd, at), erc20Balance(io, P.usdce, at)]);
   if (pusd < need) {
     const short = need - pusd;
     if (usdce < short) {
-      throw new PlatformError("PREDICTION_BALANCE_TOO_LOW", `The order can cost up to ${Number(need) / 1e6} pUSD; the wallet holds ${Number(pusd) / 1e6} pUSD and ${Number(usdce) / 1e6} USDC.e on Polygon.`, 422);
+      const hint = holder.kind === "account" ? "" : " Deposit pUSD or USDC.e into it first (Deposit, in the Predict view).";
+      throw new PlatformError("PREDICTION_BALANCE_TOO_LOW", `The order can cost up to ${Number(need) / 1e6} pUSD; ${holderName(holder)} holds ${Number(pusd) / 1e6} pUSD and ${Number(usdce) / 1e6} USDC.e on Polygon.${hint}`, 422);
     }
-    if ((await erc20Allowance(io, P.usdce, account, P.collateralOnramp)) < short) {
-      steps.push({ kind: "transaction", id: "approve-usdce", title: "Approve USDC.e for wrapping", transaction: approveTransaction(account, "USDC.e", P.collateralOnramp, short) });
+    if ((await erc20Allowance(io, P.usdce, at, P.collateralOnramp)) < short) {
+      steps.push({ id: "approve-usdce", title: "Approve USDC.e for wrapping", call: approveCall("USDC.e", P.collateralOnramp, short) });
     }
-    steps.push({ kind: "transaction", id: "wrap", title: "Wrap USDC.e into pUSD", transaction: wrapTransaction(account, short) });
+    steps.push({ id: "wrap", title: "Wrap USDC.e into pUSD", call: wrapCall(at, short) });
   }
   const spenders = market.version === "v1" && market.negRisk ? [exchange, P.negRiskAdapter] : [exchange];
   for (const spender of spenders) {
-    if ((await erc20Allowance(io, P.pusd, account, spender)) < need) {
-      steps.push({ kind: "transaction", id: `approve-pusd-${spender === exchange ? "exchange" : "adapter"}`, title: "Approve pUSD for this order", transaction: approveTransaction(account, "pUSD", spender, need) });
+    if ((await erc20Allowance(io, P.pusd, at, spender)) < need) {
+      steps.push({ id: `approve-pusd-${spender === exchange ? "exchange" : "adapter"}`, title: "Approve pUSD for this order", call: approveCall("pUSD", spender, need) });
     }
   }
   // CTF negative-risk orders: the CLOB also checks the Neg Risk Adapter's operator approval (docs "Contracts").
-  if (market.version === "v1" && market.negRisk) steps.push(...(await operatorSteps(io, account, P.conditionalTokens, [P.negRiskAdapter])));
+  if (market.version === "v1" && market.negRisk) steps.push(...(await operatorSteps(io, at, P.conditionalTokens, [P.negRiskAdapter])));
   return steps;
 }
 
-async function operatorSteps(io: PredictionsIo, account: string, ledger: string, operators: readonly string[]): Promise<PredictionStep[]> {
-  const steps: PredictionStep[] = [];
+async function operatorSteps(io: PredictionsIo, holder: string, ledger: string, operators: readonly string[]): Promise<CallStep[]> {
+  const steps: CallStep[] = [];
   for (const operator of operators) {
-    if (await operatorApproved(io, ledger, account, operator)) continue;
-    steps.push({ kind: "transaction", id: `operator-${steps.length}`, title: "Allow the exchange to move your shares", transaction: operatorTransaction(account, ledger, operator), disclosure: operatorDisclosure(ledger, operator) });
+    if (await operatorApproved(io, ledger, holder, operator)) continue;
+    steps.push({ id: `operator-${steps.length}`, title: "Allow the exchange to move your shares", call: operatorCall(ledger, operator), disclosure: operatorDisclosure(ledger, operator) });
   }
   return steps;
 }
 
-/** Steps of a sell: the shares must be there, and the exchange an operator of their ledger. */
-async function sellSteps(io: PredictionsIo, account: string, market: PredictionMarket, order: PolymarketOrderDraft): Promise<PredictionStep[]> {
+/** Steps of a sell: the holder must hold the shares, and the exchange be an operator of their ledger. */
+async function sellSteps(io: PredictionsIo, holder: TradingHolder, market: PredictionMarket, order: PolymarketOrderDraft): Promise<CallStep[]> {
   const ledger = market.version === "v2" ? P.positionManager : P.conditionalTokens;
-  const held = await shareBalance(io, ledger, account, order.tokenId);
-  if (held === 0n) throw new PlatformError("PREDICTION_POSITION_NOT_FOUND", "This wallet holds no shares of that outcome.", 422);
-  if (held < BigInt(order.makerAmount)) throw new PlatformError("PREDICTION_BALANCE_TOO_LOW", `The wallet holds ${Number(held) / 1e6} shares of that outcome; the order sells ${Number(order.makerAmount) / 1e6}.`, 422);
+  const held = await shareBalance(io, ledger, holder.address, order.tokenId);
+  if (held === 0n) throw new PlatformError("PREDICTION_POSITION_NOT_FOUND", `${holderName(holder)} holds no shares of that outcome.`, 422);
+  if (held < BigInt(order.makerAmount)) throw new PlatformError("PREDICTION_BALANCE_TOO_LOW", `${holderName(holder)} holds ${Number(held) / 1e6} shares of that outcome; the order sells ${Number(order.makerAmount) / 1e6}.`, 422);
   const operators = market.version === "v1" && market.negRisk ? [order.exchange, P.negRiskAdapter] : [order.exchange];
-  return operatorSteps(io, account, ledger, operators);
+  return operatorSteps(io, holder.address, ledger, operators);
 }
+
+/**
+ * Binds call steps to the holder: the account sends them, or its Safe runs
+ * them (`execTransaction`, each with its SafeTx hash at the Safe's nonce,
+ * one after another). A Deposit Wallet refuses any
+ * (PREDICTION_WALLET_SETUP_REQUIRED: its transactions run through
+ * Polymarket's relayer only).
+ */
+async function transactionSteps(io: PredictionsIo, holder: TradingHolder, calls: readonly CallStep[]): Promise<PredictionStep[]> {
+  if (calls.length === 0) return [];
+  const first = holder.kind === "safe" ? await safeNonce(io, holder.address) : 0n;
+  return calls.map((entry, index): PredictionStep => {
+    const nonce = first + BigInt(index);
+    return {
+      kind: "transaction",
+      id: entry.id,
+      title: entry.title,
+      transaction: holderTransaction(holder, entry.call),
+      ...(entry.disclosure ? { disclosure: entry.disclosure } : {}),
+      ...(holder.kind === "safe" ? { safeTx: { safe: holder.address, nonce: nonce.toString(), hash: safeTransactionHash(holder.address, entry.call, nonce) } } : {}),
+    };
+  });
+}
+
+const walletSummary = (holder: TradingHolder): PredictionPrepared["wallet"] => (holder.kind === "account" ? null : { address: holder.address, kind: holder.kind, owner: holder.owner });
 
 function signInStep(account: string, nowMs: number): PredictionStep {
   return { kind: "typed-data", id: "sign-in", title: "Sign in to Polymarket's order book (no funds move)", purpose: "clob-auth", typedData: clobAuthTypedData(account, Math.floor(nowMs / 1000)) };
@@ -391,16 +456,16 @@ export async function preparePrediction(body: unknown, policy: PredictionPolicyV
   const { request, market, quote } = guarded;
   if (request.account === undefined) throw invalid([{ path: "account", message: "prepare needs the Polygon account (eip155:137:0x…)." }]);
   const account = polygonAccount(request.account);
-  if (!(await isPlainWallet(io, account))) {
-    throw new PlatformError("PREDICTION_ACCOUNT_UNSUPPORTED", "This address is a smart-contract wallet (a Polymarket Deposit, Proxy or Safe wallet among them). Kletia trades Polymarket only from a plain wallet that signs its own orders; its positions can still be read.", 422);
-  }
+  const holder = await holderOf(io, account, request.wallet);
   const now = io.now();
-  const order = orderDraft(account, guarded, now);
-  const steps: PredictionStep[] = request.side === "buy"
-    ? await buySteps(io, account, market, order.exchange, micros(quote.maxLossUsd))
-    : await sellSteps(io, account, market, order);
+  const order = orderDraft(holder, guarded, now);
+  const calls = request.side === "buy"
+    ? await buySteps(io, holder, market, order.exchange, micros(quote.maxLossUsd))
+    : await sellSteps(io, holder, market, order);
+  const steps = await transactionSteps(io, holder, calls);
   if (request.hasSession !== true) steps.push(signInStep(account, now));
-  steps.push({ kind: "typed-data", id: "order", title: `${request.side === "buy" ? "Buy" : "Sell"} ${quote.outcome} on "${market.question}"`, purpose: "order", typedData: orderTypedData(order) });
+  const from = holder.kind === "account" ? "" : ` from ${walletLine(holder)}`;
+  steps.push({ kind: "typed-data", id: "order", title: `${request.side === "buy" ? "Buy" : "Sell"} ${quote.outcome} on "${market.question}"${from}`, purpose: "order", typedData: signedTypedData(order) });
   const expiresAt = Math.floor(now / 1000) + PREDICTION_LIMITS.prepareTtlSeconds;
   const ticket = orderTicket(order, expiresAt);
   if (ticket === null) throw new PlatformError("PREDICTION_SESSION_UNAVAILABLE", "This server cannot issue relay tickets (KLETIA_PLATFORM_SECRET is not configured), so it prepares no order.", 503);
@@ -409,7 +474,7 @@ export async function preparePrediction(body: unknown, policy: PredictionPolicyV
     "You can lose the whole stake: a share pays 1 pUSD only if its outcome wins, 0 if it loses. Prices are the market's odds, not guarantees.",
     ...(steps.some((step) => step.kind === "transaction" && step.disclosure) ? ["One step is an operator approval for all your shares on that ledger; read its note before signing."] : []),
   ];
-  return { venue: "polymarket", network: "polygon", account: `eip155:137:${account}`, quote, steps, order, orderHash: orderHash(order), ticket, expiresAt, warnings };
+  return { venue: "polymarket", network: "polygon", account: `eip155:137:${account}`, wallet: walletSummary(holder), quote, steps, order, orderHash: orderHash(order), ticket, expiresAt, warnings };
 }
 
 /* ------------------------------------------------------------- session */
@@ -487,8 +552,8 @@ export interface PredictionSubmitResult {
 /** Refreshes the CLOB's cached balance and allowance after approvals (best effort: the order answer is authoritative). */
 async function refreshAllowance(io: PredictionsIo, credentials: ClobCredentials, account: string, order: PolymarketOrderDraft, nowMs: number): Promise<void> {
   const params = order.side === 0
-    ? new URLSearchParams({ asset_type: "COLLATERAL", signature_type: "0" })
-    : new URLSearchParams({ asset_type: order.domainVersion === "3" ? "CONDITIONAL-V2" : "CONDITIONAL", token_id: order.tokenId, signature_type: "0" });
+    ? new URLSearchParams({ asset_type: "COLLATERAL", signature_type: String(order.signatureType) })
+    : new URLSearchParams({ asset_type: order.domainVersion === "3" ? "CONDITIONAL-V2" : "CONDITIONAL", token_id: order.tokenId, signature_type: String(order.signatureType) });
   const path = "/balance-allowance/update";
   await io.request(PROVIDER, `${polymarketUrls().clob}${path}?${params}`, { headers: clobL2Headers(credentials, account, Math.floor(nowMs / 1000), "GET", path) }).catch(() => undefined);
 }
@@ -499,6 +564,24 @@ async function credentialsFor(body: Record<string, unknown>, account: string, io
     return { credentials, fresh: sealSession(account, credentials, now) };
   }
   return { credentials: openSession(account, body.session, now) };
+}
+
+/**
+ * A wallet order's on-chain guard, read fresh: the maker must be the
+ * account's Safe (signatureType 2) or Deposit Wallet (3), deployed, derived
+ * from the account and naming it as owner; a Deposit Wallet must also accept
+ * the packed signature itself (ERC-1271 `isValidSignature`, as the exchange
+ * checks it). Anything unread refuses (fail closed).
+ */
+async function guardWalletOrder(io: PredictionsIo, account: string, order: PolymarketOrderDraft, hash: Hex, signature: Hex): Promise<void> {
+  if (order.signatureType === 0) return;
+  const holder = await holderOf(io, account, order.maker);
+  const expected = order.signatureType === 2 ? "safe" : "deposit";
+  const refuse = (message: string) => new PlatformError("PREDICTION_SIGNATURE_INVALID", message, 400, [{ path: "order", message }]);
+  if (holder.kind !== expected) throw refuse(`The order's maker is the account's ${holder.kind === "account" ? "own address" : `${holder.kind} wallet`}, not the ${expected === "safe" ? "Safe" : "Deposit Wallet"} its signature type names.`);
+  if (expected === "deposit" && !(await validContractSignature(io, order.maker, hash, signature))) {
+    throw refuse("The Deposit Wallet does not accept this signature (ERC-1271), so the exchange would refuse it.");
+  }
 }
 
 /**
@@ -513,7 +596,8 @@ export async function submitPrediction(body: unknown, policy: PredictionPolicyVi
   const account = polygonAccount(body.account);
   const order = readOrderDraft(body.order);
   const now = io.now();
-  await verifySignedOrder(order, body.ticket, body.signature, account, now);
+  const verified = await verifySignedOrder(order, body.ticket, body.signature, account, now);
+  await guardWalletOrder(io, account, order, verified.orderHash, verified.signature);
   if (order.side === 0) guardStake(Number(order.makerAmount) / 1e6, policy);
   const { credentials, fresh } = await credentialsFor(body, account, io, now);
   if (order.side === 0) {
@@ -529,8 +613,8 @@ export async function submitPrediction(body: unknown, policy: PredictionPolicyVi
     postOnly: false,
     order: {
       salt: Number(order.salt), maker: order.maker, signer: order.signer, tokenId: order.tokenId, makerAmount: order.makerAmount, takerAmount: order.takerAmount,
-      side: order.side === 0 ? "BUY" : "SELL", signatureType: 0, timestamp: order.timestamp, expiration: order.expiration, metadata: order.metadata, builder: order.builder,
-      signature: body.signature,
+      side: order.side === 0 ? "BUY" : "SELL", signatureType: order.signatureType, timestamp: order.timestamp, expiration: order.expiration, metadata: order.metadata, builder: order.builder,
+      signature: verified.signature,
     },
     owner: credentials.apiKey,
     orderType: order.orderType,
@@ -566,6 +650,8 @@ export interface PredictionOpenOrder {
   readonly orderType: string | null;
   /** Unix seconds. */
   readonly createdAt: number | null;
+  /** The address the order trades for (the account, or its Polymarket wallet). */
+  readonly maker: string | null;
 }
 
 const number = (value: unknown): number | null => {
@@ -590,11 +676,19 @@ export function parseOpenOrders(raw: unknown): PredictionOpenOrder[] {
       filledShares: number(row.size_matched),
       orderType: typeof row.order_type === "string" ? row.order_type : null,
       createdAt: number(row.created_at),
+      maker: typeof row.maker_address === "string" && /^0x[0-9a-fA-F]{40}$/u.test(row.maker_address) ? getAddress(row.maker_address) : null,
     }];
   });
 }
 
-/** POST /v1/predictions/orders: the account's open orders on the CLOB (needs the session). */
+/** An optional `wallet` field: an address, or undefined. */
+function walletField(body: Record<string, unknown>): string | undefined {
+  if (body.wallet === undefined) return undefined;
+  if (typeof body.wallet !== "string" || !/^0x[0-9a-fA-F]{40}$/u.test(body.wallet)) throw invalid([{ path: "wallet", message: "Use your Polymarket wallet's address (0x…), as GET /v1/predictions/wallets lists it." }]);
+  return getAddress(body.wallet);
+}
+
+/** POST /v1/predictions/orders: the account's open orders on the CLOB (needs the session); with `wallet`, those that wallet makes. */
 export async function listPredictionOrders(body: unknown, policy: PredictionPolicyView, io: PredictionsIo = predictionsIo()): Promise<{ readonly account: string; readonly orders: readonly PredictionOpenOrder[] }> {
   if (!isRecord(body)) throw invalid([{ path: "", message: "Send { account, session }." }]);
   guardVenue("polymarket", policy);
@@ -604,7 +698,9 @@ export async function listPredictionOrders(body: unknown, policy: PredictionPoli
   const path = "/data/orders";
   const response = await io.request(PROVIDER, `${polymarketUrls().clob}${path}`, { headers: clobL2Headers(credentials, account, Math.floor(now / 1000), "GET", path) });
   if (response.status !== 200) throw relayRefusal(response, "Polymarket did not list the orders");
-  return { account: `eip155:137:${account}`, orders: parseOpenOrders(response.body) };
+  const wallet = walletField(body);
+  const orders = parseOpenOrders(response.body).filter((order) => wallet === undefined || (order.maker !== null && order.maker.toLowerCase() === wallet.toLowerCase()));
+  return { account: `eip155:137:${account}`, orders };
 }
 
 /** POST /v1/predictions/orders/cancel: cancels one resting order the session's account placed. */
@@ -631,16 +727,128 @@ export interface PredictionPositionsView {
   readonly holder: string;
   readonly positions: readonly PredictionPosition[];
   readonly truncated: boolean;
-  /** Whether the holder is a plain wallet Kletia can trade and redeem for (false: a smart wallet, read only). */
+  /** Whether Kletia can trade and redeem for the holder: a plain wallet, or the account's Safe or Deposit Wallet named with `wallet`. */
   readonly tradable: boolean;
+  /** The Polymarket wallet read (with `wallet`), as discovery verified it. */
+  readonly wallet: PolymarketWallet | null;
 }
 
-/** Positions of a Polygon holder: the connected wallet, or a Polymarket Deposit, Proxy or Safe wallet address (read only). */
-export async function readPredictionPositions(query: { readonly account?: string | null; readonly holder?: string | null }, io: PredictionsIo = predictionsIo()): Promise<PredictionPositionsView> {
+/**
+ * Positions of a Polygon holder: the connected account, the account's
+ * Polymarket wallet (`account` + `wallet`, verified as the account's), or
+ * any address (`holder`, read only).
+ */
+export async function readPredictionPositions(query: { readonly account?: string | null; readonly holder?: string | null; readonly wallet?: string | null }, io: PredictionsIo = predictionsIo()): Promise<PredictionPositionsView> {
+  if (query.account && query.wallet) {
+    const account = polygonAccount(query.account);
+    const wanted = query.wallet.toLowerCase();
+    const wallet = (await cachedPolymarketWallets(account, io)).wallets.find((entry) => entry.address.toLowerCase() === wanted);
+    if (!wallet) throw new PlatformError("PREDICTION_WALLET_NOT_FOUND", `${query.wallet} is not a Polymarket wallet Kletia could verify for ${account}.`, 422);
+    const read = await readPositions(io, wallet.address);
+    return { holder: wallet.address, positions: read.positions, truncated: read.truncated, tradable: wallet.tradable, wallet };
+  }
   const holder = query.account ? polygonAccount(query.account) : query.holder && /^0x[0-9a-fA-F]{40}$/u.test(query.holder) ? getAddress(query.holder) : null;
-  if (!holder) throw invalid([{ path: "account", message: "Send ?account=eip155:137:0x… or ?holder=0x… (a Polymarket wallet address)." }]);
+  if (!holder) throw invalid([{ path: "account", message: "Send ?account=eip155:137:0x… (with &wallet=0x… for its Polymarket wallet) or ?holder=0x…." }]);
   const [read, plain] = await Promise.all([readPositions(io, holder), isPlainWallet(io, holder).catch(() => false)]);
-  return { holder, positions: read.positions, truncated: read.truncated, tradable: plain };
+  return { holder, positions: read.positions, truncated: read.truncated, tradable: plain, wallet: null };
+}
+
+/* ------------------------------------------------------------- wallets */
+
+export interface PolymarketWalletsAnswer extends PolymarketWalletsView {
+  readonly account: string;
+  /** Whether the account itself is a plain wallet (it can trade for itself where Polymarket allows it). */
+  readonly plainWallet: boolean;
+}
+
+/** GET /v1/predictions/wallets: the account's Polymarket wallets, derived and verified on Polygon, with balances. */
+export async function listPolymarketWallets(accountId: unknown, io: PredictionsIo = predictionsIo()): Promise<PolymarketWalletsAnswer> {
+  const account = polygonAccount(accountId);
+  const [view, plainWallet] = await Promise.all([polymarketWalletsOf(account, io), isPlainWallet(io, account)]);
+  return { account: `eip155:137:${account}`, plainWallet, ...view };
+}
+
+export interface PredictionWalletActionView {
+  readonly venue: "polymarket";
+  readonly network: "polygon";
+  readonly account: string;
+  readonly wallet: NonNullable<PredictionPrepared["wallet"]>;
+  readonly action: PolymarketWalletAction;
+  readonly steps: readonly PredictionStep[];
+  readonly note: string;
+}
+
+const WALLET_ACTIONS: readonly PolymarketWalletAction[] = ["deposit", "withdraw", "wrap"];
+const WALLET_ASSETS = ["pUSD", "USDC.e"] as const;
+type WalletAsset = (typeof WALLET_ASSETS)[number];
+
+interface WalletActionInput {
+  readonly account: string;
+  readonly wallet: string;
+  readonly action: PolymarketWalletAction;
+  readonly asset: WalletAsset;
+  readonly amount: bigint;
+}
+
+function readWalletAction(body: unknown): WalletActionInput {
+  if (!isRecord(body)) throw invalid([{ path: "", message: "Send { account, wallet, action, amountUsd, asset? }." }]);
+  const account = polygonAccount(body.account);
+  const wallet = walletField(body);
+  if (wallet === undefined) throw invalid([{ path: "wallet", message: "Name the Polymarket wallet (GET /v1/predictions/wallets)." }]);
+  const action = body.action as PolymarketWalletAction;
+  if (!WALLET_ACTIONS.includes(action)) throw invalid([{ path: "action", message: `Use one of ${WALLET_ACTIONS.join(", ")}.` }]);
+  const asset = (body.asset ?? (action === "wrap" ? "USDC.e" : "pUSD")) as WalletAsset;
+  if (!WALLET_ASSETS.includes(asset) || (action === "wrap" && asset !== "USDC.e")) throw invalid([{ path: "asset", message: action === "wrap" ? "wrap turns USDC.e into pUSD." : "Use pUSD or USDC.e." }]);
+  const amount = typeof body.amountUsd === "string" && /^\d{1,9}(?:\.\d{1,6})?$/u.test(body.amountUsd) ? micros(Number(body.amountUsd)) : 0n;
+  if (amount <= 0n) throw invalid([{ path: "amountUsd", message: "Use a positive decimal amount (at most 6 decimals)." }]);
+  return { account, wallet, action, asset, amount };
+}
+
+/** deposit: a plain transfer from the account to its verified Polymarket wallet (any kind). */
+async function depositSteps(io: PredictionsIo, input: WalletActionInput): Promise<PredictionWalletActionView> {
+  const target = (await polymarketWalletsOf(input.account, io)).wallets.find((entry) => entry.address.toLowerCase() === input.wallet.toLowerCase());
+  if (!target) throw new PlatformError("PREDICTION_WALLET_NOT_FOUND", `${input.wallet} is not a Polymarket wallet Kletia could verify for ${input.account}.`, 422);
+  const held = await erc20Balance(io, input.asset === "pUSD" ? P.pusd : P.usdce, input.account);
+  if (held < input.amount) throw new PlatformError("PREDICTION_BALANCE_TOO_LOW", `Your wallet holds ${Number(held) / 1e6} ${input.asset} on Polygon; the deposit is ${Number(input.amount) / 1e6}.`, 422);
+  const call = transferCall(input.asset, target.address, input.amount, walletLine({ address: target.address, owner: input.account }));
+  const steps = await transactionSteps(io, { kind: "account", address: input.account, owner: input.account }, [{ id: "deposit", title: `Deposit ${input.asset} into your Polymarket wallet`, call }]);
+  return {
+    venue: "polymarket", network: "polygon", account: `eip155:137:${input.account}`, wallet: { address: target.address, kind: target.kind, owner: target.owner }, action: "deposit", steps,
+    note: "A plain transfer on Polygon from your wallet to your Polymarket wallet; polymarket.com shows it in your balance. You pay the POL gas.",
+  };
+}
+
+/**
+ * POST /v1/predictions/wallet: unsigned moves between the account and its
+ * Polymarket wallet. deposit: a plain pUSD or USDC.e transfer from the
+ * account to the wallet (any verified kind); withdraw: the Safe sends pUSD
+ * or USDC.e back to its owner (never anywhere else); wrap: the Safe wraps
+ * its USDC.e into pUSD. Safe calls run through `execTransaction`, sent by
+ * the owner; a Deposit Wallet's own moves are refused (relayer only).
+ */
+export async function prepareWalletAction(body: unknown, policy: PredictionPolicyView, io: PredictionsIo = predictionsIo()): Promise<PredictionWalletActionView> {
+  guardVenue("polymarket", policy);
+  const input = readWalletAction(body);
+  if (input.action === "deposit") return depositSteps(io, input);
+  const holder = await holderOf(io, input.account, input.wallet);
+  if (holder.kind === "account") throw invalid([{ path: "wallet", message: "Name your Polymarket wallet, not the account itself." }]);
+  if (holder.kind === "deposit") {
+    throw new PlatformError("PREDICTION_WALLET_SETUP_REQUIRED", `${walletLine(holder)} is a Deposit Wallet: its own transactions (${input.action === "withdraw" ? "withdrawals" : "wrapping USDC.e"}) run only through Polymarket's relayer. Do it on polymarket.com with this EVM wallet.`, 422);
+  }
+  const held = await erc20Balance(io, input.asset === "pUSD" ? P.pusd : P.usdce, holder.address);
+  if (held < input.amount) throw new PlatformError("PREDICTION_BALANCE_TOO_LOW", `${holderName(holder)} holds ${Number(held) / 1e6} ${input.asset}; the ${input.action} is ${Number(input.amount) / 1e6}.`, 422);
+  const wrapApproval = input.action === "wrap" && (await erc20Allowance(io, P.usdce, holder.address, P.collateralOnramp)) < input.amount;
+  const calls: CallStep[] = input.action === "withdraw"
+    ? [{ id: "withdraw", title: `Withdraw ${input.asset} to your wallet`, call: transferCall(input.asset, holder.owner, input.amount, "your wallet") }]
+    : [
+        ...(wrapApproval ? [{ id: "approve-usdce", title: "Approve USDC.e for wrapping", call: approveCall("USDC.e", P.collateralOnramp, input.amount) }] : []),
+        { id: "wrap", title: "Wrap USDC.e into pUSD", call: wrapCall(holder.address, input.amount) },
+      ];
+  const steps = await transactionSteps(io, holder, calls);
+  const note = input.action === "withdraw"
+    ? "Your Safe sends the tokens to its owner, your wallet, and nowhere else. You pay the POL gas."
+    : "CollateralOnramp wraps USDC.e into pUSD 1:1 inside your Polymarket wallet. You pay the POL gas.";
+  return { venue: "polymarket", network: "polygon", account: `eip155:137:${input.account}`, wallet: walletSummary(holder) as NonNullable<PredictionPrepared["wallet"]>, action: input.action, steps, note };
 }
 
 /* -------------------------------------------------------------- redeem */
@@ -649,6 +857,8 @@ export interface PredictionRedeemView {
   readonly venue: "polymarket";
   readonly network: "polygon";
   readonly account: string;
+  /** The Polymarket wallet that redeems (its Safe), or null for the account itself. */
+  readonly wallet: PredictionPrepared["wallet"];
   readonly market: Pick<PredictionMarket, "id" | "question" | "version" | "negRisk">;
   readonly steps: readonly PredictionStep[];
   readonly note: string;
@@ -656,32 +866,35 @@ export interface PredictionRedeemView {
 
 /** Unsigned redemption of a resolved market's shares (both outcomes; a losing outcome pays 0). */
 export async function prepareRedeem(body: unknown, policy: PredictionPolicyView, io: PredictionsIo = predictionsIo()): Promise<PredictionRedeemView> {
-  if (!isRecord(body)) throw invalid([{ path: "", message: "Send { account, conditionId }." }]);
+  if (!isRecord(body)) throw invalid([{ path: "", message: "Send { account, conditionId, wallet? }." }]);
   guardVenue("polymarket", policy);
   const account = polygonAccount(body.account);
+  const wallet = walletField(body);
   const conditionId = typeof body.conditionId === "string" && /^0x[0-9a-fA-F]{64}$/u.test(body.conditionId) ? body.conditionId.toLowerCase() : null;
   if (!conditionId) throw invalid([{ path: "conditionId", message: "Use the market's condition id (0x + 64 hex), as positions list it." }]);
   const market = await readGammaMarketByCondition(io, conditionId);
   if (!market) throw new PlatformError("PREDICTION_MARKET_NOT_FOUND", "No Polymarket market Kletia can read has this condition id.", 404);
-  if (!(await isPlainWallet(io, account))) throw new PlatformError("PREDICTION_ACCOUNT_UNSUPPORTED", "Redemption from a smart-contract wallet runs through that wallet (polymarket.com); Kletia builds it for plain wallets only.", 422);
-  const steps: PredictionStep[] = [];
+  const holder = await holderOf(io, account, wallet);
+  const at = holder.address;
+  const calls: CallStep[] = [];
   const summary = { id: market.id, question: market.question, version: market.version, negRisk: market.negRisk };
   if (market.version === "v1") {
     if ((await ctfPayoutDenominator(io, conditionId)) === 0n) throw new PlatformError("PREDICTION_NOT_RESOLVED", `"${market.question}" has not resolved on-chain yet.`, 422);
-    const held = await Promise.all(market.outcomes.map((outcome) => shareBalance(io, P.conditionalTokens, account, outcome.tokenId)));
+    const held = await Promise.all(market.outcomes.map((outcome) => shareBalance(io, P.conditionalTokens, at, outcome.tokenId)));
     if (held.every((amount) => amount === 0n)) throw new PlatformError("PREDICTION_POSITION_NOT_FOUND", "This wallet holds no shares of this market.", 422);
     const adapter = market.negRisk ? P.negRiskCtfCollateralAdapter : P.ctfCollateralAdapter;
-    steps.push(...(await operatorSteps(io, account, P.conditionalTokens, [adapter])));
-    steps.push({ kind: "transaction", id: "redeem", title: "Redeem resolved shares for pUSD", transaction: redeemCtfTransaction(account, conditionId, market.negRisk) });
+    calls.push(...(await operatorSteps(io, at, P.conditionalTokens, [adapter])));
+    calls.push({ id: "redeem", title: "Redeem resolved shares for pUSD", call: redeemCtfCall(conditionId, market.negRisk) });
   } else {
     if (!market.resolved) throw new PlatformError("PREDICTION_NOT_RESOLVED", `"${market.question}" has not resolved yet.`, 422);
-    const held = await Promise.all(market.outcomes.map((outcome) => shareBalance(io, P.positionManager, account, outcome.tokenId)));
+    const held = await Promise.all(market.outcomes.map((outcome) => shareBalance(io, P.positionManager, at, outcome.tokenId)));
     if (held.every((amount) => amount === 0n)) throw new PlatformError("PREDICTION_POSITION_NOT_FOUND", "This wallet holds no shares of this market.", 422);
-    steps.push(...(await operatorSteps(io, account, P.positionManager, [P.router])));
+    calls.push(...(await operatorSteps(io, at, P.positionManager, [P.router])));
     market.outcomes.forEach((outcome, index) => {
       const amount = held[index] ?? 0n;
-      if (amount > 0n) steps.push({ kind: "transaction", id: `redeem-${index}`, title: `Redeem ${outcome.label} shares for pUSD`, transaction: redeemV2Transaction(account, outcome.tokenId, amount) });
+      if (amount > 0n) calls.push({ id: `redeem-${index}`, title: `Redeem ${outcome.label} shares for pUSD`, call: redeemV2Call(outcome.tokenId, amount) });
     });
   }
-  return { venue: "polymarket", network: "polygon", account: `eip155:137:${account}`, market: summary, steps, note: "Each winning share pays 1 pUSD, each losing share 0. Redemption has no deadline." };
+  const steps = await transactionSteps(io, holder, calls);
+  return { venue: "polymarket", network: "polygon", account: `eip155:137:${account}`, wallet: walletSummary(holder), market: summary, steps, note: "Each winning share pays 1 pUSD, each losing share 0. Redemption has no deadline." };
 }

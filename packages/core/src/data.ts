@@ -8,7 +8,7 @@ import type { AccountId, AssetId } from "./caip.js";
 import type { NetworkKey } from "./chains.js";
 import type { JourneyValueSource } from "./journey.js";
 import type { PerpsPosition } from "./perps.js";
-import type { PredictionPosition } from "./predictions.js";
+import type { PolymarketWallet, PolymarketWalletKind, PredictionPosition } from "./predictions.js";
 import type { ProtocolId } from "./protocols.js";
 
 /**
@@ -487,8 +487,16 @@ export interface DataPerpRow extends PerpsPosition {
   readonly account: AccountId;
 }
 
-/** A prediction-market position (Polymarket) of one of the set's EVM wallets, as the venue's data API reports it. */
+/** A prediction-market position (Polymarket) of one of the set's EVM wallets or of its Polymarket wallet, as the venue's data API reports it. */
 export interface DataPredictionRow extends PredictionPosition {
+  /** The set's EVM wallet (on Polygon) the position belongs to. */
+  readonly account: AccountId;
+  /** Who holds the shares: the account itself, or its Polymarket wallet of that kind (`holder` is its address). */
+  readonly holderKind: "account" | PolymarketWalletKind;
+}
+
+/** A Polymarket wallet found for one of the set's EVM wallets (derived, then checked on Polygon). */
+export interface DataPredictionWallet extends Pick<PolymarketWallet, "address" | "kind" | "owner" | "tradable" | "onProfile" | "balances"> {
   readonly account: AccountId;
 }
 
@@ -529,6 +537,8 @@ export interface DataCoverageExtras {
   readonly automations: DataSection<DataAutomationRow>;
   readonly agentSpend: DataSection<DataAgentSpendRow>;
   readonly predictions: DataSection<DataPredictionRow>;
+  /** The Polymarket wallets whose positions `predictions` includes. */
+  readonly predictionWallets: readonly DataPredictionWallet[];
 }
 
 /* --------------------------------------------------------------- summary */

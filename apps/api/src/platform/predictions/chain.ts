@@ -3,13 +3,15 @@
  * in @kletia/core POLYMARKET_POLYGON): pUSD and USDC.e balances and
  * allowances, ERC-1155 operator approvals and share balances on
  * ConditionalTokens (v1) and PositionManager (v2), resolution reads, and
- * the approval, wrap and redeem transactions the user's wallet signs.
+ * the approval, wrap, transfer and redeem calls the user's wallet makes.
  *
  * ABIs: ERC-20 / ERC-1155 standard functions; CollateralOnramp `wrap`
  * (docs "Polymarket USD"); collateral adapters' `redeemPositions` and the
  * V2 Router's `redeem(bytes31,uint256,uint256)` (docs "Manage Positions");
  * ConditionalTokens `payoutDenominator(bytes32)`. Each selector was found in
- * the deployed code on 2026-10-24 (docs/platform/predictions.md).
+ * the deployed code on 2026-10-24 (docs/platform/predictions.md). The calls
+ * are wallet-neutral: wallets.ts sends them from the account or through its
+ * Polymarket Safe.
  */
 import { POLYMARKET_POLYGON, type EvmTransactionRequest } from "@kletia/core";
 import { decodeFunctionResult, encodeFunctionData, erc20Abi, getAddress, parseAbi, type Hex } from "viem";
@@ -41,10 +43,6 @@ export const CONTRACT_NAMES: Readonly<Record<string, string>> = {
 
 const name = (address: string) => CONTRACT_NAMES[address] ?? address;
 const units = (amount: bigint) => (Number(amount) / 1e6).toLocaleString("en-US", { maximumFractionDigits: 6 });
-
-function tx(account: string, to: string, data: Hex, description: string): EvmTransactionRequest {
-  return { vm: "evm", network: "polygon", chainId: P.chainId, from: getAddress(account), to: getAddress(to), data, value: "0", description };
-}
 
 /* ---------------------------------------------------------------- reads */
 
@@ -80,16 +78,31 @@ export async function isPlainWallet(io: PredictionsIo, account: string): Promise
   return code === "0x" || (code.startsWith("0xef0100") && code.length === 2 + 46);
 }
 
-/* --------------------------------------------------------- transactions */
+/* ---------------------------------------------------------------- calls */
 
-export function approveTransaction(account: string, token: "pUSD" | "USDC.e", spender: string, amount: bigint): EvmTransactionRequest {
-  const address = token === "pUSD" ? P.pusd : P.usdce;
-  return tx(account, address, encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(spender), amount] }), `Approve ${units(amount)} ${token} to ${name(spender)} (exact amount)`);
+/**
+ * One contract call a wallet makes. A plain wallet sends it as it is; a
+ * Polymarket Safe runs it through `execTransaction` (wallets.ts).
+ */
+export interface WalletCall {
+  readonly to: string;
+  readonly data: Hex;
+  readonly description: string;
 }
 
-export function operatorTransaction(account: string, ledger: string, operator: string): EvmTransactionRequest {
+const call = (to: string, data: Hex, description: string): WalletCall => ({ to: getAddress(to), data, description });
+
+export function approveCall(token: "pUSD" | "USDC.e", spender: string, amount: bigint): WalletCall {
+  return call(token === "pUSD" ? P.pusd : P.usdce, encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(spender), amount] }), `Approve ${units(amount)} ${token} to ${name(spender)} (exact amount)`);
+}
+
+export function transferCall(token: "pUSD" | "USDC.e", to: string, amount: bigint, toName: string): WalletCall {
+  return call(token === "pUSD" ? P.pusd : P.usdce, encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [getAddress(to), amount] }), `Send ${units(amount)} ${token} to ${toName}`);
+}
+
+export function operatorCall(ledger: string, operator: string): WalletCall {
   const what = ledger === P.positionManager ? "Polymarket V2 positions" : "Polymarket outcome shares (ConditionalTokens)";
-  return tx(account, ledger, encodeFunctionData({ abi: erc1155Abi, functionName: "setApprovalForAll", args: [getAddress(operator), true] }), `Let ${name(operator)} move your ${what}`);
+  return call(ledger, encodeFunctionData({ abi: erc1155Abi, functionName: "setApprovalForAll", args: [getAddress(operator), true] }), `Let ${name(operator)} move your ${what}`);
 }
 
 export function operatorDisclosure(ledger: string, operator: string): string {
@@ -97,22 +110,28 @@ export function operatorDisclosure(ledger: string, operator: string): string {
   return `An operator approval (setApprovalForAll), which the ERC-1155 standard has no amount for: ${name(operator)} may move ${what} this wallet holds, until you revoke it (setApprovalForAll false). Polymarket's own app sets the same approval; it is required to sell or redeem.`;
 }
 
-export function wrapTransaction(account: string, amount: bigint): EvmTransactionRequest {
-  return tx(account, P.collateralOnramp, encodeFunctionData({ abi: onrampAbi, functionName: "wrap", args: [getAddress(P.usdce), getAddress(account), amount] }), `Wrap ${units(amount)} USDC.e into pUSD (CollateralOnramp, 1:1)`);
+/** CollateralOnramp `wrap`: USDC.e of the caller into pUSD for `recipient` (the caller itself). */
+export function wrapCall(recipient: string, amount: bigint): WalletCall {
+  return call(P.collateralOnramp, encodeFunctionData({ abi: onrampAbi, functionName: "wrap", args: [getAddress(P.usdce), getAddress(recipient), amount] }), `Wrap ${units(amount)} USDC.e into pUSD (CollateralOnramp, 1:1)`);
 }
 
-/** v1 redemption through the collateral adapter (both outcomes, paid in pUSD). */
-export function redeemCtfTransaction(account: string, conditionId: string, negRisk: boolean): EvmTransactionRequest {
+/** v1 redemption through the collateral adapter (both outcomes, paid in pUSD to the caller). */
+export function redeemCtfCall(conditionId: string, negRisk: boolean): WalletCall {
   const adapter = negRisk ? P.negRiskCtfCollateralAdapter : P.ctfCollateralAdapter;
   const data = encodeFunctionData({ abi: adapterAbi, functionName: "redeemPositions", args: [getAddress(P.pusd), `0x${"0".repeat(64)}`, conditionId as Hex, [1n, 2n]] });
-  return tx(account, adapter, data, "Redeem resolved shares for pUSD");
+  return call(adapter, data, "Redeem resolved shares for pUSD");
 }
 
 /** v2 redemption through the Router: one outcome, an exact amount (docs: derive the 31-byte condition id from the position id). */
-export function redeemV2Transaction(account: string, positionId: string, amount: bigint): EvmTransactionRequest {
+export function redeemV2Call(positionId: string, amount: bigint): WalletCall {
   const id = BigInt(positionId);
   const condition = `0x${(id >> 8n).toString(16).padStart(62, "0")}` as Hex;
   const outcomeIndex = id & 255n;
   const data = encodeFunctionData({ abi: routerAbi, functionName: "redeem", args: [condition, outcomeIndex, amount] });
-  return tx(account, P.router, data, `Redeem ${units(amount)} resolved shares for pUSD`);
+  return call(P.router, data, `Redeem ${units(amount)} resolved shares for pUSD`);
+}
+
+/** The call as a transaction the account itself sends on Polygon. */
+export function directTransaction(account: string, entry: WalletCall): EvmTransactionRequest {
+  return { vm: "evm", network: "polygon", chainId: P.chainId, from: getAddress(account), to: entry.to, data: entry.data, value: "0", description: entry.description };
 }

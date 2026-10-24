@@ -2,15 +2,18 @@
  * The desk's Predict view (/app/predict, a sub-tab of Trade): Polymarket
  * market search and categories; a market page with each outcome's implied
  * probability, a week of prices, the order book's depth and the resolution
- * rules; a buy/sell ticket that quotes max loss, payout and fees; and the
- * connected wallet's positions with sell and redeem. Orders are built by
+ * rules; the user's own Polymarket wallet found from the connected EVM
+ * wallet (PredictWallet: which one trades, balances, deposit / withdraw /
+ * wrap); a buy/sell ticket that quotes max loss, payout and fees and says
+ * which wallet trades; that wallet's open orders (PredictOrders) and its
+ * positions with sell and redeem. Orders are built by
  * /v1/predictions and signed step by step in the user's wallet
  * (usePredictRun). Polymarket's location check runs from this browser;
  * buying stays off when it says restricted. One column at every width;
  * nothing scrolls sideways.
  */
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import type { IntentHandoff, PredictionMarket } from "@kletia/core";
+import type { IntentHandoff, PredictionMarket, PredictionStep } from "@kletia/core";
 
 import { toPlatformError, type PlatformError } from "../../../shared/platform/kletiaClient";
 import { useWallets } from "../../../shared/wallet/useWallets";
@@ -23,7 +26,7 @@ import { PANEL_TITLE, VIEW_FIELD, VIEW_PANEL } from "../shell/viewStyles";
 import { HandoffNote } from "../handoff/HandoffNote";
 import { predictPrefill } from "../handoff/handoffModel";
 import { useHandoff } from "../handoff/useHandoff";
-import { checkGeoblock, predictApi, type GeoblockAnswer, type PredictionMarketResponse, type PredictionMarketsResponse, type PredictionPositionsResponse, type PredictionQuoteResponse } from "./predictApi";
+import { checkGeoblock, predictApi, type GeoblockAnswer, type PolymarketWalletsResponse, type PredictionMarketResponse, type PredictionMarketsResponse, type PredictionPositionsResponse, type PredictionQuoteResponse } from "./predictApi";
 import { PREDICT_COPY } from "./predictCopy";
 import {
   bookDepth,
@@ -34,14 +37,19 @@ import {
   locationNote,
   marketRows,
   nextStep,
+  pickWallet,
   POLYGON_CAIP2,
   positionRows,
   PREDICT_CATEGORIES,
   quoteRows,
   ticketProblems,
   ticketRequest,
+  walletLine,
   type PredictTicket,
+  type WalletMove,
 } from "./predictModel";
+import { PredictOrders } from "./PredictOrders";
+import { PredictWallet } from "./PredictWallet";
 import { heldSession, usePredictRun } from "./usePredictRun";
 
 /** One read's answer, with what it answers and when it arrived. */
@@ -112,8 +120,10 @@ export function PredictView() {
   const [ticket, setTicket] = useState<PredictTicket>(DEFAULT_TICKET);
   const [quote, setQuote] = useState<PredictionQuoteResponse | null>(null);
   const [requestError, setRequestError] = useState<PlatformError | null>(null);
-  const [pending, setPending] = useState<"quote" | "prepare" | "redeem" | null>(null);
-  const [positionsRead, setPositionsRead] = useState<{ readonly account: string; readonly data: PredictionPositionsResponse | null } | null>(null);
+  const [pending, setPending] = useState<"quote" | "prepare" | "redeem" | "move" | null>(null);
+  const [walletsRead, setWalletsRead] = useState<Answer<string, PolymarketWalletsResponse> | null>(null);
+  const [pickedWallet, setPickedWallet] = useState<string | null>(null);
+  const [positionsRead, setPositionsRead] = useState<{ readonly key: string; readonly data: PredictionPositionsResponse | null } | null>(null);
   const [positionFilter, setPositionFilter] = useState<string | null>(null);
   const [geo, setGeo] = useState<GeoblockAnswer | null | "checking">("checking");
   const [handoffNote, setHandoffNote] = useState<string | null>(null);
@@ -153,16 +163,40 @@ export function PredictView() {
     return () => controller.abort();
   }, [marketId]);
 
-  const loadPositions = useCallback(() => {
+  const loadWallets = useCallback(() => {
     if (!account) return;
-    predictApi.positions(account).then(
-      (data) => setPositionsRead({ account, data }),
-      () => setPositionsRead({ account, data: null }),
+    predictApi.wallets(account).then(
+      (data) => setWalletsRead({ for: account, data, error: null, at: Date.now() }),
+      (error: unknown) => setWalletsRead({ for: account, data: null, error: toPlatformError(error), at: Date.now() }),
     );
   }, [account]);
-  useEffect(loadPositions, [loadPositions]);
+  useEffect(loadWallets, [loadWallets]);
 
-  const run = usePredictRun(loadPositions);
+  const walletsView = account !== null && walletsRead?.for === account ? walletsRead.data : null;
+  const walletsError = account !== null && walletsRead?.for === account ? walletsRead.error : null;
+  const wallet = walletsView ? pickWallet(walletsView.wallets, pickedWallet) : null;
+  // Positions follow the wallet that trades: the Polymarket wallet once discovery answered, else the account itself.
+  const holder = wallet?.address ?? null;
+  const positionsKey = account && (walletsView || walletsError) ? `${account}:${holder ?? ""}` : null;
+
+  const [positionsTick, setPositionsTick] = useState(0);
+  useEffect(() => {
+    if (!account || !positionsKey) return undefined;
+    const controller = new AbortController();
+    predictApi.positions(account, holder, controller.signal).then(
+      (data) => setPositionsRead({ key: positionsKey, data }),
+      () => {
+        if (!controller.signal.aborted) setPositionsRead({ key: positionsKey, data: null });
+      },
+    );
+    return () => controller.abort();
+  }, [account, holder, positionsKey, positionsTick]);
+
+  const refreshAll = useCallback(() => {
+    setPositionsTick((tick) => tick + 1);
+    loadWallets();
+  }, [loadWallets]);
+  const run = usePredictRun(refreshAll);
 
   const openMarket = useCallback((id: string, patch: Partial<PredictTicket> = {}) => {
     setMarketId(id);
@@ -189,7 +223,9 @@ export function PredictView() {
   const detailFresh = marketId !== null && detailRead?.for === marketId ? detailRead : null;
   const detail = detailFresh?.data ?? null;
   const detailError = detailFresh?.error ?? null;
-  const positions = account !== null && positionsRead?.account === account ? positionsRead.data : null;
+  const positions = positionsKey !== null && positionsRead?.key === positionsKey ? positionsRead.data : null;
+  const tradesFrom = wallet ? walletLine(wallet) : evm ? copy.ticket.ownWallet(evm) : null;
+  const canTrade = wallet ? wallet.tradable : positions?.tradable !== false;
   const market: PredictionMarket | null = detail?.market ?? null;
   const location = geo === "checking" ? null : locationNote(geo);
   const problems = ticketProblems(ticket, market);
@@ -229,7 +265,7 @@ export function PredictView() {
     setPending("prepare");
     setRequestError(null);
     try {
-      const prepared = await predictApi.prepare(ticketRequest(ticket, account, heldSession(account, Date.now()) !== null));
+      const prepared = await predictApi.prepare(ticketRequest(ticket, account, heldSession(account, Date.now()) !== null, wallet?.address ?? null));
       run.begin(account, prepared.steps, prepared, prepared.warnings);
     } catch (error) {
       setRequestError(toPlatformError(error));
@@ -243,8 +279,22 @@ export function PredictView() {
     setPending("redeem");
     setRequestError(null);
     try {
-      const prepared = await predictApi.redeem(account, conditionId);
+      const prepared = await predictApi.redeem(account, conditionId, holder);
       run.begin(account, prepared.steps, null, [prepared.note]);
+    } catch (error) {
+      setRequestError(toPlatformError(error));
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const moveFunds = async (move: WalletMove) => {
+    if (!account || !wallet) return;
+    setPending("move");
+    setRequestError(null);
+    try {
+      const prepared = await predictApi.walletAction({ account, wallet: wallet.address, action: move.action, asset: move.asset, amountUsd: move.amount.trim() });
+      run.begin(account, prepared.steps as readonly PredictionStep[], null, [prepared.note]);
     } catch (error) {
       setRequestError(toPlatformError(error));
     } finally {
@@ -269,6 +319,19 @@ export function PredictView() {
           <a className="font-bold underline" href={list?.venues.find((venue) => venue.id === "polymarket")?.termsUrl ?? "https://polymarket.com/tos"} target="_blank" rel="noreferrer">{copy.location.terms}</a>
         </ViewNote>
       </aside>
+
+      <PredictWallet
+        account={account}
+        view={walletsView}
+        error={walletsError}
+        selected={wallet}
+        busy={pending === "move" || run.busy}
+        onPick={setPickedWallet}
+        onConnect={() => actions.openWallet("eip155")}
+        onRetry={loadWallets}
+        onMove={(move) => void moveFunds(move)}
+      />
+      {requestError && !market ? <ApiErrorPanel error={requestError} /> : null}
 
       <section aria-labelledby="predict-markets" className={VIEW_PANEL}>
         <h3 id="predict-markets" className={PANEL_TITLE}>{copy.search.heading}</h3>
@@ -425,9 +488,10 @@ export function PredictView() {
               <Button variant="secondary" onClick={() => actions.openWallet("eip155")}>{copy.ticket.connect}</Button>
             </div>
           ) : null}
-          {quote && account && positions && !positions.tradable ? <ViewNote tone="warning">{copy.ticket.smartWallet}</ViewNote> : null}
+          {quote && tradesFrom ? <p className="break-words text-sm"><span className="font-bold">{copy.ticket.tradesFrom}:</span> {tradesFrom}</p> : null}
+          {quote && account && !canTrade ? <ViewNote tone="warning">{copy.ticket.smartWallet}</ViewNote> : null}
           {quote && buyingOff ? <ViewNote tone="warning">{copy.ticket.buyOff}</ViewNote> : null}
-          {quote && account && !run.run && !buyingOff && positions?.tradable !== false ? (
+          {quote && account && !run.run && !buyingOff && canTrade ? (
             <Button loading={pending === "prepare"} disabled={pending !== null} onClick={() => void prepare()}>{copy.ticket.review}</Button>
           ) : null}
           {requestError ? <ApiErrorPanel error={requestError} /> : null}
@@ -466,8 +530,10 @@ export function PredictView() {
         </section>
       ) : null}
 
+      {account && canTrade && (walletsView || walletsError) ? <PredictOrders account={account} wallet={holder} signIn={run.signIn} /> : null}
+
       <section aria-labelledby="predict-positions" className={VIEW_PANEL}>
-        <h3 id="predict-positions" className={PANEL_TITLE}>{copy.positions.heading}</h3>
+        <h3 id="predict-positions" className={PANEL_TITLE}>{wallet ? copy.positions.headingOf(walletLine(wallet)) : copy.positions.heading}</h3>
         {!account ? <ViewEmpty action={<Button variant="secondary" size="sm" onClick={() => actions.openWallet("eip155")}>{copy.ticket.connect}</Button>}>{copy.positions.connect}</ViewEmpty> : null}
         {positionFilter ? (
           <p className="flex flex-wrap items-center gap-2 text-sm">
@@ -488,7 +554,7 @@ export function PredictView() {
               </dl>
               <div className="mt-2 flex flex-wrap gap-2">
                 {row.redeemable ? (
-                  <Button size="sm" variant="secondary" loading={pending === "redeem"} disabled={pending !== null || run.busy || positions?.tradable === false} onClick={() => void redeem(row.conditionId)}>{copy.positions.redeem}</Button>
+                  <Button size="sm" variant="secondary" loading={pending === "redeem"} disabled={pending !== null || run.busy || !canTrade} onClick={() => void redeem(row.conditionId)}>{copy.positions.redeem}</Button>
                 ) : (
                   <Button size="sm" variant="secondary" disabled={pending !== null || run.busy} onClick={() => openMarket(row.conditionId, { side: "sell", outcome: row.outcome, amount: row.shares.replace(/,/gu, "") })}>{copy.positions.sell}</Button>
                 )}

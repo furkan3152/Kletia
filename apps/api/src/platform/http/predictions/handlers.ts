@@ -1,8 +1,8 @@
 /**
  * Prediction-market routes under /v1/predictions (mounted by router.ts
- * through PLATFORM_ROUTES): markets, one market, quote, prepare, the venue
- * sign-in, the relay of a signed order, open orders and cancels, positions
- * and redemption. Public and publishable like perps; with an API key, the
+ * through PLATFORM_ROUTES): markets, one market, the account's Polymarket
+ * wallets, quote, prepare, the venue sign-in, the relay of a signed order,
+ * open orders and cancels, positions, redemption and wallet moves. Public and publishable like perps; with an API key, the
  * key's Rule Book chain decides (agent keys are refused unless their rule
  * book sets predictions.enabled). Nothing here signs. Sessions travel in
  * request bodies only (never URLs), and nothing logs them.
@@ -13,11 +13,13 @@ import {
   cancelPredictionOrder,
   DEFAULT_PREDICTIONS_POLICY,
   getPredictionMarket,
+  listPolymarketWallets,
   listPredictionMarkets,
   listPredictionOrders,
   predictionSession,
   preparePrediction,
   prepareRedeem,
+  prepareWalletAction,
   quotePrediction,
   readPredictionPositions,
   submitPrediction,
@@ -61,7 +63,12 @@ export function predictionHandlers(): Record<string, RequestHandler[]> {
     ],
     "get /predictions/positions": [
       handle(async (req, res) => {
-        sendJson(res, 200, await readPredictionPositions({ account: queryParam(req, "account", 200) ?? null, holder: queryParam(req, "holder", 64) ?? null }));
+        sendJson(res, 200, await readPredictionPositions({ account: queryParam(req, "account", 200) ?? null, holder: queryParam(req, "holder", 64) ?? null, wallet: queryParam(req, "wallet", 64) ?? null }));
+      }),
+    ],
+    "get /predictions/wallets": [
+      handle(async (req, res) => {
+        sendJson(res, 200, await listPolymarketWallets(queryParam(req, "account", 200) ?? null));
       }),
     ],
     "post /predictions/quote": [
@@ -97,6 +104,11 @@ export function predictionHandlers(): Record<string, RequestHandler[]> {
     "post /predictions/redeem": [
       handle(async (req, res) => {
         sendJson(res, 200, { prepared: await prepareRedeem(req.body, await predictionsPolicy(req)) });
+      }),
+    ],
+    "post /predictions/wallet": [
+      handle(async (req, res) => {
+        sendJson(res, 200, { prepared: await prepareWalletAction(req.body, await predictionsPolicy(req)) });
       }),
     ],
   };

@@ -36,6 +36,7 @@ import {
   type DataPositionKind,
   type DataPositions,
   type DataPredictionRow,
+  type DataPredictionWallet,
   type DataSection,
   type DataTransaction,
   type DataTxCoverage,
@@ -105,7 +106,9 @@ export interface FixtureWallet {
   readonly perpsReason?: string;
   readonly orders?: readonly Omit<DataOrderRow, "owner">[];
   readonly automations?: readonly DataAutomationRow[];
-  readonly predictions?: readonly Pick<DataPredictionRow, "title" | "outcome" | "shares" | "avgPrice" | "currentPrice" | "costUsd" | "valueUsd" | "pnlUsd" | "redeemable">[];
+  readonly predictions?: readonly (Pick<DataPredictionRow, "title" | "outcome" | "shares" | "avgPrice" | "currentPrice" | "costUsd" | "valueUsd" | "pnlUsd" | "redeemable"> & { readonly holderKind?: DataPredictionRow["holderKind"] })[];
+  /** Polymarket wallets found for the first EVM wallet (rows with a wallet `holderKind` are held by the first one). */
+  readonly polymarketWallets?: readonly Pick<DataPredictionWallet, "address" | "kind">[];
 }
 
 export interface AssistantEvalQuestion {
@@ -321,9 +324,13 @@ export function fixtureReader(corpus: AssistantEvalCorpus, wallet: FixtureWallet
           automations: section("automations", wallet.automations ?? [], null, asOf),
           agentSpend: section("policy", [], "Agent key spend is shown to API keys only.", asOf),
           predictions: section("predictions", (wallet.predictions ?? []).map((row, index) => ({
-            ...row, venue: "polymarket" as const, holder: wallet.evm[0] ?? "", account: evmAccount("polygon") as AccountId, conditionId: `0x${String(index + 1).padStart(64, "0")}`,
+            ...row, venue: "polymarket" as const, holderKind: row.holderKind ?? "account", account: evmAccount("polygon") as AccountId, conditionId: `0x${String(index + 1).padStart(64, "0")}`,
+            holder: (row.holderKind ?? "account") === "account" ? wallet.evm[0] ?? "" : wallet.polymarketWallets?.[0]?.address ?? "",
             tokenId: String(index + 1), slug: null, eventSlug: null, outcomeIndex: 0, negRisk: false, endDate: null,
           })), null, asOf),
+          predictionWallets: (wallet.polymarketWallets ?? []).map((entry) => ({
+            ...entry, account: evmAccount("polygon") as AccountId, owner: wallet.evm[0] ?? "", tradable: entry.kind !== "proxy", onProfile: true, balances: null,
+          })),
         },
       };
     },

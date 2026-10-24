@@ -104,6 +104,8 @@ export const CLARIFY_REASONS = Object.freeze([
   "PAIRING_AMBIGUOUS", "DELIVERY_AMOUNT", "GAS_ON_ARRIVAL", "FEE_HIGH", "PLAN_TOO_LARGE",
   // hand-offs (round 9): a perps trade, a native order or an automation missing a value only the person can give
   "LEVERAGE_MISSING", "SIDE_MISSING", "PRICE_MISSING", "PERIOD_MISSING", "DIRECTION_MISSING",
+  // prediction hand-offs (round 10): several markets match the words, or the outcome was not said
+  "MARKET_AMBIGUOUS", "OUTCOME_MISSING",
 ] as const);
 export type ClarifyReason = (typeof CLARIFY_REASONS)[number];
 

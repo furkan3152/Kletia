@@ -12,7 +12,7 @@ import tailwindConfig from "../../../../../tailwind.config.js";
 
 const APP = fileURLToPath(new URL("../../../", import.meta.url));
 /** The desk's views are scanned too (round 9); console/legacy is the old engine UI and is not. */
-const SCANNED = ["site/ui", "pages/developers", ...["activity", "automations", "composer", "dashboard", "holdings", "orders", "perps", "shell", "tasks", "tools"].map((part) => `console/${part}`)];
+const SCANNED = ["site/ui", "pages/developers", ...["activity", "automations", "composer", "dashboard", "holdings", "orders", "perps", "predict", "shell", "tasks", "tools"].map((part) => `console/${part}`)];
 
 /**
  * Files that still print readable text under 12 px, each owned by the package

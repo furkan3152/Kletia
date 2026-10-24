@@ -37,6 +37,8 @@ export type ProtocolCategory =
   | "token-program"
   /** Perpetual futures venues, executed through /v1/perps (not the intent engine). */
   | "perps"
+  /** Prediction-market venues, traded through /v1/predictions (not the intent engine). */
+  | "prediction"
   /** Integrator-registered contracts and Solana Actions (bring your own contract). */
   | "custom";
 
@@ -117,6 +119,8 @@ export type ProtocolId =
   | "gmx-v2"
   | "hyperliquid"
   | "drift-v2"
+  // round 10: prediction markets (/v1/predictions)
+  | "polymarket"
   // intent engine routing (design B.3, D10)
   | "wrap"
   // optional EVM aggregator venue (intent design B.4 RC5, owner decision O5, red-team D8)
@@ -913,6 +917,16 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     capabilities: ["discover"],
     website: "https://www.drift.trade",
     summary: "Solana perpetuals. Halted since the April 1, 2026 exploit: Kletia reads positions and builds nothing (see PERPS_VENUES).",
+    execution: "service",
+  },
+  {
+    id: "polymarket",
+    name: "Polymarket",
+    category: "prediction",
+    networks: ["polygon"],
+    capabilities: ["execute", "quote", "discover"],
+    website: "https://polymarket.com",
+    summary: "Prediction markets on Polygon: YES/NO outcome shares settled in pUSD, orders signed as EIP-712 by the user's own wallet (EOA) and relayed to the CLOB; positions and redemption. Through /v1/predictions.",
     execution: "service",
   },
   {

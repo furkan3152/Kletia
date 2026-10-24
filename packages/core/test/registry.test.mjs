@@ -233,9 +233,9 @@ const ROUND6_PROTOCOLS = [
 test("round 6 registry: 44 entries, 42 real protocols, execution surfaces and routed venues", () => {
   // Round 7 adds seven ids (protocols design 3.0), the routing design the wrap venue (B.3, D10) and the optional
   // aggregator venue (B.4 RC5, O5); round 9 seven venues (Sky, Ethena, Kelp, Renzo, BlazeStake, Save, Solana Pay),
-  // three native-order protocols and three perps venues: 66 entries, 64 real protocols.
-  assert.equal(PROTOCOLS.length, 66);
-  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 64);
+  // three native-order protocols and three perps venues; round 10 one prediction venue: 67 entries, 65 real protocols.
+  assert.equal(PROTOCOLS.length, 67);
+  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 65);
   for (const id of ROUND6_PROTOCOLS) assert.ok(getProtocol(id), id);
   assert.equal(getProtocol("spark"), null, "no bare spark id: Spark Savings and SparkLend are separate");
   assert.deepEqual(AMBIGUOUS_VENUE_WORDS.spark, ["spark-savings", "sparklend"]);
@@ -244,7 +244,7 @@ test("round 6 registry: 44 entries, 42 real protocols, execution surfaces and ro
     [
       ["kletia-router-v2", "console"], ["basenames", "console"], ["x402", "service"], ["jupiter-trigger", "orders"], ["jupiter-recurring", "orders"], ["cow-protocol", "orders"],
       ["arc-native", "console"], ["circle-app-kit", "console"],
-      ["gmx-v2", "service"], ["hyperliquid", "service"], ["drift-v2", "service"],
+      ["gmx-v2", "service"], ["hyperliquid", "service"], ["drift-v2", "service"], ["polymarket", "service"],
     ],
   );
   for (const id of ["raydium", "orca", "meteora"]) {

@@ -15,6 +15,7 @@ import { CONTRACT_ENTRY_ID_PATTERN, CONTRACT_ID_PATTERN, canonicalJson } from ".
 import { sha256Hex } from "./hash.js";
 import type { IntentActionKind } from "./intent.js";
 import { PERPS_LIMITS, PERPS_VENUE_IDS, type PerpsVenueId } from "./perps.js";
+import { PREDICTION_LIMITS, PREDICTION_VENUE_IDS, type PredictionVenueId } from "./predictions.js";
 import { getProtocol, type ProtocolId } from "./protocols.js";
 import { INTENT_ACTION_KINDS, type ValidationIssue } from "./validation.js";
 
@@ -154,6 +155,12 @@ export interface PolicyDocument {
    * disabled.
    */
   readonly perps?: { readonly enabled?: boolean; readonly maxLeverage?: number; readonly venues?: readonly PerpsVenueId[] };
+  /**
+   * Prediction markets through /v1/predictions. Absent on a project key:
+   * enabled, every live venue, PREDICTION_LIMITS.defaultMaxStakeUsd per
+   * order. Absent on an agent key: disabled.
+   */
+  readonly predictions?: { readonly enabled?: boolean; readonly maxStakeUsd?: string; readonly venues?: readonly PredictionVenueId[] };
 }
 
 export interface PolicyWarning {
@@ -386,7 +393,7 @@ export function validatePolicy(input: unknown, options: PolicyValidationOptions 
   const issues: ValidationIssue[] = [];
   const warnings: PolicyWarning[] = [];
   if (!isRecord(input)) return { ok: false, value: null, issues: [{ path: "", message: "A policy is a JSON object." }], warnings };
-  knownKeys(input, ["schema", "label", "mode", "networks", "kinds", "protocols", "contracts", "assets", "accounts", "recipients", "limits", "caps", "schedule", "confirm", "permissions", "execution", "amendments", "perps"], "", issues);
+  knownKeys(input, ["schema", "label", "mode", "networks", "kinds", "protocols", "contracts", "assets", "accounts", "recipients", "limits", "caps", "schedule", "confirm", "permissions", "execution", "amendments", "perps", "predictions"], "", issues);
   if (input.schema !== POLICY_SCHEMA) issues.push({ path: "schema", message: `Must be "${POLICY_SCHEMA}".` });
 
   let label: string | undefined;
@@ -614,6 +621,18 @@ export function validatePolicy(input: unknown, options: PolicyValidationOptions 
       })
     : undefined;
 
+  const predictionsIn = section(input, "predictions", ["enabled", "maxStakeUsd", "venues"], issues);
+  const predictions = predictionsIn
+    ? compact({
+        enabled: bool(predictionsIn.enabled, "predictions.enabled", issues),
+        maxStakeUsd: usd(predictionsIn.maxStakeUsd, "predictions.maxStakeUsd", issues),
+        venues: stringList(predictionsIn.venues, "predictions.venues", PREDICTION_VENUE_IDS.length, enumOf(PREDICTION_VENUE_IDS), "prediction venue ids", issues),
+      })
+    : undefined;
+  if (predictions?.maxStakeUsd !== undefined && (Number(predictions.maxStakeUsd) < PREDICTION_LIMITS.minStakeUsd || Number(predictions.maxStakeUsd) > PREDICTION_LIMITS.policyMaxStakeUsd)) {
+    issues.push({ path: "predictions.maxStakeUsd", message: `Must be from ${PREDICTION_LIMITS.minStakeUsd} to ${PREDICTION_LIMITS.policyMaxStakeUsd} USD.` });
+  }
+
   const effectiveRecipientMode = recipients?.mode ?? (options.defaults === "agent" ? "own" : "any");
   if (recipients?.mode === "allowlist" && !(recipients.allow && recipients.allow.length > 0)) {
     issues.push({ path: "recipients.allow", message: "recipients.mode allowlist needs recipients.allow." });
@@ -683,6 +702,7 @@ export function validatePolicy(input: unknown, options: PolicyValidationOptions 
       execution,
       amendments,
       perps: perps ? { ...perps, ...(perps.venues ? { venues: sortedUnique(perps.venues) } : {}) } : undefined,
+      predictions: predictions ? { ...predictions, ...(predictions.venues ? { venues: sortedUnique(predictions.venues) } : {}) } : undefined,
     }).filter(([, entry]) => entry !== undefined),
   ) as unknown as PolicyDocument;
   const bytes = new TextEncoder().encode(canonicalJson(value)).length;
@@ -729,6 +749,8 @@ export const AGENT_POLICY_DEFAULTS = Object.freeze({
   pinNonce: true,
   /** Agents trade perps only when a rule book sets perps.enabled. */
   perpsEnabled: false,
+  /** Agents trade prediction markets only when a rule book sets predictions.enabled. */
+  predictionsEnabled: false,
 });
 
 /** The agent rule book when none is given at creation: the `observer` template. */
@@ -749,6 +771,7 @@ export function effectivePolicyDocument(document: PolicyDocument | null, default
     permissions: { ...AGENT_POLICY_DEFAULTS.permissions, ...base.permissions },
     execution: { pinNonce: base.execution?.pinNonce ?? AGENT_POLICY_DEFAULTS.pinNonce },
     perps: { ...base.perps, enabled: base.perps?.enabled ?? AGENT_POLICY_DEFAULTS.perpsEnabled },
+    predictions: { ...base.predictions, enabled: base.predictions?.enabled ?? AGENT_POLICY_DEFAULTS.predictionsEnabled },
   };
 }
 
@@ -914,6 +937,10 @@ export function comparePolicies(active: PolicyDocument | null, next: PolicyDocum
   add("perps.enabled", compareRank(perpsOn(a) ? 0 : 1, perpsOn(b) ? 0 : 1));
   add("perps.maxLeverage", compareLimit(intOrNull(a.perps?.maxLeverage), intOrNull(b.perps?.maxLeverage)));
   add("perps.venues", compareAllowlist(a.perps?.venues ?? null, b.perps?.venues ?? null));
+  const predictionsOn = (document: PolicyDocument) => document.predictions?.enabled ?? (agent ? AGENT_POLICY_DEFAULTS.predictionsEnabled : true);
+  add("predictions.enabled", compareRank(predictionsOn(a) ? 0 : 1, predictionsOn(b) ? 0 : 1));
+  add("predictions.maxStakeUsd", compareLimit(usdOrNull(a.predictions?.maxStakeUsd), usdOrNull(b.predictions?.maxStakeUsd)));
+  add("predictions.venues", compareAllowlist(a.predictions?.venues ?? null, b.predictions?.venues ?? null));
   if (next === null) {
     // Removing a rule book loosens every field it set (policy design §3.5).
     return { tightened: [], loosened: verdicts.filter(([, verdict]) => verdict !== "equal").map(([path]) => path) };

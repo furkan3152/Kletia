@@ -195,13 +195,14 @@ Some sentences are not intents: they run on their own surface. Kletia reads
 them into that surface's typed input and returns `status: "handoff"`.
 Nothing is planned, stored or executed: the client opens the surface
 prefilled, and the person checks it and signs there (the desk opens its
-Perps, Orders or Automations view).
+Perps, Orders, Automations or Predict view).
 
 | Sentence | `surface` | `input` |
 |---|---|---|
 | "long ETH 5x with 100 USDC", "short BTC $500 with 50 USDC on Hyperliquid", "close my ETH long", "reduce my SOL short by $100" | `perps` | `planPerpsIntent`'s input (`market`, `side`, `action`, `collateral`, `sizeUsd`, `leverage`, `venue`?) for `POST /v1/perps/quote` |
 | "sell 1 WETH at 4000 on base", "limit buy 1000 JUP at 0.8", "buy SOL with 500 USDC over 10 days", "sell 100 USDC for SOL every day for 5 days", "cancel order <id>" | `orders` | `{ action: "create", order, protocol, network }` for `POST /v1/orders/quote`, or `{ action: "cancel", orderId }` |
 | "buy $50 of ETH every Monday", "if SOL drops below 120 sell half", "every month send 100 USDC to vitalik.eth on base", "keep my USDC in the best yield", "when USDC arrives, deposit it into aave" | `automations` | `{ draft }`, a validated `POST /v1/automations` body |
+| "what are the odds of X?", "bet $20 on yes for X", "buy 50 USDC of NO on X", "sell my Trump shares" | `predictions` | `{ action: "search", query }`, `{ action: "buy", venue, marketId, market, outcome, amountUsd }` (the market the person picked: several matches are asked with `MARKET_AMBIGUOUS`, a missing outcome with `OUTCOME_MISSING`; never a guess) or `{ action: "sell", query, outcome?, shares? }` for `/v1/predictions` ([predictions](predictions.md)) |
 
 - What the sentence leaves out is asked, never guessed: leverage
   (`LEVERAGE_MISSING`), side (`SIDE_MISSING`), collateral or size

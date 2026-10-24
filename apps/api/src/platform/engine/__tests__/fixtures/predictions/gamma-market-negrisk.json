@@ -1,0 +1,41 @@
+{
+ "id": "562829",
+ "question": "2026 Balance of Power: D Senate, R House",
+ "conditionId": "0x0808de4f0cfd47947f2d1be51f9a9c52ea0fec76f73a75cfbe79ddec98d8a908",
+ "slug": "2026-balance-of-power-d-senate-r-house-692",
+ "endDate": "2026-11-04T04:59:00Z",
+ "liquidityNum": 3197191.46787,
+ "outcomes": "[\"Yes\", \"No\"]",
+ "outcomePrices": "[\"0.0075\", \"0.9925\"]",
+ "volumeNum": 7749578.678028001,
+ "volume24hr": 2997975.606397,
+ "active": true,
+ "closed": false,
+ "acceptingOrders": true,
+ "clobTokenIds": "[\"70997927349469817841862065582625658840347600365813612622959588796331622340305\", \"45720947308530468765087874228584729250108790729495800420104302263408503667446\"]",
+ "version": "v1",
+ "negRisk": true,
+ "orderPriceMinTickSize": 0.001,
+ "orderMinSize": 5,
+ "feesEnabled": true,
+ "feeSchedule": {
+  "exponent": 1,
+  "rate": 0,
+  "takerOnly": true,
+  "rebateRate": 0
+ },
+ "groupItemTitle": "D Senate, R House",
+ "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/balance-of-power-2024-election-r-Fp-y4ONJBS.jpg",
+ "description": "This market will resolve according to the party that wins control of the United States Senate and the party that wins control of the United States House of Representatives in the 2026 United States midterm election.\n\nA party wins control of the United States Senate if it wins a m",
+ "enableOrderBook": true,
+ "bestBid": 0.007,
+ "bestAsk": 0.008,
+ "lastTradePrice": 0.008,
+ "events": [
+  {
+   "id": "32228",
+   "title": "Balance of Power: 2026 Midterms",
+   "slug": "balance-of-power-2026-midterms"
+  }
+ ]
+}

@@ -5,7 +5,8 @@
  * WETH at 4000 on base", "buy SOL with 500 USDC over 10 days", "cancel order
  * <id>") and automations ("buy $50 of ETH every Monday", "if SOL drops below
  * 120 sell half", "keep my USDC in the best yield", "when USDC arrives,
- * deposit it into aave").
+ * deposit it into aave") and prediction markets ("bet $20 on yes for <market>",
+ * "sell my Trump shares", "what are the odds of X?", round 10).
  *
  * Deterministic and closed: each family is a fixed set of shapes, every word
  * of the sentence must be read (a leftover word means the sentence is not
@@ -13,7 +14,7 @@
  * not say stays absent; decide.ts asks for it or shows the default it uses.
  * Returns null for any other sentence (the intent reader handles it).
  */
-import { DRIFT_V2_SOLANA, GMX_V2_MARKETS, HYPERLIQUID_MAINNET, type NetworkKey, type PerpsVenueId, type ThreadHandoff, type Weekday } from "@kletia/core";
+import { DRIFT_V2_SOLANA, GMX_V2_MARKETS, HYPERLIQUID_MAINNET, PREDICTION_LIMITS, REVIEWED_FILLERS, type NetworkKey, type PerpsVenueId, type ThreadHandoff, type Weekday } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { normalizeText, resolveNetworkName } from "../grammar.js";
 import { knownSymbol } from "../clarify/catalog.js";
@@ -435,6 +436,89 @@ function readAutomation(text: string): ThreadHandoff | null {
   return null;
 }
 
+/* ----------------------------------------------------------- predictions */
+
+const STAKE = `\\$?(?<amt>${NUM})(?:\\s*(?:usdc|usd|pusd|dollars?|bucks))?`;
+const SIDE_WORD = "(?<outcome>yes|no)";
+// "stake" and "put" are left out: "stake 1 on lido" and "put 100 usdc on aave" are intents.
+const BET_VERB = "(?:bet|wager|place\\s+(?:a\\s+)?bet\\s+of)";
+const PREDICTION_TEXTS: readonly { readonly pattern: RegExp; readonly action: "buy" | "sell" }[] = [
+  // "bet $20 on yes for <market>", "wager 10 usdc on no in <market>", "bet $20 on <market>" (the outcome is asked)
+  { pattern: new RegExp(`^${BET_VERB}\\s+${STAKE}\\s+on\\s+(?:(?:the\\s+)?${SIDE_WORD}(?:\\s+(?:side|shares?))?\\s+(?:for|on|in|of|that)\\s+)?(?<market>.+)$`, "iu"), action: "buy" },
+  // "bet $20 that <market>" (yes on it)
+  { pattern: new RegExp(`^${BET_VERB}\\s+${STAKE}\\s+(?<that>that)\\s+(?<market>.+)$`, "iu"), action: "buy" },
+  // "bet on yes for <market>" (the amount is asked)
+  { pattern: new RegExp(`^bet\\s+on\\s+${SIDE_WORD}\\s+(?:for|on|in|that)\\s+(?<market>.+)$`, "iu"), action: "buy" },
+  // "buy 50 usdc of no on <market>", "buy $50 worth of yes shares in <market>"
+  { pattern: new RegExp(`^buy\\s+${STAKE}\\s+(?:worth\\s+)?(?:of|in)\\s+${SIDE_WORD}(?:\\s+shares?)?\\s+(?:on|for|in|of)\\s+(?<market>.+)$`, "iu"), action: "buy" },
+  // "buy yes on <market> for $20"
+  { pattern: new RegExp(`^buy\\s+${SIDE_WORD}(?:\\s+shares?)?\\s+(?:on|for|in|of)\\s+(?<market>.+?)\\s+(?:for|with)\\s+${STAKE}$`, "iu"), action: "buy" },
+  // "sell my trump shares", "sell all my yes shares on <market>", "sell 50 no shares of <market>"
+  { pattern: /^sell\s+(?:all\s+(?:of\s+)?)?my\s+(?:(?<outcome>yes|no)\s+)?(?<market>.+?)\s+(?:shares|bets?|predictions?)$/iu, action: "sell" },
+  { pattern: /^sell\s+(?:all\s+(?:of\s+)?)?my\s+(?<outcome>yes|no)\s+(?:shares|bets?)\s+(?:on|in|for|of)\s+(?<market>.+)$/iu, action: "sell" },
+  { pattern: new RegExp(`^sell\\s+(?<shares>${NUM})\\s+(?<outcome>yes|no)\\s+shares\\s+(?:on|in|for|of)\\s+(?<market>.+)$`, "iu"), action: "sell" },
+];
+const ODDS_QUESTIONS: readonly RegExp[] = [
+  /^(?:what\s+are|what'?s|whats|what\s+is)\s+the\s+(?:odds|chances?|probability|likelihood)\s+(?:of|that|for|on)\s+(?<q>[^?]+?)\s*\??$/iu,
+  /^(?:the\s+)?(?:odds|chances?|probability)\s+(?:of|that|for|on)\s+(?<q>[^?]+?)\s*\??$/iu,
+  /^how\s+likely\s+is\s+(?:it\s+that\s+)?(?<q>[^?]+?)\s*\??$/iu,
+  /^what\s+(?:does|do)\s+(?:polymarket|the\s+markets?|prediction\s+markets?)\s+(?:say|think)\s+(?:about|of|on)\s+(?<q>[^?]+?)\s*\??$/iu,
+  /^(?:show|find|search|look\s+up)\s+(?:me\s+)?(?:the\s+)?(?:prediction\s+)?markets?\s+(?:on|for|about)\s+(?<q>[^?]+?)\s*\??$/iu,
+];
+
+/**
+ * Words that would change what a trade sentence asks if they were read as part of the market's name: a condition, a
+ * time, a negation, an alternative or a hedge ("bet $20 on yes for X if eth goes up"). A trade sentence holding one is
+ * refused (the reader never drops them); Predict's search takes any words.
+ */
+const NEVER_IN_TRADE = /\b(?:if|unless|when|whenever|once|later|tomorrow|tonight|every|daily|weekly|monthly|not|don'?t|dont|never|or|either|maybe|idk|up\s+to|at\s+most|cancel|should|what\s+if)\b/iu;
+
+/** A reviewed filler the filler pass kept at the end ("... 2027 lol": it sits next to a number): never read into a name. */
+const TRAILING_FILLERS = new RegExp(
+  `\\s(${REVIEWED_FILLERS.filter((entry) => entry.position !== "start").map((entry) => entry.phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("|")})$`,
+  "iu",
+);
+
+/** Market words as said: one clause, no addresses, at most PREDICTION_LIMITS.maxQueryLength characters. */
+function marketWords(raw: string): string {
+  const text = raw.trim().replace(/^(?:the\s+)?(?:market\s+)?(?:on\s+|for\s+|about\s+)?/iu, "").replace(/[\s?.!,]+$/u, "").trim();
+  if (!text) throw refuse("Say which market, e.g. \"bet $20 on yes for <market words>\".");
+  if (/0x[0-9a-f]{6,}|[1-9A-HJ-NP-Za-km-z]{32,44}/iu.test(text) || /(?:^|\s)(?:and\s+then|then|after\s+that|also)\s/iu.test(text)) {
+    throw refuse("One prediction per sentence, named by its words alone (no addresses or second steps).");
+  }
+  if (text.length > PREDICTION_LIMITS.maxQueryLength) throw refuse(`Name the market in at most ${PREDICTION_LIMITS.maxQueryLength} characters.`);
+  return text;
+}
+
+/** A question about odds: the Predict view opens its search with the words (nothing is planned). */
+function readOddsQuestion(raw: string): ThreadHandoff | null {
+  const text = dropFillers(raw.trim().replace(/\s+/gu, " ")).text;
+  for (const pattern of ODDS_QUESTIONS) {
+    const query = pattern.exec(text)?.groups?.q;
+    if (query) return { surface: "predictions", input: { action: "search", query: marketWords(query) } };
+  }
+  return null;
+}
+
+function readPredictions(said: string): ThreadHandoff | null {
+  // Reviewed fillers ("lol", "rn") read the same as the intent reader reads them.
+  const text = handoffText(dropFillers(said).text);
+  for (const { pattern, action } of PREDICTION_TEXTS) {
+    const g = pattern.exec(text)?.groups;
+    if (!g) continue;
+    const query = marketWords(g.market as string);
+    if (/^(?:yes|no)$/iu.test(query)) throw refuse("Say which market, e.g. \"bet $20 on yes for <market words>\".");
+    const word = NEVER_IN_TRADE.exec(query)?.[0] ?? TRAILING_FILLERS.exec(query)?.[1];
+    if (word) throw refuse(`"${word}" would change this trade, and Kletia does not read it into a market's name. Open Predict to search for the market, then trade it there.`);
+    const outcome = g.outcome ? (g.outcome.toLowerCase() === "yes" ? "Yes" : "No") : g.that ? "Yes" : undefined;
+    if (action === "sell") {
+      return { surface: "predictions", input: { action: "sell", query, ...(outcome ? { outcome } : {}), ...(g.shares ? { shares: decimalOf(g.shares) } : {}) } };
+    }
+    return { surface: "predictions", input: { action: "buy", query, ...(outcome ? { outcome } : {}), ...(g.that ? { saidThat: true } : {}), ...(g.amt ? { amountUsd: decimalOf(g.amt) } : {}) } };
+  }
+  return null;
+}
+
 /* ------------------------------------------------------------------ entry */
 
 /** The text the hand-off reader reads: the grammar's normal form with single spaces, in its own case (addresses, ids). */
@@ -444,12 +528,16 @@ export function handoffText(text: string): string {
 
 /**
  * Reads a sentence as a hand-off, or returns null when it is no perps trade,
- * native order or automation. Throws INTENT_UNSUPPORTED (or the surface's
+ * native order, automation or prediction. Throws INTENT_UNSUPPORTED (or the surface's
  * code) for a hand-off sentence that cannot be taken as said.
  */
 export function readHandoff(raw: string): ThreadHandoff | null {
+  if (raw.length <= 300) {
+    const odds = readOddsQuestion(raw);
+    if (odds) return odds;
+  }
   if (/[?¿？]\s*$/u.test(raw.trim())) return null;
   const text = handoffText(raw);
   if (!text || text.length > 300) return null;
-  return readPerps(text) ?? readOrders(text) ?? readAutomation(text);
+  return readPredictions(text) ?? readPerps(text) ?? readOrders(text) ?? readAutomation(text);
 }

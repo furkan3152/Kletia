@@ -12,11 +12,13 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { effectivePerps, parseAccountId, type IntentHandoff } from "@kletia/core";
+import { effectivePerps, effectivePredictions, parseAccountId, type IntentHandoff } from "@kletia/core";
 import { contextFor, installWallet, loadCorpus, runTurn, uninstallWallet, type TurnRun } from "../clarify/corpusHarness.js";
 import type { TurnContext } from "../clarify/types.js";
 import { handoffShape } from "../handoff/shape.js";
 import { readHandoff } from "../handoff/read.js";
+import { configurePredictionsIo } from "../../predictions/io.js";
+import { predictionFixtureIo } from "./predictionsHarness.js";
 
 const corpus = loadCorpus(fileURLToPath(new URL("./fixtures/clarify-corpus.json", import.meta.url)));
 const CTX: TurnContext = contextFor(corpus, { id: "handoff", category: "", title: "", wallet: "full", turns: [] });
@@ -164,5 +166,58 @@ describe("hand-off threads", () => {
     const next = await runTurn(run.decision!.thread, { text: "swap 1 SOL to USDC" }, CTX);
     assert.equal(next.decision?.status, "ready");
     assert.equal(next.decision?.thread.handoff, undefined);
+  });
+});
+
+describe("prediction hand-offs (round 10)", () => {
+  before(() => configurePredictionsIo(predictionFixtureIo()));
+  after(() => configurePredictionsIo(null));
+
+  it("reads bets, buys, sells and odds questions; one exact market is a chip, never a silent pick", async () => {
+    const bet = await say("bet $20 on yes for trump out as president before 2027");
+    assert.equal(handoffShape(handed(bet)), "predictions:buy Yes $20 #666861");
+    assert.ok(chips(bet).some((label) => label.startsWith("Market: Trump out as President")), "the matched market is shown");
+    assert.ok(chips(bet).includes("Fees come out of the stake"));
+    assert.equal(handoffShape(handed(await say("buy 50 USDC of NO on trump out as president before 2027"))), "predictions:buy No $50 #666861");
+    const that = await say("bet $20 that trump out as president before 2027");
+    assert.equal(handoffShape(handed(that)), "predictions:buy Yes $20 #666861");
+    assert.ok(chips(that).includes("Outcome: Yes"));
+    assert.equal(handoffShape(handed(await say("sell my trump shares"))), "predictions:sell \"trump\"");
+    assert.equal(handoffShape(handed(await say("What are the odds of Trump out as president?"))), "predictions:search \"Trump out as president\"");
+  });
+
+  it("asks the market among several, the outcome and the stake, and takes the answers", async () => {
+    const many = await say("bet $20 on yes for trump");
+    assert.equal(asked(many), "handoff.marketId:MARKET_AMBIGUOUS");
+    assert.ok(many.decision!.questions[0]!.options.length > 1 && many.decision!.questions[0]!.options.length <= 8);
+    const narrowed = await runTurn(many.decision!.thread, { answer: { question: "q.handoff.marketId", text: "out as president before 2027" } }, CTX);
+    assert.equal(handoffShape(handed(narrowed)), "predictions:buy Yes $20 #666861");
+    const outcome = await say("bet $20 on trump out as president before 2027");
+    assert.equal(asked(outcome), "handoff.outcome:OUTCOME_MISSING");
+    assert.deepEqual(outcome.decision!.questions[0]!.options.map((option) => option.id), ["Yes", "No"]);
+    const picked = await runTurn(outcome.decision!.thread, { answer: { question: "q.handoff.outcome", option: "No" } }, CTX);
+    assert.equal(handoffShape(handed(picked)), "predictions:buy No $20 #666861");
+    const stake = await say("bet on yes for trump out as president before 2027");
+    assert.equal(asked(stake), "handoff.amountUsd:AMOUNT_MISSING");
+    const paid = await runTurn(stake.decision!.thread, { text: "25" }, CTX);
+    assert.equal(handoffShape(handed(paid)), "predictions:buy Yes $25 #666861");
+  });
+
+  it("refuses unknown markets, stakes above the rule book, rule books that turn predictions off and conditions in the words", async () => {
+    assert.equal((await say("bet $20 on yes for words nobody recorded")).error?.code, "PREDICTION_MARKET_NOT_FOUND");
+    const capped: TurnContext = { ...CTX, predictions: { ...effectivePredictions([]), maxStakeUsd: 10 } };
+    assert.equal((await say("bet $20 on yes for trump out as president before 2027", capped)).error?.code, "PREDICTION_STAKE_TOO_HIGH");
+    const off: TurnContext = { ...CTX, predictions: { enabled: false, maxStakeUsd: 0, venues: [], reason: "Agent keys trade prediction markets only when their rule book sets predictions.enabled." } };
+    assert.equal((await say("bet $20 on yes for trump out as president before 2027", off)).error?.code, "PREDICTION_POLICY_DENIED");
+    assert.equal((await say("what are the odds of trump out as president?", off)).decision?.status, "handoff", "a search is only a read");
+    for (const text of ["bet $20 on yes for trump out as president before 2027 if eth goes up", "bet $20 on yes", "sell 50 yes shares of trump out as president before 2027 lol"]) {
+      assert.equal((await say(text)).error?.code, "INTENT_UNSUPPORTED", text);
+    }
+  });
+
+  it("leaves intents and look-alikes to the intent reader", () => {
+    for (const text of ["put 100 usdc on aave", "stake 1 on lido", "buy $50 of ETH on base", "sell my ETH", "buy 50 usdc of maybe on trump", "what are the odds of trump?? swap 1 sol"]) {
+      assert.equal(readHandoff(text), null, text);
+    }
   });
 });

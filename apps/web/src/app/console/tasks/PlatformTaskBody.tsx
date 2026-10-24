@@ -74,7 +74,7 @@ import { RoutePanel } from "./RoutePanel";
 import { PlanningSkeleton } from "./PlanningSkeleton";
 import { PreviewTaskBody } from "./PreviewTaskBody";
 import { answerTarget, deskQuestionFrom, responseLabel, turnRequest, type TurnContext, type TurnInput } from "./questionModel";
-import { handoffLine } from "../handoff/handoffModel";
+import { handoffLine, handoffViewName } from "../handoff/handoffModel";
 import type { DeskQuestion } from "./slots";
 import { SourceChips } from "./SourceChips";
 import { TaskTicket } from "./TaskTicket";
@@ -633,14 +633,14 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
       </div>
     );
   } else if (task.status === "handoff" && task.handoff) {
-    // Round 9: a perps trade, native order or automation; its view holds the form the person checks and signs.
+    // Rounds 9 and 10: a perps trade, native order, automation or prediction; its view holds the form the person checks and signs.
     const handoff = task.handoff;
     body = (
       <div className="flex flex-col items-start gap-3 border-[3px] border-control bg-surface p-4">
         <p className="font-display text-lg font-bold">{handoff.summary}</p>
         <p className="text-sm">{handoffLine(handoff)}</p>
         <Button size="sm" onClick={() => getDeskStore().getState().openHandoff(handoff)}>
-          Open {handoff.surface === "perps" ? "Perps" : handoff.surface === "orders" ? "Orders" : "Automations"}
+          Open {handoffViewName(handoff.surface)}
         </Button>
       </div>
     );

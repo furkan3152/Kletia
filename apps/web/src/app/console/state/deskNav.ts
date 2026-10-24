@@ -5,7 +5,7 @@
  *   Desk        desk
  *   Tasks       tasks            (phones and tablets; the rail shows it wider)
  *   Portfolio   dashboard, history, holdings
- *   Trade       perps, orders
+ *   Trade       perps, orders, predictions (Predict)
  *   Automate    automations
  *   More        tools, activity
  *
@@ -23,7 +23,7 @@ export const DESK_SECTION_VIEWS: Readonly<Record<DeskSection, readonly DeskView[
   desk: ["desk"],
   tasks: ["tasks"],
   portfolio: ["dashboard", "history", "holdings"],
-  trade: ["perps", "orders"],
+  trade: ["perps", "orders", "predictions"],
   automate: ["automations"],
   more: ["tools", "activity"],
 });

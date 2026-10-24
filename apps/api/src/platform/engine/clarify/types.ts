@@ -14,6 +14,7 @@ import type {
   ClarifyStepKind,
   NetworkKey,
   PerpsPolicyView,
+  PredictionPolicyView,
   ReadingSource,
   SlotProvenance,
   TextOrigin,
@@ -283,6 +284,8 @@ export interface TurnContext {
   readonly textOrigin?: TextOrigin;
   /** Perps rights of the caller (the key's rule book chain), set by the HTTP layer; absent: the project defaults. */
   readonly perps?: PerpsPolicyView;
+  /** Prediction-market rights of the caller (round 10), set by the HTTP layer; absent: the project defaults. */
+  readonly predictions?: PredictionPolicyView;
   /** Internal: a run's sentence read for an automation is never read as a hand-off itself. */
   readonly noHandoff?: true;
 }

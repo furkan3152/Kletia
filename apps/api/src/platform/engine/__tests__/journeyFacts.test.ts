@@ -97,7 +97,10 @@ describe("journey facts (E7)", () => {
     configureJourneyVenueReader(() => new Promise<JourneyVenueFacts>(() => undefined));
     const { graph, preview } = journeyFixture("p2-empty");
     const started = Date.now();
-    const facts = await readJourneyFacts(graph, preview, { deadlineMs: 400 });
+    // The deadline timer is unref'd (it must never hold a server open); with only never-settling reads
+    // pending, keep the test process alive until the deadline fires, or node cancels the test.
+    const keepAlive = setInterval(() => undefined, 100);
+    const facts = await readJourneyFacts(graph, preview, { deadlineMs: 400 }).finally(() => clearInterval(keepAlive));
     assert.ok(Date.now() - started < 1_500, `took ${Date.now() - started} ms`);
     assert.equal(facts.native[`solana:${EMPTY_SOL}`], null);
     assert.equal(facts.native[`base:${EMPTY_EVM}`]?.amount, "0");

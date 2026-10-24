@@ -1,0 +1,122 @@
+{
+ "events": [
+  {
+   "id": "73969",
+   "title": "Trump out as President before 2027?",
+   "slug": "trump-out-as-president-before-2027",
+   "endDate": "2027-01-01T04:59:00Z",
+   "volume24hr": 14833.745942999998,
+   "tags": [
+    {
+     "label": "Politics",
+     "slug": "politics"
+    },
+    {
+     "label": "Trump",
+     "slug": "trump"
+    },
+    {
+     "label": "Geopolitics",
+     "slug": "geopolitics"
+    },
+    {
+     "label": "Elections",
+     "slug": "elections"
+    }
+   ],
+   "markets": [
+    {
+     "id": "666861",
+     "question": "Trump out as President before 2027?",
+     "conditionId": "0x48b0b0bca515f68fccf95af4793dbd0edbfec1f8ec6e8df2c0f69ba74f8c4722",
+     "slug": "trump-out-as-president-before-2027",
+     "endDate": "2027-01-01T04:59:00Z",
+     "liquidityNum": 369789.29449,
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.0425\", \"0.9575\"]",
+     "volumeNum": 13062731.119242001,
+     "volume24hr": 14833.745942999998,
+     "active": true,
+     "closed": false,
+     "acceptingOrders": true,
+     "clobTokenIds": "[\"59252515735652674747158950210016502214756531287333895140318848923768750410355\", \"2849827372590072151380088930233312280478318575453624773762283369907909283027\"]",
+     "positionIds": [
+      "841010628826234876720206695337081918888800879442871024891813202589959323648",
+      "841010628826234876720206695337081918888800879442871024891813202589959323649"
+     ],
+     "version": "v1",
+     "negRisk": false,
+     "orderPriceMinTickSize": 0.001,
+     "orderMinSize": 5,
+     "feesEnabled": false,
+     "groupItemTitle": "",
+     "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/trump-out-as-president-by-march-31-c3SENQhH7Ao1.jpg",
+     "description": "This market will resolve to \u201cYes\u201d if Donald Trump resigns or is removed as President or otherwise ceases to be the President of the United States for any period of time by December 31, 2026, 11:59 PM ET. Otherwise, this market will resolve to \u201cNo\u201d.\n\nAn announcement of Donald Trum",
+     "enableOrderBook": true,
+     "bestBid": 0.042,
+     "bestAsk": 0.043,
+     "lastTradePrice": 0.043
+    }
+   ]
+  },
+  {
+   "id": "887359",
+   "title": "Natalie Harp out as Special Assistant to the President by December 31?",
+   "slug": "natalie-harp-out-as-special-assistant-to-the-president-by-december-31",
+   "endDate": "2027-01-01T04:59:00Z",
+   "negRisk": false,
+   "tags": [
+    {
+     "label": "Trump",
+     "slug": "trump"
+    },
+    {
+     "label": "resign",
+     "slug": "resign"
+    },
+    {
+     "label": "Politics",
+     "slug": "politics"
+    }
+   ],
+   "markets": [
+    {
+     "id": "3769918",
+     "question": "Natalie Harp out as Special Assistant to the President by December 31?",
+     "conditionId": "0xffbc3a643d2c2c1cf4caa583da3dbb142694f88315bd5731d807fa6539dede34",
+     "slug": "natalie-harp-out-as-special-assistant-to-the-president-by-december-31",
+     "endDate": "2027-01-01T04:59:00Z",
+     "liquidityNum": 102.8804,
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.12\", \"0.88\"]",
+     "volumeNum": 281.108099,
+     "active": true,
+     "closed": false,
+     "acceptingOrders": true,
+     "clobTokenIds": "[\"9517896672660164846049048134912085849803452288058560545830964609602289983657\", \"20452846285761781702626581366754150714843804975171639750240212577186521543985\"]",
+     "version": "v1",
+     "negRisk": false,
+     "orderPriceMinTickSize": 0.01,
+     "orderMinSize": 5,
+     "feesEnabled": true,
+     "feeSchedule": {
+      "exponent": 1,
+      "rate": 0,
+      "takerOnly": true,
+      "rebateRate": 0
+     },
+     "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-natalie-harp-publicly-insult-jon-ossoff-by-august-31-copy-rdrCJiIv6JMu.jpg",
+     "description": "This market will resolve to \"Yes\" if Natalie Harp ceases to be Special Assistant to the President for any period of time between market creation and December 31, 2026, 11:59 PM (ET). Otherwise, this market will resolve to \"No\".\n\nAn announcement of Natalie Harp's resignation or re",
+     "enableOrderBook": true,
+     "bestBid": 0.07,
+     "bestAsk": 0.17,
+     "lastTradePrice": 0.17
+    }
+   ]
+  }
+ ],
+ "pagination": {
+  "hasMore": false,
+  "totalResults": 2
+ }
+}

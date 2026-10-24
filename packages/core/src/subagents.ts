@@ -31,7 +31,7 @@ import {
   type PolicyDocument,
   type PolicyPermission,
 } from "./policy.js";
-import { effectivePermissions, effectivePerps } from "./policyEvaluate.js";
+import { effectivePermissions, effectivePerps, effectivePredictions } from "./policyEvaluate.js";
 
 export const SUBAGENT_LIMITS = Object.freeze({
   /** Agent keys below a project key (the limit of every agent key). */
@@ -289,6 +289,7 @@ export function checkSubagentPolicy(input: SubagentCheckInput): SubagentCheckRes
   checkApprovers(issues, child, chain);
   const permissions = permissionsOf(issues, child, chain, input.childDepth);
   checkPerps(issues, child, chain);
+  checkPredictions(issues, child, chain);
   if (input.childExpiresAt !== undefined) {
     const at = Date.parse(input.childExpiresAt);
     if (Number.isNaN(at)) issues.add("expiresAt", null, "The expiry is not a time.");
@@ -318,6 +319,28 @@ function checkPerps(issues: Issues, child: PolicyDocument, chain: readonly Subag
   const outside = (perps.venues ?? []).filter((venue) => !parent.venues.includes(venue));
   if (!perps.venues || outside.length > 0) {
     issues.add("perps.venues", null, `perps.venues must list only venues the parent may use (${parent.venues.join(", ") || "none"}).`);
+  }
+}
+
+/**
+ * Prediction markets (Rule Book `predictions`): a sub-agent may trade them
+ * only where its parent's chain does, with no higher stake per order and on
+ * no other venue, the same up-front refusal as perps.
+ */
+function checkPredictions(issues: Issues, child: PolicyDocument, chain: readonly SubagentChainLevel[]): void {
+  const predictions = child.predictions;
+  if (!predictions?.enabled) return;
+  const parent = effectivePredictions(chain.map((level) => ({ policy: level.policy, defaults: level.defaults })));
+  if (!parent.enabled) {
+    issues.add("predictions.enabled", null, `predictions cannot be enabled: ${parent.reason ?? "the parent's chain does not trade prediction markets"}`);
+    return;
+  }
+  if (predictions.maxStakeUsd === undefined || Number(predictions.maxStakeUsd) > parent.maxStakeUsd) {
+    issues.add("predictions.maxStakeUsd", null, `predictions.maxStakeUsd must be set and at most ${parent.maxStakeUsd} (the parent's cap).`);
+  }
+  const outside = (predictions.venues ?? []).filter((venue) => !parent.venues.includes(venue));
+  if (!predictions.venues || outside.length > 0) {
+    issues.add("predictions.venues", null, `predictions.venues must list only venues the parent may use (${parent.venues.join(", ") || "none"}).`);
   }
 }
 

@@ -130,6 +130,22 @@ book's `perps.maxLeverage`, default 20, or the venue's cap),
 `PERPS_SIGNATURE_INVALID` and `PERPS_RELAY_REJECTED` answer the Hyperliquid
 relay. See [perps.md](perps.md).
 
+## Predictions
+
+`/v1/predictions` refuses before anything is built: `PREDICTION_VENUE_DISABLED`
+(Limitless Exchange is listed but not added), `PREDICTION_POLICY_DENIED` (the
+key's rule book: agent keys need `predictions.enabled`),
+`PREDICTION_STAKE_TOO_HIGH` (above `predictions.maxStakeUsd`),
+`PREDICTION_MARKET_CLOSED`, `PREDICTION_OUTCOME_UNKNOWN`,
+`PREDICTION_ORDER_TOO_SMALL`, `PREDICTION_ACCOUNT_UNSUPPORTED` (smart-contract
+wallets trade only through Polymarket), `PREDICTION_BALANCE_TOO_LOW` and
+`PREDICTION_PRICE_UNAVAILABLE` (an empty, unreadable or stale book: it never
+guesses). The relay answers `PREDICTION_SIGNATURE_INVALID` (not the order
+prepare built, expired, or not the account's signature),
+`PREDICTION_SESSION_REQUIRED`, `PREDICTION_GEOBLOCKED` (Polymarket's location
+rules; Kletia never works around them) and `PREDICTION_RELAY_REJECTED` (the
+venue's own reason). See [predictions.md](predictions.md).
+
 ## Questions, confirmations and route limits
 
 `CLARIFY_REQUIRED` answers a text intent (without `?clarify=true`) that
@@ -187,6 +203,8 @@ funds where they are, or plan the rest again.
 | <a id="error-THREAD_INVALID"></a>`THREAD_INVALID` | 400 | no | Invalid thread | Send the thread exactly as the last response returned it, or start a new one. |
 | <a id="error-THREAD_REQUIRES_API_KEY"></a>`THREAD_REQUIRES_API_KEY` | 400 | no | Remembered threads need an API key | Send an API key, or hold the thread yourself and send it back in thread. |
 | <a id="error-UNSUPPORTED_MEDIA_TYPE"></a>`UNSUPPORTED_MEDIA_TYPE` | 415 | no | Unsupported media type | Send request bodies as UTF-8 application/json. |
+| <a id="error-PREDICTION_SIGNATURE_INVALID"></a>`PREDICTION_SIGNATURE_INVALID` | 400 | no | Prediction order or signature invalid | Send back the order and ticket exactly as prepare returned them, with the 65-byte signature of the account that prepared them, before expiresAt. |
+| <a id="error-PREDICTION_SESSION_REQUIRED"></a>`PREDICTION_SESSION_REQUIRED` | 400 | no | Venue session needed | Sign the venue's sign-in message (POST /v1/predictions/session) and send the session it returns; it lives 8 hours and holds no funds. |
 
 ### Authentication
 
@@ -233,6 +251,8 @@ funds where they are, or plan the rest again.
 | <a id="error-SUBAGENT_CLAIM_INVALID"></a>`SUBAGENT_CLAIM_INVALID` | 403 | no | Sub-agent claim refused | Claim with the requesting agent's key and the claim token from the request, once, within 15 minutes of the approval. A late claim revokes the key: request again. |
 | <a id="error-SUBAGENT_POLICY_NOT_SUBSET"></a>`SUBAGENT_POLICY_NOT_SUBSET` | 403 | no | Sub-agent wider than its parent | The requested rule book is wider than the parent's chain in the fields listed in error.issues (or asks for a permission sub-agents never get). Narrow those fields and request again. |
 | <a id="error-SUBAGENT_SIGNATURE_INVALID"></a>`SUBAGENT_SIGNATURE_INVALID` | 403 | no | Sub-agent decision signature invalid | Request a new message with POST /v1/agents/requests/{id}/challenge and sign it unchanged with the owner wallet before it expires; each message works once. |
+| <a id="error-PREDICTION_POLICY_DENIED"></a>`PREDICTION_POLICY_DENIED` | 403 | no | Prediction markets refused by the rule book | The key's rule book disables prediction markets (agent keys by default), pauses, or does not allow this venue. Ask a project key to set predictions.enabled and predictions.venues. |
+| <a id="error-PREDICTION_GEOBLOCKED"></a>`PREDICTION_GEOBLOCKED` | 403 | no | Restricted by the venue's location rules | The venue does not accept new orders from this location (its terms list the restricted places). Kletia does not work around that; closing a position may still be allowed. |
 
 ### Not found
 
@@ -261,6 +281,7 @@ funds where they are, or plan the rest again.
 | <a id="error-SUBAGENT_REQUEST_NOT_FOUND"></a>`SUBAGENT_REQUEST_NOT_FOUND` | 404 | no | Sub-agent request not found | Check the request id (sar_ + 32 hex). A key sees the requests of its own subtree with GET /v1/agents/{id}/subagents. |
 | <a id="error-THREAD_NOT_FOUND"></a>`THREAD_NOT_FOUND` | 404 | no | Unknown thread | The thread expired or belongs to another key. Start a new one. |
 | <a id="error-WEBHOOK_NOT_FOUND"></a>`WEBHOOK_NOT_FOUND` | 404 | no | Webhook not found | List your webhooks with GET /v1/webhooks; each key sees only its own. |
+| <a id="error-PREDICTION_MARKET_NOT_FOUND"></a>`PREDICTION_MARKET_NOT_FOUND` | 404 / 422 | no | Prediction market not found | No open market matches the id or the words. Search GET /v1/predictions/markets?q=… and use a market id from the answer. |
 
 ### Conflict
 
@@ -442,6 +463,16 @@ funds where they are, or plan the rest again.
 | <a id="error-VENUE_UNVERIFIED"></a>`VENUE_UNVERIFIED` | 422 | no | Venue failed verification | The venue's on-chain state no longer matches Kletia's pinned registry (factory, asset, comptroller, gates). Choose another venue. |
 | <a id="error-WEBHOOK_URL_FORBIDDEN"></a>`WEBHOOK_URL_FORBIDDEN` | 422 | no | Webhook URL refused | Use a public HTTPS endpoint on port 443 or 8443; private, loopback and metadata hosts are refused. |
 | <a id="error-WEBHOOK_URL_UNRESOLVABLE"></a>`WEBHOOK_URL_UNRESOLVABLE` | 422 | no | Webhook host does not resolve | Use a host name with public DNS records. |
+| <a id="error-PREDICTION_MARKET_CLOSED"></a>`PREDICTION_MARKET_CLOSED` | 422 | no | Prediction market not trading | The market is closed, resolved or not accepting orders. Redeem resolved shares with POST /v1/predictions/redeem, or pick another market. |
+| <a id="error-PREDICTION_OUTCOME_UNKNOWN"></a>`PREDICTION_OUTCOME_UNKNOWN` | 422 | no | Outcome not in the market | Use an outcome label the market lists (GET /v1/predictions/markets/{id}: outcomes[].label). |
+| <a id="error-PREDICTION_VENUE_DISABLED"></a>`PREDICTION_VENUE_DISABLED` | 422 | no | Prediction venue not added | Kletia builds nothing for this venue (GET /v1/predictions/markets lists venues with disabledReason). Use Polymarket. |
+| <a id="error-PREDICTION_STAKE_TOO_HIGH"></a>`PREDICTION_STAKE_TOO_HIGH` | 422 | no | Stake above the cap | Lower the stake to the rule book's predictions.maxStakeUsd (error message), or ask a project key to raise it. |
+| <a id="error-PREDICTION_ORDER_TOO_SMALL"></a>`PREDICTION_ORDER_TOO_SMALL` | 422 | no | Order below the venue minimum | The order buys or sells fewer shares than the market's minimum order size; raise the amount. |
+| <a id="error-PREDICTION_ACCOUNT_UNSUPPORTED"></a>`PREDICTION_ACCOUNT_UNSUPPORTED` | 422 | no | Account kind not supported for trading | Kletia trades Polymarket only from a plain wallet (EOA) on Polygon that signs its own orders. Smart wallets (Polymarket Deposit, Proxy and Safe wallets) can read positions only. |
+| <a id="error-PREDICTION_BALANCE_TOO_LOW"></a>`PREDICTION_BALANCE_TOO_LOW` | 422 | no | Not enough pUSD or shares | Polymarket settles in pUSD on Polygon: hold enough pUSD (or USDC.e, which prepare wraps), or the shares you sell. The message lists the balances read. |
+| <a id="error-PREDICTION_POSITION_NOT_FOUND"></a>`PREDICTION_POSITION_NOT_FOUND` | 422 | no | No such position | The account holds no shares of that outcome. Read GET /v1/predictions/positions. |
+| <a id="error-PREDICTION_NOT_RESOLVED"></a>`PREDICTION_NOT_RESOLVED` | 422 | no | Market not resolved | Shares redeem only after the market resolves on-chain. Sell them instead, or wait for the resolution. |
+| <a id="error-PREDICTION_RELAY_REJECTED"></a>`PREDICTION_RELAY_REJECTED` | 422 | no | Venue refused the order | The venue refused the order (balance, allowance, price, size or market state): the message says why. Prepare again after fixing it. |
 
 ### Verification (submitted references and step failures)
 
@@ -526,6 +557,8 @@ funds where they are, or plan the rest again.
 | <a id="error-HISTORY_NOT_CONFIGURED"></a>`HISTORY_NOT_CONFIGURED` | 503 | no | History provider not configured | The operator must set ETHERSCAN_API_KEY (or ALCHEMY_API_KEY) for EVM history; Solana history works without a key (HELIUS_API_KEY makes it faster). |
 | <a id="error-DATA_TRACKING_FULL"></a>`DATA_TRACKING_FULL` | 503 | yes | Tracking full | This instance holds no more tracked sets in memory. Retry later; deployments with a database have no such limit. |
 | <a id="error-WEBHOOKS_NOT_CONFIGURED"></a>`WEBHOOKS_NOT_CONFIGURED` | 503 | no | Webhooks not configured | The operator must set KLETIA_PLATFORM_SECRET (at least 32 characters). |
+| <a id="error-PREDICTION_PRICE_UNAVAILABLE"></a>`PREDICTION_PRICE_UNAVAILABLE` | 503 | yes | Order book unavailable | The outcome's order book is empty on the side the order takes, unreadable or stale, so Kletia neither quotes nor builds (fail closed). Retry shortly, or place a limit order. |
+| <a id="error-PREDICTION_SESSION_UNAVAILABLE"></a>`PREDICTION_SESSION_UNAVAILABLE` | 503 | no | Venue sessions unavailable | This server cannot seal venue credentials (KLETIA_PLATFORM_SECRET is not configured), so it relays no order. Reads, quotes and prepare still work. |
 
 ### Internal
 

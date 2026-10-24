@@ -77,8 +77,9 @@ describe("adapter registry order", () => {
       "pancakeswap-v3", "raydium", "relay", "renzo", "rocket-pool", "sanctum", "save", "sky", "solana-pay", "solana-stake", "spark-savings", "sparklend",
       "spl-token", "stader", "system-transfer", "uniswap-v3", "velodrome", "wrap", "yearn-v3",
     ]);
-    // with a live adapter, plus three native-order protocols and three perps venues (no adapter).
-    assert.equal(PROTOCOLS.length, 66);
+    // Besides the executable ids: the optional aggregator, which is not executable unless the server enables it,
+    // three native-order protocols and three perps venues (no adapter), and one prediction venue (no adapter).
+    assert.equal(PROTOCOLS.length, 67);
   });
 });
 

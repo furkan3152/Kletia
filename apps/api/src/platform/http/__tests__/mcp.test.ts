@@ -166,10 +166,12 @@ describe("POST /v1/mcp (2026-07-28)", () => {
       "list_protocols",
       "list_subagents",
       "plan_intent",
+      "plan_prediction_order",
       "preview_intent",
       "quote_link",
       "request_subagent",
       "revoke_subagent",
+      "search_prediction_markets",
       "test_contract_action",
     ]);
     // create_intent and create_link store an intent or a link for a human to sign (never a transaction);

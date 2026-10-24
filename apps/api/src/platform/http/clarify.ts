@@ -27,6 +27,7 @@
 import type { Request, RequestHandler, Response } from "express";
 import {
   effectivePerps,
+  effectivePredictions,
   THREAD_LIMITS,
   THREAD_STATUSES,
   isThreadId,
@@ -235,14 +236,17 @@ export async function runClarifyTurn(request: IntentTurnRequest, options: Clarif
 }
 
 /**
- * The caller's perps rights for perps hand-offs (round 9): the key's Rule Book chain (agent keys have perps off
- * unless their rule book sets perps.enabled; a revoked chain has none), or the project defaults without a key.
+ * The caller's rights for perps and prediction hand-offs (rounds 9 and 10): the key's Rule Book chain (agent keys
+ * have both off unless their rule book enables them; a revoked chain has none), or the project defaults without a key.
  */
-export async function perpsOption(owner: string | undefined): Promise<Pick<ClarifyTurnOptions, "perps">> {
+export async function perpsOption(owner: string | undefined): Promise<Pick<ClarifyTurnOptions, "perps" | "predictions">> {
   if (!owner) return {};
   const chain = await readKeyChain(owner);
-  if (!chain || !chain.keyActive) return { perps: { enabled: false, maxLeverage: 1, venues: [], reason: "This key (or one of its ancestors) is revoked or expired." } };
-  return { perps: effectivePerps(chain.levels) };
+  if (!chain || !chain.keyActive) {
+    const reason = "This key (or one of its ancestors) is revoked or expired.";
+    return { perps: { enabled: false, maxLeverage: 1, venues: [], reason }, predictions: { enabled: false, maxStakeUsd: 0, venues: [], reason } };
+  }
+  return { perps: effectivePerps(chain.levels), predictions: effectivePredictions(chain.levels) };
 }
 
 function engineOptions(owner: string | undefined, flags: TurnFlags, thread: ClarifyThread | null, access?: ReadingAccess): ClarifyTurnOptions {

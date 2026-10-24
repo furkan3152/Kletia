@@ -29,6 +29,7 @@ test("the old view URLs open their view inside the right section", () => {
     "/app/holdings": ["holdings", "portfolio"],
     "/app/perps": ["perps", "trade"],
     "/app/orders": ["orders", "trade"],
+    "/app/predict": ["predictions", "trade"],
     "/app/automations": ["automations", "automate"],
     "/app/tools": ["tools", "more"],
     "/app/tools/x402": ["tools", "more"],
@@ -49,7 +50,8 @@ test("desk commands still open their view; its section shows sub-tabs when it ha
   assert.equal(DESK_COMMANDS["show my automations"], "automations");
   assert.equal(DESK_COMMANDS["show my activity"], "activity");
   for (const view of Object.values(DESK_COMMANDS)) assert.ok(siblingViews(view).includes(view), view);
-  assert.deepEqual(siblingViews("orders"), ["perps", "orders"]);
+  assert.deepEqual(siblingViews("orders"), ["perps", "orders", "predictions"]);
+  assert.equal(DESK_COMMANDS["show my predictions"], "predictions");
   assert.deepEqual(siblingViews("holdings"), ["dashboard", "history", "holdings"]);
   assert.deepEqual(siblingViews("automations"), ["automations"]);
 });

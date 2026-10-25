@@ -58,6 +58,7 @@ test("site copy never calls the production lines alone 'the networks' ('6 NETWOR
   const stale = new RegExp(`\\b${words}\\s+(?:networks|chains)\\b|\\b${words}\\s+production\\b`, "iu");
   const hits = files.filter((path) => stale.test(readFileSync(path, "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, "")));
   assert.deepEqual(hits, [], "typed network counts in site copy");
-  const hero = readFileSync(join(appRoot, "pages/home/HeroSection.tsx"), "utf8");
-  assert.match(hero, /const networks = NETWORK_COUNT;/u, "the hero kicker and headline share the registry count");
+  const hero = readFileSync(join(appRoot, "pages/home/HeroMachine.tsx"), "utf8");
+  assert.match(hero, /\{NETWORK_COUNT\} networks and \{protocols\} protocols/u, "the hero copy prints the registry counts");
+  assert.doesNotMatch(hero, /\b(?:quotes today|1,286)\b/u, "the hero shows no sample counter");
 });

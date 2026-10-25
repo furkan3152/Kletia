@@ -26,8 +26,8 @@ import type { HomeIconName } from "./homeIcons";
 
 const PLATES: readonly { readonly icon: HomeIconName; readonly title: string; readonly body: string; readonly foot: string; readonly href?: string; readonly to?: string }[] = [
   { icon: "shield", title: "No custody", body: "Your wallet signs every step. Kletia never holds your keys or your funds, and the server never signs for you.", foot: "non-custodial · EVM + Solana wallets", href: SECURITY_POLICY_URL },
-  { icon: "refresh", title: "Simulated first", body: "Every plan is simulated before you sign. The card shows the least you get, and that minimum is enforced on chain.", foot: "quotes are live, not guaranteed" },
-  { icon: "sig", title: "Signed receipts", body: "Each settled intent gets a receipt signed by Kletia, with its digest and every transaction, that anyone can verify offline.", foot: "kletia.receipt.v1 · digest + signature", to: "/developers/receipts" },
+  { icon: "refresh", title: "Simulated first", body: "Steps are simulated before you sign whenever an RPC can simulate them, and the card labels any number that is only quoted. Same-network minimums are enforced on chain; bridge minimums are checked on arrival.", foot: "quotes are live, not guaranteed" },
+  { icon: "sig", title: "Signed receipts", body: "Finished intents get a receipt signed by Kletia's receipt key, with its digest and every transaction, that anyone can verify offline.", foot: "kletia.receipt.v1 · digest + signature", to: "/developers/receipts" },
   { icon: "open", title: "Open checks", body: "The code, the contracts and the CI that checks them are on GitHub. Read what the machine does before you trust it.", foot: "github.com/furkan3152/Kletia", href: GITHUB_URL },
 ];
 
@@ -247,7 +247,7 @@ export function CtaSlab() {
 const COLUMNS: readonly { readonly title: string; readonly links: readonly { readonly label: string; readonly to: string; readonly external?: boolean }[] }[] = [
   { title: "Desk", links: [{ label: "Open the desk", to: "/app" }, { label: "Trade", to: "/app/perps" }, { label: "Portfolio", to: "/app/dashboard" }, { label: "Automate", to: "/app/automations" }, { label: "Studio", to: "/studio" }] },
   { title: "Developers", links: [{ label: "Portal", to: "/developers" }, { label: "REST API", to: "/developers/api" }, { label: "Agents and MCP", to: "/developers/agents" }, { label: "Webhooks", to: "/developers/webhooks" }, { label: "Widget", to: "/developers/embed" }] },
-  { title: "Coverage", links: [{ label: "Networks", to: "/networks" }, { label: "Protocols", to: "/protocols" }, { label: "Changelog", to: "/changelog" }, { label: "Help", to: "/help" }] },
+  { title: "Coverage", links: [{ label: "Networks", to: "/networks" }, { label: "Protocols", to: "/protocols" }, { label: "Changelog", to: "/changelog" }, { label: "Help", to: "/help" }, { label: "Privacy & data", to: "/privacy" }] },
   { title: "Open", links: [{ label: "GitHub", to: GITHUB_URL, external: true }, { label: "Security", to: SECURITY_POLICY_URL, external: true }, { label: "License", to: LICENSE_URL, external: true }] },
 ];
 
@@ -304,7 +304,7 @@ export function BasePlate({ protocols }: { readonly protocols: number }) {
         </div>
         <div className="vents" aria-hidden="true" />
         <div className="base-row">
-          <span>Kletia is non-custodial. Quotes are live, not guaranteed; minimum amounts are enforced on chain.</span>
+          <span>Kletia is non-custodial. Quotes are live, not guaranteed; same-network minimums are enforced on chain, bridge minimums are checked on arrival.</span>
           <Toggle checked={setting === "on" && !systemReduced} onChange={(next) => (systemReduced ? undefined : setMotionSetting(next ? "on" : "off"))} label={systemReduced ? "Animations: off, your device asks for reduced motion" : "Animations"} className="base-motion">
             Animations
           </Toggle>

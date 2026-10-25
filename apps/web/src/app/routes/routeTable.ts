@@ -43,6 +43,7 @@ export type RouteId =
   | "approve"
   | "changelog"
   | "help"
+  | "privacy"
   | "admin"
   | "notFound";
 
@@ -210,6 +211,15 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
       "How to connect a wallet, what a preview is, what to do when a step fails, and how test networks differ from live ones. Your own wallet signs every step.",
     load: () => import("../pages/help/HelpPage"),
   },
+  privacy: {
+    id: "privacy",
+    path: "/privacy",
+    kind: "site",
+    title: "Privacy and data: Kletia",
+    description:
+      "What Kletia stores, for how long, who else receives what (quote providers, RPCs, model providers) and how to delete an intent. Your wallet signs every step.",
+    load: () => import("../pages/privacy/PrivacyPage"),
+  },
   admin: {
     id: "admin",
     path: "/admin",
@@ -240,6 +250,7 @@ const EXACT: Readonly<Record<string, RouteId>> = Object.freeze({
   "/approve": "approve",
   "/changelog": "changelog",
   "/help": "help",
+  "/privacy": "privacy",
   "/admin": "admin",
 });
 

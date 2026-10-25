@@ -466,6 +466,8 @@ const ROUTE_CLASSES: readonly { readonly method: string; readonly pattern: RegEx
   { method: "DELETE", pattern: /^\/keys\/[^/]+\/policy(?:\/pending)?$/iu, kind: "unsafe" },
   { method: "DELETE", pattern: /^\/projects\/current\/policy(?:\/pending)?$/iu, kind: "unsafe" },
   { method: "POST", pattern: /^\/policy\/validate$/iu, kind: "safe" },
+  // Data reads with the wallets in the body (no Idempotency-Key: nothing is stored).
+  { method: "POST", pattern: /^\/data\/(?:portfolio|positions|history|export|transactions(?:\/[^/]+)?|pnl|snapshots|summary)$/iu, kind: "safe" },
   { method: "POST", pattern: /^\/policy\/approvals\/[^/]+\/(?:approve|reject)$/iu, kind: "safe" },
   { method: "POST", pattern: /^\/links$/iu, kind: "idempotent" },
   { method: "PATCH", pattern: /^\/links\/[^/]+$/iu, kind: "idempotent" },
@@ -507,6 +509,8 @@ const PUBLISHABLE_ROUTES: readonly { readonly method: string; readonly pattern: 
   { method: "POST", pattern: /^\/intents\/[^/]+\/(?:refresh|cancel|stop|preview|receipt\/shares)$/iu },
   { method: "POST", pattern: /^\/intents\/[^/]+\/steps\/[^/]+\/(?:prepare|submit)$/iu },
   { method: "DELETE", pattern: /^\/intents\/[^/]+\/receipt\/(?:shares\/[^/]+|disclosures)$/iu },
+  { method: "DELETE", pattern: /^\/intents\/[^/]+$/iu },
+  { method: "POST", pattern: /^\/data\/(?:portfolio|positions|history|export|transactions(?:\/[^/]+)?|pnl|snapshots|summary)$/iu },
   { method: "GET", pattern: /^\/receipts\/(?:keys|log|log\/inclusion|log\/[^/]+|[^/]+|[^/]+\/status|[^/]+\/shares\/[^/]+)$/iu },
   { method: "GET", pattern: /^\/policy\/approvals\/[^/]+$/iu },
   { method: "POST", pattern: /^\/policy\/approvals\/[^/]+\/(?:approve|reject)$/iu },
@@ -977,18 +981,19 @@ export class KletiaClient {
    * positions, health and activity across every network, plus venue yields,
    * prices and network status. Every value carries `source` and `asOf`;
    * unknown values are null with a `reason`. Publishable keys may call all
-   * of them; `history` needs a key.
+   * of them; `history` needs a key. Reads that name wallets send them in a
+   * POST body, never in the URL (URLs end up in access logs).
    */
   readonly data = {
     /** Holdings, positions, debts, totals, allocation and the value estimates of the wallets. */
     portfolio: async (wallets: DataWalletQuery, options: RequestOptions = {}): Promise<DataPortfolio> => {
-      const body = await this.request<{ portfolio: DataPortfolio }>("GET", "/data/portfolio", undefined, { ...options, query: walletQuery(wallets, true) });
+      const body = await this.request<{ portfolio: DataPortfolio }>("POST", "/data/portfolio", walletQuery(wallets, true), options);
       return body.portfolio;
     },
     /** Positions, debts and lending health of the wallets; `extras` adds perps, open orders, automations and agent spend. */
     positions: async (wallets: DataWalletQuery & { readonly extras?: boolean }, options: RequestOptions = {}): Promise<DataPositions> => {
       const { extras, ...set } = wallets;
-      return this.request<DataPositions>("GET", "/data/positions", undefined, { ...options, query: { ...walletQuery(set, true), extras: extras ? "true" : undefined } });
+      return this.request<DataPositions>("POST", "/data/positions", { ...walletQuery(set, true), extras: extras ? "true" : undefined }, options);
     },
     /**
      * On-chain history of the wallets (needs a key), newest first, classified and priced at the time.
@@ -996,38 +1001,37 @@ export class KletiaClient {
      */
     transactions: (query: DataWalletQuery & Omit<DataTxQuery, "kletiaOnly"> & { readonly kletiaOnly?: boolean }, options: RequestOptions = {}): Promise<DataTransactionPage> => {
       const { evm, solana, lane, kletiaOnly, limit, ...filters } = query;
-      return this.request<DataTransactionPage>("GET", "/data/transactions", undefined, {
-        ...options,
-        query: { ...walletQuery({ evm, solana, lane }, true), ...filters, kletiaOnly: kletiaOnly ? "true" : undefined, limit: limit === undefined ? undefined : String(limit) },
-      });
+      return this.request<DataTransactionPage>(
+        "POST",
+        "/data/transactions",
+        { ...walletQuery({ evm, solana, lane }, true), ...filters, kletiaOnly: kletiaOnly ? "true" : undefined, limit: limit === undefined ? undefined : String(limit) },
+        options,
+      );
     },
     /** One transaction (`<network>:<hash>`) of the wallets. */
     transaction: async (id: string, wallets: DataWalletQuery, options: RequestOptions = {}): Promise<DataTransaction> => {
-      const body = await this.request<{ transaction: DataTransaction }>("GET", `/data/transactions/${encodeSegment(id, "id")}`, undefined, { ...options, query: walletQuery(wallets, true) });
+      const body = await this.request<{ transaction: DataTransaction }>("POST", `/data/transactions/${encodeSegment(id, "id")}`, walletQuery(wallets, true), options);
       return body.transaction;
     },
     /** FIFO realized and unrealized PnL estimates by asset over `period` (default all). */
     pnl: (query: DataWalletQuery & { readonly period?: DataPnlPeriod }, options: RequestOptions = {}): Promise<DataPnl> => {
       const { period, ...wallets } = query;
-      return this.request<DataPnl>("GET", "/data/pnl", undefined, { ...options, query: { ...walletQuery(wallets, true), period } });
+      return this.request<DataPnl>("POST", "/data/pnl", { ...walletQuery(wallets, true), period }, options);
     },
     /** Value series of a tracked set (untracked wallets: an empty series with `tracked: false`). */
     snapshots: (query: DataWalletQuery & { readonly range?: DataSnapshotRange }, options: RequestOptions = {}): Promise<DataSnapshotSeries> => {
       const { range, ...wallets } = query;
-      return this.request<DataSnapshotSeries>("GET", "/data/snapshots", undefined, { ...options, query: { ...walletQuery(wallets, true), range } });
+      return this.request<DataSnapshotSeries>("POST", "/data/snapshots", { ...walletQuery(wallets, true), range }, options);
     },
     /** One compact object for an assistant: totals, top positions, risk flags, activity counts and PnL estimates. */
     summary: async (wallets: DataWalletQuery, options: RequestOptions = {}): Promise<DataSummary> => {
-      const body = await this.request<{ summary: DataSummary }>("GET", "/data/summary", undefined, { ...options, query: walletQuery(wallets, true) });
+      const body = await this.request<{ summary: DataSummary }>("POST", "/data/summary", walletQuery(wallets, true), options);
       return body.summary;
     },
     /** The calling key's intents, receipts and links, newest first; with wallets, only intents planned for them. */
     history: async (filter: DataWalletQuery & { readonly limit?: number } = {}, options: RequestOptions = {}): Promise<DataHistory> => {
       const { limit, ...wallets } = filter;
-      return this.request<DataHistory>("GET", "/data/history", undefined, {
-        ...options,
-        query: { ...walletQuery(wallets, false), lane: undefined, limit: limit === undefined ? undefined : String(limit) },
-      });
+      return this.request<DataHistory>("POST", "/data/history", { ...walletQuery(wallets, false), lane: undefined, limit: limit === undefined ? undefined : String(limit) }, options);
     },
     /** Supply APYs of every venue, best first (unread rates last, null with a reason). */
     yields: (filter: DataYieldsFilter = {}, options: RequestOptions = {}): Promise<DataYields> =>
@@ -1255,6 +1259,15 @@ export class KletiaClient {
     cancel: async (id: string, options: RequestOptions = {}): Promise<IntentGraph> => {
       const body = await this.request<{ intent: IntentGraph }>("POST", `/intents/${encodeSegment(id, "id")}/cancel`, {}, options);
       return body.intent;
+    },
+    /**
+     * Delete the stored intent now (`DELETE /v1/intents/{id}`), with the stored
+     * disclosures and shares of its receipts; signed receipt payloads stay.
+     * 409 INTENT_IN_FLIGHT while a step is in flight. Without it, the request
+     * text goes 24 hours after the intent is final and the intent 30 days after.
+     */
+    delete: async (id: string, options: RequestOptions = {}): Promise<void> => {
+      await this.request<null>("DELETE", `/intents/${encodeSegment(id, "id")}`, undefined, options);
     },
     /**
      * Stream intent events (Server-Sent Events over fetch, so it works in

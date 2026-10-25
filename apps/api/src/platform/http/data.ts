@@ -18,6 +18,11 @@
  * Every route is open to publishable keys; history needs a key (it lists the
  * key's own activity). Each read spends the data budget (limits.ts).
  *
+ * The reads that take wallet addresses (DATA_BODY_READS) also answer POST
+ * with the parameters in a JSON body: addresses in a URL end up in access
+ * logs (Kletia's host, proxies, browser history), a body does not. The SDK
+ * and the web app use POST; GET stays for compatibility and is deprecated.
+ *
  * Callers of the history routes (transactions, pnl, snapshots, summary):
  * a desk wallet session (`Kletia-Account-Session`, first-party origin) reads
  * its tracked set only (its own wallets, each proven by a sign-in); an API
@@ -271,7 +276,64 @@ async function sendExport(req: Request, res: Response): Promise<void> {
   res.status(200).type("text/csv; charset=utf-8").send(csv);
 }
 
+/**
+ * The reads that name wallet addresses also answer POST with the same
+ * parameters in a JSON body (`evm` and `solana` as a string or an array),
+ * so addresses stay out of URLs and the access logs that record them. GET
+ * keeps working and is deprecated for these reads.
+ */
+export const DATA_BODY_READS = Object.freeze([
+  "/data/portfolio",
+  "/data/positions",
+  "/data/history",
+  "/data/export",
+  "/data/transactions",
+  "/data/transactions/:id",
+  "/data/pnl",
+  "/data/snapshots",
+  "/data/summary",
+] as const);
+
+const BODY_FIELD_LENGTH = 4_000;
+
+/** POST variants: the JSON body becomes the parameters the GET handlers read (never merged with the URL query). */
+const bodyAsQuery: RequestHandler = (req, _res, next) => {
+  const body: unknown = req.body ?? {};
+  if (!isRecord(body)) {
+    next(invalidRequest("The body must be a JSON object of the read's parameters."));
+    return;
+  }
+  const query: Record<string, string> = {};
+  for (const [name, value] of Object.entries(body)) {
+    if (value === undefined || value === null) continue;
+    let text: string | null = null;
+    if (typeof value === "string") text = value;
+    else if (typeof value === "number" && Number.isFinite(value)) text = String(value);
+    else if (typeof value === "boolean") text = value ? "true" : "false";
+    else if (Array.isArray(value) && value.length <= 8 && value.every((entry) => typeof entry === "string" && !entry.includes(","))) text = value.join(",");
+    if (text === null || text.length > BODY_FIELD_LENGTH || !/^[A-Za-z][A-Za-z0-9]{0,31}$/u.test(name)) {
+      next(invalidRequest(`Body field ${name.slice(0, 32)} must be a string, number, boolean or a list of strings.`, [{ path: name.slice(0, 32), message: "Invalid value." }]));
+      return;
+    }
+    query[name] = text;
+  }
+  Object.defineProperty(req, "query", { value: query, configurable: true, enumerable: true, writable: true });
+  next();
+};
+
 export function dataHandlers(): Record<string, RequestHandler[]> {
+  const reads = getDataHandlers();
+  const posts = Object.fromEntries(
+    DATA_BODY_READS.map((path) => {
+      const handlers = reads[`get ${path}`];
+      if (!handlers) throw new Error(`Data read ${path} has no GET handler.`);
+      return [`post ${path}`, [bodyAsQuery, ...handlers]];
+    }),
+  );
+  return { ...reads, ...posts };
+}
+
+function getDataHandlers(): Record<string, RequestHandler[]> {
   return {
     "get /data/portfolio": [
       handle(async (req, res) => {

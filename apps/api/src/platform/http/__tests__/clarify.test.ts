@@ -107,13 +107,13 @@ describe("POST /v1/intents without clarify", () => {
     assert.equal(asked.body.status, "needs_input");
   });
 
-  it("keeps the strict response shape for a complete sentence (no status, no thread)", async () => {
+  it("keeps the strict response shape for a complete sentence (no status, no thread; the privacy trace beside the intent)", async () => {
     const dry = await call<Record<string, unknown>>(server, "POST", "/intents?dryRun=true", { body: { text: "swap 1 SOL to USDC", accounts: ACCOUNTS } });
     assert.equal(dry.status, 200);
-    assert.deepEqual(Object.keys(dry.body), ["intent"]);
+    assert.deepEqual(Object.keys(dry.body), ["intent", "privacy"]);
     const stored = await call<Record<string, unknown>>(server, "POST", "/intents", { key, body: { text: "swap 1 SOL to USDC", accounts: ACCOUNTS, clientReference: `strict-${randomUUID()}` } });
     assert.equal(stored.status, 201);
-    assert.deepEqual(Object.keys(stored.body), ["intent"]);
+    assert.deepEqual(Object.keys(stored.body), ["intent", "privacy"]);
   });
 });
 

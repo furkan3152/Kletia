@@ -16,7 +16,7 @@
  */
 import express, { type ErrorRequestHandler, type Request, type RequestHandler, type Response, type Router } from "express";
 import type { RateLimitRequestHandler } from "express-rate-limit";
-import { parseAccountId, PROJECT_LIMITS } from "@kletia/core";
+import { parseAccountId, platformPrivacyTrace, PROJECT_LIMITS } from "@kletia/core";
 import {
   cancelIntent,
   createIntentDetailed,
@@ -103,6 +103,7 @@ import { rememberIntentOwner } from "./owners.js";
 import { assertNoPreviewBody, installPreviewStore, latestPreview, parsePrepareBody, parseQuotesQuery, PREVIEW_ACK_HEADER, recomputePreview, startPreviewPruner } from "./preview.js";
 import { startReceiptEventBuffer } from "./receipts/events.js";
 import { receiptHandlers } from "./receipts/handlers.js";
+import { intentRetentionHandlers, startIntentRetentionPruner } from "./intentRetention.js";
 import { startReceiptIssuer, type ReceiptIssuerOptions } from "./receipts/issuer.js";
 import { startReceiptLog } from "./receipts/log.js";
 import { receiptSignerStatus } from "./receipts/signer.js";
@@ -171,6 +172,16 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/data/pnl", auth: "public", publishable: true },
   { method: "get", path: "/data/snapshots", auth: "public", publishable: true },
   { method: "get", path: "/data/summary", auth: "public", publishable: true },
+  // The same reads with the parameters in a JSON body (data.ts DATA_BODY_READS): addresses stay out of URLs.
+  { method: "post", path: "/data/portfolio", auth: "public", publishable: true },
+  { method: "post", path: "/data/positions", auth: "public", publishable: true },
+  { method: "post", path: "/data/history", auth: "key", publishable: true },
+  { method: "post", path: "/data/export", auth: "public", publishable: true },
+  { method: "post", path: "/data/transactions", auth: "public", publishable: true },
+  { method: "post", path: "/data/transactions/:id", auth: "public", publishable: true },
+  { method: "post", path: "/data/pnl", auth: "public", publishable: true },
+  { method: "post", path: "/data/snapshots", auth: "public", publishable: true },
+  { method: "post", path: "/data/summary", auth: "public", publishable: true },
   // Tracking opt-in: a desk wallet session (first-party origin) only.
   { method: "get", path: "/data/tracking", auth: "public" },
   { method: "post", path: "/data/tracking", auth: "public" },
@@ -184,6 +195,8 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   // ?owner=key_…: a key of the caller's subtree (agent or publishable keys).
   { method: "get", path: "/intents", auth: "key" },
   { method: "get", path: "/intents/:id", auth: "public", publishable: true },
+  // Retention (intentRetention.ts): the intent id is the capability, as for reading it.
+  { method: "delete", path: "/intents/:id", auth: "public", publishable: true },
   { method: "post", path: "/intents/:id/steps/:stepId/prepare", auth: "public", publishable: true },
   { method: "post", path: "/intents/:id/steps/:stepId/submit", auth: "public", publishable: true },
   { method: "post", path: "/intents/:id/refresh", auth: "public", publishable: true },
@@ -831,7 +844,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
           ...(withPreview ? { preview: true } : {}),
           ...(withJourney ? { journey: true, ...(journeyReads ? { journeyReads } : {}) } : {}),
         });
-        const body = { intent, ...(preview ? { preview } : {}), ...(withJourney ? { journey: journey ?? null } : {}) };
+        const body = { intent, ...(preview ? { preview } : {}), ...(withJourney ? { journey: journey ?? null } : {}), privacy: platformPrivacyTrace(intent, { stored: !dryRun }) };
         if (dryRun) {
           sendJson(res, 200, body);
           return;
@@ -966,6 +979,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       }),
     ],
     ...receiptHandlers(),
+    ...intentRetentionHandlers(),
     ...policyHandlers(),
     ...linkHandlers(),
     ...accountHandlers(),
@@ -1099,7 +1113,8 @@ let stopBackground: (() => void) | null = null;
  * the contract pin watcher, the receipt issuer and transparency log, the
  * automation evaluator, the data snapshot job, and the
  * hourly pruning of idempotency records, delivery logs, expired sessions,
- * previews and clarify threads, once per process. Returns an idempotent stop function. Call it on long-running
+ * previews and clarify threads, and the intent retention sweep (request text
+ * 24 h after an intent is final, the graph 30 days after), once per process. Returns an idempotent stop function. Call it on long-running
  * hosts only (not in serverless request handlers; there usage is written
  * per request and expired rows wait for a long-running instance).
  */
@@ -1114,6 +1129,7 @@ export function startPlatformBackground(options: PlatformBackgroundOptions = {})
     startContractWatcher(),
     startSessionPruner(),
     startThreadPruner(),
+    startIntentRetentionPruner(),
     startPreviewPruner(),
     startReceiptIssuer(options.receipts),
     startReceiptLog(),

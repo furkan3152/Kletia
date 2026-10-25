@@ -52,6 +52,7 @@ import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openap
 import { linkPaths, linkSchemas } from "./links/openapi.js";
 import { ASSISTANT_TAG, assistantPaths, assistantSchemas } from "./assistantOpenapi.js";
 import { DATA_TAG, dataPaths, dataSchemas } from "./dataOpenapi.js";
+import { privacySchemas } from "./privacyOpenapi.js";
 import { projectPaths, projectSchemas } from "./projects/openapi.js";
 import { accountPaths, accountSchemas } from "./accounts/openapi.js";
 import { automationPaths, automationSchemas } from "../automation/openapi.js";
@@ -810,10 +811,24 @@ function schemas(): JsonObject {
           constraints: ref("IntentConstraints"),
           metadata: { type: "object", maxProperties: 20, propertyNames: { maxLength: 40 }, additionalProperties: str({ maxLength: 500 }) },
           clientReference: str({ pattern: "^[A-Za-z0-9_.:-]{1,80}$", description: "Idempotency key (honoured for callers with an API key)." }),
+          textRedaction: obj(
+            {
+              alg: str({ const: "sha256-salted-v1" }),
+              digest: str({ pattern: "^[0-9a-f]{64}$", description: 'hex SHA-256(UTF8("kletia.request-text.v1:" + salt + ":" + text)).' }),
+              salt: str({ pattern: "^[A-Za-z0-9_-]{22}$" }),
+              length: int({ minimum: 0, description: "Length of the removed text in Unicode code points." }),
+              redactedAt: str({ format: "date-time" }),
+            },
+            ["alg", "digest", "salt", "length", "redactedAt"],
+            {
+              readOnly: true,
+              description: "Stored intents only, never accepted in a request: retention removed `text` (24 hours after the intent became final) and kept this digest and length instead.",
+            },
+          ),
         },
         ["accounts"],
       ),
-      anyOf: [{ required: ["text"] }, { required: ["actions"] }],
+      anyOf: [{ required: ["text"] }, { required: ["actions"] }, { required: ["textRedaction"] }],
     },
 
     AssetAmount: obj(
@@ -1650,6 +1665,7 @@ function schemas(): JsonObject {
     ...agentSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
+    ...privacySchemas(),
 
     IntentResponse: obj({ intent: ref("IntentGraph") }, ["intent"]),
     IntentCreateResponse: obj(
@@ -1660,8 +1676,9 @@ function schemas(): JsonObject {
           oneOf: [ref("Journey"), { type: "null" }],
           description: "With `journey=true`: the journey built on `preview` (`journey.basis.previewDigest` equals `preview.digest`); null when it could not be built.",
         },
+        privacy: ref("PlatformPrivacyTrace"),
       },
-      ["intent"],
+      ["intent", "privacy"],
     ),
     IntentListResponse: obj({ intents: arrayOf(ref("IntentGraph")) }, ["intents"]),
     PreparedStepResponse: obj(
@@ -1843,7 +1860,7 @@ function paths(): JsonObject {
         operationId: "quoteRoutes",
         tags: ["Quotes"],
         summary: "Best routes for one asset movement (same- or cross-network)",
-        description: "Quotes are advisory and never persisted. Routes are ranked like the planner's bridge auction (guaranteed output net of priced extra costs, then time within `maxSeconds`, then transaction count); `best` is the first eligible route.",
+        description: "Quotes are advisory and never persisted. Routes are ranked like the planner's auction, by the expected value delivered after gas, priced extra costs, time, signatures and venue risk; a route is eligible only when its guaranteed minimum is within the slippage, its costs can be priced and it settles within `maxSeconds`. `best` is the first eligible route.",
         requestBody: jsonBody("QuoteRequest"),
         responses: { "200": ok("QuoteResponse", "Routes."), ...errors("413", "415", "422", "502", "504") },
       },
@@ -1944,6 +1961,15 @@ function paths(): JsonObject {
         summary: "Read an intent",
         parameters: [intentIdParam],
         responses: { "200": ok("IntentResponse", "Intent."), ...errors("404") },
+      },
+      delete: {
+        operationId: "deleteIntent",
+        tags: ["Intents"],
+        summary: "Delete a stored intent",
+        description:
+          "The holder of the intent id deletes the stored intent now, with every stored disclosure and share of its receipts. Signed receipt payloads (commitments only), transparency-log leaves and transaction references stay, so receipts downloaded earlier still verify. 409 INTENT_IN_FLIGHT while a step is submitted, confirmed or settling. Without a request, the request text is removed 24 hours after the intent is final and the intent 30 days after (docs/platform/data-retention.md).",
+        parameters: [intentIdParam],
+        responses: { "204": { description: "Deleted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("404", "409") },
       },
     },
     "/v1/intents/{id}/steps/{stepId}/prepare": {

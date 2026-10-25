@@ -14,6 +14,7 @@ import type { ContractReview, ContractStepCall } from "./contracts.js";
 import type { StepPreview } from "./preview.js";
 import type { PlanRecord } from "./receipts.js";
 import type { AssumptionSource } from "./clarify.js";
+import type { IntentTextRedaction } from "./retention.js";
 
 export const INTENT_SPEC_VERSION = "kletia.intent/v1" as const;
 
@@ -165,6 +166,12 @@ export interface IntentRequest {
   readonly metadata?: Readonly<Record<string, string>>;
   /** Integrator-supplied idempotency key. */
   readonly clientReference?: string;
+  /**
+   * Stored intents only, never accepted in a request: set when retention
+   * removed `text` (docs/platform/data-retention.md). Carries a salted digest
+   * and the length of the removed text.
+   */
+  readonly textRedaction?: IntentTextRedaction;
 }
 
 export type IntentStatus =
@@ -572,7 +579,9 @@ export interface IntentGraph {
   /**
    * The plan as created, captured once at planning (`buildPlanRecord`), and
    * its digest (`planRecordDigest`). Absent on intents created before plan
-   * records. Receipts commit to it; prepare never changes it.
+   * records. Receipts commit to it; prepare never changes it. Retention
+   * sets `record.interpretation.normalizedText` to null when it removes the
+   * request text, and recomputes the digest (docs/platform/data-retention.md).
    */
   readonly plan?: { readonly digest: string; readonly record: PlanRecord };
   /** Rule Book stamp of an intent planned for a key with a policy chain. */

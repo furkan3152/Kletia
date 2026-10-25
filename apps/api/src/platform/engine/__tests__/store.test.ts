@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { after, describe, it } from "node:test";
 import type { IntentGraph } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
@@ -32,6 +33,34 @@ async function code(promise: Promise<unknown>): Promise<string> {
 
 function contract(name: string, make: () => Promise<IntentStore>): void {
   describe(`${name} intent store`, () => {
+    it("lists retention candidates by stage and deletes graphs", async () => {
+      const store = await make();
+      if (!store.listForRetention || !store.delete) throw new Error("the built-in stores implement retention");
+      const planned = await graph();
+      // Long finished: sorts first in a shared database.
+      const finished = "2001-01-01T00:00:00.000Z";
+      const done: IntentGraph = {
+        ...planned,
+        id: `int_${randomBytes(16).toString("hex")}`,
+        createdAt: finished,
+        updatedAt: finished,
+        expiresAt: finished,
+        status: "completed",
+        steps: planned.steps.map((step) => ({ ...step, status: "settled" as const })),
+        request: { ...planned.request, clientReference: owner("ref") },
+      };
+      await store.create(done, { ownerKeyId: owner("key") });
+      const at = Date.parse(finished);
+      const ids = async (stage: "redact" | "purge", now: number) => (await store.listForRetention!(stage, now, 1_000)).map((entry) => entry.id);
+      assert.equal((await ids("redact", at + 60_000)).includes(done.id), false, "inside the grace window");
+      assert.equal((await ids("redact", at + 25 * 3_600_000)).includes(done.id), true, "text due after 24 hours");
+      assert.equal((await ids("purge", at + 25 * 3_600_000)).includes(done.id), false);
+      assert.equal((await ids("purge", at + 31 * 86_400_000)).includes(done.id), true, "graph due after 30 days");
+      assert.equal(await store.delete(done.id), true);
+      assert.equal(await store.get(done.id), null);
+      assert.equal(await store.delete(done.id), false);
+    });
+
     it("creates once and reads back a copy", async () => {
       const store = await make();
       const intent = await graph();

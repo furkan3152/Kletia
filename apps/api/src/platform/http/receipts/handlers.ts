@@ -202,7 +202,14 @@ export async function createReceiptShare(intentId: string, body: unknown, now = 
   if (receipt.disclosuresWithdrawnAt || !receipt.disclosures) {
     throw new PlatformError("RECEIPT_DISCLOSURES_WITHDRAWN", "The owner withdrew this intent's disclosures, so no share can be created. The signed payloads remain.", 410);
   }
-  const groups = shareGroups(request, receipt.payload);
+  const stored = receipt.disclosures;
+  const selected = shareGroups(request, receipt.payload);
+  // Retention drops the text-bearing groups 24 h after the intent is final: a share lists only what it carries.
+  const dropped = selected.filter((path) => stored[path] === undefined);
+  if (dropped.length > 0 && !("profile" in request.selection)) {
+    throw invalidRequest("Some of these groups are no longer stored: Kletia removed them with the request text (docs/platform/data-retention.md).", dropped.slice(0, 8).map((path) => ({ path: "groups", message: `${path} is no longer stored.` })));
+  }
+  const groups = selected.filter((path) => stored[path] !== undefined);
   const id = `rsh_${randomHex(12)}`;
   const { ciphertext, key } = encryptShare(receipt.id, id, receipt.disclosures, groups);
   const at = new Date(now).toISOString();

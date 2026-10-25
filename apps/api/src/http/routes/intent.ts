@@ -239,6 +239,7 @@ router.post(
 
     let semanticProviderRequestAttempted = false;
     let semanticModelInfluencedPlan = false;
+    let semanticContextTurns = 0;
     const privacyTrace = (
       stage: Parameters<typeof createIntentPrivacyTrace>[0]["stage"],
       options: {
@@ -255,6 +256,7 @@ router.post(
         semanticPlanner,
         semanticProviderRequestAttempted,
         semanticModelInfluencedPlan,
+        semanticContextTurns,
         intent: options.intent,
         clarificationStored: options.clarificationStored === true,
       });
@@ -299,7 +301,7 @@ router.post(
     console.log(
       `
 📡 [NEW ORDER][${network.id}:${network.chainId}][${requestId}] ` +
-        `promptLength=${String(prompt).length} wallet=${userAddress.substring(0, 6)}…`,
+        `promptLength=${String(prompt).length}`,
     );
 
     try {
@@ -472,6 +474,7 @@ router.post(
             semanticPlanner,
             onSemanticProviderRequest: () => {
               semanticProviderRequestAttempted = true;
+              semanticContextTurns = history.length;
             },
           });
           if (semanticProviderRequestAttempted) {

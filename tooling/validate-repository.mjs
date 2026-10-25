@@ -276,7 +276,9 @@ const markSource = readFileSync(
   "apps/web/src/app/site/KletiaMark.tsx",
   "utf8",
 );
-if (!markSource.includes('src="/kletia-logo.png"')) {
+// The mark is the local logo PNG, drawn as an <img> or as the mask of the .kl-glyph tile.
+const glyphMasksLogo = readFileSync("apps/web/src/app/styles.css", "utf8").includes('mask: url("/kletia-logo.png")');
+if (!markSource.includes('src="/kletia-logo.png"') && !(markSource.includes("kl-glyph") && glyphMasksLogo)) {
   fail("KletiaMark must keep the local Kletia logo");
 }
 

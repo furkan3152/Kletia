@@ -1,31 +1,19 @@
 /**
- * Live data for the home page, fetched once and shared by its sections
- * (`useApiResource` has no cache: two components calling it would make two
- * requests).
+ * Live data for the home page: GET /v1/health, fetched once after the first paint and shared by
+ * the tape, the hero's "answering now" and the cartridge bay (`useApiResource` has no cache: two
+ * components calling it would make two requests). Counts of networks and protocols come from the
+ * registry compiled into @kletia/core, so the copy never shifts when the answer arrives.
  */
-import type { HealthReport, NetworkCapabilities } from "@kletia/sdk";
-import type { ProtocolDescriptor } from "@kletia/core";
+import type { HealthReport } from "@kletia/sdk";
 
-import { fetchHealth, fetchNetworks, fetchProtocols } from "../../../shared/platform/platformApi";
+import { fetchHealth } from "../../../shared/platform/platformApi";
 import { useApiResource, type ApiResource } from "../../../shared/platform/useApiResource";
 
 export interface HomeData {
   readonly health: ApiResource<HealthReport>;
-  readonly networks: ApiResource<NetworkCapabilities[]>;
-  readonly protocols: ApiResource<ProtocolDescriptor[]>;
-  /** True when /v1/networks answered with at least one network. */
-  readonly liveNetworks: boolean;
-  /** True when /v1/protocols answered with at least one protocol. */
-  readonly liveProtocols: boolean;
 }
 
 export function useHomeData(): HomeData {
   const health = useApiResource("health", fetchHealth);
-  const networks = useApiResource("networks", fetchNetworks);
-  const protocols = useApiResource("protocols", fetchProtocols);
-
-  const liveNetworks = (networks.data?.length ?? 0) > 0;
-  const liveProtocols = (protocols.data?.length ?? 0) > 0;
-
-  return { health, networks, protocols, liveNetworks, liveProtocols };
+  return { health };
 }

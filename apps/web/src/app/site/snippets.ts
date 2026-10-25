@@ -770,7 +770,7 @@ Ed25519PublicKey.from_public_bytes(base64.urlsafe_b64decode(pad(x))).verify(
     ("kletia.receipt.v1:" + receipt["digest"]).encode(),
 )`;
 
-const MCP_AGENT_KEY = `# 1. An agent key bound by a rule book (a project key creates it; the secret goes to a file).
+export const MCP_AGENT_KEY = `# 1. An agent key bound by a rule book (a project key creates it; the secret goes to a file).
 kletia keys create-agent --parent key_… --name research-bot --template payments-agent \\
   --account base:0xTreasury --recipient base:0xVendor --approver-wallet base:0xYou \\
   --expires 7d --secret-file ./agent-key.txt

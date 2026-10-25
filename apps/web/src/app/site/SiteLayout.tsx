@@ -1,6 +1,8 @@
-import React, { useLayoutEffect } from "react";
+import React, { useLayoutEffect, useMemo } from "react";
 
+import { useRoute } from "../routes/useRoute";
 import { PaperDefs } from "./art/PaperDefs";
+import { OWN_CHROME_ROUTES, SiteThemeContext } from "./siteChrome";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
 import { enterSiteMode, leaveSiteMode } from "./theme";
@@ -28,6 +30,20 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     return () => leaveSiteMode();
   }, []);
   const { theme, toggle } = useSiteTheme();
+  const themeState = useMemo(() => ({ theme, toggle }), [theme, toggle]);
+  // The home page draws its own tape, header and base plate.
+  const ownChrome = OWN_CHROME_ROUTES.has(useRoute().route.id);
+
+  if (ownChrome) {
+    return (
+      <SiteThemeContext.Provider value={themeState}>
+        <div className="relative flex min-h-screen flex-col overflow-x-clip bg-[#D6D2C8] font-body text-[#121212] antialiased selection:bg-[#C6FF3A] selection:text-[#121212] dark:bg-[#0E0E10] dark:text-[#F2F0EA]">
+          <PaperDefs />
+          <React.Suspense fallback={<PageFallback />}>{children}</React.Suspense>
+        </div>
+      </SiteThemeContext.Provider>
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-clip bg-[#D6D2C8] font-body text-[#121212] antialiased selection:bg-[#C6FF3A] selection:text-[#121212] dark:bg-[#0E0E10] dark:text-[#F2F0EA]">

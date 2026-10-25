@@ -218,6 +218,19 @@ test("one task signs at a time; the lock is released when its task leaves execut
   store.getState().releaseSigning(third.id);
 });
 
+test("the Trade views sign under their own lock ids, one signer at a time", () => {
+  const storage = memoryStorage();
+  const store = createDeskStore({ storage, newId: ids(), now: () => NOW, departureStorage: { read: () => null, write: () => undefined } });
+  const task = store.getState().addTask({ sentence: "swap 1 SOL to USDC", departure: "auto" });
+  assert.equal(store.getState().acquireSigning("perps"), true, "perps signs without a task record");
+  assert.equal(store.getState().acquireSigning(task.id), false, "a task waits while perps signs");
+  assert.equal(store.getState().acquireSigning("predict"), false);
+  store.getState().releaseSigning("perps");
+  assert.equal(store.getState().acquireSigning("predict"), true);
+  store.getState().releaseSigning("predict");
+  assert.equal(store.getState().signingTaskId, null);
+});
+
 test("clearing finished tasks also forgets their resume records; the composer answers only an open question", () => {
   const storage = memoryStorage();
   const store = createDeskStore({ storage, newId: ids(), now: () => NOW, departureStorage: { read: () => null, write: () => undefined } });

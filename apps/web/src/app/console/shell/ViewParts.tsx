@@ -35,7 +35,7 @@ const NOTE_TONES: Readonly<Record<NoteTone, string>> = {
 /** A note beside the content: a rule, a warning, an error (role="alert" for errors that just happened). */
 export function ViewNote({ tone = "neutral", role, className, children }: { readonly tone?: NoteTone; readonly role?: "alert" | "status"; readonly className?: string; readonly children: ReactNode }) {
   return (
-    <div role={role} className={cx("border-l-4 px-3 py-2 text-sm text-fg", NOTE_TONES[tone], className)}>
+    <div role={role} className={cx("border-l-4 px-3 py-2 text-sm text-fg [overflow-wrap:anywhere]", NOTE_TONES[tone], className)}>
       {children}
     </div>
   );

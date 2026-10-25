@@ -6,7 +6,9 @@
  *
  * Rules the store enforces whatever the components do:
  * - one task signs at a time: `acquireSigning` refuses a second task, and the
- *   lock is released when its task leaves `executing` or is removed;
+ *   lock is released when its task leaves `executing` or is removed; the
+ *   Trade views that sign outside a task (`VIEW_SIGNING_LOCKS`) take the
+ *   same lock under their own id;
  * - a signing task is never removed (unmounting its execution would cancel
  *   the run and refuse any open gate);
  * - the sentence, the question, the turns and the clarify thread stay in
@@ -46,6 +48,9 @@ import {
   type TaskIndexEntry,
   type TaskOrigin,
 } from "./deskSession.ts";
+
+/** Views that sign without a task (their run is not a TaskRecord) and hold the lock under these ids. */
+export const VIEW_SIGNING_LOCKS: readonly string[] = Object.freeze(["perps", "predict"]);
 
 export type TaskEngine =
   | { readonly kind: "platform" }
@@ -410,7 +415,7 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
 
     acquireSigning(id) {
       const state = get();
-      if (!state.tasks.some((task) => task.id === id)) return false;
+      if (!VIEW_SIGNING_LOCKS.includes(id) && !state.tasks.some((task) => task.id === id)) return false;
       if (state.signingTaskId !== null && state.signingTaskId !== id) return false;
       if (state.signingTaskId !== id) set({ signingTaskId: id });
       return true;

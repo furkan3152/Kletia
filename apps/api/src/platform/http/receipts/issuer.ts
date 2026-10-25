@@ -44,6 +44,8 @@ import {
   subscribeIntentEvents,
   type IntentEvent,
 } from "../../index.js";
+import { sanitizeUpstreamMessage } from "../../errors.js";
+import { intentLogRef } from "../../engine/util.js";
 import { PLATFORM_API_VERSION } from "../health.js";
 import { resolveIntentOwner } from "../owners.js";
 import { randomHex } from "../secrets.js";
@@ -237,7 +239,7 @@ export class ReceiptIssuer {
         next += 1;
         const entry = entries[index] as QueueEntry;
         outcomes[index] = await this.process(entry).catch(async (error: unknown): Promise<ProcessOutcome> => {
-          console.error(`[platform] receipt issuance for ${entry.intentId} failed:`, error instanceof Error ? error.message : error);
+          console.error(`[platform] receipt issuance for ${intentLogRef(entry.intentId)} failed:`, error instanceof Error ? sanitizeUpstreamMessage(error.message) : "error");
           return this.reschedule(entry, "issuer_error", this.now() + ISSUER_ERROR_RETRY_MS, null, "unexpected issuer error");
         });
       }
@@ -288,7 +290,7 @@ export class ReceiptIssuer {
     const waited = now - Date.parse(entry.createdAt);
     if (collection.state === "waiting_finality" || collection.state === "retry") {
       if (Number.isFinite(waited) && waited > finalityBudgetMs()) {
-        console.error(`[platform] receipt finality_timeout for ${graph.id} after ${Math.round(waited / 1000)} s: ${collection.detail ?? collection.state}`);
+        console.error(`[platform] receipt finality_timeout for ${intentLogRef(graph.id)} after ${Math.round(waited / 1000)} s: ${collection.detail ?? collection.state}`);
         return this.reschedule(entry, "finality_timeout", now + 60 * 60_000, collection.expectedBy, collection.detail ?? null);
       }
     }
@@ -303,7 +305,7 @@ export class ReceiptIssuer {
       return this.reschedule(entry, "rpc_unavailable", now + backoff, null, collection.detail ?? null);
     }
     if (collection.state === "reorged") {
-      console.error(`[platform] receipt anchor_reorged for ${graph.id}: ${collection.detail ?? "an anchor's block changed"}`);
+      console.error(`[platform] receipt anchor_reorged for ${intentLogRef(graph.id)}: ${collection.detail ?? "an anchor's block changed"}`);
       refreshIntent(graph.id).catch((error: unknown) => console.warn("[platform] refresh after a reorg failed:", error instanceof Error ? error.message : error));
       return this.reschedule(entry, "anchor_reorged", now + REORG_RETRY_MS, null, collection.detail ?? null);
     }
@@ -327,7 +329,7 @@ export class ReceiptIssuer {
     const document = { payload: built.payload, digest, signature: { alg: "Ed25519" as const, kid: signer.kid, value }, disclosures: built.disclosures };
     const check = await verifyReceipt(document, { keys: receiptKeys(), intentId: graph.id, requireGroups: receiptGroupSlots(built.payload), now });
     if (!check.valid || check.problems.length > 0) {
-      console.error(`[platform] receipt self-verification failed for ${graph.id}: ${check.problems.map((problem) => problem.code).join(", ")}; nothing was issued.`);
+      console.error(`[platform] receipt self-verification failed for ${intentLogRef(graph.id)}: ${check.problems.map((problem) => problem.code).join(", ")}; nothing was issued.`);
       return this.reschedule(entry, "issuer_error", now + ISSUER_ERROR_RETRY_MS, null, "self-verification failed");
     }
 

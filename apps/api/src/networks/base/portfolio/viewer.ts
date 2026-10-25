@@ -426,7 +426,7 @@ export async function getPortfolio(userAddress: string) {
   const tokenAddressesToPrice = new Set<string>();
   const wallet: WalletAsset[] = [];
 
-  console.log(`[KLETIA PORTFOLIO][base:8453] Scan started for ${user}`);
+  console.log("[KLETIA PORTFOLIO][base:8453] Scan started.");
 
   try {
     const ethBalance = await basePublicClient.getBalance({ address: user });

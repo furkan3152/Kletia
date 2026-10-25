@@ -2,7 +2,7 @@
  * Example intents per protocol, for "Try a {action}" links into Studio.
  *
  * Every prompt is copied verbatim from the API grammar's examples
- * (`GRAMMAR_EXAMPLES` in apps/api/src/platform/engine/grammar.ts), so it is
+ * (`GRAMMAR_EXAMPLES` in apps/api/src/platform/engine/grammar/examples.ts), so it is
  * known to compile; a test reads that file and fails when a prompt here is
  * not one of them. Where the grammar names the venue ("via raydium", "with
  * lido", "into yearn") the planner uses it; otherwise the link names the

@@ -333,7 +333,9 @@ export default function DeskApp() {
               moving={moving}
               today={todayRows(status.health, status.offered)}
             >
-              <ActivityPeek onOpenAll={() => openView("activity")} />
+              <div data-boot-part="">
+                <ActivityPeek onOpenAll={() => openView("activity")} />
+              </div>
             </MachinePanel>
           ) : null
         }

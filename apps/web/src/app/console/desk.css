@@ -69,6 +69,10 @@
   .kd-machine-rail::-webkit-scrollbar {
     display: none;
   }
+  /* Short windows scroll the rail; nothing in it is squeezed. */
+  .kd-machine-rail > * {
+    flex-shrink: 0;
+  }
 }
 
 @media (min-width: 1280px) {

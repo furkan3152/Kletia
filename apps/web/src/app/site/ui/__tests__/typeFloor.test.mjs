@@ -23,7 +23,6 @@ const PENDING = {
   "pages/developers/components/MethodBadge.tsx": [1, "release"],
   "site/ui/CopyButton.tsx": [1, "release"],
   "site/ui/StatusDot.tsx": [1, "release"],
-  "site/ui/Toaster.tsx": [1, "release"],
 };
 
 function walk(directory) {

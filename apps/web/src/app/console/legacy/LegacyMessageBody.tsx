@@ -128,10 +128,10 @@ export function LegacyMessageRow({
       className={`kl-msg-in flex min-w-0 items-start gap-2.5 sm:gap-3 md:gap-5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
     >
       {msg.role === "kletia" && (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#4B5563] bg-white shadow-[3px_3px_0_#475569] dark:border-[#4B5563] dark:bg-slate-800 dark:shadow-[3px_3px_0_#475569] sm:h-10 sm:w-10 md:h-12 md:w-12">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#4A4A52] bg-[#FBFAF6] shadow-[3px_3px_0_#2A2A30] dark:border-[#4A4A52] dark:bg-slate-800 dark:shadow-[3px_3px_0_#2A2A30] sm:h-10 sm:w-10 md:h-12 md:w-12">
           {msg.isLoading && !msg.terminalLogs?.length ? (
             <Loader2
-              className="w-5 h-5 md:w-6 md:h-6 text-[#0052FF] animate-spin"
+              className="w-5 h-5 md:w-6 md:h-6 text-[#1A36B0] animate-spin"
               strokeWidth={4}
             />
           ) : (
@@ -144,11 +144,11 @@ export function LegacyMessageRow({
       )}
 
       <div
-          className={`min-w-0 max-w-[calc(100%-2.875rem)] overflow-x-hidden break-words border-[3px] border-[#1A1A1A] px-3 py-3 text-[15px] font-bold leading-6 dark:border-[#4B5563] sm:max-w-[calc(100%-3.25rem)] sm:w-auto sm:px-4 md:max-w-[85%] md:px-6 md:py-5 md:text-lg
+          className={`min-w-0 max-w-[calc(100%-2.875rem)] overflow-x-hidden break-words border-[3px] border-[#121212] px-3 py-3 text-[15px] font-bold leading-6 dark:border-[#4A4A52] sm:max-w-[calc(100%-3.25rem)] sm:w-auto sm:px-4 md:max-w-[85%] md:px-6 md:py-5 md:text-lg
                   ${
                     msg.role === "user"
-    ? "bg-[#0052FF] text-white ml-auto shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569]"
-    : "bg-white dark:bg-[#131E32] text-[#1A1A1A] dark:text-gray-100 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569]"
+    ? "bg-[#2F5BFF] text-white ml-auto shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] md:shadow-[4px_4px_0_#121212] dark:md:shadow-[4px_4px_0_#2A2A30]"
+    : "bg-[#FBFAF6] dark:bg-[#19191C] text-[#121212] dark:text-gray-100 shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] md:shadow-[4px_4px_0_#121212] dark:md:shadow-[4px_4px_0_#2A2A30]"
                   }`}
       >
         {msg.role === "kletia" ? (
@@ -191,23 +191,23 @@ export function LegacyMessageRow({
             ) : null}
             {msg.text.includes("[SHOW_ONRAMP]") &&
               address && (
-                <div className="mt-5 md:mt-6 p-4 md:p-5 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569] flex flex-col gap-4 w-full sm:w-80 md:w-[450px]">
-                  <div className="text-xs md:text-sm text-[#1A1A1A] dark:text-white font-black uppercase tracking-widest border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 flex items-center justify-between">
+                <div className="mt-5 md:mt-6 p-4 md:p-5 bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] md:shadow-[4px_4px_0_#121212] dark:md:shadow-[4px_4px_0_#2A2A30] flex flex-col gap-4 w-full sm:w-80 md:w-[450px]">
+                  <div className="text-xs md:text-sm text-[#121212] dark:text-white font-black uppercase tracking-widest border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <CreditCard
-                        className="w-4 h-4 md:w-5 md:h-5 text-[#0052FF]"
+                        className="w-4 h-4 md:w-5 md:h-5 text-[#1A36B0]"
                         strokeWidth={3}
                       />{" "}
                       FUND WALLET
                     </div>
                     <div
-                      className="text-[10px] bg-gray-100 dark:bg-slate-800 px-2 py-1 border-[2px] border-[#1A1A1A] dark:border-slate-500 truncate max-w-[120px] md:max-w-[150px] font-mono"
+                      className="text-[10px] bg-gray-100 dark:bg-slate-800 px-2 py-1 border-[2px] border-[#121212] dark:border-slate-500 truncate max-w-[120px] md:max-w-[150px] font-mono"
                       title={address}
                     >
                       {address}
                     </div>
                   </div>
-                  <p className="text-sm md:text-base font-bold text-[#1A1A1A] dark:text-gray-300">
+                  <p className="text-sm md:text-base font-bold text-[#121212] dark:text-gray-300">
                     {networkMode === "arc"
                       ? "Arc Testnet native USDC is required for value and gas. Open the official faucet to fund this testnet wallet."
                       : networkMode === "base"
@@ -218,7 +218,7 @@ export function LegacyMessageRow({
                     onClick={(e) =>
                       handleContextFunding(address, e)
                     }
-                    className="group relative w-full flex items-center justify-center gap-2 md:gap-3 bg-[#0052FF] hover:bg-blue-700 text-white font-black py-3 md:py-4 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] active:translate-y-1 active:shadow-none transition-all uppercase tracking-wide text-sm md:text-base cursor-pointer"
+                    className="group relative w-full flex items-center justify-center gap-2 md:gap-3 bg-[#2F5BFF] hover:bg-blue-700 text-white font-black py-3 md:py-4 border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] active:translate-y-1 active:shadow-none transition-all uppercase tracking-wide text-sm md:text-base cursor-pointer"
                   >
                     <CreditCard
                       className="w-5 h-5 md:w-6 md:h-6"
@@ -274,7 +274,7 @@ export function LegacyMessageRow({
                           updateMessageForNetwork(msg.network || "base", msg.id, { isLoading: false }),
                         );
                     }}
-                    className="mt-3 w-full border-[3px] border-[#1A1A1A] bg-[#FFF36D] px-3 py-2 text-xs font-black uppercase shadow-[3px_3px_0_#1A1A1A] disabled:opacity-50"
+                    className="mt-3 w-full border-[3px] border-[#121212] bg-[#FFF36D] px-3 py-2 text-xs font-black uppercase shadow-[3px_3px_0_#121212] disabled:opacity-50"
                   >
                     Refresh cross-chain checkpoint
                   </button>
@@ -408,7 +408,7 @@ export function LegacyMessageRow({
         {msg.intentData?.action === "yield_compare" &&
           msg.intentData.opportunities &&
           msg.intentData.opportunities.length > 0 && (
-            <div className="mt-5 w-full sm:w-80 md:w-[450px] border-[3px] border-[#1A1A1A] bg-[#FFF36D] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A]">
+            <div className="mt-5 w-full sm:w-80 md:w-[450px] border-[3px] border-[#121212] bg-[#FFF36D] p-4 text-[#121212] shadow-[4px_4px_0_#121212]">
               <div className="mb-3 text-xs font-black uppercase tracking-widest">
                 Live Base{" "}
                 {msg.intentData.comparison === "borrow"
@@ -422,7 +422,7 @@ export function LegacyMessageRow({
                   .map((opportunity, index) => (
                     <div
                       key={`${opportunity.protocolId}:${opportunity.target}`}
-                      className="border-[2px] border-[#1A1A1A] bg-white p-2 text-xs font-bold"
+                      className="border-[2px] border-[#121212] bg-[#FBFAF6] p-2 text-xs font-bold"
                     >
                       <span className="font-black">
                         {index + 1}. {opportunity.name}
@@ -482,8 +482,8 @@ export function LegacyMessageRow({
           msg.intentData.action !== "portfolio" &&
           msg.intentData.executionMode !==
             "kletia_launch_factory_v2" && (
-            <div className="mt-5 md:mt-6 p-4 md:p-5 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569] flex flex-col gap-4 w-full sm:w-80 md:w-[450px]">
-              <div className="text-xs md:text-sm text-[#1A1A1A] dark:text-white font-black uppercase tracking-widest border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 flex items-center gap-2">
+            <div className="mt-5 md:mt-6 p-4 md:p-5 bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] md:shadow-[4px_4px_0_#121212] dark:md:shadow-[4px_4px_0_#2A2A30] flex flex-col gap-4 w-full sm:w-80 md:w-[450px]">
+              <div className="text-xs md:text-sm text-[#121212] dark:text-white font-black uppercase tracking-widest border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-2 flex items-center gap-2">
                 <Zap
                   className="w-4 h-4 md:w-5 md:h-5"
                   strokeWidth={3}
@@ -493,7 +493,7 @@ export function LegacyMessageRow({
 
               {msg.intentData.quoteCoverage &&
                 msg.intentData.rankingEvidence && (
-                  <div className="border-[3px] border-[#1A1A1A] bg-[#EAF0FF] p-3 text-[10px] font-bold text-[#1A1A1A]">
+                  <div className="border-[3px] border-[#121212] bg-[#E1E8FF] p-3 text-[10px] font-bold text-[#121212]">
                     <div className="flex flex-wrap gap-2 font-black uppercase">
                       <span>
                         Sources{" "}
@@ -542,7 +542,7 @@ export function LegacyMessageRow({
                 )}
 
               {msg.intentData.yieldRankingEvidence && (
-                <div className="border-[3px] border-[#1A1A1A] bg-[#FFF36D] p-3 text-[10px] font-bold text-[#1A1A1A]">
+                <div className="border-[3px] border-[#121212] bg-[#FFF36D] p-3 text-[10px] font-bold text-[#121212]">
                   <div className="font-black uppercase">
                     Live yield efficiency ·{" "}
                     {
@@ -560,7 +560,7 @@ export function LegacyMessageRow({
               )}
 
               {msg.intentData.liquidityRoutingEvidence && (
-                <div className="border-[3px] border-[#1A1A1A] bg-[#BFF7FF] p-3 text-[10px] font-bold text-[#1A1A1A]">
+                <div className="border-[3px] border-[#121212] bg-[#BFF7FF] p-3 text-[10px] font-bold text-[#121212]">
                   <div className="font-black uppercase">
                     Factory-bound pool evidence
                   </div>
@@ -591,7 +591,7 @@ export function LegacyMessageRow({
               )}
 
               {msg.intentData.feeRouterCoverage && (
-                <div className="border-[3px] border-[#1A1A1A] bg-[#D9F99D] p-3 text-[10px] font-bold text-[#1A1A1A]">
+                <div className="border-[3px] border-[#121212] bg-[#D9F99D] p-3 text-[10px] font-bold text-[#121212]">
                   <div className="font-black uppercase">
                     Fee Router readiness
                   </div>
@@ -621,7 +621,7 @@ export function LegacyMessageRow({
               )}
 
               {msg.intentData.gasReadiness && (
-                <div className={`border-[3px] border-[#1A1A1A] p-3 text-[10px] font-bold text-[#1A1A1A] ${msg.intentData.gasReadiness.gasAcquisitionRequired ? "bg-[#FECACA]" : "bg-[#D9F99D]"}`}>
+                <div className={`border-[3px] border-[#121212] p-3 text-[10px] font-bold text-[#121212] ${msg.intentData.gasReadiness.gasAcquisitionRequired ? "bg-[#FECACA]" : "bg-[#D9F99D]"}`}>
                   <div className="font-black uppercase">Arbitrum gas readiness</div>
                   <p className="mt-1">
                     Balance {msg.intentData.gasReadiness.balanceAtomic} wei · recommended buffer {msg.intentData.gasReadiness.recommendedBufferAtomic} wei
@@ -645,7 +645,7 @@ export function LegacyMessageRow({
                             50,
                           );
                         })()}
-                        className="mt-2 w-full border-2 border-[#1A1A1A] bg-white px-2 py-2 text-[9px] font-black uppercase shadow-[2px_2px_0_#1A1A1A] active:translate-y-0.5 active:shadow-none"
+                        className="mt-2 w-full border-2 border-[#121212] bg-[#FBFAF6] px-2 py-2 text-[9px] font-black uppercase shadow-[2px_2px_0_#121212] active:translate-y-0.5 active:shadow-none"
                       >
                         Prepare capped gas step
                       </button>
@@ -655,7 +655,7 @@ export function LegacyMessageRow({
               )}
 
               <select
-                className="w-full bg-[#EFEFEF] dark:bg-slate-800 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] text-[#1A1A1A] dark:text-white font-black text-sm md:text-base p-2.5 md:p-3 outline-none focus:bg-[#0052FF] dark:focus:bg-[#0052FF] focus:text-white transition-colors cursor-pointer"
+                className="w-full bg-[#EFEFEF] dark:bg-slate-800 border-[3px] border-[#121212] dark:border-[#4A4A52] text-[#121212] dark:text-white font-black text-sm md:text-base p-2.5 md:p-3 outline-none focus:bg-[#2F5BFF] dark:focus:bg-[#2F5BFF] focus:text-white transition-colors cursor-pointer"
                 value={msg.selectedRouteIndex ?? ""}
                 onChange={(e) => {
                   if (e.target.value === "") return;
@@ -768,7 +768,7 @@ export function LegacyMessageRow({
                   ) &&
                     msg.selectedRouteIndex === undefined)
                 }
-                className={`group relative w-full flex items-center justify-center gap-2 md:gap-3 text-white font-black py-3 md:py-4 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] active:translate-y-1 active:shadow-none transition-all uppercase tracking-wide text-sm md:text-base ${
+                className={`group relative w-full flex items-center justify-center gap-2 md:gap-3 text-white font-black py-3 md:py-4 border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] active:translate-y-1 active:shadow-none transition-all uppercase tracking-wide text-sm md:text-base ${
                   msg.txHash
                     ? "bg-[#10B981]"
                     : msg.isLoading ||
@@ -789,7 +789,7 @@ export function LegacyMessageRow({
                           msg.selectedRouteIndex ===
                             undefined)
                       ? "bg-gray-400 dark:bg-slate-600"
-                      : "bg-[#0052FF] hover:bg-blue-700"
+                      : "bg-[#2F5BFF] hover:bg-blue-700"
                 }`}
               >
                 {msg.isLoading ? (
@@ -823,7 +823,7 @@ export function LegacyMessageRow({
       </div>
 
       {msg.role === "user" && (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#0052FF] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] sm:h-10 sm:w-10 md:h-12 md:w-12">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#121212] bg-[#2F5BFF] shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:shadow-[3px_3px_0_#2A2A30] sm:h-10 sm:w-10 md:h-12 md:w-12">
           <User
             className="w-5 h-5 md:w-6 md:h-6 text-white"
             strokeWidth={4}

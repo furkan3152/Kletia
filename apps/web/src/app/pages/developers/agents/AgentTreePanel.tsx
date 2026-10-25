@@ -34,7 +34,7 @@ function Bar({ bar }: { readonly bar: UsageBar }) {
         </span>
       </div>
       {bar.capUsd ? (
-        <div className="mt-1 h-2 border-2 border-[#1A1A1A] dark:border-[#4B5563]" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={bar.percent} aria-label={`${bar.label} use of the cap`}>
+        <div className="mt-1 h-2 border-2 border-[#121212] dark:border-[#4A4A52]" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={bar.percent} aria-label={`${bar.label} use of the cap`}>
           <div className={cx("h-full", TONE[bar.tone])} style={{ width: `${bar.percent}%` }} />
         </div>
       ) : null}
@@ -143,7 +143,7 @@ function NodeRow({ row, apiKey, projectKey, ownId, onChanged }: { readonly row: 
   };
   const agent = node.kind === "agent";
   return (
-    <li className={cx("flex min-w-0 flex-col gap-2 border-l-[3px] border-[#1A1A1A] py-2 pl-3 dark:border-[#4B5563]")} style={{ marginLeft: `${row.indent * 1.25}rem` }}>
+    <li className={cx("flex min-w-0 flex-col gap-2 border-l-[3px] border-[#121212] py-2 pl-3 dark:border-[#4A4A52]")} style={{ marginLeft: `${row.indent * 1.25}rem` }}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="font-display text-[15px] font-bold">{node.name}</span>
         <span className={cx(LABEL, "border-2 border-current px-1 text-[12px]")}>{agent ? "agent" : "project key"}</span>

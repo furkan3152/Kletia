@@ -47,8 +47,8 @@ export function StepRow({
       <span
         aria-hidden="true"
         className={cx(
-          "kl-admin__step-dot mt-3 flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] font-code text-sm font-extrabold dark:border-[#94A3B8]",
-          chip === "verified" || chip === "pinned" ? "bg-[#FFD60A] text-[#1A1A1A]" : muted ? "bg-surface-2 text-muted" : "bg-surface text-fg",
+          "kl-admin__step-dot mt-3 flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#121212] font-code text-sm font-extrabold dark:border-[#94A3B8]",
+          chip === "verified" || chip === "pinned" ? "bg-[#C6FF3A] text-[#121212]" : muted ? "bg-surface-2 text-muted" : "bg-surface text-fg",
         )}
       >
         {String(n).padStart(2, "0")}

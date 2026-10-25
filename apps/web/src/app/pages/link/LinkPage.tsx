@@ -44,14 +44,14 @@ import { JourneyPanel } from "../../site/intent/JourneyPanel";
 const loadSignPanel = () => import("./LinkSignPanel");
 const LinkSignPanel = React.lazy(loadSignPanel);
 
-const PAPER = "kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]";
+const PAPER = "kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]";
 
 function Gone({ title, body }: { readonly title: string; readonly body: string }) {
   return (
     <div className={PAPER}>
       <div className={cx(CONTAINER, "grid min-h-[60vh] items-center gap-10 py-16 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]")}>
         <div className="min-w-0">
-          <p className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#0047E0] dark:text-[#7EA6FF]">Intent link · no service</p>
+          <p className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#1A36B0] dark:text-[#8FA6FF]">Intent link · no service</p>
           <h1 className="mt-4 text-balance font-display text-[clamp(2.2rem,5.6vw,3.8rem)] font-bold leading-[1.02] tracking-[-0.04em]">{title}</h1>
           <p className={cx("mt-6 max-w-xl text-lg leading-relaxed", TEXT_MUTED)}>{body}</p>
           <nav aria-label="Open platforms" className="mt-8 flex flex-wrap gap-3">
@@ -114,7 +114,7 @@ function ReportForm({ linkId }: { readonly linkId: string }) {
           id={id}
           value={reason}
           onChange={(event) => setReason(event.target.value as ReportReason)}
-          className={cx("min-h-11 max-w-full bg-white px-3 text-sm font-semibold text-[#1A1A1A] dark:bg-[#1A2841] dark:text-white", INK_BORDER)}
+          className={cx("min-h-11 max-w-full bg-[#FBFAF6] px-3 text-sm font-semibold text-[#121212] dark:bg-[#232327] dark:text-white", INK_BORDER)}
         >
           {REPORT_REASONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -235,7 +235,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
               </p>
             ) : null}
             {!state.usable ? (
-              <div className={cx("mt-6 flex flex-wrap items-center gap-5 bg-[#FFFCF2] p-4 text-[#1A1A1A]", INK_BORDER, HARD_SHADOW)} role="status">
+              <div className={cx("mt-6 flex flex-wrap items-center gap-5 bg-[#FFFCF2] p-4 text-[#121212]", INK_BORDER, HARD_SHADOW)} role="status">
                 <div className="w-[170px] shrink-0">
                   {state.tone === "held" ? <Stamp state="held" detail={state.stamp} animate className="kl-link-stamp" /> : <VoidStamp detail={state.stamp} animate className="kl-link-stamp" />}
                 </div>
@@ -272,7 +272,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
             intro={`It arrives on ${destinationName}. Kletia plans the route, through the bridge auction when it starts on another network.`}
           />
           {prefill.ignored.length > 0 ? (
-            <ul className={cx("mb-5 max-w-3xl list-disc bg-[#FFF3B0] py-3 pl-8 pr-4 text-sm font-semibold text-[#1A1A1A]", INK_BORDER)}>
+            <ul className={cx("mb-5 max-w-3xl list-disc bg-[#FFF3B0] py-3 pl-8 pr-4 text-sm font-semibold text-[#121212]", INK_BORDER)}>
               {prefill.ignored.map((line) => (
                 <li key={line}>{line}</li>
               ))}
@@ -305,14 +305,14 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
                     aria-invalid={amountCheck && !amountCheck.ok ? true : undefined}
                     aria-describedby={amountHelpId}
                     onChange={(event) => setAmountText((current) => ({ ...current, [option.key]: event.target.value }))}
-                    className={cx("min-h-12 w-full bg-white px-3 font-code text-lg font-bold text-[#1A1A1A] dark:bg-[#0F1A2C] dark:text-white", INK_BORDER)}
+                    className={cx("min-h-12 w-full bg-[#FBFAF6] px-3 font-code text-lg font-bold text-[#121212] dark:bg-[#151517] dark:text-white", INK_BORDER)}
                   />
                   <p id={amountHelpId} className={cx("text-sm", amountCheck && !amountCheck.ok ? "font-semibold text-[#B91C1C] dark:text-[#FCA5A5]" : TEXT_MUTED)}>
                     {amountCheck && !amountCheck.ok ? amountCheck.message : `The publisher allows ${bounds.min} to ${bounds.max} ${option.symbol}.`}
                   </p>
                 </div>
               ) : option ? (
-                <div className={cx("flex flex-col gap-1 bg-[#FFD60A] p-4 text-[#1A1A1A]", INK_BORDER)}>
+                <div className={cx("flex flex-col gap-1 bg-[#C6FF3A] p-4 text-[#121212]", INK_BORDER)}>
                   <p className={LABEL}>Fixed amount</p>
                   <p className="font-display text-xl font-bold">{view.destination.actions[0]?.label ?? "A fixed amount"}</p>
                   <p className="text-sm font-semibold">Kletia sizes what you send from {option.networkName} so the payee receives at least this amount.</p>
@@ -346,7 +346,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
         </div>
       </section>
 
-      <section aria-labelledby="kl-link-fixed" className="border-t-[3px] border-[#1A1A1A] bg-[#EDE9DF] py-12 sm:py-16 dark:border-[#4B5563] dark:bg-[#0E1729]">
+      <section aria-labelledby="kl-link-fixed" className="border-t-[3px] border-[#121212] bg-[#EDE9DF] py-12 sm:py-16 dark:border-[#4A4A52] dark:bg-[#0E1729]">
         <div className={CONTAINER}>
           <SectionHead n={3} id="kl-link-fixed" eyebrow="Fixed by the publisher" title="Where the money goes" />
           <div className="max-w-3xl">
@@ -355,7 +355,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
         </div>
       </section>
 
-      <section aria-labelledby="kl-link-sign" className="border-t-[3px] border-[#1A1A1A] py-12 sm:py-16 dark:border-[#4B5563]">
+      <section aria-labelledby="kl-link-sign" className="border-t-[3px] border-[#121212] py-12 sm:py-16 dark:border-[#4A4A52]">
         <div className={CONTAINER}>
           <SectionHead
             n={4}
@@ -422,7 +422,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
         </div>
       </section>
 
-      <section aria-label="Small print" className="border-t-[3px] border-[#1A1A1A] py-10 dark:border-[#4B5563]">
+      <section aria-label="Small print" className="border-t-[3px] border-[#121212] py-10 dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]")}>
           <ul className={cx("list-disc space-y-2 pl-5 text-sm leading-relaxed", TEXT_MUTED)}>
             {view.notices.map((notice) => (
@@ -446,7 +446,7 @@ export default function LinkPage() {
     return (
       // Keyed: the loaded page mounts new nodes instead of reusing (and moving) this one, a layout shift with reduced motion.
       <div key="loading" className={cx(CONTAINER, "flex min-h-[50vh] items-center justify-center py-16")} role="status">
-        <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+        <span className="border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]">
           Reading the link
         </span>
       </div>

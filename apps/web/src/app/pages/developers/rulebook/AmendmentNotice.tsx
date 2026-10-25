@@ -21,9 +21,9 @@ export function AmendmentNotice({ pending, now, onCancel, busy = false }: Amendm
   return (
     <aside
       aria-label="Pending amendment"
-      className={cx("relative flex min-w-0 flex-col gap-3 bg-[#FFF3B0] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] sm:p-5", INK_BORDER)}
+      className={cx("relative flex min-w-0 flex-col gap-3 bg-[#FFF3B0] p-4 text-[#121212] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] sm:p-5", INK_BORDER)}
     >
-      <span aria-hidden="true" className="absolute -top-2 left-6 h-4 w-4 rotate-45 border-[3px] border-[#1A1A1A] bg-[#C8102E]" />
+      <span aria-hidden="true" className="absolute -top-2 left-6 h-4 w-4 rotate-45 border-[3px] border-[#121212] bg-[#C8102E]" />
       <p className={LABEL}>Posted notice · edition {pending.version}</p>
       <p className="font-display text-xl font-bold leading-tight">
         {pending.removal ? "This rule book is to be removed" : "A loosening is waiting"}

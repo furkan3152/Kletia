@@ -74,16 +74,16 @@ export function HowItWorks() {
         <ol className="grid content-start gap-7">
           {STEPS.map((step, index) => (
             <li key={step.title} className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-4">
-              <span className="flex h-[3.25rem] w-[3.25rem] items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FBFAF7] text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-[#F1F5F9]">
+              <span className="flex h-[3.25rem] w-[3.25rem] items-center justify-center border-[3px] border-[#121212] bg-[#FBFAF6] text-[#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-[#F2F0EA]">
                 <Icon name={step.icon} size={30} />
               </span>
               <div className="min-w-0">
                 <h3 className="font-display text-xl font-bold leading-tight tracking-[-0.015em]">
-                  <span className="mr-2 font-code text-sm font-bold text-[#45464B] dark:text-[#A9B6C8]">{index + 1}.</span>
+                  <span className="mr-2 font-code text-sm font-bold text-[#5C5850] dark:text-[#9A968C]">{index + 1}.</span>
                   {step.title}
                 </h3>
                 <p className={cx("mt-1.5 text-[15px] leading-relaxed", TEXT_MUTED)}>{step.body}</p>
-                <code className="mt-2 inline-block font-code text-[11.5px] font-semibold text-[#0047E0] dark:text-[#7EA6FF]">{step.artifact}</code>
+                <code className="mt-2 inline-block font-code text-[11.5px] font-semibold text-[#1A36B0] dark:text-[#8FA6FF]">{step.artifact}</code>
               </div>
             </li>
           ))}

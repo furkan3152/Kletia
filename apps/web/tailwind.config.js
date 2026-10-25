@@ -1,5 +1,3 @@
-import defaultTheme from "tailwindcss/defaultTheme.js";
-
 export default {
   darkMode: "class",
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
@@ -9,32 +7,53 @@ export default {
         kletiaDark: "#0D0D0D",
         kletiaGray: "#212121",
         kletiaBlue: "#0052FF",
-        // Site palette (neo-brutalist). `kl-ink` is the border/shadow ink; the
-        // `night` shades are the dark theme surfaces.
+        // Legacy site palette names, now the Card machine's colours. Prefer the
+        // semantic tokens below or the kit's `k` colours in new code.
         kl: {
-          ink: "#1A1A1A",
-          paper: "#F4F1EA",
-          "paper-2": "#EDE9DF",
-          card: "#FBFAF7",
-          // Ticket and notice stock (the art's --kla-stock): printed objects
-          // keep this paper at night, so `stock-night` is its slightly
-          // dimmed night printing, not a dark surface.
-          stock: "#FFFCF2",
+          ink: "#121212",
+          paper: "#D6D2C8",
+          "paper-2": "#CBC6BB",
+          card: "#F1EEE7",
+          stock: "#FBFAF6",
           "stock-night": "#ECE6D6",
-          blue: "#0052FF",
-          "blue-soft": "#7EA6FF",
-          yellow: "#FFD60A",
+          blue: "#2F5BFF",
+          "blue-soft": "#8FA6FF",
+          yellow: "#C6FF3A",
           purple: "#9945FF",
           green: "#14F195",
           "green-ink": "#0B7A4B",
           red: "#FF5A5F",
-          night: "#0B1120",
-          "night-2": "#131E32",
-          "night-3": "#1A2841",
+          night: "#0E0E10",
+          "night-2": "#19191C",
+          "night-3": "#232327",
           slate: "#4B5563",
-          "slate-shadow": "#475569",
-          muted: "#45464B",
-          "muted-dark": "#A9B6C8",
+          "slate-shadow": "#2A2A30",
+          muted: "#5C5850",
+          "muted-dark": "#9A968C",
+        },
+        // Card machine design tokens (src/app/kit/index.ts): CSS variables on :root and .dark
+        // in styles.css, so `bg-k-chassis`, `text-k-ink-3`, `border-k-line` follow both themes.
+        lime: { DEFAULT: "var(--k-lime)", edge: "var(--k-lime-edge)", tint: "var(--k-lime-tint)" },
+        magenta: { DEFAULT: "var(--k-magenta)", edge: "var(--k-magenta-edge)", tint: "var(--k-magenta-tint)" },
+        k: {
+          chassis: "var(--k-chassis)",
+          "chassis-2": "var(--k-chassis-2)",
+          panel: "var(--k-panel)",
+          "panel-2": "var(--k-panel-2)",
+          raised: "var(--k-raised)",
+          screen: "var(--k-screen)",
+          stock: "var(--k-stock)",
+          ink: "var(--k-ink)",
+          "ink-2": "var(--k-ink-2)",
+          "ink-3": "var(--k-ink-3)",
+          line: "var(--k-line)",
+          "line-2": "var(--k-line-2)",
+          key: "var(--k-key)",
+          "key-edge": "var(--k-key-edge)",
+          well: "var(--k-well)",
+          up: "var(--k-up)",
+          down: "var(--k-down)",
+          blue: "var(--k-blue)",
         },
         // Semantic tokens: CSS variables on :root and .dark in styles.css, so
         // one class follows both themes (bg-surface, text-fg, text-muted,
@@ -84,6 +103,16 @@ export default {
         "hard-md": "5px 5px 0 var(--kl-shadow-ink)",
         "hard-lg": "8px 8px 0 var(--kl-shadow-ink)",
         "hard-xl": "10px 10px 0 var(--kl-shadow-ink)",
+        // Card machine: the slab (card, composer, ticket only), raised objects, keys.
+        slab: "5px 5px 0 var(--k-slab-shadow)",
+        "slab-sm": "3px 3px 0 var(--k-slab-shadow)",
+        obj: "var(--k-obj)",
+        key: "inset 0 1px 0 var(--k-hi), 0 4px 0 var(--k-key-edge), 0 5px 10px -4px rgba(0,0,0,.25)",
+      },
+      borderRadius: {
+        key: "10px",
+        card: "16px",
+        module: "20px",
       },
       // Motion tokens (mirrored in src/app/site/motion/tokens.ts).
       transitionTimingFunction: {
@@ -91,19 +120,24 @@ export default {
         "kl-standard": "var(--kl-ease-standard)",
         "kl-in": "var(--kl-ease-in)",
         "kl-snap": "var(--kl-ease-snap)",
+        mech: "cubic-bezier(.7,0,.2,1)",
       },
       transitionDuration: {
+        60: "60ms",
         90: "90ms",
         240: "240ms",
         420: "420ms",
       },
-      // Site typography. The console keeps the default `sans`/`mono` system
-      // stacks; these families are applied only inside the site shell
-      // (font-display / font-body / font-code) and load with marketing routes.
+      // Card machine type: Funnel Display for display, Funnel Sans for UI and body,
+      // Geist Mono for every amount, hash and time, Doto only for the card serial and the LCD.
+      // Loaded from Google Fonts by index.html (preconnect, display=swap, Latin subsets).
       fontFamily: {
-        display: ['"Space Grotesk Variable"', ...defaultTheme.fontFamily.sans],
-        body: ['"Inter Variable"', ...defaultTheme.fontFamily.sans],
-        code: ['"JetBrains Mono Variable"', ...defaultTheme.fontFamily.mono],
+        display: ["var(--k-f-display)"],
+        body: ["var(--k-f-ui)"],
+        code: ["var(--k-f-mono)"],
+        led: ["var(--k-f-led)"],
+        sans: ["var(--k-f-ui)"],
+        mono: ["var(--k-f-mono)"],
       },
     },
   },

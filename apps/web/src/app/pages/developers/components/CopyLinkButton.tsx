@@ -39,7 +39,7 @@ export function CopyLinkButton({ href, target, className, iconOnly = false }: Co
       aria-label={`Copy link to ${target}`}
       title={href}
       className={cx(
-        "inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 border-2 border-control bg-white px-2 text-label uppercase text-[#1A1A1A] hover:bg-[#FFD60A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white dark:hover:bg-[#22345A]",
+        "inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 border-2 border-control bg-[#FBFAF6] px-2 text-label uppercase text-[#121212] hover:bg-[#C6FF3A] dark:border-[#4A4A52] dark:bg-[#232327] dark:text-white dark:hover:bg-[#2A2A2E]",
         FOCUS_RING,
         className,
       )}

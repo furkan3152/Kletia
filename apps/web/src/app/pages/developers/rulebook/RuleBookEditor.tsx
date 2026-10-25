@@ -227,7 +227,7 @@ export function RuleBookEditor({ scope, apiKey, canWrite, contracts, projectKeys
       </div>
 
       {!canWrite ? (
-        <p className="border-l-[6px] border-[#0052FF] bg-[#EAF0FF] px-3 py-2 text-sm text-[#1A1A1A] dark:bg-[#1A2841] dark:text-[#E2E8F0]">
+        <p className="border-l-[6px] border-[#2F5BFF] bg-[#E1E8FF] px-3 py-2 text-sm text-[#121212] dark:bg-[#232327] dark:text-[#D6D2C8]">
           An agent key reads its rule book but never writes one. Load a project key (kl_dev_) to change it.
         </p>
       ) : null}
@@ -270,7 +270,7 @@ export function RuleBookEditor({ scope, apiKey, canWrite, contracts, projectKeys
           <LazyBoundary
             resetKey={documentKey(draft)}
             fallback={() => (
-              <div role="alert" className="flex flex-col items-start gap-3 border-l-[6px] border-[#B91C1C] bg-[#FFF1F1] px-4 py-3 text-sm text-[#1A1A1A] dark:bg-[#2A1215] dark:text-[#FECACA]">
+              <div role="alert" className="flex flex-col items-start gap-3 border-l-[6px] border-[#B91C1C] bg-[#FFF1F1] px-4 py-3 text-sm text-[#121212] dark:bg-[#2A1215] dark:text-[#FECACA]">
                 <p>This draft has a shape the rules view cannot show. Fix it in the JSON view (the issues are listed below), or discard the draft.</p>
                 <Button size="sm" variant="secondary" onClick={() => openJson()}>
                   <Braces className="h-3.5 w-3.5" aria-hidden="true" />
@@ -309,10 +309,10 @@ export function RuleBookEditor({ scope, apiKey, canWrite, contracts, projectKeys
         />
       )}
 
-      <footer className={cx("z-10 flex min-w-0 flex-col gap-3 bg-white p-4 shadow-[4px_4px_0_#1A1A1A] dark:bg-[#131E32] dark:shadow-[4px_4px_0_#475569]", dirty && "sticky bottom-3", INK_BORDER_THIN, "border-[3px]")}>
+      <footer className={cx("z-10 flex min-w-0 flex-col gap-3 bg-[#FBFAF6] p-4 shadow-[4px_4px_0_#121212] dark:bg-[#19191C] dark:shadow-[4px_4px_0_#2A2A30]", dirty && "sticky bottom-3", INK_BORDER_THIN, "border-[3px]")}>
         <div aria-live="polite" className="flex min-w-0 flex-col gap-2">
           {result ? (
-            <p className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#1A1A1A] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">
+            <p className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#121212] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">
               {result.applied === "now" ? `Saved: edition ${result.policy.version} is in force now.` : `Saved: edition ${result.policy.version} loosens ${result.loosened.join(", ")} and is in force ${formatWhen(result.policy.activatesAt)}.`}
               {result.supersededPending ? ` It replaced the pending edition ${result.supersededPending.version}.` : ""}
             </p>
@@ -394,7 +394,7 @@ export function RuleBookEditor({ scope, apiKey, canWrite, contracts, projectKeys
           </div>
         ) : null}
         {confirmRemove ? (
-          <div className="flex flex-col gap-2 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-sm text-[#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+          <div className="flex flex-col gap-2 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-sm text-[#121212] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
             <p className="font-bold">
               Remove {keyName}&apos;s rule book? Removal loosens every clause, so it waits {delaySeconds > 0 ? durationText(delaySeconds) : "no time (no delay in force)"}.
               {defaults === "agent" ? " The agent falls back to the safe agent defaults, not to nothing." : ""}

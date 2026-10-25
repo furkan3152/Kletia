@@ -89,7 +89,7 @@ function ReviewStep({
   return (
     <li className={cx("kl-rise flex flex-col gap-3 p-4", INK_BORDER, SURFACE)} style={cssVars({ "--kl-i": staggerIndex(order) })}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-code text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
+        <span className="font-code text-xs font-bold text-[#5C5850] dark:text-[#9A968C]">
           {String(step.index + 1).padStart(2, "0")}
         </span>
         <Badge tone="ink">{step.kind}</Badge>
@@ -101,7 +101,7 @@ function ReviewStep({
             → {networkName(destination)}
           </Badge>
         ) : null}
-        <span className="text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">via {protocolName(step.protocol)}</span>
+        <span className="text-xs font-bold text-[#5C5850] dark:text-[#9A968C]">via {protocolName(step.protocol)}</span>
       </div>
       <p className="font-display text-base font-bold leading-snug">{step.title}</p>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
@@ -126,7 +126,7 @@ function ReviewStep({
           <span className={TEXT_MUTED}>
             {" "}
             · receives{" "}
-            {step.recipientName ? <span className="font-semibold text-[#1A1A1A] dark:text-white">{step.recipientName} </span> : null}
+            {step.recipientName ? <span className="font-semibold text-[#121212] dark:text-white">{step.recipientName} </span> : null}
             <span className="font-code" title={step.recipient}>
               {step.recipientName ? `(${shortAccount(step.recipient)})` : shortAccount(step.recipient)}
             </span>
@@ -134,7 +134,7 @@ function ReviewStep({
         ) : null}
       </p>
       {step.warnings && step.warnings.length > 0 ? (
-        <ul className="space-y-1 border-2 border-[#1A1A1A] bg-[#FFF3B0] p-2.5 text-xs font-semibold text-[#1A1A1A] dark:border-[#4B5563]">
+        <ul className="space-y-1 border-2 border-[#121212] bg-[#FFF3B0] p-2.5 text-xs font-semibold text-[#121212] dark:border-[#4A4A52]">
           {step.warnings.map((warning) => (
             <li key={warning} className="flex gap-1.5">
               <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -224,7 +224,7 @@ export function IntentReview({
     <section aria-label="Review before signing" className={cx("flex flex-col gap-4", className)}>
       <div className={cx("flex flex-col gap-4 p-4 sm:p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className={cx(LABEL, "flex items-center gap-2 text-[#0052FF] dark:text-[#7EA6FF]")}>
+          <p className={cx(LABEL, "flex items-center gap-2 text-[#1A36B0] dark:text-[#8FA6FF]")}>
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
             Review before signing
           </p>
@@ -273,7 +273,7 @@ export function IntentReview({
       {hold ? <PolicyNotice outcome={hold} /> : null}
 
       {warnings.length > 0 ? (
-        <div className="border-[3px] border-[#1A1A1A] bg-[#FFF3B0] p-4 text-sm font-semibold text-[#1A1A1A] dark:border-[#4B5563]">
+        <div className="border-[3px] border-[#121212] bg-[#FFF3B0] p-4 text-sm font-semibold text-[#121212] dark:border-[#4A4A52]">
           <p className={cx(LABEL, "flex items-center gap-2")}>
             <TriangleAlert className="h-4 w-4" aria-hidden="true" />
             Warnings
@@ -287,7 +287,7 @@ export function IntentReview({
       ) : null}
 
       {external.length > 0 ? (
-        <div className="border-[3px] border-[#1A1A1A] bg-[#FFF3B0] p-4 text-sm font-semibold text-[#1A1A1A] dark:border-[#B45309]">
+        <div className="border-[3px] border-[#121212] bg-[#FFF3B0] p-4 text-sm font-semibold text-[#121212] dark:border-[#B45309]">
           <p className={cx(LABEL, "flex items-center gap-2")}>
             <TriangleAlert className="h-4 w-4" aria-hidden="true" />
             Funds leave your wallets
@@ -312,7 +312,7 @@ export function IntentReview({
       ) : null}
 
       {blockedReason ? (
-        <p role="alert" className="flex gap-2 border-[3px] border-[#1A1A1A] bg-[#FFE4E4] p-3 text-sm font-bold text-[#7F1D1D] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+        <p role="alert" className="flex gap-2 border-[3px] border-[#121212] bg-[#FFE4E4] p-3 text-sm font-bold text-[#7F1D1D] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           {blockedReason}
         </p>
@@ -328,7 +328,7 @@ export function IntentReview({
               onChange={(event) => setConfirmedFor(event.target.checked ? intent.id : null)}
               disabled={busy || Boolean(blockedReason)}
               className={cx(
-                "peer h-5 w-5 shrink-0 cursor-pointer appearance-none border-[3px] border-[#1A1A1A] bg-white transition-colors duration-150 checked:bg-[#0052FF] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none dark:border-[#94A3B8] dark:bg-[#0B1120] dark:checked:bg-[#0052FF]",
+                "peer h-5 w-5 shrink-0 cursor-pointer appearance-none border-[3px] border-[#121212] bg-[#FBFAF6] transition-colors duration-150 checked:bg-[#2F5BFF] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none dark:border-[#94A3B8] dark:bg-[#0E0E10] dark:checked:bg-[#2F5BFF]",
                 FOCUS_RING,
               )}
             />

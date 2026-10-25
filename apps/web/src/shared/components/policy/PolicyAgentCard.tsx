@@ -90,10 +90,10 @@ export function PolicyAgentCard({
   };
 
   return (
-    <section className="mt-4 w-full border-[3px] border-[#1A1A1A] bg-[#E9D5FF] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A]">
-      <div className="flex items-start justify-between gap-3 border-b-[3px] border-[#1A1A1A] pb-3">
+    <section className="mt-4 w-full border-[3px] border-[#121212] bg-[#E9D5FF] p-4 text-[#121212] shadow-[4px_4px_0_#121212]">
+      <div className="flex items-start justify-between gap-3 border-b-[3px] border-[#121212] pb-3">
         <div><p className="text-[10px] font-black uppercase tracking-widest">PolicyAgentV1</p><h3 className="font-black uppercase">{policy.name}</h3></div>
-        <span className="border-2 border-[#1A1A1A] bg-white px-2 py-1 text-[9px] font-black uppercase">Planning only</span>
+        <span className="border-2 border-[#121212] bg-[#FBFAF6] px-2 py-1 text-[9px] font-black uppercase">Planning only</span>
       </div>
       <p className="mt-3 text-xs font-bold">{policy.objective}</p>
       <div className="mt-3 grid gap-2 text-[10px] font-black uppercase sm:grid-cols-2">
@@ -102,10 +102,10 @@ export function PolicyAgentCard({
         <span>Assets: {policy.allowedAssets.join(", ")}</span>
         <span>USDC cap: {Number(BigInt(policy.maxSpendUsdcAtomic)) / 1_000_000}</span>
       </div>
-      <p className="mt-3 border-2 border-[#1A1A1A] bg-white p-2 text-[9px] font-bold">
+      <p className="mt-3 border-2 border-[#121212] bg-[#FBFAF6] p-2 text-[9px] font-bold">
         This signature grants planning permission only. It cannot approve tokens, bridge, swap, lend, borrow, or move funds. Every financial step still needs a wallet signature.
       </p>
-      <button type="button" onClick={() => void sign()} disabled={state !== "idle"} className="mt-3 flex w-full items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#7C3AED] px-3 py-3 text-xs font-black uppercase text-white shadow-[3px_3px_0_#1A1A1A] disabled:opacity-60">
+      <button type="button" onClick={() => void sign()} disabled={state !== "idle"} className="mt-3 flex w-full items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#7C3AED] px-3 py-3 text-xs font-black uppercase text-white shadow-[3px_3px_0_#121212] disabled:opacity-60">
         {state === "signing" ? <Loader2 className="h-4 w-4 animate-spin" /> : state === "signed" ? <CheckCircle2 className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
         {state === "signed" ? "Policy signed" : state === "signing" ? "Review in wallet" : "Sign planning policy"}
       </button>

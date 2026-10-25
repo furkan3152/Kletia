@@ -46,7 +46,7 @@ test("the Solana forms keep their pre-sign checks and lose the workspace chrome;
   assert.match(read("networks/solana/hooks/useSwapFlow.ts"), /useSolanaExecution/u);
   const styles = read("networks/solana/styles.ts");
   assert.doesNotMatch(styles, /#9945FF|#14F195/u);
-  assert.match(styles, /bg-\[#0052FF\]/u, "blue primary");
+  assert.match(styles, /bg-\[#2F5BFF\]/u, "blue primary (the Card machine blue)");
   assert.match(styles, /outline-focus/u, "the site focus ring");
 });
 

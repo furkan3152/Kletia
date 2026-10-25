@@ -44,7 +44,7 @@ import { useHandoff } from "../handoff/useHandoff";
 const copy = DESK_COPY.orders;
 const FIELD = VIEW_FIELD;
 const TOGGLE = cx(
-  "min-h-11 border-[3px] border-control bg-surface px-4 text-xs font-black uppercase tracking-[0.12em] text-fg hover:bg-neutral-bg aria-pressed:bg-[#1A1A1A] aria-pressed:text-white dark:aria-pressed:bg-white dark:aria-pressed:text-[#0B1120]",
+  "min-h-11 border-[3px] border-control bg-surface px-4 text-xs font-black uppercase tracking-[0.12em] text-fg hover:bg-neutral-bg aria-pressed:bg-[#121212] aria-pressed:text-white dark:aria-pressed:bg-white dark:aria-pressed:text-[#0E0E10]",
   FOCUS_RING,
 );
 

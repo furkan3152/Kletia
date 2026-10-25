@@ -190,7 +190,7 @@ export function RegisterContractWizard({ apiKey, onRegistered, onCancel }: Regis
     const pending = registered.status === "pending";
     return (
       <div className="flex min-w-0 flex-col gap-6">
-        <div role="status" className={cx("flex flex-col gap-2 p-4", INK_BORDER_THIN, pending ? "bg-[#FFF3B0] text-[#1A1A1A]" : "bg-[#E9FFF5] dark:bg-[#0E2A20]")}>
+        <div role="status" className={cx("flex flex-col gap-2 p-4", INK_BORDER_THIN, pending ? "bg-[#FFF3B0] text-[#121212]" : "bg-[#E9FFF5] dark:bg-[#0E2A20]")}>
           <p className="font-display text-xl font-bold">
             Registered {registered.integrator.name} as <code className="font-code text-base">{registered.id}</code>.
           </p>
@@ -262,7 +262,7 @@ export function RegisterContractWizard({ apiKey, onRegistered, onCancel }: Regis
           <div aria-live="polite" className="min-w-0">
             {inspect.status === "error" && inspect.error ? <ApiErrorPanel error={inspect.error} title="Inspection failed" /> : null}
             {inspection ? (
-              <div className={cx("flex min-w-0 flex-col gap-3 p-4", INK_BORDER_THIN, problem ? "bg-[#FFE4E4] text-[#1A1A1A]" : "")}>
+              <div className={cx("flex min-w-0 flex-col gap-3 p-4", INK_BORDER_THIN, problem ? "bg-[#FFE4E4] text-[#121212]" : "")}>
                 <p className="flex min-w-0 flex-wrap items-center gap-2 font-bold">
                   {line ? <LineBullet line={line} decorative /> : null}
                   <span className="min-w-0 break-all font-code text-sm">{inspection.address}</span>
@@ -318,11 +318,11 @@ export function RegisterContractWizard({ apiKey, onRegistered, onCancel }: Regis
             <fieldset className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
               <legend className={cx(LABEL, "mb-2")}>ABI source</legend>
               <label className="inline-flex min-h-9 cursor-pointer items-center gap-2">
-                <input type="radio" name="abi-source" className="accent-[#0052FF]" checked={abiSource === "sourcify"} onChange={() => setAbiSource("sourcify")} />
+                <input type="radio" name="abi-source" className="accent-[#2F5BFF]" checked={abiSource === "sourcify"} onChange={() => setAbiSource("sourcify")} />
                 The verified ABI from Sourcify ({inspection.abi.length} items)
               </label>
               <label className="inline-flex min-h-9 cursor-pointer items-center gap-2">
-                <input type="radio" name="abi-source" className="accent-[#0052FF]" checked={abiSource === "paste"} onChange={() => setAbiSource("paste")} />
+                <input type="radio" name="abi-source" className="accent-[#2F5BFF]" checked={abiSource === "paste"} onChange={() => setAbiSource("paste")} />
                 Paste my own
               </label>
             </fieldset>
@@ -500,7 +500,7 @@ export function RegisterContractWizard({ apiKey, onRegistered, onCancel }: Regis
       {step === 6 ? (
         <div className="flex min-w-0 flex-col gap-5">
           {issues.length > 0 ? (
-            <div role="alert" className="flex min-w-0 flex-col gap-2 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-4 text-[#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+            <div role="alert" className="flex min-w-0 flex-col gap-2 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-4 text-[#121212] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
               <p className="font-display text-lg font-bold">
                 {issues.length} {issues.length === 1 ? "thing" : "things"} to fix before registering
               </p>
@@ -516,7 +516,7 @@ export function RegisterContractWizard({ apiKey, onRegistered, onCancel }: Regis
               </ul>
             </div>
           ) : (
-            <p role="status" className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#1A1A1A] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">
+            <p role="status" className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#121212] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">
               The definition passes the same checks the API runs (validateContractDefinition). Registering pins the code again on-chain.
             </p>
           )}
@@ -542,7 +542,7 @@ export function RegisterContractWizard({ apiKey, onRegistered, onCancel }: Regis
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-dashed border-[#1A1A1A]/25 pt-4 dark:border-white/15">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-dashed border-[#121212]/25 pt-4 dark:border-white/15">
         <div className="flex flex-wrap gap-2">
           {step > 1 ? (
             <Button variant="secondary" onClick={() => go((step - 1) as EvmStep)}>

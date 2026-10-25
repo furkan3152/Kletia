@@ -19,7 +19,7 @@ export function ApiErrorPanel({ error, title = "Request failed", message, onRetr
     <div
       role="alert"
       className={cx(
-        "kl-rise border-[3px] border-[#1A1A1A] bg-[#FFE4E4] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2] dark:shadow-[4px_4px_0_#7F1D1D]",
+        "kl-rise border-[3px] border-[#121212] bg-[#FFE4E4] p-4 text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2] dark:shadow-[4px_4px_0_#7F1D1D]",
         className,
       )}
     >

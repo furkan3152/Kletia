@@ -27,7 +27,7 @@ const MODE_LABEL: Record<IntentStep["mode"], { label: string; icon: React.ReactN
 };
 
 /** Static outline once an attention loop has run its course (and the reduced-motion look). */
-const ATTENTION_REST = "outline outline-[3px] outline-offset-[3px] outline-[#FFD60A]";
+const ATTENTION_REST = "outline outline-[3px] outline-offset-[3px] outline-[#C6FF3A]";
 
 function Row({
   label,
@@ -41,7 +41,7 @@ function Row({
   valueRef?: React.Ref<HTMLElement>;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-dashed border-[#1A1A1A]/15 py-1.5 last:border-b-0 dark:border-white/10">
+    <div className="flex items-baseline justify-between gap-3 border-b border-dashed border-[#121212]/15 py-1.5 last:border-b-0 dark:border-white/10">
       <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>{label}</dt>
       <dd ref={valueRef} className={cx("min-w-0 text-right font-code text-[12.5px]", strong ? "font-bold" : "")}>
         {value}
@@ -118,7 +118,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
       className={cx(
         "relative flex min-w-0 flex-col",
         waiting
-          ? "border-[3px] border-[#1A1A1A]/45 shadow-[4px_4px_0_rgba(26,26,26,0.3)] dark:border-[#4B5563]/70 dark:shadow-[4px_4px_0_rgba(71,85,105,0.5)]"
+          ? "border-[3px] border-[#121212]/45 shadow-[4px_4px_0_rgba(26,26,26,0.3)] dark:border-[#4A4A52]/70 dark:shadow-[4px_4px_0_rgba(71,85,105,0.5)]"
           : cx(INK_BORDER, HARD_SHADOW),
         SURFACE,
         attention && (ringLoop ? "kl-attn-ring" : ATTENTION_REST),
@@ -128,7 +128,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
       style={style}
     >
       <div
-        className={cx("relative h-2 w-full border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]", inFlight && "kl-hatch")}
+        className={cx("relative h-2 w-full border-b-[3px] border-[#121212] dark:border-[#4A4A52]", inFlight && "kl-hatch")}
         style={{ backgroundColor: color, opacity: waiting ? 0.55 : live && phase === "skipped" ? 0.7 : undefined }}
         aria-hidden="true"
       >
@@ -140,14 +140,14 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
         <span
           aria-hidden="true"
           className={cx(
-            "pointer-events-none absolute -inset-[6px] border-[3px] border-dashed border-[#B88A00] dark:border-[#FFD60A]",
+            "pointer-events-none absolute -inset-[6px] border-[3px] border-dashed border-[#B88A00] dark:border-[#C6FF3A]",
             checkingLoop && "kl-loop animate-pulse motion-reduce:animate-none",
           )}
         />
       ) : null}
       <div className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-code text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
+          <span className="font-code text-xs font-bold text-[#5C5850] dark:text-[#9A968C]">
             {String(step.index + 1).padStart(2, "0")}
           </span>
           <Badge tone="ink">{step.kind}</Badge>
@@ -173,7 +173,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
           )}
         </div>
         <h4 className="font-display text-lg font-bold leading-snug tracking-[-0.01em]">{step.title}</h4>
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-[#5C5850] dark:text-[#9A968C]">
           <span className="inline-flex items-center gap-1">
             <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
             {protocolName(step.protocol)}
@@ -191,7 +191,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
             </span>
           ) : null}
         </p>
-        <dl className="text-[#1A1A1A] dark:text-[#E2E8F0]">
+        <dl className="text-[#121212] dark:text-[#D6D2C8]">
           {step.input ? <Row label="Input" value={formatAmount(step.input, "up")} strong /> : null}
           {step.expectedOutput ? <Row label="Expected" value={formatAmount(step.expectedOutput)} strong /> : null}
           {step.minimumOutput ? <Row label="Minimum" value={formatAmount(step.minimumOutput)} /> : null}
@@ -213,7 +213,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
           ) : null}
         </dl>
         {step.warnings && step.warnings.length > 0 ? (
-          <ul className="space-y-1.5 border-2 border-[#1A1A1A] bg-[#FFF3B0] p-2.5 text-xs font-semibold text-[#1A1A1A] dark:border-[#4B5563]">
+          <ul className="space-y-1.5 border-2 border-[#121212] bg-[#FFF3B0] p-2.5 text-xs font-semibold text-[#121212] dark:border-[#4A4A52]">
             {step.warnings.map((warning) => (
               <li key={warning} className="flex gap-1.5">
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -225,7 +225,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
         {step.failure ? (
           <p
             className={cx(
-              "border-2 border-[#1A1A1A] bg-[#FFE4E4] p-2.5 text-xs font-semibold text-[#7F1D1D] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]",
+              "border-2 border-[#121212] bg-[#FFE4E4] p-2.5 text-xs font-semibold text-[#7F1D1D] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]",
               changed && phase === "failed" && "kl-rise",
             )}
           >

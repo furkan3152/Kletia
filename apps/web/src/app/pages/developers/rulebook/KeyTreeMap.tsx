@@ -47,8 +47,8 @@ function Station({ keyItem, state, selected, onSelect }: { readonly keyItem: Api
       className={cx(
         "flex w-full min-w-0 items-start gap-2.5 border-[3px] px-3 py-2 text-left transition-colors",
         selected
-          ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#FFD60A] dark:shadow-[3px_3px_0_#475569]"
-          : "border-[#1A1A1A]/30 bg-white text-[#1A1A1A] hover:border-[#1A1A1A] dark:border-white/20 dark:bg-[#131E32] dark:text-white dark:hover:border-white/60",
+          ? "border-[#121212] bg-[#C6FF3A] text-[#121212] shadow-[3px_3px_0_#121212] dark:border-[#C6FF3A] dark:shadow-[3px_3px_0_#2A2A30]"
+          : "border-[#121212]/30 bg-[#FBFAF6] text-[#121212] hover:border-[#121212] dark:border-white/20 dark:bg-[#19191C] dark:text-white dark:hover:border-white/60",
         FOCUS_RING,
       )}
     >
@@ -61,7 +61,7 @@ function Station({ keyItem, state, selected, onSelect }: { readonly keyItem: Api
         <span className="mt-0.5 block font-code text-[12px] font-semibold">
           {edition ? `Rule book, edition ${edition}` : agent ? "Observer (no rule book)" : "No rule book"} · {modeWord(mode)}
         </span>
-        <span className={cx("block text-[12px]", selected ? "text-[#1A1A1A]" : TEXT_MUTED)}>
+        <span className={cx("block text-[12px]", selected ? "text-[#121212]" : TEXT_MUTED)}>
           {keyItem.expiresAt ? `Expires ${formatWhen(keyItem.expiresAt)}` : "No expiry"}
           {keyItem.current ? " · in memory" : ""}
         </span>
@@ -108,8 +108,8 @@ export function KeyTreeMap({ nodes, states, project, selected, onSelect }: KeyTr
         onClick={() => onSelect("project")}
         aria-pressed={selected === "project"}
         className={cx(
-          "flex w-full min-w-0 items-start gap-2.5 border-[3px] border-[#1A1A1A] px-3 py-2 text-left dark:border-[#4B5563]",
-          selected === "project" ? "bg-[#FFD60A] text-[#1A1A1A] dark:border-[#FFD60A]" : "bg-[#1A1A1A] text-white dark:bg-[#060A14]",
+          "flex w-full min-w-0 items-start gap-2.5 border-[3px] border-[#121212] px-3 py-2 text-left dark:border-[#4A4A52]",
+          selected === "project" ? "bg-[#C6FF3A] text-[#121212] dark:border-[#C6FF3A]" : "bg-[#121212] text-white dark:bg-[#060A14]",
           FOCUS_RING,
         )}
       >

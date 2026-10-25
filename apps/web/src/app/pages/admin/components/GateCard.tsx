@@ -18,7 +18,7 @@ export interface GateCardProps {
 }
 
 const TONE_PLATE: Readonly<Record<NonNullable<GateCardProps["tone"]>, string>> = {
-  paper: "bg-[#FFD60A] text-[#1A1A1A]",
+  paper: "bg-[#C6FF3A] text-[#121212]",
   warning: "bg-warning-bg text-warning",
   danger: "bg-danger-bg text-danger",
 };
@@ -36,7 +36,7 @@ export function GateCard({ icon, eyebrow, title, children, actions, code, tone =
       </h1>
       {children ? <div className={cx("flex flex-col gap-3 text-[15px] leading-relaxed", TEXT_MUTED)}>{children}</div> : null}
       {code ? (
-        <pre className="overflow-x-auto whitespace-pre-wrap break-all border-[3px] border-[#1A1A1A] bg-[#0D1117] px-4 py-3 font-code text-[13px] text-[#E6EDF3] dark:border-[#4B5563]">
+        <pre className="overflow-x-auto whitespace-pre-wrap break-all border-[3px] border-[#121212] bg-[#0D1117] px-4 py-3 font-code text-[13px] text-[#E6EDF3] dark:border-[#4A4A52]">
           <code>{code}</code>
         </pre>
       ) : null}

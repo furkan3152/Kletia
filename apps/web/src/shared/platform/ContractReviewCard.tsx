@@ -36,7 +36,7 @@ function ReviewStamp({ tone, children, rotate }: { tone: "red" | "green" | "ambe
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid gap-1 border-t-2 border-dashed border-[#1A1A1A]/30 py-2.5 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-3">
+    <div className="grid gap-1 border-t-2 border-dashed border-[#121212]/30 py-2.5 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-3">
       <dt className="font-display text-[11px] font-bold uppercase tracking-[0.14em]">{label}</dt>
       <dd className="m-0 min-w-0 break-words text-sm">{children}</dd>
     </div>
@@ -67,9 +67,9 @@ export function ContractReviewCard({ review, title, planned, acknowledged = fals
   return (
     <section
       aria-labelledby={headingId}
-      className={`relative border-[3px] border-[#1A1A1A] bg-kl-stock p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:bg-kl-stock-night dark:shadow-[4px_4px_0_#475569] sm:p-5 ${className ?? ""}`}
+      className={`relative border-[3px] border-[#121212] bg-kl-stock p-4 text-[#121212] shadow-[4px_4px_0_#121212] dark:bg-kl-stock-night dark:shadow-[4px_4px_0_#2A2A30] sm:p-5 ${className ?? ""}`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-[#1A1A1A] pb-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-[#121212] pb-3">
         <div className="min-w-0">
           <p className="font-code text-[10.5px] font-black uppercase tracking-[0.16em]">Custom contract</p>
           <h4 id={headingId} className="mt-1 font-display text-lg font-bold leading-snug">
@@ -101,7 +101,7 @@ export function ContractReviewCard({ review, title, planned, acknowledged = fals
                 href={model.integrator.website}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="font-bold text-[#0047E0] underline decoration-2 underline-offset-2 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#0052FF]"
+                className="font-bold text-[#1A36B0] underline decoration-2 underline-offset-2 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF]"
               >
                 {model.integrator.domain}
                 <span className="sr-only"> (opens in a new tab)</span>
@@ -200,7 +200,7 @@ export function ContractReviewCard({ review, title, planned, acknowledged = fals
                     href={model.contract.explorerUrl}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="break-all font-code font-bold text-[#0047E0] underline decoration-2 underline-offset-2 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#0052FF]"
+                    className="break-all font-code font-bold text-[#1A36B0] underline decoration-2 underline-offset-2 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF]"
                   >
                     {model.contract.address}
                     <span className="sr-only"> (opens in a new tab)</span>
@@ -246,7 +246,7 @@ export function ContractReviewCard({ review, title, planned, acknowledged = fals
             checked={acknowledged}
             disabled={disabled}
             onChange={(event) => onAcknowledge(event.target.checked)}
-            className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-[#0052FF] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] disabled:cursor-not-allowed"
+            className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-[#2F5BFF] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF] disabled:cursor-not-allowed"
           />
           <label htmlFor={ackId} className="text-sm font-semibold leading-relaxed">
             I understand: {model.acknowledgementReasons.join(" ")} I still want to sign this step.

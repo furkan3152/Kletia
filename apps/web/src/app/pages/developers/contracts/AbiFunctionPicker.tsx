@@ -29,7 +29,7 @@ export function AbiFunctionPicker({ functions, selected, onToggle, max }: AbiFun
         {allowed.length === 0 ? (
           <p className={cx("text-sm", TEXT_MUTED)}>This ABI has no state-changing function that Kletia can call.</p>
         ) : (
-          <ul className={cx("max-h-[24rem] divide-y-2 divide-[#1A1A1A]/10 overflow-y-auto dark:divide-white/10", INK_BORDER_THIN)}>
+          <ul className={cx("max-h-[24rem] divide-y-2 divide-[#121212]/10 overflow-y-auto dark:divide-white/10", INK_BORDER_THIN)}>
             {allowed.map((entry) => {
               const checked = selected.includes(entry.signature);
               return (
@@ -37,7 +37,7 @@ export function AbiFunctionPicker({ functions, selected, onToggle, max }: AbiFun
                   <label className={cx("flex min-h-11 cursor-pointer items-start gap-3 p-3 text-sm", !checked && full && "cursor-not-allowed opacity-60")}>
                     <input
                       type="checkbox"
-                      className="mt-1 h-4 w-4 shrink-0 accent-[#0052FF]"
+                      className="mt-1 h-4 w-4 shrink-0 accent-[#2F5BFF]"
                       checked={checked}
                       disabled={!checked && full}
                       onChange={(event) => onToggle(entry.signature, event.target.checked)}
@@ -68,7 +68,7 @@ export function AbiFunctionPicker({ functions, selected, onToggle, max }: AbiFun
             <Ban className="h-4 w-4 shrink-0 text-[#B91C1C] dark:text-[#FCA5A5]" aria-hidden="true" />
             {refused.length} {refused.length === 1 ? "function" : "functions"} Kletia never calls, and why
           </summary>
-          <ul className="max-h-[20rem] divide-y-2 divide-[#1A1A1A]/10 overflow-y-auto border-t-2 border-[#1A1A1A]/10 dark:divide-white/10 dark:border-white/10">
+          <ul className="max-h-[20rem] divide-y-2 divide-[#121212]/10 overflow-y-auto border-t-2 border-[#121212]/10 dark:divide-white/10 dark:border-white/10">
             {refused.map((entry) => (
               <li key={entry.signature} className="min-w-0 p-3 text-sm">
                 <code className="block break-all font-code text-[12px] font-bold">{entry.signature}</code>

@@ -5,7 +5,7 @@
  * explicit `ok: false` or a network the deployment omits.
  */
 import { useEffect, useState } from "react";
-import type { NetworkKey } from "@kletia/core";
+import { isNetworkKey, type NetworkKey } from "@kletia/core";
 
 import { getKletiaClient } from "../../../shared/platform/kletiaClient";
 import { fetchHealth, fetchNetworks } from "../../../shared/platform/platformApi";
@@ -22,9 +22,22 @@ export interface NetworkStatus {
   readonly actions: NetworkActions;
   /** When health was last read (ISO); null before the first reading. */
   readonly healthAt: string | null;
+  /** Latest block (EVM) or slot (Solana) per network from the last health read (the machine's LCD). */
+  readonly heights: Readonly<Partial<Record<NetworkKey, string>>>;
+  /** The API process uptime from the last health read; null before it. */
+  readonly uptimeSeconds: number | null;
 }
 
-const EMPTY: NetworkStatus = { health: {}, offered: null, actions: null, healthAt: null };
+const EMPTY: NetworkStatus = { health: {}, offered: null, actions: null, healthAt: null, heights: {}, uptimeSeconds: null };
+
+/** Block heights by network from a health report (unknown keys and missing heights are dropped). */
+export function healthHeights(networks: readonly { readonly network: string; readonly height?: string }[] | null | undefined): Partial<Record<NetworkKey, string>> {
+  const heights: Partial<Record<NetworkKey, string>> = {};
+  for (const entry of networks ?? []) {
+    if (isNetworkKey(entry.network) && typeof entry.height === "string" && /^\d+$/u.test(entry.height)) heights[entry.network] = entry.height;
+  }
+  return heights;
+}
 
 export function useNetworkStatus(): NetworkStatus {
   const [status, setStatus] = useState<NetworkStatus>(EMPTY);
@@ -51,7 +64,13 @@ export function useNetworkStatus(): NetworkStatus {
         fetchHealth(client, controller.signal).then(
           (report) => {
             if (controller.signal.aborted) return;
-            setStatus((current) => ({ ...current, health: healthReadings(report.networks), healthAt: new Date().toISOString() }));
+            setStatus((current) => ({
+              ...current,
+              health: healthReadings(report.networks),
+              healthAt: new Date().toISOString(),
+              heights: healthHeights(report.networks),
+              uptimeSeconds: typeof report.uptimeSeconds === "number" ? report.uptimeSeconds : null,
+            }));
           },
           () => undefined,
         );

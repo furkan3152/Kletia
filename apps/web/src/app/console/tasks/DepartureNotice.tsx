@@ -14,7 +14,7 @@ export function DepartureNotice({ line, action }: { readonly line: DepartureLine
       <p
         role="note"
         data-departure-line="notice"
-        className="mt-3 flex flex-wrap items-center gap-2 border-2 border-[#1A1A1A] bg-[#FFD60A] px-2 py-1.5 text-sm font-bold text-[#1A1A1A]"
+        className="mt-3 flex flex-wrap items-center gap-2 border-2 border-[#121212] bg-[#C6FF3A] px-2 py-1.5 text-sm font-bold text-[#121212]"
       >
         <span>{line.text}</span>
         {action}

@@ -57,7 +57,7 @@ export function DeskSiteMenu() {
         <nav
           id={panelId}
           aria-label={copy.label}
-          className="absolute left-0 top-full z-50 mt-2 w-56 border-[3px] border-control bg-[var(--kl-paper)] p-2 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]"
+          className="absolute left-0 top-full z-50 mt-2 w-56 border-[3px] border-control bg-[var(--kl-paper)] p-2 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]"
         >
           <ul className="m-0 flex list-none flex-col p-0">
             {LINKS.map((link) => (

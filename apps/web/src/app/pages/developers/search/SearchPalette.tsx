@@ -101,7 +101,7 @@ export default function SearchPalette({ onClose }: SearchPaletteProps) {
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-start justify-center sm:px-4 sm:pt-[10vh]" onKeyDown={onKeyDown}>
-      <div className="absolute inset-0 bg-[#0B1120]/60" aria-hidden="true" onClick={onClose} />
+      <div className="absolute inset-0 bg-[#0E0E10]/60" aria-hidden="true" onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"
@@ -109,13 +109,13 @@ export default function SearchPalette({ onClose }: SearchPaletteProps) {
         aria-labelledby={titleId}
         className={cx(
           "relative flex h-[100dvh] w-full min-w-0 flex-col bg-surface text-fg",
-          "sm:h-auto sm:max-h-[75vh] sm:max-w-2xl sm:border-[3px] sm:border-[#1A1A1A] sm:shadow-[6px_6px_0_#1A1A1A] sm:dark:border-[#4B5563] sm:dark:shadow-[6px_6px_0_#475569]",
+          "sm:h-auto sm:max-h-[75vh] sm:max-w-2xl sm:border-[3px] sm:border-[#121212] sm:shadow-[6px_6px_0_#121212] sm:dark:border-[#4A4A52] sm:dark:shadow-[6px_6px_0_#2A2A30]",
         )}
       >
         <h2 id={titleId} className="sr-only">
           Search the developer portal
         </h2>
-        <div className="flex min-w-0 items-center gap-2 border-b-[3px] border-[#1A1A1A] px-3 dark:border-[#4B5563]">
+        <div className="flex min-w-0 items-center gap-2 border-b-[3px] border-[#121212] px-3 dark:border-[#4A4A52]">
           <Search className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
           <input
             ref={inputRef}
@@ -172,7 +172,7 @@ export default function SearchPalette({ onClose }: SearchPaletteProps) {
                       onClick={() => open(entry)}
                       className={cx(
                         "flex min-h-12 cursor-pointer items-center gap-3 border-l-[4px] px-3 py-2",
-                        selected ? "border-[#0052FF] bg-surface-2 dark:border-[#FFD60A]" : "border-transparent",
+                        selected ? "border-[#2F5BFF] bg-surface-2 dark:border-[#C6FF3A]" : "border-transparent",
                       )}
                     >
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">

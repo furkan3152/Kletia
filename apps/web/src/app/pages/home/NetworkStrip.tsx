@@ -37,7 +37,7 @@ function Rail({ line }: { readonly line: Line }) {
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
   };
-  return <span aria-hidden="true" className="absolute inset-y-0 left-0 w-3 border-r-[3px] border-[#1A1A1A] dark:border-[#4B5563]" style={style} />;
+  return <span aria-hidden="true" className="absolute inset-y-0 left-0 w-3 border-r-[3px] border-[#121212] dark:border-[#4A4A52]" style={style} />;
 }
 
 export interface NetworkStripProps {
@@ -66,7 +66,7 @@ export function NetworkStrip({ protocols }: NetworkStripProps) {
         <Link
           to="/networks"
           className={cx(
-            "group inline-flex min-h-11 items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#0047E0] underline decoration-2 underline-offset-4 dark:text-[#7EA6FF]",
+            "group inline-flex min-h-11 items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#1A36B0] underline decoration-2 underline-offset-4 dark:text-[#8FA6FF]",
             FOCUS_RING,
           )}
         >
@@ -77,7 +77,7 @@ export function NetworkStrip({ protocols }: NetworkStripProps) {
     >
       <ol
         aria-label="Production lines"
-        className="border-[3px] border-[#1A1A1A] bg-[#FBFAF7] shadow-hard-md dark:border-[#4B5563] dark:bg-[#131E32]"
+        className="border-[3px] border-[#121212] bg-[#FBFAF6] shadow-hard-md dark:border-[#4A4A52] dark:bg-[#19191C]"
       >
         {PRODUCTION.map((line) => {
           const stations = stationsOn(line, protocols);
@@ -85,7 +85,7 @@ export function NetworkStrip({ protocols }: NetworkStripProps) {
           return (
             <li
               key={line.key}
-              className="relative grid grid-cols-[3.6rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5 border-b-2 border-[#1A1A1A]/15 py-4 pl-7 pr-4 dark:border-white/10 md:pl-9 md:pr-6 lg:grid-cols-[3.6rem_minmax(0,11rem)_minmax(0,12rem)_minmax(0,1fr)] lg:gap-x-5"
+              className="relative grid grid-cols-[3.6rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5 border-b-2 border-[#121212]/15 py-4 pl-7 pr-4 dark:border-white/10 md:pl-9 md:pr-6 lg:grid-cols-[3.6rem_minmax(0,11rem)_minmax(0,12rem)_minmax(0,1fr)] lg:gap-x-5"
             >
               <Rail line={line} />
               <LineBullet line={line} size="lg" decorative />
@@ -102,7 +102,7 @@ export function NetworkStrip({ protocols }: NetworkStripProps) {
                 {interchanges ? (
                   <span className="mt-1 block">
                     <span className="mr-2 font-code text-[10px] font-bold uppercase tracking-[0.16em]">Change for</span>
-                    <span className="font-semibold text-[#1A1A1A] dark:text-[#F1F5F9]">
+                    <span className="font-semibold text-[#121212] dark:text-[#F2F0EA]">
                       {interchanges} cross-network {interchanges === 1 ? "venue" : "venues"}
                     </span>{" "}
                     at the interchange
@@ -114,7 +114,7 @@ export function NetworkStrip({ protocols }: NetworkStripProps) {
         })}
         {YARD.length ? (
           <li className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-[repeating-linear-gradient(-45deg,transparent_0_9px,rgba(26,26,26,0.07)_9px_18px)] py-4 pl-7 pr-4 dark:bg-[repeating-linear-gradient(-45deg,transparent_0_9px,rgba(255,255,255,0.06)_9px_18px)] md:pl-9">
-            <span className="font-code text-[10px] font-bold uppercase tracking-[0.16em] text-[#45464B] dark:text-[#A9B6C8]">Test yard</span>
+            <span className="font-code text-[10px] font-bold uppercase tracking-[0.16em] text-[#5C5850] dark:text-[#9A968C]">Test yard</span>
             {YARD.map((line) => (
               <span key={line.key} className="inline-flex items-center gap-2 font-display text-[15px] font-semibold">
                 <LineBullet line={line} decorative className="kla-bullet--yard" />

@@ -40,7 +40,7 @@ function RouteRow({ route, rank, winner }: { route: QuoteRoute; rank: number; wi
     <li
       className={cx(
         "kl-node-in grid min-w-0 gap-x-4 gap-y-2 p-3 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:items-center",
-        winner ? "bg-[#FFF7CC] dark:bg-[#22345A]" : "",
+        winner ? "bg-[#EEFBC8] dark:bg-[#2A2A2E]" : "",
       )}
       style={{ "--kl-delay": `${Math.min(rank, 6) * 80}ms` } as React.CSSProperties}
     >
@@ -116,7 +116,7 @@ export function BridgeAuction() {
         <ol className="flex flex-col gap-3">
           {RULES.map((rule, index) => (
             <li key={rule.title} className={cx("flex gap-3 p-3", INK_BORDER_THIN, SURFACE)}>
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#1A1A1A] font-display text-lg font-bold text-white dark:bg-[#FFD60A] dark:text-[#1A1A1A]">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#121212] font-display text-lg font-bold text-white dark:bg-[#C6FF3A] dark:text-[#121212]">
                 {index + 1}
               </span>
               <span className="flex min-w-0 flex-col gap-0.5">
@@ -128,8 +128,8 @@ export function BridgeAuction() {
         </ol>
         <ul className={cx("flex flex-col gap-1.5 text-sm", TEXT_MUTED)}>
           <li>
-            <code className="font-code text-[12px] text-[#1A1A1A] dark:text-white">preferProtocols</code> puts venues first;{" "}
-            <code className="font-code text-[12px] text-[#1A1A1A] dark:text-white">avoidProtocols</code> never asks them.
+            <code className="font-code text-[12px] text-[#121212] dark:text-white">preferProtocols</code> puts venues first;{" "}
+            <code className="font-code text-[12px] text-[#121212] dark:text-white">avoidProtocols</code> never asks them.
           </li>
           <li>
             Naming a venue (&ldquo;bridge 25 USDC from base to arbitrum <span className="font-bold">via lifi</span>&rdquo;) skips the auction.
@@ -177,7 +177,7 @@ export function BridgeAuction() {
                 {quote.routes.length} quote{quote.routes.length === 1 ? "" : "s"} · {networkName(form.from)} → {networkName(form.to)}
               </p>
               {quote.routes.length > 0 ? (
-                <ol className={cx("divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER_THIN)}>
+                <ol className={cx("divide-y-2 divide-[#121212]/10 dark:divide-white/10", INK_BORDER_THIN)}>
                   {quote.routes.map((route, index) => (
                     <RouteRow key={`${route.protocol}-${index}`} route={route} rank={index} winner={index === winnerIndex} />
                   ))}
@@ -189,14 +189,14 @@ export function BridgeAuction() {
                 <ul className={cx("flex flex-col gap-1 text-xs", TEXT_MUTED)}>
                   {quote.unavailable.map((item) => (
                     <li key={item.protocol}>
-                      <span className="font-bold text-[#1A1A1A] dark:text-white">{protocolName(item.protocol)}</span> did not quote: {item.message}
+                      <span className="font-bold text-[#121212] dark:text-white">{protocolName(item.protocol)}</span> did not quote: {item.message}
                     </li>
                   ))}
                 </ul>
               ) : null}
             </>
           ) : (
-            <p className={cx("border-[3px] border-dashed border-[#1A1A1A]/30 p-4 text-sm dark:border-white/15", TEXT_MUTED)}>
+            <p className={cx("border-[3px] border-dashed border-[#121212]/30 p-4 text-sm dark:border-white/15", TEXT_MUTED)}>
               Quotes are live market data: the winner can change from one minute to the next.
             </p>
           )}

@@ -10,9 +10,9 @@ export function FinalCta() {
   return (
     <section
       aria-labelledby="final-cta-heading"
-      className="relative overflow-hidden border-t-[3px] border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] [--kla-muted:#3A3B3F] [--kla-table:#FFD60A] [--kla-text:#1A1A1A] dark:border-[#4B5563] [&_:focus-visible]:!outline-[#1A1A1A]"
+      className="relative overflow-hidden border-t-[3px] border-[#121212] bg-[#C6FF3A] text-[#121212] [--kla-muted:#3A3B3F] [--kla-table:#FFD60A] [--kla-text:#1A1A1A] dark:border-[#4A4A52] [&_:focus-visible]:!outline-[#121212]"
     >
-      <HalftoneEdge className="text-[#1A1A1A]" />
+      <HalftoneEdge className="text-[#121212]" />
       <div className={cx(CONTAINER, "relative grid items-center gap-12 pb-20 pt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:pb-24 lg:pt-14")}>
         <div className="max-w-3xl">
           <p className="font-code text-[11px] font-extrabold uppercase tracking-[0.2em]">Start with a dry run</p>
@@ -22,7 +22,7 @@ export function FinalCta() {
           >
             Plan your first route without signing anything.
           </h2>
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#1A1A1A]/85">
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#121212]/85">
             A dry run quotes every leg and stores nothing. When the plan looks right, run it with the wallets your users already
             have, or drop in the widget and skip most of the code.
           </p>
@@ -31,7 +31,7 @@ export function FinalCta() {
             <ButtonLink
               to="/developers#start-key"
               size="lg"
-              className="w-full !border-[#1A1A1A] !shadow-[3px_3px_0_#1A1A1A] [--kla-plate:#FFD60A] sm:w-auto"
+              className="w-full !border-[#121212] !shadow-[3px_3px_0_#121212] [--kla-plate:#FFD60A] sm:w-auto"
             >
               <Icon name="key" size={20} />
               Get an API key
@@ -40,7 +40,7 @@ export function FinalCta() {
               to="/studio"
               variant="secondary"
               size="lg"
-              className="w-full !border-[#1A1A1A] !bg-white !text-[#1A1A1A] !shadow-[3px_3px_0_#1A1A1A] sm:w-auto"
+              className="w-full !border-[#121212] !bg-[#FBFAF6] !text-[#121212] !shadow-[3px_3px_0_#121212] sm:w-auto"
             >
               Open Studio
             </ButtonLink>

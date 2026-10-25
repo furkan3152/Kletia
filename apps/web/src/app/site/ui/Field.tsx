@@ -5,7 +5,7 @@ import { CONTROL_BORDER, cx, FOCUS_RING, LABEL } from "./styles";
 // Inputs are white by day and the page colour at night; borders and placeholders use the control tokens (3:1 and 4.5:1).
 // Focus is the site-wide ink treatment for text boxes (styles.css, TEXT-BOX FOCUS), never a blue ring.
 const CONTROL = cx(
-  "w-full min-w-0 bg-white px-3 py-2.5 text-[15px] text-fg placeholder:text-placeholder transition-shadow dark:bg-[#0B1120] disabled:opacity-60",
+  "w-full min-w-0 bg-[#FBFAF6] px-3 py-2.5 text-[15px] text-fg placeholder:text-placeholder transition-shadow dark:bg-[#0E0E10] disabled:opacity-60",
   CONTROL_BORDER,
 );
 

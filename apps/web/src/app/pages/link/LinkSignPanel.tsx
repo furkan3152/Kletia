@@ -151,7 +151,7 @@ function LinkSign({ linkId, view, option, amount, needed, quoted, onClose }: Lin
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className={cx(LABEL, "text-[#0047E0] dark:text-[#7EA6FF]")}>Sign in your wallet</p>
+          <p className={cx(LABEL, "text-[#1A36B0] dark:text-[#8FA6FF]")}>Sign in your wallet</p>
           <h3 id="kl-link-sign-heading" tabIndex={-1} className="mt-1 font-display text-2xl font-bold tracking-[-0.02em] focus:outline-none">
             From {option.networkName} {option.symbol}
             {amount ? `, ${amount} ${option.symbol}` : ""}
@@ -193,7 +193,7 @@ function LinkSign({ linkId, view, option, amount, needed, quoted, onClose }: Lin
             </p>
           </div>
           {stamp ? (
-            <div className={cx("flex flex-col items-center gap-2 p-4", INK_BORDER, "bg-[#FFFCF2] text-[#1A1A1A]")}>
+            <div className={cx("flex flex-col items-center gap-2 p-4", INK_BORDER, "bg-[#FFFCF2] text-[#121212]")}>
               <p className="kla-sr" role="status">
                 {stamp.words}
               </p>

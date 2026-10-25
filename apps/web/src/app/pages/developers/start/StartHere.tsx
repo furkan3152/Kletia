@@ -37,7 +37,7 @@ function Station({ n, id, title, children }: { readonly n: number; readonly id: 
   return (
     <section aria-labelledby={`${id}-title`} id={id} className={cx("flex min-w-0 scroll-mt-48 flex-col gap-4 p-4 sm:p-5", INK_BORDER, SURFACE)}>
       <h3 id={`${id}-title`} className="flex items-center gap-3 font-display text-title font-bold">
-        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]">
+        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#121212] bg-[#C6FF3A] text-[#121212]">
           {n}
         </span>
         <span>
@@ -147,7 +147,7 @@ function KeyStation({ onIssued }: { readonly onIssued: (key: string, lane: KeyLa
                 value={option.value}
                 checked={lane === option.value}
                 onChange={() => setLane(option.value)}
-                className="mt-1 h-4 w-4 accent-[#0052FF]"
+                className="mt-1 h-4 w-4 accent-[#2F5BFF]"
               />
               <span>
                 <span className="font-bold">{option.title}</span>
@@ -225,7 +225,7 @@ function SurfacePicker({ value, onChange }: { readonly value: StartSurface; read
               onKeyDown={(event) => onKeyDown(event, index)}
               className={cx(
                 "min-h-11 border-[3px] px-3 text-sm font-bold",
-                selected ? "border-[#1A1A1A] bg-[#1A1A1A] text-white dark:border-[#FFD60A] dark:bg-[#FFD60A] dark:text-[#1A1A1A]" : "border-control bg-surface",
+                selected ? "border-[#121212] bg-[#121212] text-white dark:border-[#C6FF3A] dark:bg-[#C6FF3A] dark:text-[#121212]" : "border-control bg-surface",
                 FOCUS_RING,
               )}
             >
@@ -280,7 +280,7 @@ export function StartHere({ keyLane = null }: { readonly keyLane?: KeyLane }) {
           {STATIONS.map((station) => (
             <li key={station.id}>
               <a href={`#${station.id}`} className={cx("inline-flex min-h-11 items-center gap-1.5 px-1 text-sm font-bold", FOCUS_RING)}>
-                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center border-2 border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]">
+                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center border-2 border-[#121212] bg-[#C6FF3A] text-[#121212]">
                   {station.n}
                 </span>
                 <span className="sr-only">Step {station.n}: </span>

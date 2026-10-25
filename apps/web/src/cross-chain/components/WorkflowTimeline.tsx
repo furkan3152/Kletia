@@ -7,8 +7,8 @@ export function WorkflowTimeline({ plan }: { plan: WorkflowPlanV1 }) {
     ["borrow", "lending_borrow", "borrow_capacity"].includes(step.action),
   );
   return (
-    <section className="mt-4 w-full border-[3px] border-[#1A1A1A] bg-[#DDF5FF] p-3 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] sm:p-4">
-      <div className="flex items-center justify-between gap-3 border-b-[3px] border-[#1A1A1A] pb-2">
+    <section className="mt-4 w-full border-[3px] border-[#121212] bg-[#DDF5FF] p-3 text-[#121212] shadow-[4px_4px_0_#121212] sm:p-4">
+      <div className="flex items-center justify-between gap-3 border-b-[3px] border-[#121212] pb-2">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.18em]">WorkflowPlanV1</p>
           <h3 className="text-sm font-black uppercase">
@@ -16,7 +16,7 @@ export function WorkflowTimeline({ plan }: { plan: WorkflowPlanV1 }) {
           </h3>
         </div>
         {hasBorrowing && (
-          <span className="border-2 border-[#1A1A1A] bg-white px-2 py-1 text-[9px] font-black uppercase">
+          <span className="border-2 border-[#121212] bg-[#FBFAF6] px-2 py-1 text-[9px] font-black uppercase">
             HF floor 1.5
           </span>
         )}
@@ -28,7 +28,7 @@ export function WorkflowTimeline({ plan }: { plan: WorkflowPlanV1 }) {
           const active = index === plan.currentStepIndex;
           const Icon = failed ? ShieldAlert : completed ? CheckCircle2 : active ? Loader2 : CircleDashed;
           return (
-            <div key={step.id} className={`flex gap-3 border-2 border-[#1A1A1A] p-2 ${active ? "bg-[#FFF36D]" : "bg-white"}`}>
+            <div key={step.id} className={`flex gap-3 border-2 border-[#121212] p-2 ${active ? "bg-[#FFF36D]" : "bg-[#FBFAF6]"}`}>
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${active && !failed && !completed ? "animate-spin" : ""}`} strokeWidth={3} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase">
@@ -44,7 +44,7 @@ export function WorkflowTimeline({ plan }: { plan: WorkflowPlanV1 }) {
                     : ""}
                 </p>
                 {step.readResult?.kind === "borrow_capacity" && (
-                  <div className="mt-2 border-2 border-[#1A1A1A] bg-[#D9F99D] p-2 text-[10px] font-black">
+                  <div className="mt-2 border-2 border-[#121212] bg-[#D9F99D] p-2 text-[10px] font-black">
                     SAFE ADDITIONAL BORROW: {step.readResult.safeAmount} {step.readResult.asset}
                     <span className="mt-1 block text-[9px] font-bold">
                       Aave V3 · target HF {step.readResult.targetHealthFactor} · block {step.readResult.observedAtBlock} · read-only

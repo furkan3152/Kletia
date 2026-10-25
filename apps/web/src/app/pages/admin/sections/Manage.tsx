@@ -138,7 +138,7 @@ function ContractPanel({ option }: { readonly option: ContractOption }) {
                 <p className={cx(LABEL, "mb-2", TEXT_MUTED)}>Reads at block {state.data.block}</p>
                 <dl className="grid gap-1.5 text-sm">
                   {Object.entries(state.data.values).map(([name, value]) => (
-                    <div key={name} className="grid min-w-0 grid-cols-[minmax(8rem,auto)_1fr] gap-3 border-b-2 border-dotted border-[#1A1A1A]/15 pb-1.5 dark:border-white/10">
+                    <div key={name} className="grid min-w-0 grid-cols-[minmax(8rem,auto)_1fr] gap-3 border-b-2 border-dotted border-[#121212]/15 pb-1.5 dark:border-white/10">
                       <dt className="font-code text-[13px] font-bold">{name}</dt>
                       <dd className="min-w-0 break-all font-code text-[13px]">
                         {typeof value === "string" && /^0x[0-9a-fA-F]{40}$/u.test(value) ? <AddressText address={value} network={option.network} book={book} copy={false} /> : String(value ?? "none")}
@@ -154,7 +154,7 @@ function ContractPanel({ option }: { readonly option: ContractOption }) {
                 ) : (
                   <ul className="flex flex-col gap-1.5 text-sm">
                     {state.data.balances.map((balance) => (
-                      <li key={balance.token} className="flex justify-between gap-3 border-b-2 border-dotted border-[#1A1A1A]/15 pb-1.5 dark:border-white/10">
+                      <li key={balance.token} className="flex justify-between gap-3 border-b-2 border-dotted border-[#121212]/15 pb-1.5 dark:border-white/10">
                         <span className="font-code font-bold">{formatTokenAmount(balance)}</span>
                         <span className={TEXT_MUTED}>{formatUsd(balance.usd)}</span>
                       </li>

@@ -38,10 +38,10 @@ function clock(iso: string | null): string {
 function DeployStrip({ deploys }: { readonly deploys: readonly AdminRenderDeploy[] }) {
   if (deploys.length === 0) return <p className={cx("px-4 py-3 text-sm", TEXT_MUTED)}>No deploys yet.</p>;
   return (
-    <table className="w-full border-collapse bg-[#111318] text-left font-code text-[13px] text-[#F4F1EA]">
+    <table className="w-full border-collapse bg-[#111318] text-left font-code text-[13px] text-[#F2F0EA]">
       <caption className="sr-only">Last deploys</caption>
       <thead>
-        <tr className="text-[#FFD60A]">
+        <tr className="text-[#C6FF3A]">
           <th scope="col" className="px-3 py-2 font-extrabold uppercase tracking-[0.14em]">
             Started
           </th>

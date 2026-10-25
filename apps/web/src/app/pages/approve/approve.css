@@ -35,7 +35,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 2px solid #1a1a1a;
+  border-top: 2px solid #121212;
 }
 .kl-gate__leg {
   display: grid;
@@ -80,10 +80,10 @@
 }
 .kl-gate__money > div {
   padding: 8px 10px;
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
 }
 .kl-gate__money > div:last-child {
-  background: #ffd60a;
+  background: #c6ff3a;
 }
 .kl-gate__money dd {
   margin: 2px 0 0;

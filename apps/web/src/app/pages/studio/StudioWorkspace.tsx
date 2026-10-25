@@ -117,7 +117,7 @@ function ExchangePanel({ exchanges }: { readonly exchanges: readonly TurnExchang
         {status ? ` ${status}` : ""}
         {thread ? ` · thread rev ${String(thread.rev ?? "?")} · client-held · ${sizeText(threadBytes)}` : ""}
       </p>
-      <div role="tablist" aria-label="API exchange" className="grid grid-cols-2 border-2 border-[#1A1A1A] dark:border-[#4B5563]">
+      <div role="tablist" aria-label="API exchange" className="grid grid-cols-2 border-2 border-[#121212] dark:border-[#4A4A52]">
         {tabs.map((entry, index) => (
           <button
             key={entry.id}
@@ -137,8 +137,8 @@ function ExchangePanel({ exchanges }: { readonly exchanges: readonly TurnExchang
             }}
             className={cx(
               "min-h-11 px-2 text-xs font-black uppercase tracking-[0.1em]",
-              index > 0 && "border-l-2 border-[#1A1A1A] dark:border-[#4B5563]",
-              tab === entry.id ? "bg-[#1A1A1A] text-white dark:bg-[#FFD60A] dark:text-[#1A1A1A]" : "bg-white text-[#1A1A1A] dark:bg-[#0B1120] dark:text-[#E2E8F0]",
+              index > 0 && "border-l-2 border-[#121212] dark:border-[#4A4A52]",
+              tab === entry.id ? "bg-[#121212] text-white dark:bg-[#C6FF3A] dark:text-[#121212]" : "bg-[#FBFAF6] text-[#121212] dark:bg-[#0E0E10] dark:text-[#D6D2C8]",
               FOCUS_RING,
             )}
           >
@@ -297,7 +297,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
           <StudioExamples text={studio.text} onPick={(example) => void submit(example)} />
 
           <details
-            className={cx("kl-details border-[3px] border-dashed border-[#1A1A1A]/30 dark:border-white/15")}
+            className={cx("kl-details border-[3px] border-dashed border-[#121212]/30 dark:border-white/15")}
             open={accountsOpen || accountsForced}
             onToggle={(event) => {
               const element = event.currentTarget;
@@ -351,8 +351,8 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
           </details>
         </form>
 
-        <div className="flex gap-3 border-[3px] border-[#1A1A1A] bg-[#EAF0FF] p-4 text-sm text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#14213D] dark:text-[#E2E8F0]">
-          <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#0052FF] dark:text-[#7EA6FF]" aria-hidden="true" />
+        <div className="flex gap-3 border-[3px] border-[#121212] bg-[#E1E8FF] p-4 text-sm text-[#121212] dark:border-[#4A4A52] dark:bg-[#14213D] dark:text-[#D6D2C8]">
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#1A36B0] dark:text-[#8FA6FF]" aria-hidden="true" />
           <div className="flex flex-col gap-3">
             {executionNote ?? (
               <p>
@@ -453,7 +453,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
                       key={example}
                       type="button"
                       onClick={() => void submit(example)}
-                      className={cx("border-2 border-[#1A1A1A] bg-white px-2 py-1 font-code text-[11px] transition-colors duration-150 hover:bg-[#FFD60A] dark:border-[#4B5563] dark:bg-[#0B1120] dark:hover:bg-[#1A2841]", FOCUS_RING)}
+                      className={cx("border-2 border-[#121212] bg-[#FBFAF6] px-2 py-1 font-code text-[11px] transition-colors duration-150 hover:bg-[#C6FF3A] dark:border-[#4A4A52] dark:bg-[#0E0E10] dark:hover:bg-[#232327]", FOCUS_RING)}
                     >
                       {example}
                     </button>
@@ -471,7 +471,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
                 <Badge tone="outline">Preview accounts</Badge>
               ) : null}
               {plan.latencyMs !== null ? (
-                <span className="font-code text-xs text-[#45464B] dark:text-[#A9B6C8]">planned in {plan.latencyMs} ms</span>
+                <span className="font-code text-xs text-[#5C5850] dark:text-[#9A968C]">planned in {plan.latencyMs} ms</span>
               ) : null}
               {plan.data.request.text ? (
                 <span className="ml-auto">
@@ -509,7 +509,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
                 Raw IntentGraph JSON
                 <ChevronRight className="kl-details-chevron ml-auto h-4 w-4" aria-hidden="true" />
               </summary>
-              <div className="border-t-[3px] border-[#1A1A1A] p-3 dark:border-[#4B5563]">
+              <div className="border-t-[3px] border-[#121212] p-3 dark:border-[#4A4A52]">
                 <JsonView value={plan.data} label="IntentGraph JSON" />
               </div>
             </details>

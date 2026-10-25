@@ -19,7 +19,7 @@ export function SimulationPreview({ result }: { readonly result: ContractTestRes
   const ok = result.review.simulation.status === "ok";
   return (
     <div className="flex min-w-0 flex-col gap-5" aria-label="Test result">
-      <div className={cx("flex flex-col gap-3 p-4", INK_BORDER_THIN, ok ? "bg-[#E9FFF5] dark:bg-[#0E2A20]" : "bg-[#FFF3B0] text-[#1A1A1A]")}>
+      <div className={cx("flex flex-col gap-3 p-4", INK_BORDER_THIN, ok ? "bg-[#E9FFF5] dark:bg-[#0E2A20]" : "bg-[#FFF3B0] text-[#121212]")}>
         <p className="font-display text-lg font-bold">
           {ok ? "The simulation passed." : "The simulation could not run."} Nothing was stored or signed.
         </p>

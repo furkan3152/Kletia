@@ -16,7 +16,7 @@ const LINK = cx("font-bold underline decoration-2 underline-offset-2", FOCUS_RIN
 function InfoCard({ icon, title, children }: { readonly icon: IconName; readonly title: string; readonly children: React.ReactNode }) {
   return (
     <div className={cx("flex flex-col gap-3 p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
-      <span className="flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0B1120]">
+      <span className="flex h-11 w-11 items-center justify-center border-[3px] border-[#121212] bg-[#FBFAF6] dark:border-[#4A4A52] dark:bg-[#0E0E10]">
         <Icon name={icon} size={26} />
       </span>
       <h2 className="font-display text-xl font-bold tracking-[-0.01em]">{title}</h2>

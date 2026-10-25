@@ -91,7 +91,7 @@ export function SolanaYields() {
                         type="button"
                         onClick={() => setSortKey(column.key)}
                         className={`min-h-9 px-2 ${ui.label} underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-focus ${
-                          sortKey === column.key ? "!text-[#0052FF] dark:!text-[#7EA6FF]" : ""
+                          sortKey === column.key ? "!text-[#1A36B0] dark:!text-[#8FA6FF]" : ""
                         }`}
                       >
                         {column.label}
@@ -103,7 +103,7 @@ export function SolanaYields() {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.reserve} className="border-t-2 border-[#1A1A1A]/15 dark:border-slate-700">
+                  <tr key={row.reserve} className="border-t-2 border-[#121212]/15 dark:border-slate-700">
                     <th scope="row" className="px-4 py-3 font-black">
                       {row.symbol}
                     </th>
@@ -117,10 +117,10 @@ export function SolanaYields() {
                       <span className="inline-flex items-center justify-end gap-2">
                         <span
                           aria-hidden="true"
-                          className="hidden h-2 w-16 border border-[#1A1A1A] bg-surface dark:border-slate-500 sm:inline-block"
+                          className="hidden h-2 w-16 border border-[#121212] bg-surface dark:border-slate-500 sm:inline-block"
                         >
                           <span
-                            className="block h-full bg-[#0052FF] dark:bg-[#7EA6FF]"
+                            className="block h-full bg-[#2F5BFF] dark:bg-[#8FA6FF]"
                             style={{ width: `${Math.min(100, Math.max(0, row.utilization * 100))}%` }}
                           />
                         </span>

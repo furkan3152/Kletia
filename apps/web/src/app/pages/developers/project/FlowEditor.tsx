@@ -271,7 +271,7 @@ export function FlowEditor({
       {flows.length === 0 ? (
         <p className={cx("text-sm", TEXT_MUTED)}>No flows yet. A flow lets a publishable key run your own contract from a static page.</p>
       ) : (
-        <ul className={cx("divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER_THIN)} aria-label="Stored flows">
+        <ul className={cx("divide-y-2 divide-[#121212]/10 dark:divide-white/10", INK_BORDER_THIN)} aria-label="Stored flows">
           {flows.map((flow) => {
             const editable = flowDraftOf(flow);
             return (

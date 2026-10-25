@@ -245,14 +245,14 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
   return (
     <div className="w-full overflow-y-auto p-4 md:p-8 custom-scrollbar">
       <div className="mx-auto w-full max-w-5xl space-y-8">
-        <section className="border-[4px] border-[#1A1A1A] bg-white p-5 shadow-[8px_8px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:shadow-[8px_8px_0_#475569] md:p-6">
+        <section className="border-[4px] border-[#121212] bg-[#FBFAF6] p-5 shadow-[8px_8px_0_#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:shadow-[8px_8px_0_#2A2A30] md:p-6">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
             <div>
-              <h1 className="flex items-center gap-3 text-2xl font-black uppercase text-[#1A1A1A] dark:text-white md:text-3xl">
-                <Sparkles className="text-[#0052FF]" />
+              <h1 className="flex items-center gap-3 text-2xl font-black uppercase text-[#121212] dark:text-white md:text-3xl">
+                <Sparkles className="text-[#1A36B0]" />
                 x402 Service Router
               </h1>
-              <p className="mt-2 max-w-3xl text-base font-bold text-[#1A1A1A] dark:text-white">
+              <p className="mt-2 max-w-3xl text-base font-bold text-[#121212] dark:text-white">
                 Some services charge a few cents per request instead of a
                 subscription. x402 is how they ask for that payment: your
                 wallet pays a small amount of USDC on Base for one answer, with
@@ -266,7 +266,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
                 Results come from Coinbase&apos;s CDP Bazaar directory.
               </p>
             </div>
-            <span className="w-fit border-[3px] border-[#1A1A1A] bg-[#86EFAC] px-3 py-1 text-[10px] font-black uppercase text-[#1A1A1A]">
+            <span className="w-fit border-[3px] border-[#121212] bg-[#86EFAC] px-3 py-1 text-[10px] font-black uppercase text-[#121212]">
               Search only · spends nothing
             </span>
           </div>
@@ -280,7 +280,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
                 value={query}
                 maxLength={120}
                 onChange={(event) => setQuery(event.target.value)}
-                className="w-full border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-3 text-sm font-black text-[#1A1A1A] outline-none focus:bg-[#EAF0FF] dark:border-[#4B5563]"
+                className="w-full border-[3px] border-[#121212] bg-[#F8FAFC] p-3 text-sm font-black text-[#121212] outline-none focus:bg-[#E1E8FF] dark:border-[#4A4A52]"
                 placeholder="wallet risk, weather, research…"
               />
             </label>
@@ -293,7 +293,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
                 maxLength={20}
                 inputMode="decimal"
                 onChange={(event) => setMaxPayment(event.target.value)}
-                className="w-full border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-3 text-sm font-black text-[#1A1A1A] outline-none focus:bg-[#EAF0FF] dark:border-[#4B5563]"
+                className="w-full border-[3px] border-[#121212] bg-[#F8FAFC] p-3 text-sm font-black text-[#121212] outline-none focus:bg-[#E1E8FF] dark:border-[#4A4A52]"
                 placeholder="0.05"
               />
             </label>
@@ -301,7 +301,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
               type="button"
               disabled={isSearching}
               onClick={() => void discover()}
-              className="mt-auto flex items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#0052FF] px-5 py-3 text-xs font-black uppercase text-white shadow-[4px_4px_0_#1A1A1A] active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-auto flex items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#2F5BFF] px-5 py-3 text-xs font-black uppercase text-white shadow-[4px_4px_0_#121212] active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSearching ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -318,7 +318,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
                 key={quickQuery}
                 type="button"
                 onClick={() => setQuery(quickQuery)}
-                className="border-[2px] border-[#1A1A1A] bg-[#E2E8F0] px-2 py-1 text-[9px] font-black uppercase text-[#1A1A1A] hover:bg-[#FFD166]"
+                className="border-[2px] border-[#121212] bg-[#D6D2C8] px-2 py-1 text-[9px] font-black uppercase text-[#121212] hover:bg-[#FFD166]"
               >
                 {quickQuery}
               </button>
@@ -328,7 +328,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
                 type="checkbox"
                 checked={curatedOnly}
                 onChange={(event) => setCuratedOnly(event.target.checked)}
-                className="h-4 w-4 accent-[#0052FF]"
+                className="h-4 w-4 accent-[#2F5BFF]"
               />
               Coinbase-curated only
             </label>
@@ -337,7 +337,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
           <X402AttestationRegistryStatus />
 
           {error && (
-            <div className="mt-4 flex items-start gap-2 border-[3px] border-[#1A1A1A] bg-[#FF6B6B] p-3 text-sm font-black text-[#1A1A1A]">
+            <div className="mt-4 flex items-start gap-2 border-[3px] border-[#121212] bg-[#FF6B6B] p-3 text-sm font-black text-[#121212]">
               <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
               {error}
             </div>
@@ -354,9 +354,9 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2">
-          <div className="border-[4px] border-[#1A1A1A] bg-[#EAF0FF] p-5 text-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A]">
+          <div className="border-[4px] border-[#121212] bg-[#E1E8FF] p-5 text-[#121212] shadow-[6px_6px_0_#121212]">
             <h2 className="flex items-center gap-2 text-lg font-black uppercase">
-              <Bot className="h-5 w-5 text-[#0052FF]" />
+              <Bot className="h-5 w-5 text-[#1A36B0]" />
               Official agent handoff
             </h2>
             <p className="mt-2 text-sm font-bold">
@@ -371,12 +371,12 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
                   "Find a useful Coinbase-curated x402 service on Base for wallet security and cap one call at 0.05 USDC",
                 )
               }
-              className="mt-4 border-[3px] border-[#1A1A1A] bg-white px-3 py-2 text-[10px] font-black uppercase shadow-[3px_3px_0_#1A1A1A] active:translate-y-0.5 active:shadow-none"
+              className="mt-4 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 py-2 text-[10px] font-black uppercase shadow-[3px_3px_0_#121212] active:translate-y-0.5 active:shadow-none"
             >
               Start from one sentence
             </button>
           </div>
-          <div className="border-[4px] border-[#1A1A1A] bg-[#FFD166] p-5 text-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A]">
+          <div className="border-[4px] border-[#121212] bg-[#FFD166] p-5 text-[#121212] shadow-[6px_6px_0_#121212]">
             <h2 className="flex items-center gap-2 text-lg font-black uppercase">
               <ServerCog className="h-5 w-5" />
               Seller Studio below
@@ -390,7 +390,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
           </div>
         </section>
 
-        <section className="border-t-[5px] border-[#1A1A1A] pt-8 dark:border-[#4B5563]">
+        <section className="border-t-[5px] border-[#121212] pt-8 dark:border-[#4A4A52]">
           <X402ConsoleWidget />
         </section>
       </div>

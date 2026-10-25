@@ -117,11 +117,11 @@ export function ErrorsReference() {
           ) : null}
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
-          <label htmlFor={searchId} className={cx(LABEL, "text-[#1A1A1A] dark:text-[#E2E8F0]")}>
+          <label htmlFor={searchId} className={cx(LABEL, "text-[#121212] dark:text-[#D6D2C8]")}>
             Search codes, titles and fixes
           </label>
           <div className="relative flex min-w-0">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#45464B] dark:text-[#A9B6C8]" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5C5850] dark:text-[#9A968C]" aria-hidden="true" />
             <input
               id={searchId}
               type="search"
@@ -167,7 +167,7 @@ export function ErrorsReference() {
                 onClick={() => setCategory(item)}
                 className={cx(
                   "inline-flex min-h-9 items-center gap-1.5 border-2 border-control px-2 text-xs font-bold",
-                  selected ? "bg-[#1A1A1A] text-white dark:bg-[#FFD60A] dark:text-[#1A1A1A]" : "bg-white hover:bg-[#FFF7CC] dark:bg-[#0B1120] dark:hover:bg-[#1A2841]",
+                  selected ? "bg-[#121212] text-white dark:bg-[#C6FF3A] dark:text-[#121212]" : "bg-[#FBFAF6] hover:bg-[#EEFBC8] dark:bg-[#0E0E10] dark:hover:bg-[#232327]",
                   FOCUS_RING,
                 )}
               >
@@ -177,7 +177,7 @@ export function ErrorsReference() {
             );
           })}
           <label className="ml-auto inline-flex min-h-9 cursor-pointer items-center gap-2 text-xs font-bold">
-            <input type="checkbox" checked={retryableOnly} onChange={(event) => setRetryableOnly(event.target.checked)} className="h-4 w-4 accent-[#0052FF]" />
+            <input type="checkbox" checked={retryableOnly} onChange={(event) => setRetryableOnly(event.target.checked)} className="h-4 w-4 accent-[#2F5BFF]" />
             Retryable only
           </label>
         </div>
@@ -192,7 +192,7 @@ export function ErrorsReference() {
         <p
           id={`error-${target}`}
           tabIndex={-1}
-          className="kl-attn-ring kl-attn-ring--once scroll-mt-40 border-l-[6px] border-[#FFD60A] bg-[#FFF7CC] px-4 py-3 text-sm text-[#1A1A1A] outline-none dark:bg-[#2B2610] dark:text-[#FDF3C4] lg:scroll-mt-28"
+          className="kl-attn-ring kl-attn-ring--once scroll-mt-40 border-l-[6px] border-[#C6FF3A] bg-[#EEFBC8] px-4 py-3 text-sm text-[#121212] outline-none dark:bg-[#2B2610] dark:text-[#FDF3C4] lg:scroll-mt-28"
         >
           <code className="font-code font-bold">{target}</code>{" "}
           {resolveErrorCode(target) && resolveErrorCode(target) !== target ? (
@@ -209,7 +209,7 @@ export function ErrorsReference() {
         </p>
       ) : null}
       {grouped.length === 0 ? (
-        <p className={cx("border-[3px] border-dashed border-[#1A1A1A]/30 p-6 text-center text-sm dark:border-white/15", TEXT_MUTED)}>
+        <p className={cx("border-[3px] border-dashed border-[#121212]/30 p-6 text-center text-sm dark:border-white/15", TEXT_MUTED)}>
           No code matches “{deferred}”. Try a status such as 422, or part of a code.
         </p>
       ) : (
@@ -224,7 +224,7 @@ export function ErrorsReference() {
                 <span className="sr-only">, </span>
                 <span className={cx("font-code text-code-s normal-case tracking-normal", TEXT_MUTED)}>{codeCount(group.rows.length)}</span>
               </h2>
-              <ul className={cx("min-w-0 divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER, SURFACE)}>
+              <ul className={cx("min-w-0 divide-y-2 divide-[#121212]/10 dark:divide-white/10", INK_BORDER, SURFACE)}>
                 {shown.map((row) => {
                   const targeted = row.code === target;
                   return (
@@ -234,7 +234,7 @@ export function ErrorsReference() {
                       tabIndex={-1}
                       className={cx(
                         "grid min-w-0 scroll-mt-40 lg:scroll-mt-28 grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 px-3 py-2.5 outline-none sm:px-4 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)_auto]",
-                        targeted && "kl-attn-ring kl-attn-ring--once bg-[#FFF7CC] dark:bg-[#22345A]",
+                        targeted && "kl-attn-ring kl-attn-ring--once bg-[#EEFBC8] dark:bg-[#2A2A2E]",
                       )}
                     >
                       <div className="flex min-w-0 flex-col items-start gap-1">

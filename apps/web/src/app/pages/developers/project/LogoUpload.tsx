@@ -90,7 +90,7 @@ export function LogoUpload({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 flex-wrap items-center gap-4">
-        <div className={cx("flex h-20 w-56 max-w-full items-center justify-center bg-white p-2 dark:bg-[#0B1120]", INK_BORDER_THIN)}>
+        <div className={cx("flex h-20 w-56 max-w-full items-center justify-center bg-[#FBFAF6] p-2 dark:bg-[#0E0E10]", INK_BORDER_THIN)}>
           {picked?.preview ? (
             <img src={picked.preview} alt={`Preview of ${picked.name}`} className="h-12 w-auto max-w-full object-contain" />
           ) : current ? (

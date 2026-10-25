@@ -78,7 +78,7 @@ const WIDGETS: Array<{
 ];
 
 const InputLabel = ({ children }: { children: React.ReactNode }) => (
-  <label className="block text-xs font-black uppercase tracking-wider text-[#1A1A1A] dark:text-white mb-2">
+  <label className="block text-xs font-black uppercase tracking-wider text-[#121212] dark:text-white mb-2">
     {children}
   </label>
 );
@@ -86,7 +86,7 @@ const InputLabel = ({ children }: { children: React.ReactNode }) => (
 const InputField = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
   <input
     {...props}
-    className={`w-full p-3 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] focus:outline-none focus:-translate-y-0.5 focus:shadow-[5px_5px_0_#1A1A1A] dark:focus:shadow-[5px_5px_0_#8B5CF6] transition-all font-bold text-[#1A1A1A] dark:text-white disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ""}`}
+    className={`w-full p-3 bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] focus:outline-none focus:-translate-y-0.5 focus:shadow-[5px_5px_0_#121212] dark:focus:shadow-[5px_5px_0_#8B5CF6] transition-all font-bold text-[#121212] dark:text-white disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ""}`}
   />
 );
 
@@ -106,7 +106,7 @@ const ActionButton = ({
   <button
     onClick={onClick}
     disabled={disabled}
-    className={`w-full py-3 px-4 font-black uppercase tracking-widest text-white transition-all duration-200 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] ${disabled ? "bg-gray-400 dark:bg-slate-600 opacity-80 cursor-not-allowed shadow-[1px_1px_0_#1A1A1A] translate-y-0.5" : `${colorClass || "bg-[#0052FF]"} hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] dark:hover:shadow-[6px_6px_0_#475569] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]`} ${className}`}
+    className={`w-full py-3 px-4 font-black uppercase tracking-widest text-white transition-all duration-200 border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] ${disabled ? "bg-gray-400 dark:bg-slate-600 opacity-80 cursor-not-allowed shadow-[1px_1px_0_#121212] translate-y-0.5" : `${colorClass || "bg-[#2F5BFF]"} hover:-translate-y-1 hover:shadow-[6px_6px_0_#121212] dark:hover:shadow-[6px_6px_0_#2A2A30] active:translate-y-0 active:shadow-[1px_1px_0_#121212]`} ${className}`}
   >
     {children}
   </button>
@@ -313,7 +313,7 @@ export const ArcDashboardWidget: React.FC<{
     return (
       <div
         role="alert"
-        className="mt-4 border-[3px] border-[#1A1A1A] bg-[#EF4444] p-4 font-bold text-white shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]"
+        className="mt-4 border-[3px] border-[#121212] bg-[#EF4444] p-4 font-bold text-white shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]"
       >
         ❌ INPUT ERROR: {intentError}
       </div>
@@ -324,10 +324,10 @@ export const ArcDashboardWidget: React.FC<{
     switch (activeWidget) {
       case "lending":
         return (
-          <div className="bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] p-4 flex flex-col md:flex-row items-center justify-between animate-slide-up">
-            <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4 flex items-center justify-between">
+          <div className="bg-[#F3F4F6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] p-4 flex flex-col md:flex-row items-center justify-between animate-slide-up">
+            <div className="mb-6 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">
+                <h3 className="text-2xl font-black text-[#121212] dark:text-white uppercase tracking-tight">
                   🏦 KLETIA LENDING{" "}
                   <span className="text-sm text-gray-500">(built on Arc)</span>
                 </h3>
@@ -335,7 +335,7 @@ export const ArcDashboardWidget: React.FC<{
                   Provide KLET Collateral, Borrow USDC
                 </p>
               </div>
-              <div className="bg-white border-[3px] border-[#1A1A1A] p-2 shadow-[2px_2px_0_#1A1A1A]">
+              <div className="bg-[#FBFAF6] border-[3px] border-[#121212] p-2 shadow-[2px_2px_0_#121212]">
                 <div className="text-xs font-black text-gray-500 uppercase">
                   Collateral / Borrow
                 </div>
@@ -407,9 +407,9 @@ export const ArcDashboardWidget: React.FC<{
 
       case "swap":
         return (
-          <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-            <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
-              <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">
+          <div className="p-6 bg-[#F3F4F6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+            <div className="mb-6 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-4">
+              <h3 className="text-2xl font-black text-[#121212] dark:text-white uppercase tracking-tight">
                 🔄 KLETIA SWAP{" "}
                 <span className="text-sm text-gray-500">(built on Arc)</span>
               </h3>
@@ -431,7 +431,7 @@ export const ArcDashboardWidget: React.FC<{
             <div className="flex justify-center my-4">
               <button
                 onClick={() => setIsUsdcToToken(!isUsdcToToken)}
-                className="w-10 h-10 flex items-center justify-center bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] hover:-translate-y-0.5 active:translate-y-1 active:shadow-none transition-all font-black text-lg text-[#1A1A1A] dark:text-white"
+                className="w-10 h-10 flex items-center justify-center bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] hover:-translate-y-0.5 active:translate-y-1 active:shadow-none transition-all font-black text-lg text-[#121212] dark:text-white"
               >
                 ⇅
               </button>
@@ -456,7 +456,7 @@ export const ArcDashboardWidget: React.FC<{
                 className="bg-gray-200 dark:bg-slate-800"
               />
             </div>
-            <div className="mb-4 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+            <div className="mb-4 border-[3px] border-[#121212] bg-[#FACC15] p-3 text-xs font-black text-[#121212] shadow-[3px_3px_0_#121212]">
               TESTNET NOTICE: The deployed swap entrypoint does not accept a
               client-side minimum output or deadline. This quote is read live
               from Arc, while the button only prepares an editable intent. The
@@ -486,9 +486,9 @@ export const ArcDashboardWidget: React.FC<{
 
       case "vault":
         return (
-          <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-            <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
-              <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">
+          <div className="p-6 bg-[#F3F4F6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+            <div className="mb-6 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-4">
+              <h3 className="text-2xl font-black text-[#121212] dark:text-white uppercase tracking-tight">
                 🔒 KLETIA VAULT{" "}
                 <span className="text-sm text-gray-500">(built on Arc)</span>
               </h3>
@@ -521,7 +521,7 @@ export const ArcDashboardWidget: React.FC<{
               🔒 Prepare Vault Deposit Intent
             </ActionButton>
             <ActionButton
-              colorClass="bg-[#0052FF] hover:bg-[#0040DD] dark:bg-blue-600 dark:hover:bg-blue-500"
+              colorClass="bg-[#2F5BFF] hover:bg-[#0040DD] dark:bg-blue-600 dark:hover:bg-blue-500"
               onClick={() =>
                 seedIntent(
                   () =>
@@ -549,9 +549,9 @@ export const ArcDashboardWidget: React.FC<{
 
       case "staking":
         return (
-          <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-            <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
-              <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">
+          <div className="p-6 bg-[#F3F4F6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+            <div className="mb-6 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-4">
+              <h3 className="text-2xl font-black text-[#121212] dark:text-white uppercase tracking-tight">
                 💎 KLETIA STAKING{" "}
                 <span className="text-sm text-gray-500">(built on Arc)</span>
               </h3>
@@ -608,7 +608,7 @@ export const ArcDashboardWidget: React.FC<{
                 🔓 Prepare Unstake Intent
               </ActionButton>
               <ActionButton
-                colorClass="bg-[#0052FF] hover:bg-[#0040DD]"
+                colorClass="bg-[#2F5BFF] hover:bg-[#0040DD]"
                 className="mt-0"
                 onClick={() =>
                   seedIntent(
@@ -620,7 +620,7 @@ export const ArcDashboardWidget: React.FC<{
                 📤 Claim Unstaked
               </ActionButton>
             </div>
-            <div className="mt-4 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+            <div className="mt-4 border-[3px] border-[#121212] bg-[#FACC15] p-3 text-xs font-black uppercase text-[#121212] shadow-[3px_3px_0_#121212]">
               Claim intents read the connected wallet's live staking state,
               reject empty positions or active cooldowns, verify reward-pool
               coverage, and simulate the exact claim before wallet approval.
@@ -630,9 +630,9 @@ export const ArcDashboardWidget: React.FC<{
 
       case "liquidity":
         return (
-          <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-            <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
-              <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">
+          <div className="p-6 bg-[#F3F4F6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+            <div className="mb-6 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-4">
+              <h3 className="text-2xl font-black text-[#121212] dark:text-white uppercase tracking-tight">
                 💧 KLETIA LIQUIDITY{" "}
                 <span className="text-sm text-gray-500">(built on Arc)</span>
               </h3>
@@ -659,7 +659,7 @@ export const ArcDashboardWidget: React.FC<{
                 placeholder="0.00"
               />
             </div>
-            <div className="mb-4 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+            <div className="mb-4 border-[3px] border-[#121212] bg-[#FACC15] p-3 text-xs font-black text-[#121212] shadow-[3px_3px_0_#121212]">
               The intent engine derives the live KLET requirement from pool
               reserves and refuses the route if it exceeds this hard cap. The
               encoded calldata and exact approval are additionally bounded to at
@@ -687,11 +687,11 @@ export const ArcDashboardWidget: React.FC<{
             </ActionButton>
             <section
               aria-labelledby="arc-lp-exit-heading"
-              className="mt-6 border-t-[3px] border-[#1A1A1A] pt-4 dark:border-[#4B5563]"
+              className="mt-6 border-t-[3px] border-[#121212] pt-4 dark:border-[#4A4A52]"
             >
               <h4
                 id="arc-lp-exit-heading"
-                className="text-lg font-black uppercase tracking-tight text-[#1A1A1A] dark:text-white"
+                className="text-lg font-black uppercase tracking-tight text-[#121212] dark:text-white"
               >
                 Remove Liquidity
               </h4>
@@ -706,7 +706,7 @@ export const ArcDashboardWidget: React.FC<{
                   <button
                     type="button"
                     onClick={openConnectModal}
-                    className="min-h-[44px] border-[3px] border-[#1A1A1A] bg-white px-3 text-xs font-black uppercase tracking-widest text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#0F172A] dark:text-white dark:shadow-[3px_3px_0_#475569]"
+                    className="min-h-[44px] border-[3px] border-[#121212] bg-[#FBFAF6] px-3 text-xs font-black uppercase tracking-widest text-[#121212] shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:bg-[#121212] dark:text-white dark:shadow-[3px_3px_0_#2A2A30]"
                   >
                     Connect wallet
                   </button>
@@ -733,7 +733,7 @@ export const ArcDashboardWidget: React.FC<{
                   onClick={() => {
                     if (lpBalance !== undefined) setLpWithdrawalAmount(formatEther(lpBalance));
                   }}
-                  className="min-h-[44px] shrink-0 border-[3px] border-[#1A1A1A] bg-white px-3 text-xs font-black uppercase tracking-widest text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4B5563] dark:bg-[#0F172A] dark:text-white dark:shadow-[3px_3px_0_#475569]"
+                  className="min-h-[44px] shrink-0 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 text-xs font-black uppercase tracking-widest text-[#121212] shadow-[3px_3px_0_#121212] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4A4A52] dark:bg-[#121212] dark:text-white dark:shadow-[3px_3px_0_#2A2A30]"
                 >
                   Max
                 </button>
@@ -745,7 +745,7 @@ export const ArcDashboardWidget: React.FC<{
               ) : null}
               <ActionButton
                 disabled={lpWithdrawalDisabled}
-                colorClass="bg-[#0052FF] hover:bg-[#0040DD]"
+                colorClass="bg-[#2F5BFF] hover:bg-[#0040DD]"
                 onClick={() =>
                   seedIntent(() => {
                     const amount = parsePositiveAmount(
@@ -765,9 +765,9 @@ export const ArcDashboardWidget: React.FC<{
 
       case "batch":
         return (
-          <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-            <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
-              <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">
+          <div className="p-6 bg-[#F3F4F6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+            <div className="mb-6 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-4">
+              <h3 className="text-2xl font-black text-[#121212] dark:text-white uppercase tracking-tight">
                 📦 KLETIA BATCH PAY{" "}
                 <span className="text-sm text-gray-500">(built on Arc)</span>
               </h3>
@@ -793,7 +793,7 @@ export const ArcDashboardWidget: React.FC<{
                 placeholder="0.00"
               />
             </div>
-            <div className="mb-4 border-[3px] border-[#1A1A1A] bg-[#D1FAE5] p-3 text-xs font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+            <div className="mb-4 border-[3px] border-[#121212] bg-[#D1FAE5] p-3 text-xs font-black uppercase text-[#121212] shadow-[3px_3px_0_#121212]">
               Supported intent route: atomic_payout through Arc&apos;s official
               Multicall3From extension. The widget never writes directly to
               BatchPay.
@@ -849,9 +849,9 @@ export const ArcDashboardWidget: React.FC<{
 
       case "memo":
         return (
-          <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-            <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
-              <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">
+          <div className="p-6 bg-[#F3F4F6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+            <div className="mb-6 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-4">
+              <h3 className="text-2xl font-black text-[#121212] dark:text-white uppercase tracking-tight">
                 📝 KLETIA MEMO PAY{" "}
                 <span className="text-sm text-gray-500">(built on Arc)</span>
               </h3>
@@ -931,27 +931,27 @@ export const ArcDashboardWidget: React.FC<{
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 p-4 md:p-8 animate-fade-in pb-20">
-      <div className="bg-[#8B5CF6] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white border-[4px] border-[#1A1A1A] rotate-12 opacity-20 pointer-events-none"></div>
-        <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#1A1A1A] pointer-events-none"></div>
+      <div className="bg-[#8B5CF6] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[8px_8px_0_#121212] dark:shadow-[8px_8px_0_#2A2A30] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#FBFAF6] border-[4px] border-[#121212] rotate-12 opacity-20 pointer-events-none"></div>
+        <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#121212] pointer-events-none"></div>
 
         <div className="z-10 flex flex-col gap-4 max-w-2xl">
-          <div className="inline-block bg-white text-[#1A1A1A] border-[3px] border-[#1A1A1A] font-black uppercase tracking-widest text-xs px-3 py-1 shadow-[3px_3px_0_#1A1A1A] w-max">
+          <div className="inline-block bg-[#FBFAF6] text-[#121212] border-[3px] border-[#121212] font-black uppercase tracking-widest text-xs px-3 py-1 shadow-[3px_3px_0_#121212] w-max">
             KLETIA CONSOLE
           </div>
-          <h2 className="text-4xl md:text-6xl font-black text-white tracking-tight uppercase leading-none drop-shadow-[4px_4px_0_#1A1A1A]">
+          <h2 className="text-4xl md:text-6xl font-black text-white tracking-tight uppercase leading-none drop-shadow-[4px_4px_0_#121212]">
             DASHBOARD
           </h2>
-          <p className="text-lg md:text-xl font-bold text-white bg-[#1A1A1A] p-2 inline-block shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] w-max">
+          <p className="text-lg md:text-xl font-bold text-white bg-[#121212] p-2 inline-block shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] w-max">
             USDC-native Arc Testnet • Chain ID 5042002
           </p>
 
           <div className="flex flex-wrap gap-4 mt-6">
-            <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
+            <div className="bg-[#FBFAF6] border-[3px] border-[#121212] p-4 shadow-[4px_4px_0_#121212] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">
                 KLET Price
               </span>
-              <span className="text-xl font-black text-[#1A1A1A] flex items-center gap-2">
+              <span className="text-xl font-black text-[#121212] flex items-center gap-2">
                 {swapRate && (swapRate as bigint) > 0n
                   ? `${Number(formatEther(swapRate as bigint)).toLocaleString("en-US", { maximumFractionDigits: 8 })} USDC`
                   : "—"}{" "}
@@ -960,11 +960,11 @@ export const ArcDashboardWidget: React.FC<{
                 </span>
               </span>
             </div>
-            <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
+            <div className="bg-[#FBFAF6] border-[3px] border-[#121212] p-4 shadow-[4px_4px_0_#121212] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">
                 Total Liquidity (USDC)
               </span>
-              <span className="text-xl font-black text-[#1A1A1A]">
+              <span className="text-xl font-black text-[#121212]">
                 {usdcReserve === undefined
                   ? "—"
                   : `$${Number(
@@ -975,7 +975,7 @@ export const ArcDashboardWidget: React.FC<{
                     })}`}
               </span>
             </div>
-            <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
+            <div className="bg-[#FBFAF6] border-[3px] border-[#121212] p-4 shadow-[4px_4px_0_#121212] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">
                 Network Status
               </span>
@@ -983,7 +983,7 @@ export const ArcDashboardWidget: React.FC<{
                 className={`text-xl font-black flex items-center gap-2 ${isSwapInfoError ? "text-[#EF4444]" : "text-[#10B981]"}`}
               >
                 <span
-                  className={`w-3 h-3 border-[2px] border-[#1A1A1A] rounded-full ${isSwapInfoError ? "bg-[#EF4444]" : "bg-[#10B981] animate-pulse"}`}
+                  className={`w-3 h-3 border-[2px] border-[#121212] rounded-full ${isSwapInfoError ? "bg-[#EF4444]" : "bg-[#10B981] animate-pulse"}`}
                 ></span>
                 {isSwapInfoError
                   ? "UNAVAILABLE"
@@ -995,12 +995,12 @@ export const ArcDashboardWidget: React.FC<{
           </div>
         </div>
 
-        <div className="z-10 bg-white dark:bg-[#0F172A] border-[4px] border-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A] p-6 lg:min-w-[300px] flex flex-col justify-center">
+        <div className="z-10 bg-[#FBFAF6] dark:bg-[#121212] border-[4px] border-[#121212] shadow-[6px_6px_0_#121212] p-6 lg:min-w-[300px] flex flex-col justify-center">
           <div className="mb-4">
             <span className="text-xs font-black text-gray-500 uppercase block mb-1">
               Balance
             </span>
-            <div className="text-4xl font-black text-[#1A1A1A] dark:text-white flex items-end gap-2">
+            <div className="text-4xl font-black text-[#121212] dark:text-white flex items-end gap-2">
               {isArcConnected && balance.data
                 ? Number(formatEther(balance.data.value)).toFixed(6)
                 : "—"}
@@ -1013,11 +1013,11 @@ export const ArcDashboardWidget: React.FC<{
               <span className="text-sm text-[#8B5CF6] font-black">KLET</span>
             </div>
           </div>
-          <div className="pt-4 border-t-[3px] border-[#1A1A1A] dark:border-slate-700 flex items-center gap-2">
+          <div className="pt-4 border-t-[3px] border-[#121212] dark:border-slate-700 flex items-center gap-2">
             <div
-              className={`w-4 h-4 border-[2px] border-[#1A1A1A] ${isArcConnected ? "bg-[#10B981]" : "bg-[#EF4444]"}`}
+              className={`w-4 h-4 border-[2px] border-[#121212] ${isArcConnected ? "bg-[#10B981]" : "bg-[#EF4444]"}`}
             ></div>
-            <span className="font-black text-[#1A1A1A] dark:text-white uppercase text-sm">
+            <span className="font-black text-[#121212] dark:text-white uppercase text-sm">
               {isArcConnected
                 ? "ARC WALLET CONNECTED"
                 : isConnected
@@ -1030,22 +1030,22 @@ export const ArcDashboardWidget: React.FC<{
 
       <ArcUnifiedBalanceCard />
 
-      <div className="border-[4px] border-[#1A1A1A] bg-[#FACC15] p-5 shadow-[8px_8px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[8px_8px_0_#475569] md:p-7">
-        <div className="mb-5 flex flex-col justify-between gap-3 border-b-[4px] border-[#1A1A1A] pb-4 md:flex-row md:items-end">
+      <div className="border-[4px] border-[#121212] bg-[#FACC15] p-5 shadow-[8px_8px_0_#121212] dark:border-[#4A4A52] dark:shadow-[8px_8px_0_#2A2A30] md:p-7">
+        <div className="mb-5 flex flex-col justify-between gap-3 border-b-[4px] border-[#121212] pb-4 md:flex-row md:items-end">
           <div>
-            <div className="mb-2 inline-block border-[2px] border-[#1A1A1A] bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[#1A1A1A]">
+            <div className="mb-2 inline-block border-[2px] border-[#121212] bg-[#FBFAF6] px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[#121212]">
               Powered by official Arc primitives
             </div>
-            <h3 className="text-2xl font-black uppercase text-[#1A1A1A] md:text-4xl">
+            <h3 className="text-2xl font-black uppercase text-[#121212] md:text-4xl">
               Arc Money Studio
             </h3>
-            <p className="mt-1 max-w-3xl text-sm font-bold text-[#1A1A1A]">
+            <p className="mt-1 max-w-3xl text-sm font-bold text-[#121212]">
               Select a prefilled example to place an editable sentence in the
               intent box. Recipient examples use the connected wallet; no
               transaction is sent from this widget.
             </p>
           </div>
-          <span className="w-max rotate-1 border-[3px] border-[#1A1A1A] bg-[#8B5CF6] px-3 py-2 text-xs font-black uppercase text-white shadow-[3px_3px_0_#1A1A1A]">
+          <span className="w-max rotate-1 border-[3px] border-[#121212] bg-[#8B5CF6] px-3 py-2 text-xs font-black uppercase text-white shadow-[3px_3px_0_#121212]">
             Intent First
           </span>
         </div>
@@ -1106,9 +1106,9 @@ export const ArcDashboardWidget: React.FC<{
                     ? "Opens an editable example. Replace the recipient before sending, or connect a wallet to insert its address."
                     : undefined
                 }
-                className="group flex min-h-20 items-start gap-3 border-[3px] border-[#1A1A1A] bg-white p-3 text-left text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 hover:-translate-y-0.5 hover:bg-[#F5F3FF] hover:shadow-[5px_5px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] active:translate-y-0.5 active:shadow-none dark:border-[#64748B] dark:bg-[#1A2841] dark:text-white dark:shadow-[4px_4px_0_#475569] dark:hover:bg-[#241E3D] dark:hover:shadow-[5px_5px_0_#475569] sm:p-4"
+                className="group flex min-h-20 items-start gap-3 border-[3px] border-[#121212] bg-[#FBFAF6] p-3 text-left text-[#121212] shadow-[4px_4px_0_#121212] transition-[transform,box-shadow,background-color] duration-100 hover:-translate-y-0.5 hover:bg-[#F5F3FF] hover:shadow-[5px_5px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] active:translate-y-0.5 active:shadow-none dark:border-[#8F8C84] dark:bg-[#232327] dark:text-white dark:shadow-[4px_4px_0_#2A2A30] dark:hover:bg-[#241E3D] dark:hover:shadow-[5px_5px_0_#2A2A30] sm:p-4"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#EDE9FE] text-xl shadow-[2px_2px_0_#1A1A1A]">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#121212] bg-[#EDE9FE] text-xl shadow-[2px_2px_0_#121212]">
                   {blueprint.icon}
                 </span>
                 <span>
@@ -1119,7 +1119,7 @@ export const ArcDashboardWidget: React.FC<{
                     {blueprint.detail}
                   </span>
                   {needsWallet && !address ? (
-                    <span className="mt-2 inline-block border-2 border-[#1A1A1A] bg-[#FFF36D] px-1.5 py-0.5 text-[9px] font-black uppercase text-[#1A1A1A]">
+                    <span className="mt-2 inline-block border-2 border-[#121212] bg-[#FFF36D] px-1.5 py-0.5 text-[9px] font-black uppercase text-[#121212]">
                       Editable recipient
                     </span>
                   ) : null}
@@ -1135,19 +1135,19 @@ export const ArcDashboardWidget: React.FC<{
           <button
             key={w.id}
             type="button"
-            className={`group relative flex min-h-[116px] flex-col justify-between border-[4px] border-[#1A1A1A] bg-white p-3 text-left shadow-[5px_5px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1E293B] dark:shadow-[5px_5px_0_#475569] sm:min-h-[132px] sm:p-4 ${activeWidget === w.id ? "translate-y-0.5 bg-[#E2E8F0] shadow-[2px_2px_0_#1A1A1A] dark:bg-[#334155] dark:shadow-[2px_2px_0_#475569]" : ""}`}
+            className={`group relative flex min-h-[116px] flex-col justify-between border-[4px] border-[#121212] bg-[#FBFAF6] p-3 text-left shadow-[5px_5px_0_#121212] transition-[transform,box-shadow,background-color] duration-100 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] active:translate-y-0.5 active:shadow-none dark:border-[#4A4A52] dark:bg-[#19191C] dark:shadow-[5px_5px_0_#2A2A30] sm:min-h-[132px] sm:p-4 ${activeWidget === w.id ? "translate-y-0.5 bg-[#D6D2C8] shadow-[2px_2px_0_#121212] dark:bg-[#334155] dark:shadow-[2px_2px_0_#2A2A30]" : ""}`}
             onClick={() =>
               setActiveWidget(activeWidget === w.id ? null : w.id)
             }
           >
             <div
-              className={`flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] text-xl shadow-[3px_3px_0_#1A1A1A] transition-transform duration-100 group-hover:-translate-y-0.5 dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] sm:h-12 sm:w-12 sm:text-2xl ${w.color}`}
+              className={`flex h-11 w-11 items-center justify-center border-[3px] border-[#121212] text-xl shadow-[3px_3px_0_#121212] transition-transform duration-100 group-hover:-translate-y-0.5 dark:border-[#4A4A52] dark:shadow-[3px_3px_0_#2A2A30] sm:h-12 sm:w-12 sm:text-2xl ${w.color}`}
             >
               {w.icon}
             </div>
             <div className="mt-4">
               <span
-                className="block text-base font-black uppercase tracking-tight text-[#1A1A1A] dark:text-white sm:text-lg"
+                className="block text-base font-black uppercase tracking-tight text-[#121212] dark:text-white sm:text-lg"
               >
                 {w.name}
               </span>
@@ -1162,7 +1162,7 @@ export const ArcDashboardWidget: React.FC<{
       {activeWidget && (
         <div className="relative mt-8 animate-fade-in-up">
           <button
-            className="absolute -top-4 -right-4 w-10 h-10 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 active:translate-y-0 transition-all font-black text-xl text-[#1A1A1A] dark:text-white z-10 flex items-center justify-center"
+            className="absolute -top-4 -right-4 w-10 h-10 bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] hover:-translate-y-1 active:translate-y-0 transition-all font-black text-xl text-[#121212] dark:text-white z-10 flex items-center justify-center"
             onClick={() => setActiveWidget(null)}
           >
             ✕
@@ -1172,9 +1172,9 @@ export const ArcDashboardWidget: React.FC<{
         </div>
       )}
 
-      <div className="bg-[#F8FAFC] dark:bg-[#111827] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-8 mt-12">
-        <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight mb-6 flex items-center gap-3">
-          <span className="w-8 h-8 bg-[#FACC15] border-[3px] border-[#1A1A1A] flex items-center justify-center shadow-[2px_2px_0_#1A1A1A]">
+      <div className="bg-[#F8FAFC] dark:bg-[#111827] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[8px_8px_0_#121212] dark:shadow-[8px_8px_0_#2A2A30] p-6 md:p-8 mt-12">
+        <h3 className="text-2xl font-black text-[#121212] dark:text-white uppercase tracking-tight mb-6 flex items-center gap-3">
+          <span className="w-8 h-8 bg-[#FACC15] border-[3px] border-[#121212] flex items-center justify-center shadow-[2px_2px_0_#121212]">
             ⚡
           </span>
           Kletia features
@@ -1226,14 +1226,14 @@ export const ArcDashboardWidget: React.FC<{
           ].map((f, i) => (
             <button
               key={i}
-              className="flex items-center gap-4 bg-white dark:bg-[#1E293B] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-3 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all text-left"
+              className="flex items-center gap-4 bg-[#FBFAF6] dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-3 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] hover:-translate-y-1 hover:shadow-[6px_6px_0_#121212] active:translate-y-0 active:shadow-[1px_1px_0_#121212] transition-all text-left"
               onClick={() => setActiveWidget(f.widget)}
             >
-              <span className="w-10 h-10 flex items-center justify-center bg-[#E2E8F0] dark:bg-[#0F172A] border-[2px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[2px_2px_0_#1A1A1A] text-xl shrink-0">
+              <span className="w-10 h-10 flex items-center justify-center bg-[#D6D2C8] dark:bg-[#121212] border-[2px] border-[#121212] dark:border-[#4A4A52] shadow-[2px_2px_0_#121212] text-xl shrink-0">
                 {f.icon}
               </span>
               <div>
-                <span className="block text-sm font-black text-[#1A1A1A] dark:text-white uppercase">
+                <span className="block text-sm font-black text-[#121212] dark:text-white uppercase">
                   {f.name}
                 </span>
                 <span className="block text-xs font-bold text-gray-500">
@@ -1268,7 +1268,7 @@ export const ArcDashboardWidget: React.FC<{
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
-            className={`px-4 py-2 border-[3px] border-[#1A1A1A] ${link.color} text-white font-black uppercase text-sm shadow-[4px_4px_0_#1A1A1A] hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all`}
+            className={`px-4 py-2 border-[3px] border-[#121212] ${link.color} text-white font-black uppercase text-sm shadow-[4px_4px_0_#121212] hover:-translate-y-1 hover:shadow-[6px_6px_0_#121212] active:translate-y-0 active:shadow-[1px_1px_0_#121212] transition-all`}
           >
             {link.name}
           </a>

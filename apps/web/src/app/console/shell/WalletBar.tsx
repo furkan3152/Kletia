@@ -18,10 +18,10 @@ import { DESK_MORE_COPY } from "./deskCopy";
 const copy = DESK_COPY.wallets;
 
 const PILL =
-  "inline-flex min-h-11 min-w-11 max-w-[14rem] items-center gap-2 border-[3px] border-control bg-surface px-2.5 text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#1A1A1A] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] active:translate-y-0.5 active:shadow-none dark:shadow-[2px_2px_0_#475569] motion-reduce:hover:translate-y-0";
+  "inline-flex min-h-11 min-w-11 max-w-[14rem] items-center gap-2 border-[3px] border-control bg-surface px-2.5 text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#121212] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] active:translate-y-0.5 active:shadow-none dark:shadow-[2px_2px_0_#2A2A30] motion-reduce:hover:translate-y-0";
 
 function Lamp() {
-  return <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 border border-[#1A1A1A] bg-[#10B981]" />;
+  return <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 border border-[#121212] bg-[#10B981]" />;
 }
 
 function EvmPill() {

@@ -60,7 +60,7 @@ export function StepLinks({ step, className }: { step: IntentStep; className?: s
             target="_blank"
             rel="noopener noreferrer"
             className={cx(
-              "inline-flex min-h-9 items-center gap-1.5 border-2 border-[#1A1A1A] bg-white px-2 py-1 text-[11px] font-black uppercase tracking-[0.1em] text-[#0052FF] hover:bg-[#EAF0FF] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-[#93C5FD] dark:hover:bg-[#14213D]",
+              "inline-flex min-h-9 items-center gap-1.5 border-2 border-[#121212] bg-[#FBFAF6] px-2 py-1 text-[11px] font-black uppercase tracking-[0.1em] text-[#1A36B0] hover:bg-[#E1E8FF] dark:border-[#4A4A52] dark:bg-[#0E0E10] dark:text-[#93C5FD] dark:hover:bg-[#14213D]",
               FOCUS_RING,
             )}
           >
@@ -90,16 +90,16 @@ function PhaseIcon({ phase, running }: { phase: StepDisplayPhase; running: boole
   }
   if (phase === "failed") return <CircleX className="h-4 w-4 text-[#B91C1C] dark:text-[#FCA5A5]" aria-hidden="true" />;
   if (phase === "awaiting_signature" && running) {
-    return <PenLine ref={penRef} className="h-4 w-4 origin-bottom-left text-[#1A1A1A] dark:text-[#FFD60A]" aria-hidden="true" />;
+    return <PenLine ref={penRef} className="h-4 w-4 origin-bottom-left text-[#121212] dark:text-[#C6FF3A]" aria-hidden="true" />;
   }
   if (running && LIVE_PHASES.has(phase)) {
-    return <LoaderCircle className="h-4 w-4 animate-spin text-[#0052FF] motion-reduce:animate-none dark:text-[#7EA6FF]" aria-hidden="true" />;
+    return <LoaderCircle className="h-4 w-4 animate-spin text-[#1A36B0] motion-reduce:animate-none dark:text-[#8FA6FF]" aria-hidden="true" />;
   }
-  return <span aria-hidden="true" className="inline-block h-3 w-3 border-2 border-[#1A1A1A] dark:border-[#94A3B8]" />;
+  return <span aria-hidden="true" className="inline-block h-3 w-3 border-2 border-[#121212] dark:border-[#94A3B8]" />;
 }
 
 /** Static outline once the signature ring has pulsed for a few seconds (and the reduced-motion look). */
-const ATTENTION_REST = "outline outline-[3px] outline-offset-[3px] outline-[#FFD60A]";
+const ATTENTION_REST = "outline outline-[3px] outline-offset-[3px] outline-[#C6FF3A]";
 
 function ProgressRow({
   step,
@@ -124,15 +124,15 @@ function ProgressRow({
       aria-current={active ? "step" : undefined}
       data-phase={phase}
       className={cx(
-        "relative flex flex-col gap-2 border-2 border-[#1A1A1A] p-3 transition-colors duration-240 dark:border-[#4B5563]",
-        active ? "bg-[#FFF7CC] dark:bg-[#1A2841]" : "bg-[#FBFAF7] dark:bg-[#0F1A2C]",
+        "relative flex flex-col gap-2 border-2 border-[#121212] p-3 transition-colors duration-240 dark:border-[#4A4A52]",
+        active ? "bg-[#EEFBC8] dark:bg-[#232327]" : "bg-[#FBFAF6] dark:bg-[#151517]",
         attention && (ringLoop ? "kl-attn-ring" : ATTENTION_REST),
         changed && phase === "failed" && "kl-shake",
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
         <PhaseIcon phase={phase} running={running} />
-        <span className="font-code text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
+        <span className="font-code text-xs font-bold text-[#5C5850] dark:text-[#9A968C]">
           {String(step.index + 1).padStart(2, "0")}
         </span>
         <span className="min-w-[9rem] flex-1 text-sm font-bold">{step.title}</span>
@@ -145,13 +145,13 @@ function ProgressRow({
       </div>
       <p className={cx("flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-black uppercase tracking-[0.12em]", TEXT_MUTED)}>
         <span className="inline-flex items-center gap-1">
-          <span aria-hidden="true" className="inline-block h-2 w-2 border border-[#1A1A1A]" style={{ backgroundColor: networkColor(step.network) }} />
+          <span aria-hidden="true" className="inline-block h-2 w-2 border border-[#121212]" style={{ backgroundColor: networkColor(step.network) }} />
           {networkName(step.network)}
         </span>
         {destination ? (
           <span className="inline-flex items-center gap-1">
             →
-            <span aria-hidden="true" className="inline-block h-2 w-2 border border-[#1A1A1A]" style={{ backgroundColor: networkColor(destination) }} />
+            <span aria-hidden="true" className="inline-block h-2 w-2 border border-[#121212]" style={{ backgroundColor: networkColor(destination) }} />
             {networkName(destination)}
           </span>
         ) : null}
@@ -251,7 +251,7 @@ export function IntentProgress({
         {announcement}
       </p>
       {running && active && activePhase === "awaiting_signature" ? (
-        <p className="kl-rise border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-3 py-2 text-sm font-black text-[#1A1A1A] dark:border-[#4B5563]">
+        <p className="kl-rise border-[3px] border-[#121212] bg-[#C6FF3A] px-3 py-2 text-sm font-black text-[#121212] dark:border-[#4A4A52]">
           Confirm step {active.index + 1} in {wallet ?? "your wallet"}.
         </p>
       ) : null}
@@ -322,7 +322,7 @@ export function IntentOutcome({
         ? "bg-[#FFE4E4] dark:bg-[#2A1215]"
         : copy.tone === "yellow"
           ? "bg-[#FFF3B0] dark:bg-[#2A2410]"
-          : "bg-[#F1EFE8] dark:bg-[#1A2841]";
+          : "bg-[#E6E2D9] dark:bg-[#232327]";
   const entrance = copy.tone === "green" || copy.tone === "yellow" ? "kl-drop" : "kl-fade-in";
   return (
     <section
@@ -334,7 +334,7 @@ export function IntentOutcome({
         {copy.tone === "green" ? (
           <span
             aria-hidden="true"
-            className="kl-stamp flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#4ADE80] text-[#0B1120] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]"
+            className="kl-stamp flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#121212] bg-[#4ADE80] text-[#0E0E10] shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:shadow-[3px_3px_0_#2A2A30]"
             style={{ animationDelay: "160ms" }}
           >
             <CircleCheck className="h-6 w-6" strokeWidth={2.5} />
@@ -342,7 +342,7 @@ export function IntentOutcome({
         ) : copy.tone === "yellow" ? (
           <span
             aria-hidden="true"
-            className="kl-stamp flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]"
+            className="kl-stamp flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#121212] bg-[#C6FF3A] text-[#121212] shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:shadow-[3px_3px_0_#2A2A30]"
             style={{ animationDelay: "160ms" }}
           >
             <CircleAlert className="h-6 w-6" strokeWidth={2.5} />
@@ -379,7 +379,7 @@ export function IntentOutcome({
       </dl>
       <ul className="flex flex-col gap-2">
         {steps.map((step) => (
-          <li key={step.id} className="flex flex-col gap-1.5 border-t-2 border-dashed border-[#1A1A1A]/20 pt-2 dark:border-white/10">
+          <li key={step.id} className="flex flex-col gap-1.5 border-t-2 border-dashed border-[#121212]/20 pt-2 dark:border-white/10">
             <span className="text-sm font-bold">
               {String(step.index + 1).padStart(2, "0")} · {step.title}: {humanize(step.status)}
             </span>

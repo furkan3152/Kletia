@@ -37,7 +37,7 @@ export function TaskList({ onOpenTask, onNewTask, headingLevel = 2, asView = fal
       <button
         type="button"
         onClick={onNewTask}
-        className="inline-flex min-h-11 items-center justify-center gap-2 border-[3px] border-control bg-surface text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] dark:shadow-[2px_2px_0_#475569]"
+        className="inline-flex min-h-11 items-center justify-center gap-2 border-[3px] border-control bg-surface text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] dark:shadow-[2px_2px_0_#2A2A30]"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
         {copy.newTask}

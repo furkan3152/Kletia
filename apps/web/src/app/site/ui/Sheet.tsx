@@ -44,7 +44,7 @@ const EDGE_PHONE: Readonly<Record<NonNullable<SheetProps["phone"]>, string>> = {
 const EDGE_WIDE: Readonly<Record<NonNullable<SheetProps["side"]>, string>> = {
   left: "md:border-[3px] md:border-y-0 md:border-l-0",
   right: "md:border-[3px] md:border-y-0 md:border-r-0",
-  menu: "md:border-[3px] md:shadow-[6px_6px_0_#1A1A1A] md:dark:shadow-[6px_6px_0_#475569]",
+  menu: "md:border-[3px] md:shadow-[6px_6px_0_#121212] md:dark:shadow-[6px_6px_0_#2A2A30]",
 };
 
 /**
@@ -153,7 +153,7 @@ export function Sheet({
         }
       }}
       className={cx(
-        "fixed m-0 max-w-none overflow-visible border-0 bg-transparent p-0 text-fg backdrop:bg-[#0B1120]/60",
+        "fixed m-0 max-w-none overflow-visible border-0 bg-transparent p-0 text-fg backdrop:bg-[#0E0E10]/60",
         BOX_PHONE[phone],
         BOX_WIDE[side],
         widthClassName,
@@ -168,7 +168,7 @@ export function Sheet({
           className,
         )}
       >
-        <div className="sticky top-0 z-[1] flex items-center justify-between gap-3 border-b-[3px] border-[#1A1A1A] bg-paper py-1 pl-4 pr-1 dark:border-[#4B5563]">
+        <div className="sticky top-0 z-[1] flex items-center justify-between gap-3 border-b-[3px] border-[#121212] bg-paper py-1 pl-4 pr-1 dark:border-[#4A4A52]">
           <h2 id={titleId} className={cx(LABEL, "py-2")}>
             {title}
           </h2>

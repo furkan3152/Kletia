@@ -60,7 +60,7 @@ export default function StudioPage() {
 
   return (
     <>
-      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+      <header className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "flex flex-col gap-6 py-8 sm:py-12 lg:py-10")}>
           <div className="max-w-3xl lg:max-w-none">
             <PlatformNumber code="STU">Intent Studio</PlatformNumber>
@@ -74,7 +74,7 @@ export default function StudioPage() {
             {resumable ? (
               <div
                 role="status"
-                className={cx("kl-rise mt-6 flex flex-col gap-3 bg-[#FFF3B0] p-4 text-[#1A1A1A] sm:flex-row sm:items-center sm:justify-between", INK_BORDER, HARD_SHADOW)}
+                className={cx("kl-rise mt-6 flex flex-col gap-3 bg-[#FFF3B0] p-4 text-[#121212] sm:flex-row sm:items-center sm:justify-between", INK_BORDER, HARD_SHADOW)}
               >
                 <p className="flex items-center gap-2 text-sm font-bold">
                   <History className="h-4 w-4 shrink-0" aria-hidden="true" />

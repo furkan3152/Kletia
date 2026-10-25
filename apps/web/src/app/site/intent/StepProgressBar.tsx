@@ -48,7 +48,7 @@ export function StepProgressBar({ intent, phases = {}, running = true, phaseOf, 
       aria-valuenow={settled}
       aria-valuetext={`${settled} of ${steps.length} step${steps.length === 1 ? "" : "s"} settled`}
       className={cx(
-        "flex h-4 w-full gap-[3px] border-[3px] border-[#1A1A1A] bg-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#4B5563]",
+        "flex h-4 w-full gap-[3px] border-[3px] border-[#121212] bg-[#121212] dark:border-[#4A4A52] dark:bg-[#4A4A52]",
         className,
       )}
     >
@@ -60,7 +60,7 @@ export function StepProgressBar({ intent, phases = {}, running = true, phaseOf, 
             key={step.id}
             data-phase={phase}
             className={cx(
-              "relative min-w-0 flex-1 overflow-hidden bg-[#F1EFE8] dark:bg-[#0F1A2C]",
+              "relative min-w-0 flex-1 overflow-hidden bg-[#E6E2D9] dark:bg-[#151517]",
               segment.hatch && running && "kl-hatch",
             )}
           >

@@ -143,7 +143,7 @@ export const renderSafeMessage = (text: string) => {
         section.startsWith("**") && section.endsWith("**") ? (
           <strong
             key={`${index}-${section}`}
-            className="text-[#1A1A1A] dark:text-white font-black border-b-[3px] border-[#0052FF] pb-0.5"
+            className="text-[#121212] dark:text-white font-black border-b-[3px] border-[#2F5BFF] pb-0.5"
           >
             {section.slice(2, -2)}
           </strong>

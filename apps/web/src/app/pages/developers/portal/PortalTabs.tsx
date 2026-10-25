@@ -56,7 +56,7 @@ export function PortalTabs<T extends string>({ label, tabs, active, onChange, ch
               className={cx(
                 "-mb-[3px] inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-[3px] border-b-0 px-3.5 text-[12px] font-black uppercase tracking-[0.1em] transition-colors",
                 selected
-                  ? "border-control bg-[#FFD60A] text-[#1A1A1A]"
+                  ? "border-control bg-[#C6FF3A] text-[#121212]"
                   : "border-transparent text-muted hover:text-fg",
                 FOCUS_RING,
               )}

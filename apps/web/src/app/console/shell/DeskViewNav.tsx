@@ -57,7 +57,7 @@ export function DeskSubNav({ view, onView }: { readonly view: DeskView; readonly
               aria-current={view === entry ? "page" : undefined}
               onClick={() => onView(entry)}
               className={cx(
-                "inline-flex min-h-11 items-center border-[3px] border-control bg-surface px-4 text-xs font-black uppercase tracking-[0.12em] text-fg hover:bg-neutral-bg aria-[current=page]:bg-[#1A1A1A] aria-[current=page]:text-white dark:aria-[current=page]:bg-white dark:aria-[current=page]:text-[#0B1120]",
+                "inline-flex min-h-11 items-center border-[3px] border-control bg-surface px-4 text-xs font-black uppercase tracking-[0.12em] text-fg hover:bg-neutral-bg aria-[current=page]:bg-[#121212] aria-[current=page]:text-white dark:aria-[current=page]:bg-white dark:aria-[current=page]:text-[#0E0E10]",
                 FOCUS_RING,
               )}
             >

@@ -108,7 +108,7 @@ export function CheckReceipt() {
       <div id={resultId} aria-live="polite" className="min-w-0">
         {outcome.kind === "message" ? <p className="text-sm font-semibold">{outcome.text}</p> : null}
         {outcome.kind === "verdict" ? (
-          <div className="flex min-w-0 flex-col gap-2 border-t-2 border-[#1A1A1A]/10 pt-3 dark:border-white/10">
+          <div className="flex min-w-0 flex-col gap-2 border-t-2 border-[#121212]/10 pt-3 dark:border-white/10">
             <p className="flex flex-wrap items-center gap-2">
               <StatusEntryPill entry={toneFor("receipt", outcome.verified ? "verifies" : "invalid")} />
               <span className="text-sm font-semibold">{outcome.sentence}</span>

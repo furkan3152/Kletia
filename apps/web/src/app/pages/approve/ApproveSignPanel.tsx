@@ -164,7 +164,7 @@ function Desk({ view, onDecided, onClose }: ApproveSignPanelProps) {
     <div className={cx("flex flex-col gap-5 p-4 sm:p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className={cx(LABEL, "text-[#0047E0] dark:text-[#7EA6FF]")}>Approver desk</p>
+          <p className={cx(LABEL, "text-[#1A36B0] dark:text-[#8FA6FF]")}>Approver desk</p>
           <h3 className="mt-1 font-display text-xl font-bold">{signer ? `Decide with ${signer.walletName}` : `Connect ${familiesText}`}</h3>
         </div>
         <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
@@ -181,7 +181,7 @@ function Desk({ view, onDecided, onClose }: ApproveSignPanelProps) {
         </p>
       ) : null}
       {unlisted.map((candidate) => (
-        <p key={candidate.accountId} className={cx("bg-[#FFF3B0] p-3 text-sm font-semibold text-[#1A1A1A]", INK_BORDER)} role="status">
+        <p key={candidate.accountId} className={cx("bg-[#FFF3B0] p-3 text-sm font-semibold text-[#121212]", INK_BORDER)} role="status">
           {candidate.walletName} ({shortenAddress(candidate.address)}) is not a listed approver. This approval needs{" "}
           {view.approvers.wallets.filter((masked) => walletFamily(masked) === candidate.family).join(" or ")}. Connect that wallet.
         </p>
@@ -195,7 +195,7 @@ function Desk({ view, onDecided, onClose }: ApproveSignPanelProps) {
               <input
                 type="radio"
                 name={radioName}
-                className="h-5 w-5 accent-[#0052FF]"
+                className="h-5 w-5 accent-[#2F5BFF]"
                 checked={signer?.family === candidate.family}
                 onChange={() => setChosen(candidate.family)}
                 disabled={busy}
@@ -223,7 +223,7 @@ function Desk({ view, onDecided, onClose }: ApproveSignPanelProps) {
           </fieldset>
 
           {decision ? (
-            <div className={cx("flex flex-col gap-3 bg-[#FFFCF2] p-4 text-[#1A1A1A]", INK_BORDER)}>
+            <div className={cx("flex flex-col gap-3 bg-[#FFFCF2] p-4 text-[#121212]", INK_BORDER)}>
               <p className="font-display text-lg font-bold">
                 {decision === "approve" ? `Approve up to ${ceiling}` : "Reject and cancel the intent"}
               </p>

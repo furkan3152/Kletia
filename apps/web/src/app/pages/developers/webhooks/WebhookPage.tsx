@@ -25,13 +25,13 @@ import { WebhooksNotConfigured } from "./WebhooksNotConfigured";
 /** The new endpoint's signing secret, shown once (it is never readable again). */
 function SecretOnce({ secret, onDone }: { readonly secret: string; readonly onDone: () => void }) {
   return (
-    <div role="status" className="flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#FFD60A] p-4 text-[#1A1A1A] dark:border-[#4B5563] sm:p-5">
+    <div role="status" className="flex flex-col gap-3 border-[3px] border-[#121212] bg-[#C6FF3A] p-4 text-[#121212] dark:border-[#4A4A52] sm:p-5">
       <p className={LABEL}>Signing secret</p>
       <p className="flex items-start gap-2 text-sm font-bold">
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         Copy it now into your server&apos;s secret store (KLETIA_WEBHOOK_SECRET). This is the only time Kletia shows it.
       </p>
-      <div className="flex flex-col gap-2 border-[3px] border-[#1A1A1A] bg-white p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 border-[3px] border-[#121212] bg-[#FBFAF6] p-3 sm:flex-row sm:items-center">
         <code className="min-w-0 flex-1 break-all font-code text-sm">{secret}</code>
         <CopyButton text={secret} label="Copy the signing secret" appearance="light" />
       </div>
@@ -207,7 +207,7 @@ function WebhookDetail({ webhookId }: { readonly webhookId: string }) {
               ) : deliveries.status === "error" && deliveries.error ? (
                 <ApiErrorPanel error={deliveries.error} title="Could not read the delivery log" onRetry={deliveries.reload} />
               ) : shown.length === 0 ? (
-                <p className={cx("border-[3px] border-dashed border-[#1A1A1A]/30 p-5 text-sm dark:border-white/15", TEXT_MUTED)}>
+                <p className={cx("border-[3px] border-dashed border-[#121212]/30 p-5 text-sm dark:border-white/15", TEXT_MUTED)}>
                   {filter === "failed" && rows.length > 0
                     ? "Every attempt in the log was delivered."
                     : permissions.test

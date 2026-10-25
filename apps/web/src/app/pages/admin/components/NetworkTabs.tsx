@@ -53,7 +53,7 @@ export function NetworkTabs({
             className={cx(
               "flex min-h-11 shrink-0 items-center gap-2 border-[3px] px-3 py-1.5 text-sm font-bold transition-[transform,box-shadow,background-color] duration-90",
               selected
-                ? "border-control bg-[#FFD60A] text-[#1A1A1A] shadow-hard-sm"
+                ? "border-control bg-[#C6FF3A] text-[#121212] shadow-hard-sm"
                 : "border-control bg-surface text-fg hover:-translate-y-0.5 hover:shadow-hard-sm motion-reduce:hover:translate-y-0",
               FOCUS_RING,
             )}

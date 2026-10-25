@@ -1109,9 +1109,9 @@ export const X402ConsoleWidget: React.FC = () => {
   return (
     <div className="w-full p-0 pb-8 flex flex-col items-center">
       <div className="w-full max-w-5xl space-y-6">
-        <div className="bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569]">
-          <h1 className="text-3xl font-black text-[#1A1A1A] dark:text-white uppercase flex items-center gap-3">
-            <Cpu className="text-[#0052FF]" />
+        <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[4px] border-[#121212] dark:border-[#4A4A52] p-6 shadow-[8px_8px_0_#121212] dark:shadow-[8px_8px_0_#2A2A30]">
+          <h1 className="text-3xl font-black text-[#121212] dark:text-white uppercase flex items-center gap-3">
+            <Cpu className="text-[#1A36B0]" />
             x402 Seller Studio
           </h1>
           <p className="text-gray-600 dark:text-slate-400 font-bold mt-2">
@@ -1132,7 +1132,7 @@ export const X402ConsoleWidget: React.FC = () => {
         </div>
 
         {securityError && (
-          <div className="bg-red-600 border-[4px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] flex items-start gap-3">
+          <div className="bg-red-600 border-[4px] border-[#121212] p-4 shadow-[4px_4px_0_#121212] flex items-start gap-3">
             <Shield className="w-6 h-6 text-white shrink-0" />
             <div className="flex-1">
               <h3 className="font-black text-white uppercase text-sm mb-1">
@@ -1150,7 +1150,7 @@ export const X402ConsoleWidget: React.FC = () => {
         )}
 
         {policyError && (
-          <div className="bg-amber-300 border-[4px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] flex items-start gap-3">
+          <div className="bg-amber-300 border-[4px] border-[#121212] p-4 shadow-[4px_4px_0_#121212] flex items-start gap-3">
             <AlertTriangle className="w-6 h-6 text-amber-950 shrink-0" />
             <div>
               <h3 className="font-black text-amber-950 uppercase text-sm mb-1">
@@ -1163,7 +1163,7 @@ export const X402ConsoleWidget: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
-            <div className="bg-white dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
+            <div className="bg-[#FBFAF6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] p-6 shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-black text-gray-500 uppercase mb-2">
@@ -1173,7 +1173,7 @@ export const X402ConsoleWidget: React.FC = () => {
                     type="text"
                     value={contractLabel}
                     onChange={(e) => setContractLabel(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-3 font-bold text-[#1A1A1A] dark:text-white transition-shadow"
+                    className="w-full bg-gray-50 dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-3 font-bold text-[#121212] dark:text-white transition-shadow"
                   />
                 </div>
                 <div>
@@ -1186,7 +1186,7 @@ export const X402ConsoleWidget: React.FC = () => {
                     min="0.000001"
                     value={initialPrice}
                     onChange={(e) => setInitialPrice(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-3 font-bold text-[#1A1A1A] dark:text-white transition-shadow"
+                    className="w-full bg-gray-50 dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-3 font-bold text-[#121212] dark:text-white transition-shadow"
                   />
                 </div>
                 <button
@@ -1194,7 +1194,7 @@ export const X402ConsoleWidget: React.FC = () => {
                   disabled={
                     isDeploying || !!activeContract || isCheckingSecurity
                   }
-                  className="w-full bg-[#0052FF] hover:bg-blue-700 disabled:bg-gray-400 text-white font-black p-4 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] active:translate-y-1 active:shadow-none transition-all uppercase flex justify-center items-center gap-2"
+                  className="w-full bg-[#2F5BFF] hover:bg-blue-700 disabled:bg-gray-400 text-white font-black p-4 border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] active:translate-y-1 active:shadow-none transition-all uppercase flex justify-center items-center gap-2"
                 >
                   {isDeploying || isCheckingSecurity ? (
                     <RefreshCw className="animate-spin" size={18} />
@@ -1210,7 +1210,7 @@ export const X402ConsoleWidget: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-gray-100 dark:bg-[#131E32] border-[3px] border-dashed border-gray-300 dark:border-[#4B5563] p-6 rounded-xl">
+            <div className="bg-gray-100 dark:bg-[#19191C] border-[3px] border-dashed border-gray-300 dark:border-[#4A4A52] p-6 rounded-xl">
               <h3 className="font-black text-gray-400 uppercase tracking-widest mb-4">
                 FLOW
               </h3>
@@ -1242,7 +1242,7 @@ export const X402ConsoleWidget: React.FC = () => {
                       {f.step}
                     </div>
                     <div>
-                      <h4 className="font-bold text-[#1A1A1A] dark:text-white">
+                      <h4 className="font-bold text-[#121212] dark:text-white">
                         {f.title}
                       </h4>
                       <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -1257,7 +1257,7 @@ export const X402ConsoleWidget: React.FC = () => {
 
           <div className="space-y-6">
             {!activeContract ? (
-              <div className="bg-white dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] flex flex-col items-center justify-center text-center min-h-[300px]">
+              <div className="bg-[#FBFAF6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] p-6 shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30] flex flex-col items-center justify-center text-center min-h-[300px]">
                 <Settings className="w-16 h-16 text-gray-300 dark:text-slate-600 mb-4" />
                 <h3 className="text-xl font-black text-gray-400">
                   NO ACTIVE CONTRACT
@@ -1266,7 +1266,7 @@ export const X402ConsoleWidget: React.FC = () => {
                   Deploy a new contract or load an existing one.
                 </p>
 
-                <div className="w-full mt-8 pt-6 border-t-[3px] border-dashed border-gray-200 dark:border-[#4B5563]">
+                <div className="w-full mt-8 pt-6 border-t-[3px] border-dashed border-gray-200 dark:border-[#4A4A52]">
                   <label className="block text-sm font-black text-gray-500 uppercase mb-2">
                     Load Existing Contract
                   </label>
@@ -1276,11 +1276,11 @@ export const X402ConsoleWidget: React.FC = () => {
                       placeholder="0x..."
                       value={loadAddress}
                       onChange={(e) => setLoadAddress(e.target.value)}
-                      className="flex-1 bg-gray-50 dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-2 font-mono text-sm text-[#1A1A1A] dark:text-white outline-none"
+                      className="flex-1 bg-gray-50 dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-2 font-mono text-sm text-[#121212] dark:text-white outline-none"
                     />
                     <button
                       onClick={handleLoadContract}
-                      className="bg-gray-800 text-white font-black px-4 border-[3px] border-[#1A1A1A] uppercase hover:bg-gray-700 transition-colors"
+                      className="bg-gray-800 text-white font-black px-4 border-[3px] border-[#121212] uppercase hover:bg-gray-700 transition-colors"
                     >
                       Load
                     </button>
@@ -1295,8 +1295,8 @@ export const X402ConsoleWidget: React.FC = () => {
                   signing.
                 </div>
 
-                <div className="bg-white dark:bg-[#1A2841] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 mb-6">
-                  <h3 className="font-black text-lg mb-4 text-[#1A1A1A] dark:text-white flex items-center justify-between">
+                <div className="bg-[#FBFAF6] dark:bg-[#232327] border-[3px] border-[#121212] dark:border-[#4A4A52] p-4 mb-6">
+                  <h3 className="font-black text-lg mb-4 text-[#121212] dark:text-white flex items-center justify-between">
                     ACTIVE x402 CONTRACT
                     <span className="text-xs bg-green-200 dark:bg-green-900/50 text-green-800 dark:text-green-300 px-2 py-1 uppercase font-black">
                       BASE ONCHAIN
@@ -1308,17 +1308,17 @@ export const X402ConsoleWidget: React.FC = () => {
                       {
                         label: "Address",
                         value: `${activeContract.address.substring(0, 10)}...${activeContract.address.substring(36)}`,
-                        color: "text-[#0052FF]",
+                        color: "text-[#1A36B0]",
                       },
                       {
                         label: "Owner",
                         value: `${activeContract.owner.substring(0, 8)}...${activeContract.owner.substring(38)}`,
-                        color: "text-[#1A1A1A] dark:text-white",
+                        color: "text-[#121212] dark:text-white",
                       },
                       {
                         label: "Price",
                         value: `${displayedContractPrice} USDC`,
-                        color: "text-[#1A1A1A] dark:text-white",
+                        color: "text-[#121212] dark:text-white",
                       },
                       {
                         label: "USDC Balance",
@@ -1365,7 +1365,7 @@ export const X402ConsoleWidget: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <p className="border-[3px] border-[#1A1A1A] bg-amber-100 p-3 text-xs font-black uppercase text-amber-950">
+                  <p className="border-[3px] border-[#121212] bg-amber-100 p-3 text-xs font-black uppercase text-amber-950">
                     Real Base Mainnet payment. Your wallet will review an x402
                     USDC authorization before anything is submitted.
                   </p>
@@ -1378,7 +1378,7 @@ export const X402ConsoleWidget: React.FC = () => {
                       chainId !== BASE_CHAIN_ID ||
                       !walletClient
                     }
-                    className="w-full bg-[#1A1A1A] dark:bg-white text-white dark:text-[#1A1A1A] hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 font-black p-3 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] uppercase flex justify-center items-center gap-2 shadow-[3px_3px_0_#1A1A1A] active:translate-y-1 active:shadow-none transition-all"
+                    className="w-full bg-[#121212] dark:bg-white text-white dark:text-[#121212] hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 font-black p-3 border-[3px] border-[#121212] dark:border-[#4A4A52] uppercase flex justify-center items-center gap-2 shadow-[3px_3px_0_#121212] active:translate-y-1 active:shadow-none transition-all"
                   >
                     {isTestingPay ? (
                       <RefreshCw className="animate-spin" size={16} />
@@ -1400,12 +1400,12 @@ export const X402ConsoleWidget: React.FC = () => {
                       value={newPrice}
                       onChange={(e) => setNewPrice(e.target.value)}
                       disabled={isTestingPay || isCheckingSecurity}
-                      className="w-24 bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-2 font-bold text-[#1A1A1A] dark:text-white text-center outline-none"
+                      className="w-24 bg-[#FBFAF6] dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-2 font-bold text-[#121212] dark:text-white text-center outline-none"
                     />
                     <button
                       disabled={isTestingPay || isCheckingSecurity || !policy}
                       onClick={handleSetPrice}
-                      className="flex-1 bg-white dark:bg-slate-800 text-[#1A1A1A] dark:text-white hover:bg-gray-50 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] font-black p-2 uppercase shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569] active:translate-y-1 active:shadow-none transition-all disabled:opacity-50"
+                      className="flex-1 bg-[#FBFAF6] dark:bg-slate-800 text-[#121212] dark:text-white hover:bg-gray-50 border-[3px] border-[#121212] dark:border-[#4A4A52] font-black p-2 uppercase shadow-[2px_2px_0_#121212] dark:shadow-[2px_2px_0_#2A2A30] active:translate-y-1 active:shadow-none transition-all disabled:opacity-50"
                     >
                       <Settings size={14} className="inline mr-2" />
                       {isCheckingSecurity ? "Wait" : "Set Price"}
@@ -1415,7 +1415,7 @@ export const X402ConsoleWidget: React.FC = () => {
                   <button
                     disabled={isTestingPay || isCheckingSecurity}
                     onClick={handleWithdraw}
-                    className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-950 font-black p-3 border-[3px] border-[#1A1A1A] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0_#1A1A1A] active:translate-y-1 active:shadow-none transition-all"
+                    className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-950 font-black p-3 border-[3px] border-[#121212] uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0_#121212] active:translate-y-1 active:shadow-none transition-all"
                   >
                     <ArrowDownToLine size={18} /> Withdraw Gateway USDC
                   </button>
@@ -1474,19 +1474,19 @@ export const X402ConsoleWidget: React.FC = () => {
           </div>
         </div>
 
-        <div className="pt-6 border-t-[4px] border-[#1A1A1A] dark:border-[#4B5563]">
-          <h2 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase mb-4 flex items-center gap-2">
+        <div className="pt-6 border-t-[4px] border-[#121212] dark:border-[#4A4A52]">
+          <h2 className="text-xl font-black text-[#121212] dark:text-white uppercase mb-4 flex items-center gap-2">
             <Wallet size={20} /> My x402 Contracts
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeContract && (
-              <div className="bg-white dark:bg-[#1A2841] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex justify-between items-center">
+              <div className="bg-[#FBFAF6] dark:bg-[#232327] border-[3px] border-[#121212] dark:border-[#4A4A52] p-4 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] flex justify-between items-center">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[10px] font-black bg-green-100 text-green-800 px-1.5 py-0.5 uppercase">
                       Active
                     </span>
-                    <span className="font-bold text-[#1A1A1A] dark:text-white">
+                    <span className="font-bold text-[#121212] dark:text-white">
                       {activeContract.label}
                     </span>
                   </div>
@@ -1496,7 +1496,7 @@ export const X402ConsoleWidget: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-sm text-[#1A1A1A] dark:text-white">
+                  <div className="font-bold text-sm text-[#121212] dark:text-white">
                     {displayedContractPrice} USDC/call
                   </div>
                   <div className="font-black text-green-600 text-sm">
@@ -1506,7 +1506,7 @@ export const X402ConsoleWidget: React.FC = () => {
               </div>
             )}
 
-            <div className="bg-gray-50 dark:bg-[#131E32] border-[3px] border-dashed border-gray-300 dark:border-[#4B5563] p-4 flex items-center justify-center text-center opacity-70">
+            <div className="bg-gray-50 dark:bg-[#19191C] border-[3px] border-dashed border-gray-300 dark:border-[#4A4A52] p-4 flex items-center justify-center text-center opacity-70">
               <div className="text-gray-400 text-sm font-bold">
                 <Plus size={20} className="inline mr-2" />
                 Deploy or load more contracts

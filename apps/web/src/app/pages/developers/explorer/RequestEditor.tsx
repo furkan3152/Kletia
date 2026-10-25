@@ -28,7 +28,7 @@ export interface RequestEditorProps {
 }
 
 const CHIP = cx(
-  "inline-flex min-h-8 max-w-full items-center gap-1 border-2 border-[#1A1A1A] bg-white px-2 py-0.5 font-code text-code-s hover:bg-[#FFF7CC] dark:border-[#4B5563] dark:bg-[#0B1120] dark:hover:bg-[#1A2841]",
+  "inline-flex min-h-8 max-w-full items-center gap-1 border-2 border-[#121212] bg-[#FBFAF6] px-2 py-0.5 font-code text-code-s hover:bg-[#EEFBC8] dark:border-[#4A4A52] dark:bg-[#0E0E10] dark:hover:bg-[#232327]",
   FOCUS_RING,
 );
 
@@ -222,7 +222,7 @@ export function RequestEditor({
       {body ? (
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor={bodyId} className={cx(LABEL, "inline-flex items-center gap-1.5 text-[#1A1A1A] dark:text-[#E2E8F0]")}>
+            <label htmlFor={bodyId} className={cx(LABEL, "inline-flex items-center gap-1.5 text-[#121212] dark:text-[#D6D2C8]")}>
               <Braces className="h-3.5 w-3.5" aria-hidden="true" />
               JSON body{body.required ? "" : " (optional)"}
             </label>
@@ -238,7 +238,7 @@ export function RequestEditor({
                   type="button"
                   aria-pressed={draft.example === index}
                   onClick={() => onChange({ example: index, bodyText: JSON.stringify(example.value, null, 2) })}
-                  className={cx(CHIP, draft.example === index && "!bg-[#FFD60A] !text-[#1A1A1A]")}
+                  className={cx(CHIP, draft.example === index && "!bg-[#C6FF3A] !text-[#121212]")}
                 >
                   {example.label}
                 </button>
@@ -256,7 +256,7 @@ export function RequestEditor({
             aria-invalid={bodyError ? true : undefined}
             aria-describedby={`${bodyId}-status`}
             className={cx(
-              "w-full min-w-0 resize-y whitespace-pre-wrap break-words border-[3px] border-[#1A1A1A] bg-[#0D1117] px-3 py-2.5 font-code text-code leading-5 text-[#E6EDF3] caret-[#FFD60A] [overflow-wrap:anywhere] dark:border-[#4B5563]",
+              "w-full min-w-0 resize-y whitespace-pre-wrap break-words border-[3px] border-[#121212] bg-[#0D1117] px-3 py-2.5 font-code text-code leading-5 text-[#E6EDF3] caret-[#C6FF3A] [overflow-wrap:anywhere] dark:border-[#4A4A52]",
               FOCUS_RING,
             )}
           />
@@ -265,7 +265,7 @@ export function RequestEditor({
               <p className="font-bold text-[#B91C1C] dark:text-[#FCA5A5]">{bodyError}</p>
             ) : bodyIssues.length > 0 ? (
               <>
-                <p className="font-bold text-[#8A6100] dark:text-[#FFD60A]">The schema suggests a problem (the API decides; you can still send):</p>
+                <p className="font-bold text-[#8A6100] dark:text-[#C6FF3A]">The schema suggests a problem (the API decides; you can still send):</p>
                 <ul className="flex flex-col gap-0.5">
                   {bodyIssues.map((issue, index) => (
                     <li key={`${issue.path}-${index}`} className="font-code text-code-s">
@@ -291,7 +291,7 @@ export function RequestEditor({
                 type="checkbox"
                 checked={Boolean(draft.idempotencyKey)}
                 onChange={(event) => (event.target.checked ? onNewIdempotencyKey() : onChange({ idempotencyKey: "" }))}
-                className="h-4 w-4 accent-[#0052FF]"
+                className="h-4 w-4 accent-[#2F5BFF]"
               />
               Send {IDEMPOTENCY_HEADER}
             </label>

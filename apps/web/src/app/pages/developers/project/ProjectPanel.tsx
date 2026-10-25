@@ -90,7 +90,7 @@ function Chip({ pressed, disabled, title, onClick, children }: { readonly presse
       className={cx(
         CHIP,
         FOCUS_RING,
-        pressed ? "border-[#1A1A1A] bg-[#1A1A1A] text-white dark:border-[#FFD60A] dark:bg-[#FFD60A] dark:text-[#1A1A1A]" : "border-control bg-surface text-fg",
+        pressed ? "border-[#121212] bg-[#121212] text-white dark:border-[#C6FF3A] dark:bg-[#C6FF3A] dark:text-[#121212]" : "border-control bg-surface text-fg",
       )}
     >
       {pressed ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : null}
@@ -152,7 +152,7 @@ function Brand({
           hint="An https origin, no port or path. A new website starts unverified."
         />
       </div>
-      <div className="flex min-w-0 flex-col gap-3 border-t-2 border-[#1A1A1A]/10 pt-4 dark:border-white/10">
+      <div className="flex min-w-0 flex-col gap-3 border-t-2 border-[#121212]/10 pt-4 dark:border-white/10">
         <div className="flex flex-wrap items-center gap-2">
           <span className={LABEL}>Domain</span>
           <StatusEntryPill entry={domain.status} />
@@ -164,7 +164,7 @@ function Brand({
             <p className="text-sm">
               Publish at <code className="break-all font-code text-xs">{domain.fileUrl}</code>:
             </p>
-            <div className="flex min-w-0 flex-col gap-2 border-2 border-control bg-white p-3 dark:bg-[#0B1120] sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-col gap-2 border-2 border-control bg-[#FBFAF6] p-3 dark:bg-[#0E0E10] sm:flex-row sm:items-center">
               <code className="min-w-0 flex-1 break-all font-code text-sm">{domain.file}</code>
               <CopyButton text={domain.file} label="Copy the domain file" />
             </div>
@@ -286,7 +286,7 @@ function Defaults({ draft, issues, onDraft }: { readonly draft: ProjectDraft; re
             ] as const
           ).map(([value, label]) => (
             <label key={value || "both"} className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-              <input type="radio" name={laneName} checked={draft.lane === value} onChange={() => onDraft(withLane(draft, value))} className="h-4 w-4 accent-[#0052FF]" />
+              <input type="radio" name={laneName} checked={draft.lane === value} onChange={() => onDraft(withLane(draft, value))} className="h-4 w-4 accent-[#2F5BFF]" />
               {label}
             </label>
           ))}
@@ -391,7 +391,7 @@ function ConflictNotice({ conflict, onKeep, onDiscard }: { readonly conflict: Co
           <table className="w-full min-w-[36rem] border-collapse text-left text-sm">
             <caption className="sr-only">Changes since version {conflict.from}</caption>
             <thead>
-              <tr className="border-b-2 border-[#1A1A1A]/10 dark:border-white/10">
+              <tr className="border-b-2 border-[#121212]/10 dark:border-white/10">
                 <th scope="col" className={cx(LABEL, "py-1.5 pr-3")}>
                   Field
                 </th>
@@ -535,7 +535,7 @@ export function ProjectPanel() {
         </Button>
       </div>
       {readOnly ? (
-        <p className="border-l-[6px] border-[#0052FF] bg-info-bg px-3 py-2 text-sm text-fg">
+        <p className="border-l-[6px] border-[#2F5BFF] bg-info-bg px-3 py-2 text-sm text-fg">
           You are reading with an agent key: agent keys see the project settings but never change them. Load a developer key of the project to edit.
         </p>
       ) : null}
@@ -574,7 +574,7 @@ export function ProjectPanel() {
       {!readOnly ? (
         <div
           className={cx(
-            "sticky bottom-0 z-10 -mt-4 flex min-w-0 flex-wrap items-center justify-between gap-3 border-[3px] border-[#1A1A1A] bg-paper p-3 dark:border-[#4B5563] sm:p-4",
+            "sticky bottom-0 z-10 -mt-4 flex min-w-0 flex-wrap items-center justify-between gap-3 border-[3px] border-[#121212] bg-paper p-3 dark:border-[#4A4A52] sm:p-4",
             changed.length === 0 && "static",
           )}
         >

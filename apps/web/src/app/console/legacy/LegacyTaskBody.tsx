@@ -65,7 +65,7 @@ export function LegacyTaskBody({ engine, messages, onPrompt, onFund }: LegacyTas
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {wrongChain ? (
-        <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-[3px] border-[#1A1A1A] bg-[#FFD60A] p-3 text-sm font-bold text-[#1A1A1A]">
+        <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-[3px] border-[#121212] bg-[#C6FF3A] p-3 text-sm font-bold text-[#121212]">
           <span className="min-w-0">
             {copy.wrongChain(walletChainName(engine.walletChainId) ?? copy.unknownChain, taskNetwork)}
             {switchFailed ? <span className="block">{copy.switchFailed}</span> : null}
@@ -74,7 +74,7 @@ export function LegacyTaskBody({ engine, messages, onPrompt, onFund }: LegacyTas
             type="button"
             disabled={isPending}
             onClick={() => void switchNetwork(engine.network)}
-            className="min-h-11 border-[3px] border-[#1A1A1A] bg-white px-3 text-xs font-black uppercase shadow-[2px_2px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] disabled:cursor-wait disabled:opacity-60"
+            className="min-h-11 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 text-xs font-black uppercase shadow-[2px_2px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF] disabled:cursor-wait disabled:opacity-60"
           >
             {isPending ? copy.switching : copy.switchTo(taskNetwork)}
           </button>
@@ -110,13 +110,13 @@ export function LegacyEngineControls({ engine }: { readonly engine: LegacyEngine
       ) : null}
       {engine.activeSemanticAiSession ? (
         <div className="flex w-full items-center justify-between gap-3 text-[10px] font-black uppercase">
-          <span className="border-2 border-[#1A1A1A] bg-[#EDE7FF] px-2 py-1 text-[#4F2A9B] dark:border-[#64748B] dark:bg-[#231C3D] dark:text-[#D8CCFF]">
+          <span className="border-2 border-[#121212] bg-[#EDE7FF] px-2 py-1 text-[#4F2A9B] dark:border-[#8F8C84] dark:bg-[#231C3D] dark:text-[#D8CCFF]">
             Natural language on · this tab · expires automatically
           </span>
           <button
             type="button"
             onClick={engine.turnOffSemanticSession}
-            className="min-h-8 border-2 border-[#1A1A1A] bg-white px-2 py-1 text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#1A2841] dark:text-white dark:shadow-[2px_2px_0_#475569]"
+            className="min-h-8 border-2 border-[#121212] bg-[#FBFAF6] px-2 py-1 text-[#121212] shadow-[2px_2px_0_#121212] dark:border-[#8F8C84] dark:bg-[#232327] dark:text-white dark:shadow-[2px_2px_0_#2A2A30]"
           >
             Turn off
           </button>

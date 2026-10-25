@@ -46,7 +46,7 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
           <li key={network.key} data-reveal-item className={cx("flex min-w-0", INK_BORDER, SHADOW_HARD, SURFACE)}>
             <span
               aria-hidden="true"
-              className="w-3 shrink-0 border-r-[3px] border-[#1A1A1A] dark:border-[#4B5563]"
+              className="w-3 shrink-0 border-r-[3px] border-[#121212] dark:border-[#4A4A52]"
               style={{
                 backgroundColor: label.color ?? "#94A3B8",
                 backgroundImage: line?.gauge === "svm" ? "repeating-linear-gradient(180deg, #1A1A1A 0 4px, transparent 4px 9px)" : undefined,
@@ -88,7 +88,7 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
                       <li
                         key={icon}
                         title={word}
-                        className="flex h-9 w-9 items-center justify-center border-2 border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0B1120]"
+                        className="flex h-9 w-9 items-center justify-center border-2 border-[#121212] bg-[#FBFAF6] dark:border-[#4A4A52] dark:bg-[#0E0E10]"
                       >
                         <Icon name={icon} size={22} />
                       </li>

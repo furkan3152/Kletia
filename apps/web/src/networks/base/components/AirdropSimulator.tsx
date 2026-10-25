@@ -759,9 +759,9 @@ export const AirdropSimulator: React.FC = () => {
   return (
     <div className="w-full h-full p-4 md:p-8 overflow-y-auto custom-scrollbar flex flex-col items-center">
       <div className="w-full max-w-5xl space-y-6">
-        <div className="bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 md:p-8 shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[4px] border-[#121212] dark:border-[#4A4A52] p-6 md:p-8 shadow-[8px_8px_0_#121212] dark:shadow-[8px_8px_0_#2A2A30] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl md:text-4xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tighter flex items-center gap-3">
+            <h1 className="text-3xl md:text-4xl font-black text-[#121212] dark:text-white uppercase tracking-tighter flex items-center gap-3">
               <Database className="w-8 h-8 md:w-10 md:h-10 text-indigo-500" />
               Multi-API Aggregator
             </h1>
@@ -780,13 +780,13 @@ export const AirdropSimulator: React.FC = () => {
               placeholder="Enter wallet address (0x...) to analyze"
               value={inputAddress}
               onChange={(event) => handleAddressChange(event.target.value)}
-              className="w-full bg-white dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-4 pl-12 font-bold text-lg text-[#1A1A1A] dark:text-white placeholder-gray-400 outline-none shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] focus:translate-y-1 focus:shadow-none transition-all"
+              className="w-full bg-[#FBFAF6] dark:bg-[#232327] border-[4px] border-[#121212] dark:border-[#4A4A52] p-4 pl-12 font-bold text-lg text-[#121212] dark:text-white placeholder-gray-400 outline-none shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] focus:translate-y-1 focus:shadow-none transition-all"
             />
           </div>
           <button
             onClick={() => void handleScan()}
             disabled={isScanning || !normalizedInputAddress}
-            className="shrink-0 bg-[#0052FF] hover:bg-blue-700 disabled:bg-gray-400 text-white font-black px-8 py-4 border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 justify-center uppercase"
+            className="shrink-0 bg-[#2F5BFF] hover:bg-blue-700 disabled:bg-gray-400 text-white font-black px-8 py-4 border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 justify-center uppercase"
           >
             {isScanning ? <RefreshCw className="animate-spin" /> : <Search />}
             {isScanning ? "Reading Live APIs..." : "Analyze Live Activity"}
@@ -796,7 +796,7 @@ export const AirdropSimulator: React.FC = () => {
         {failure && !isScanning ? (
           <div
             role="alert"
-            className="flex flex-col items-start gap-3 border-[3px] border-[#1A1A1A] bg-[#FEF3C7] p-5 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#422006] dark:text-amber-100 dark:shadow-[4px_4px_0_#475569]"
+            className="flex flex-col items-start gap-3 border-[3px] border-[#121212] bg-[#FEF3C7] p-5 text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:bg-[#422006] dark:text-amber-100 dark:shadow-[4px_4px_0_#2A2A30]"
           >
             <p className="flex items-center gap-2 font-black uppercase">
               <TriangleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -808,7 +808,7 @@ export const AirdropSimulator: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void handleScan()}
-                className="inline-flex min-h-11 items-center gap-2 border-[3px] border-[#1A1A1A] bg-white px-4 py-2 text-xs font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563]"
+                className="inline-flex min-h-11 items-center gap-2 border-[3px] border-[#121212] bg-[#FBFAF6] px-4 py-2 text-xs font-black uppercase text-[#121212] shadow-[3px_3px_0_#121212] active:translate-y-0.5 active:shadow-none dark:border-[#4A4A52]"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 Try again
@@ -819,11 +819,11 @@ export const AirdropSimulator: React.FC = () => {
 
         {visibleResult && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="lg:col-span-3 bg-indigo-100 dark:bg-indigo-950 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]">
+            <div className="lg:col-span-3 bg-indigo-100 dark:bg-indigo-950 border-[3px] border-[#121212] dark:border-[#4A4A52] p-4 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]">
               <div className="font-black uppercase text-indigo-900 dark:text-indigo-200">
                 Analyzed Base Mainnet Address
               </div>
-              <div className="font-mono text-xs md:text-sm break-all text-[#1A1A1A] dark:text-white mt-1">
+              <div className="font-mono text-xs md:text-sm break-all text-[#121212] dark:text-white mt-1">
                 {visibleResult.address}
               </div>
               <div className="text-xs font-bold mt-2 text-indigo-800 dark:text-indigo-300">
@@ -834,12 +834,12 @@ export const AirdropSimulator: React.FC = () => {
               </div>
             </div>
 
-            <div className="lg:col-span-1 bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 flex flex-col items-center justify-center shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] text-center">
+            <div className="lg:col-span-1 bg-[#FBFAF6] dark:bg-[#19191C] border-[4px] border-[#121212] dark:border-[#4A4A52] p-6 flex flex-col items-center justify-center shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30] text-center">
               <h3 className="text-xl font-black uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-4">
                 Kletia Activity Score
               </h3>
               <div className="w-40 h-40 flex flex-col items-center justify-center rounded-full border-[8px] border-indigo-500 bg-indigo-50 dark:bg-indigo-950">
-                <div className="text-6xl font-black text-[#1A1A1A] dark:text-white">
+                <div className="text-6xl font-black text-[#121212] dark:text-white">
                   {visibleResult.kletiaActivityScore}
                 </div>
                 <div className="text-xs font-black text-indigo-600 dark:text-indigo-300">
@@ -859,11 +859,11 @@ export const AirdropSimulator: React.FC = () => {
             </div>
 
             <div className="lg:col-span-2 flex flex-col gap-4">
-              <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-5 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Cpu className="w-8 h-8 text-purple-500" />
                   <div>
-                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">
+                    <h4 className="font-black text-[#121212] dark:text-white text-lg uppercase tracking-tight">
                       Nomis Reputation
                     </h4>
                     <p className="text-xs font-bold text-gray-500">
@@ -883,11 +883,11 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-5 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Database className="w-8 h-8 text-blue-500" />
                   <div>
-                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">
+                    <h4 className="font-black text-[#121212] dark:text-white text-lg uppercase tracking-tight">
                       Blockscout API
                     </h4>
                     <p className="text-xs font-bold text-gray-500">
@@ -897,7 +897,7 @@ export const AirdropSimulator: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-black text-[#1A1A1A] dark:text-white">
+                  <div className="text-lg font-black text-[#121212] dark:text-white">
                     {visibleResult.contractsCount.toLocaleString("en-US")} observed
                     contract addresses
                   </div>
@@ -925,11 +925,11 @@ export const AirdropSimulator: React.FC = () => {
               </div>
 
               {/* BASENAME + GAS */}
-              <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-5 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <Wallet className="w-8 h-8 text-[#0052FF]" />
+                  <Wallet className="w-8 h-8 text-[#1A36B0]" />
                   <div>
-                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">
+                    <h4 className="font-black text-[#121212] dark:text-white text-lg uppercase tracking-tight">
                       Basename Contract
                     </h4>
                     <p className="text-xs font-bold text-gray-500">
@@ -938,7 +938,7 @@ export const AirdropSimulator: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-black text-[#1A1A1A] dark:text-white">
+                  <div className="text-lg font-black text-[#121212] dark:text-white">
                     {visibleResult.basenameStatus === "owned"
                       ? "Basename token observed"
                       : visibleResult.basenameStatus === "not_owned"
@@ -952,11 +952,11 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-5 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Activity className="w-8 h-8 text-emerald-500" />
                   <div>
-                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">
+                    <h4 className="font-black text-[#121212] dark:text-white text-lg uppercase tracking-tight">
                       Observed Footprint
                     </h4>
                     <p className="text-xs font-bold text-gray-500">
@@ -966,7 +966,7 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
                 <div className="flex gap-4 md:gap-8 text-right">
                   <div>
-                    <div className="text-lg font-black text-[#1A1A1A] dark:text-white flex items-center justify-end gap-1">
+                    <div className="text-lg font-black text-[#121212] dark:text-white flex items-center justify-end gap-1">
                       <Calendar className="w-4 h-4 text-gray-400" />{" "}
                       {visibleResult.activeMonths}
                     </div>
@@ -975,7 +975,7 @@ export const AirdropSimulator: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <div className="text-lg font-black text-[#1A1A1A] dark:text-white flex items-center justify-end gap-1">
+                    <div className="text-lg font-black text-[#121212] dark:text-white flex items-center justify-end gap-1">
                       <Clock className="w-4 h-4 text-gray-400" />{" "}
                       {visibleResult.accountAgeDays === null
                         ? "N/A"
@@ -986,7 +986,7 @@ export const AirdropSimulator: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <div className="text-lg font-black text-[#1A1A1A] dark:text-white">
+                    <div className="text-lg font-black text-[#121212] dark:text-white">
                       {visibleResult.normalTransactionsCapped ? "≥" : ""}
                       {visibleResult.totalTxs.toLocaleString("en-US")}
                     </div>
@@ -998,23 +998,23 @@ export const AirdropSimulator: React.FC = () => {
               </div>
             </div>
 
-            <div className="lg:col-span-3 mt-4 bg-[#FFD700] dark:bg-[#CCA000] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] flex items-start gap-3">
+            <div className="lg:col-span-3 mt-4 bg-[#FFD700] dark:bg-[#CCA000] border-[4px] border-[#121212] dark:border-[#4A4A52] p-5 shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30] flex items-start gap-3">
               <Cpu
-                className="w-7 h-7 shrink-0 text-[#1A1A1A]"
+                className="w-7 h-7 shrink-0 text-[#121212]"
                 strokeWidth={3}
               />
               <div>
-                <div className="font-black uppercase text-[#1A1A1A]">
+                <div className="font-black uppercase text-[#121212]">
                   Interpretation Boundary
                 </div>
-                <p className="text-sm font-bold text-[#1A1A1A] mt-1">
+                <p className="text-sm font-bold text-[#121212] mt-1">
                   These are live descriptive observations for{" "}
                   {visibleResult.address}. Neither score predicts airdrop
                   eligibility, identity, misconduct or future rewards.
                   Unavailable prices and provider scores remain unavailable; no
                   synthetic value is inserted.
                 </p>
-                <p className="text-xs font-black text-[#1A1A1A] mt-2">
+                <p className="text-xs font-black text-[#121212] mt-2">
                   Snapshot:{" "}
                   {new Date(visibleResult.fetchedAt).toLocaleString("en-US")}
                   {" · "}Outgoing dust rows: {visibleResult.dustTxCount}/

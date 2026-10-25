@@ -1,6 +1,3 @@
-import "@fontsource-variable/space-grotesk";
-import "@fontsource-variable/inter";
-import "@fontsource-variable/jetbrains-mono";
 import "../admin.css";
 
 import React, { useLayoutEffect } from "react";
@@ -25,7 +22,7 @@ export function AdminFrame({ barEnd, children, wide = false }: { readonly barEnd
   }, []);
   const { theme, toggle } = useSiteTheme();
   return (
-    <div className="kl-admin relative flex min-h-[100dvh] flex-col overflow-x-clip font-body text-fg antialiased selection:bg-[#FFD60A] selection:text-[#1A1A1A]">
+    <div className="kl-admin relative flex min-h-[100dvh] flex-col overflow-x-clip font-body text-fg antialiased selection:bg-[#C6FF3A] selection:text-[#121212]">
       <a
         href="#main-content"
         onClick={(event) => {
@@ -33,7 +30,7 @@ export function AdminFrame({ barEnd, children, wide = false }: { readonly barEnd
           document.getElementById("main-content")?.focus({ preventScroll: false });
         }}
         className={cx(
-          "sr-only z-[200] border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#1A1A1A] focus:not-sr-only focus:fixed focus:left-4 focus:top-4",
+          "sr-only z-[200] border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#121212] focus:not-sr-only focus:fixed focus:left-4 focus:top-4",
           FOCUS_RING,
         )}
       >

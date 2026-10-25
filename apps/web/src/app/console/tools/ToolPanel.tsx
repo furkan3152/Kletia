@@ -82,7 +82,7 @@ function NetworkChoice({
           type="button"
           aria-pressed={value === network}
           onClick={() => onChange(network)}
-          className="inline-flex min-h-11 items-center border-2 border-control px-3 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] aria-[pressed=true]:bg-[#1A1A1A] aria-[pressed=true]:text-white dark:aria-[pressed=true]:bg-[#F1F5F9] dark:aria-[pressed=true]:text-[#0B1120]"
+          className="inline-flex min-h-11 items-center border-2 border-control px-3 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] aria-[pressed=true]:bg-[#121212] aria-[pressed=true]:text-white dark:aria-[pressed=true]:bg-[#F2F0EA] dark:aria-[pressed=true]:text-[#0E0E10]"
         >
           {CHAINS[network].name}
         </button>

@@ -44,7 +44,7 @@ export function Switch({ checked, onChange, label, description, disabled = false
         <span
           className={cx(
             "absolute top-[1px] h-4 w-4 border-2 border-control transition-transform duration-150 ease-kl-snap motion-reduce:transition-none",
-            checked ? "translate-x-[22px] bg-white" : "translate-x-[1px] bg-[#1A1A1A] dark:bg-[#F1F5F9]",
+            checked ? "translate-x-[22px] bg-[#FBFAF6]" : "translate-x-[1px] bg-[#121212] dark:bg-[#F2F0EA]",
           )}
         />
       </span>

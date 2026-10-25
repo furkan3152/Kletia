@@ -1,22 +1,27 @@
 /**
- * Shared class recipes for the site's neo-brutalist UI. Kept in one place so
+ * Shared class recipes for the site's UI (Card machine). Kept in one place so
  * borders, shadows and focus rings stay identical across components. Colours
  * come from the semantic tokens in styles.css wherever a role exists for
  * them.
  */
 
-/** Decorative rules and object outlines: the art's 3 px ink (no contrast minimum). */
-export const INK_BORDER = "border-[3px] border-[#1A1A1A] dark:border-[#4B5563]";
-export const INK_BORDER_THIN = "border-2 border-[#1A1A1A] dark:border-[#4B5563]";
+/**
+ * Decorative rules and object outlines. Card machine: hairlines, no heavy ink; the
+ * slab (2 px ink + hard offset) is reserved for the printed card, the composer and the ticket.
+ */
+export const INK_BORDER = "border border-[var(--k-line-2)]";
+export const INK_BORDER_THIN = "border border-[var(--k-line-2)]";
+/** The slab: only the card, the composer and the trade ticket. */
+export const SLAB = "border-2 border-[var(--k-slab-line)] shadow-slab";
 /**
  * Borders of inputs, selects, buttons, tabs and toggles: at least 3:1 against
- * the page and panels in both themes (WCAG 1.4.11; the decorative dark ink is
- * only 2.2-2.5:1).
+ * the page and panels in both themes (WCAG 1.4.11).
  */
-export const CONTROL_BORDER = "border-[3px] border-control";
-export const HARD_SHADOW = "shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]";
-export const HARD_SHADOW_SM = "shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]";
-export const HARD_SHADOW_LG = "shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569]";
+export const CONTROL_BORDER = "border-[1.5px] border-control";
+/** Raised objects: the Card machine's soft object shadow (the HARD_ names date from the hard-offset style). */
+export const HARD_SHADOW = "shadow-obj";
+export const HARD_SHADOW_SM = "shadow-obj";
+export const HARD_SHADOW_LG = "shadow-obj";
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-focus";
 export const SURFACE = "bg-surface";
@@ -39,21 +44,24 @@ export const SHADOW_HARD = "shadow-hard";
 export type ButtonVariant = "primary" | "accent" | "secondary" | "ink" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";
 
+// Card machine keys (kit/Key.tsx is the React twin): a keycap with a 4 px bottom edge
+// that travels 3 px in 60 ms when pressed. Lime is the one accent and carries ink text.
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-[#0052FF] text-white hover:bg-[#0046DB]",
-  accent: "bg-[#FFD60A] text-[#1A1A1A] hover:bg-[#FFE04D]",
-  secondary:
-    "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#1A2841] dark:text-white dark:hover:bg-[#22345A]",
-  ink: "bg-[#1A1A1A] text-white hover:bg-black dark:bg-white dark:text-[#0B1120] dark:hover:bg-[#E2E8F0]",
-  ghost:
-    "bg-transparent text-[#1A1A1A] hover:bg-[#1A1A1A]/5 dark:text-white dark:hover:bg-white/10",
+  primary: "[--key-bg:var(--k-lime)] [--key-edge:var(--k-lime-edge)] text-[#121212]",
+  accent: "[--key-bg:var(--k-lime)] [--key-edge:var(--k-lime-edge)] text-[#121212]",
+  secondary: "[--key-bg:var(--k-key)] [--key-edge:var(--k-key-edge)] text-[var(--k-ink)]",
+  ink: "[--key-bg:var(--k-dark-key)] [--key-edge:var(--k-dark-key-edge)] text-[var(--k-chassis)]",
+  ghost: "bg-transparent text-[var(--k-ink)] hover:bg-[var(--k-panel-2)]",
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  sm: "min-h-9 gap-1.5 px-3 py-1.5 text-xs",
-  md: "min-h-11 gap-2 px-4 py-2.5 text-xs",
-  lg: "min-h-14 gap-2.5 px-6 py-3.5 text-sm",
+  sm: "min-h-9 gap-1.5 rounded-[8px] px-3 py-1.5 text-[13.5px]",
+  md: "min-h-11 gap-2 rounded-key px-4 py-2.5 text-[14.5px]",
+  lg: "min-h-14 gap-2.5 rounded-[12px] px-6 py-3.5 text-base",
 };
+
+const KEY_FACE =
+  "border border-[color-mix(in_srgb,var(--key-edge)_60%,transparent)] bg-[var(--key-bg)] shadow-[inset_0_1px_0_var(--k-hi),0_4px_0_var(--key-edge),0_5px_10px_-4px_rgba(0,0,0,.25)] hover:-translate-y-px hover:shadow-[inset_0_1px_0_var(--k-hi),0_5px_0_var(--key-edge),0_8px_14px_-6px_rgba(0,0,0,.3)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_var(--k-hi),0_1px_0_var(--key-edge),0_1px_2px_rgba(0,0,0,.2)]";
 
 /** Class list for a button-like element. */
 export function buttonClasses(
@@ -61,18 +69,11 @@ export function buttonClasses(
   size: ButtonSize = "md",
   extra = "",
 ): string {
-  // Press physics: hover lifts 2px into a 5px shadow, press pushes 3px into the
-  // shadow. Reduced motion keeps the colour feedback without the hover travel.
-  const shadow =
-    variant === "ghost"
-      ? ""
-      : "shadow-hard-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard-md active:translate-x-[3px] active:translate-y-[3px] active:shadow-none";
   return [
-    "inline-flex select-none items-center justify-center whitespace-nowrap font-black uppercase tracking-[0.12em] transition-[transform,box-shadow,background-color] duration-90 ease-kl-snap disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0",
-    CONTROL_BORDER,
+    "inline-flex select-none items-center justify-center whitespace-nowrap font-semibold tracking-[-0.005em] transition-[transform,box-shadow,background-color] duration-60 ease-mech disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+    variant === "ghost" ? "rounded-key border border-transparent" : KEY_FACE,
     VARIANTS[variant],
     SIZES[size],
-    shadow,
     FOCUS_RING,
     extra,
   ]

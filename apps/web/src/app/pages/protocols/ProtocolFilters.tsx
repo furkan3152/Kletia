@@ -20,12 +20,12 @@ const CAPABILITY_OPTIONS: readonly { readonly value: "all" | ProtocolCapability;
 ];
 
 const CHIP =
-  "inline-flex min-h-9 items-center gap-1.5 border-2 border-[#1A1A1A] px-2 text-xs font-black uppercase tracking-[0.08em] transition-[background-color,color,box-shadow,transform] duration-150 ease-kl-standard motion-reduce:transition-none dark:border-[#4B5563]";
-const CHIP_OFF = "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#131E32] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]";
+  "inline-flex min-h-9 items-center gap-1.5 border-2 border-[#121212] px-2 text-xs font-black uppercase tracking-[0.08em] transition-[background-color,color,box-shadow,transform] duration-150 ease-kl-standard motion-reduce:transition-none dark:border-[#4A4A52]";
+const CHIP_OFF = "bg-[#FBFAF6] text-[#121212] hover:bg-[#EEFBC8] dark:bg-[#19191C] dark:text-[#D6D2C8] dark:hover:bg-[#232327]";
 const CHIP_ON =
-  "bg-[#1A1A1A] text-white shadow-[2px_2px_0_#0052FF] dark:bg-[#FFD60A] dark:text-[#1A1A1A] dark:shadow-[2px_2px_0_#475569]";
+  "bg-[#121212] text-white shadow-[2px_2px_0_#2F5BFF] dark:bg-[#C6FF3A] dark:text-[#121212] dark:shadow-[2px_2px_0_#2A2A30]";
 const SELECT =
-  "min-h-9 cursor-pointer border-2 border-[#1A1A1A] bg-white px-2 text-[13px] font-semibold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-[#F1F5F9]";
+  "min-h-9 cursor-pointer border-2 border-[#121212] bg-[#FBFAF6] px-2 text-[13px] font-semibold text-[#121212] dark:border-[#4A4A52] dark:bg-[#0E0E10] dark:text-[#F2F0EA]";
 
 /**
  * The full search hint only fits from the `sm` breakpoint (where the "/"
@@ -120,7 +120,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
   };
 
   return (
-    <div data-kl-vt-stable-filter="" className="sticky top-[72px] z-40 border-b-[3px] border-[#1A1A1A] bg-[#F4F1EA]/95 backdrop-blur-sm dark:border-[#4B5563] dark:bg-[#0B1120]/95">
+    <div data-kl-vt-stable-filter="" className="sticky top-[72px] z-40 border-b-[3px] border-[#121212] bg-[#D6D2C8]/95 backdrop-blur-sm dark:border-[#4A4A52] dark:bg-[#0E0E10]/95">
       {/*
         One set of controls for every width. On phones: search, the Filters
         button and the count; the rest folds into the panel. From lg the panel
@@ -132,7 +132,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
             Search protocols
           </label>
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#45464B] dark:text-[#A9B6C8]"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5C5850] dark:text-[#9A968C]"
             aria-hidden="true"
           />
           <input
@@ -146,13 +146,13 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
             spellCheck={false}
             aria-keyshortcuts="/"
             className={cx(
-              "min-h-11 w-full border-[3px] border-[#1A1A1A] bg-white py-2 pl-9 pr-3 text-[15px] text-[#1A1A1A] shadow-hard-sm transition-shadow duration-150 placeholder:text-[#6B7280] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-[#F1F5F9] dark:placeholder:text-[#8B97A8] motion-reduce:transition-none sm:pr-9",
+              "min-h-11 w-full border-[3px] border-[#121212] bg-[#FBFAF6] py-2 pl-9 pr-3 text-[15px] text-[#121212] shadow-hard-sm transition-shadow duration-150 placeholder:text-[#6B7280] dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-[#F2F0EA] dark:placeholder:text-[#8B97A8] motion-reduce:transition-none sm:pr-9",
               FOCUS_RING,
             )}
           />
           <kbd
             aria-hidden="true"
-            className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 border-2 border-[#1A1A1A]/30 px-1.5 font-code text-xs leading-5 text-[#45464B] dark:border-white/20 dark:text-[#A9B6C8] sm:block"
+            className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 border-2 border-[#121212]/30 px-1.5 font-code text-xs leading-5 text-[#5C5850] dark:border-white/20 dark:text-[#9A968C] sm:block"
           >
             /
           </kbd>
@@ -165,7 +165,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
           aria-controls={panelId}
           onClick={() => setOpen((value) => !value)}
           className={cx(
-            "inline-flex min-h-11 items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-3 text-xs font-black uppercase tracking-[0.12em] text-[#1A1A1A] shadow-hard-sm transition-[transform,box-shadow] duration-90 ease-kl-snap active:translate-x-[3px] active:translate-y-[3px] active:shadow-none motion-reduce:transition-none dark:border-[#4B5563] lg:hidden",
+            "inline-flex min-h-11 items-center gap-2 border-[3px] border-[#121212] bg-[#C6FF3A] px-3 text-xs font-black uppercase tracking-[0.12em] text-[#121212] shadow-hard-sm transition-[transform,box-shadow] duration-90 ease-kl-snap active:translate-x-[3px] active:translate-y-[3px] active:shadow-none motion-reduce:transition-none dark:border-[#4A4A52] lg:hidden",
             FOCUS_RING,
           )}
         >
@@ -176,7 +176,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
         <p
           role="status"
           aria-live="polite"
-          className="w-full text-xs font-black uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8] lg:order-5 lg:ml-auto lg:w-auto lg:text-[#1A1A1A] dark:lg:text-white"
+          className="w-full text-xs font-black uppercase tracking-[0.12em] text-[#5C5850] dark:text-[#9A968C] lg:order-5 lg:ml-auto lg:w-auto lg:text-[#121212] dark:lg:text-white"
         >
           {/* Short while loading, so it fits the row the loaded count uses and the bar keeps its height. */}
           {loading ? "Loading…" : `${shown} of ${total} protocols`}
@@ -186,7 +186,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
           id={panelId}
           className={cx(
             open ? "flex" : "hidden",
-            "w-full flex-col gap-4 border-t-2 border-dashed border-[#1A1A1A]/20 pb-1 pt-4 dark:border-white/10 lg:contents",
+            "w-full flex-col gap-4 border-t-2 border-dashed border-[#121212]/20 pb-1 pt-4 dark:border-white/10 lg:contents",
             open && "kl-rise",
           )}
         >
@@ -194,7 +194,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
             <span id={`${panelId}-cap`} className={cx(LABEL, "lg:sr-only")}>
               Capability
             </span>
-            <div role="radiogroup" aria-labelledby={`${panelId}-cap`} className="inline-flex self-start border-2 border-[#1A1A1A] shadow-hard-sm dark:border-[#4B5563]">
+            <div role="radiogroup" aria-labelledby={`${panelId}-cap`} className="inline-flex self-start border-2 border-[#121212] shadow-hard-sm dark:border-[#4A4A52]">
               {CAPABILITY_OPTIONS.map((option, index) => {
                 const checked = filters.cap === option.value;
                 return (
@@ -212,10 +212,10 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
                     onKeyDown={(event) => onRadioKey(event, index)}
                     className={cx(
                       "relative min-h-9 px-3 text-xs font-black uppercase tracking-[0.12em] transition-colors duration-150 motion-reduce:transition-none",
-                      index > 0 && "border-l-2 border-[#1A1A1A] dark:border-[#4B5563]",
+                      index > 0 && "border-l-2 border-[#121212] dark:border-[#4A4A52]",
                       checked
-                        ? "bg-[#FFD60A] text-[#1A1A1A]"
-                        : "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#131E32] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]",
+                        ? "bg-[#C6FF3A] text-[#121212]"
+                        : "bg-[#FBFAF6] text-[#121212] hover:bg-[#EEFBC8] dark:bg-[#19191C] dark:text-[#D6D2C8] dark:hover:bg-[#232327]",
                       FOCUS_RING,
                       "focus-visible:z-10",
                     )}
@@ -244,7 +244,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
                   >
                     <span
                       aria-hidden="true"
-                      className="h-2.5 w-2.5 shrink-0 border-[1.5px] border-[#1A1A1A] dark:border-[#0B1120]"
+                      className="h-2.5 w-2.5 shrink-0 border-[1.5px] border-[#121212] dark:border-[#0E0E10]"
                       style={{ backgroundColor: network.color ?? "#94A3B8" }}
                     />
                     <span className={network.known ? undefined : "font-code normal-case"}>{network.shortName}</span>

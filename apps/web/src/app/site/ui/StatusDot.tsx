@@ -51,7 +51,7 @@ export function StatusDot({ state, label, showLabel = true, pulse, pulseKey, cla
         ) : null}
         <span
           className={cx(
-            "relative inline-flex h-3 w-3 rounded-full border-2 border-[#1A1A1A] dark:border-[#0B1120]",
+            "relative inline-flex h-3 w-3 rounded-full border-2 border-[#121212] dark:border-[#0E0E10]",
             state === "loading" && "kl-loop animate-pulse motion-reduce:animate-none",
           )}
           style={{ backgroundColor: style.color }}

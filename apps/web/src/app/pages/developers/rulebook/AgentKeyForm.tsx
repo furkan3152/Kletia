@@ -144,7 +144,7 @@ export function AgentKeyForm({ apiKey, keys, tree, contracts, selected, onChange
               <label key={contract.id} className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 accent-[#0052FF]"
+                  className="h-4 w-4 accent-[#2F5BFF]"
                   checked={contractIds.includes(contract.id)}
                   onChange={(event) => setContractIds((current) => (event.target.checked ? [...current, contract.id] : current.filter((id) => id !== contract.id)))}
                 />
@@ -189,7 +189,7 @@ export function AgentKeyForm({ apiKey, keys, tree, contracts, selected, onChange
         {agents.length === 0 ? (
           <p className={cx("text-sm", TEXT_MUTED)}>No agent keys yet.</p>
         ) : (
-          <ul className={cx("divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER_THIN)}>
+          <ul className={cx("divide-y-2 divide-[#121212]/10 dark:divide-white/10", INK_BORDER_THIN)}>
             {agents.map((agent) => {
               const node = findNode(tree, agent.id);
               const below = node ? subtreeKeys(node) : [];
@@ -212,7 +212,7 @@ export function AgentKeyForm({ apiKey, keys, tree, contracts, selected, onChange
           </ul>
         )}
         {revokeNode ? (
-          <div className="kl-rise flex flex-col gap-3 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+          <div className="kl-rise flex flex-col gap-3 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#121212] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
             <p className="flex items-start gap-2 text-sm font-bold">
               <ShieldX className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>

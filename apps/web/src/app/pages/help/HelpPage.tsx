@@ -11,7 +11,7 @@ const LINK = cx("inline-flex min-h-11 items-center gap-1.5 font-semibold underli
 function Section({ section, index }: { readonly section: HelpSection; readonly index: number }) {
   const headingId = `${section.id}-heading`;
   return (
-    <section id={section.id} aria-labelledby={headingId} className="scroll-mt-24 border-t-[3px] border-[#1A1A1A] py-12 first:border-t-0 first:pt-0 dark:border-[#4B5563]">
+    <section id={section.id} aria-labelledby={headingId} className="scroll-mt-24 border-t-[3px] border-[#121212] py-12 first:border-t-0 first:pt-0 dark:border-[#4A4A52]">
       <p className={cx("font-code text-xs font-extrabold uppercase tracking-[0.12em]", TEXT_MUTED)}>{String(index + 1).padStart(2, "0")}</p>
       <h2 id={headingId} className="mt-2 font-display text-3xl font-bold tracking-[-0.03em] sm:text-4xl">
         <a href={`#${section.id}`} className={cx("hover:underline", FOCUS_RING)}>
@@ -31,7 +31,7 @@ function Section({ section, index }: { readonly section: HelpSection; readonly i
           {section.steps.map((step) => (
             <li
               key={step}
-              className="relative pl-9 leading-relaxed [counter-increment:step] before:absolute before:left-0 before:top-0 before:flex before:h-6 before:w-6 before:items-center before:justify-center before:border-2 before:border-[#1A1A1A] before:bg-[#FFD60A] before:font-code before:text-xs before:font-bold before:text-[#1A1A1A] before:content-[counter(step)]"
+              className="relative pl-9 leading-relaxed [counter-increment:step] before:absolute before:left-0 before:top-0 before:flex before:h-6 before:w-6 before:items-center before:justify-center before:border-2 before:border-[#121212] before:bg-[#C6FF3A] before:font-code before:text-xs before:font-bold before:text-[#121212] before:content-[counter(step)]"
             >
               {step}
             </li>
@@ -56,7 +56,7 @@ function Section({ section, index }: { readonly section: HelpSection; readonly i
 export default function HelpPage() {
   return (
     <>
-      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+      <header className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "py-14 sm:py-20")}>
           <PlatformNumber code="HLP">Help</PlatformNumber>
           <h1 className="mt-6 font-display text-[clamp(2.5rem,6vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]">Using Kletia</h1>
@@ -83,7 +83,7 @@ export default function HelpPage() {
                 <a
                   href={`#${section.id}`}
                   className={cx(
-                    "inline-flex min-h-11 items-center border-2 border-[#1A1A1A] px-3 text-sm font-bold dark:border-[#4B5563] lg:min-h-9 lg:border-0 lg:px-0 lg:underline lg:decoration-2 lg:underline-offset-4",
+                    "inline-flex min-h-11 items-center border-2 border-[#121212] px-3 text-sm font-bold dark:border-[#4A4A52] lg:min-h-9 lg:border-0 lg:px-0 lg:underline lg:decoration-2 lg:underline-offset-4",
                     FOCUS_RING,
                   )}
                 >
@@ -97,7 +97,7 @@ export default function HelpPage() {
           {HELP_SECTIONS.map((section, index) => (
             <Section key={section.id} section={section} index={index} />
           ))}
-          <p className={cx("max-w-3xl border-t-[3px] border-[#1A1A1A] pt-8 text-sm dark:border-[#4B5563]", TEXT_MUTED)}>
+          <p className={cx("max-w-3xl border-t-[3px] border-[#121212] pt-8 text-sm dark:border-[#4A4A52]", TEXT_MUTED)}>
             Building on Kletia instead? The{" "}
             <Link to="/developers" className={cx("font-semibold underline decoration-2 underline-offset-2", FOCUS_RING)}>
               developer portal

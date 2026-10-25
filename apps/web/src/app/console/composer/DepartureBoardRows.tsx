@@ -168,7 +168,7 @@ export function DepartureBoardRows({
             <span className="block">{copy.auto}</span>
             <span id={autoDescription} className="kd-board__sub">
               {copy.autoExplained}
-              {mostFunds ? <span className="mt-1 block font-bold text-[#FFD60A]">{mostFunds}</span> : null}
+              {mostFunds ? <span className="mt-1 block font-bold text-[#C6FF3A]">{mostFunds}</span> : null}
             </span>
           </span>
         </span>

@@ -41,7 +41,7 @@ export interface UnsupportedTaskBodyProps {
 const CHIP =
   "inline-flex min-h-11 max-w-full items-center border-2 border-control bg-surface px-3 text-left font-code text-[13px] font-semibold text-fg hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] motion-reduce:hover:translate-y-0";
 const OFFER =
-  "inline-flex min-h-11 items-center gap-2 border-[3px] border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#1A1A1A] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] dark:shadow-[2px_2px_0_#475569] motion-reduce:hover:translate-y-0";
+  "inline-flex min-h-11 items-center gap-2 border-[3px] border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#121212] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] dark:shadow-[2px_2px_0_#2A2A30] motion-reduce:hover:translate-y-0";
 
 export function UnsupportedTaskBody({ message, hints, route, onHint, onAskEngine, connect = [], onConnect }: UnsupportedTaskBodyProps) {
   const examples = hints.length > 0 ? hints : FALLBACK_EXAMPLES;

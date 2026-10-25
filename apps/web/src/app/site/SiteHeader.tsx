@@ -20,12 +20,12 @@ export interface SiteHeaderProps {
 
 // The underline grows from the left on hover and stays for the current page (aria-current).
 const NAV_LINK = cx(
-  "relative inline-flex min-h-11 items-center gap-1 px-3 text-[12px] font-black uppercase tracking-[0.14em] text-[#1A1A1A] transition-colors duration-150 hover:text-[#0052FF] dark:text-[#E2E8F0] dark:hover:text-[#FFD60A]",
-  "after:absolute after:inset-x-3 after:bottom-1.5 after:h-[3px] after:origin-left after:scale-x-0 after:bg-[#0052FF] after:transition-transform after:duration-150 after:ease-kl-standard hover:after:scale-x-100 aria-[current=page]:after:scale-x-100 dark:after:bg-[#FFD60A] motion-reduce:after:transition-none",
+  "relative inline-flex min-h-11 items-center gap-1 px-3 text-[12px] font-black uppercase tracking-[0.14em] text-[#121212] transition-colors duration-150 hover:text-[#2F5BFF] dark:text-[#D6D2C8] dark:hover:text-[#C6FF3A]",
+  "after:absolute after:inset-x-3 after:bottom-1.5 after:h-[3px] after:origin-left after:scale-x-0 after:bg-[#2F5BFF] after:transition-transform after:duration-150 after:ease-kl-standard hover:after:scale-x-100 aria-[current=page]:after:scale-x-100 dark:after:bg-[#C6FF3A] motion-reduce:after:transition-none",
 );
 
 const MOBILE_LINK =
-  "flex min-h-14 items-center justify-between font-display text-2xl font-bold uppercase tracking-tight text-[#1A1A1A] dark:text-white";
+  "flex min-h-14 items-center justify-between font-display text-2xl font-bold uppercase tracking-tight text-[#121212] dark:text-white";
 
 /** Sticky site header with primary navigation, theme toggle and a mobile menu. */
 export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
@@ -89,12 +89,12 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
       <header
         data-scrolled={scrolled ? "" : undefined}
         data-kl-vt-stable=""
-        className="kl-site-header sticky top-0 z-50 border-b-[3px] border-[#1A1A1A] bg-[#F4F1EA]/95 backdrop-blur-sm transition-[box-shadow,background-color] duration-150 data-[scrolled]:bg-[#F4F1EA]/[0.985] data-[scrolled]:shadow-[0_3px_0_var(--kl-shadow-ink)] dark:border-[#4B5563] dark:bg-[#0B1120]/95 dark:data-[scrolled]:bg-[#0B1120]/[0.985] motion-reduce:transition-none"
+        className="kl-site-header sticky top-0 z-50 border-b-[3px] border-[#121212] bg-[#D6D2C8]/95 backdrop-blur-sm transition-[box-shadow,background-color] duration-150 data-[scrolled]:bg-[#D6D2C8]/[0.985] data-[scrolled]:shadow-[0_3px_0_var(--kl-shadow-ink)] dark:border-[#4A4A52] dark:bg-[#0E0E10]/95 dark:data-[scrolled]:bg-[#0E0E10]/[0.985] motion-reduce:transition-none"
       >
         <div className={cx(CONTAINER, "flex h-[72px] items-center justify-between gap-3")}>
           <Link to="/" className={cx("group flex min-h-11 items-center gap-3", FOCUS_RING)} aria-label="Kletia home">
             <KletiaMark />
-            <span className="font-display text-xl font-bold uppercase tracking-[-0.02em] text-[#1A1A1A] dark:text-white sm:text-2xl">
+            <span className="font-display text-xl font-bold uppercase tracking-[-0.02em] text-[#121212] dark:text-white sm:text-2xl">
               Kletia
             </span>
           </Link>
@@ -142,7 +142,7 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
                 setOpenedAt(location.key);
               }}
               className={cx(
-                "inline-flex h-11 w-11 items-center justify-center bg-[#FFD60A] text-[#1A1A1A] transition-[transform,box-shadow] duration-90 ease-kl-snap active:translate-x-[3px] active:translate-y-[3px] active:shadow-none motion-reduce:transition-none lg:hidden",
+                "inline-flex h-11 w-11 items-center justify-center bg-[#C6FF3A] text-[#121212] transition-[transform,box-shadow] duration-90 ease-kl-snap active:translate-x-[3px] active:translate-y-[3px] active:shadow-none motion-reduce:transition-none lg:hidden",
                 INK_BORDER,
                 HARD_SHADOW_SM,
                 FOCUS_RING,
@@ -157,12 +157,12 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
           ref={panelRef}
           id={menuId}
           hidden={!menuOpen}
-          className="border-t-[3px] border-[#1A1A1A] bg-[#F4F1EA] dark:border-[#4B5563] dark:bg-[#0B1120] lg:hidden"
+          className="border-t-[3px] border-[#121212] bg-[#D6D2C8] dark:border-[#4A4A52] dark:bg-[#0E0E10] lg:hidden"
         >
           <nav aria-label="Mobile" className={cx(CONTAINER, "py-4")}>
             <ul className="flex flex-col">
               {PRIMARY_NAV.map((item) => (
-                <li key={item.label} data-menu-item className="border-b-2 border-dashed border-[#1A1A1A]/20 dark:border-white/10">
+                <li key={item.label} data-menu-item className="border-b-2 border-dashed border-[#121212]/20 dark:border-white/10">
                   {item.external ? (
                     <a href={item.to} target="_blank" rel="noopener noreferrer" className={cx(MOBILE_LINK, FOCUS_RING)}>
                       {item.label}
@@ -174,7 +174,7 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
                       to={item.to}
                       onClick={() => setOpen(false)}
                       className={cx(MOBILE_LINK, FOCUS_RING)}
-                      activeClassName="text-[#0052FF] dark:text-[#FFD60A]"
+                      activeClassName="text-[#1A36B0] dark:text-[#C6FF3A]"
                     >
                       {item.label}
                       <span aria-hidden="true">→</span>

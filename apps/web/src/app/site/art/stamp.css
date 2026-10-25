@@ -4,10 +4,10 @@
 .kla-stamp {
   display: block;
   overflow: visible;
-  color: var(--kla-stamp-ink, #0047e0);
+  color: var(--kla-stamp-ink, #1a36b0);
 }
 .kla-stamp--planned {
-  --kla-stamp-ink: #0047e0;
+  --kla-stamp-ink: #1a36b0;
   --kla-rot: -7deg;
 }
 .kla-stamp--signed {

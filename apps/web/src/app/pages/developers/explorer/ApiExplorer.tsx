@@ -116,8 +116,8 @@ function SourceLine({ source, count, onReload }: { source: SpecSource; count: nu
 }
 
 const NOTICE_TONE = {
-  warn: "border-[#FFD60A] bg-[#FFF7CC] text-[#1A1A1A] dark:bg-[#2B2610] dark:text-[#FDF3C4]",
-  info: "border-[#0052FF] bg-[#EEF3FF] text-[#1A1A1A] dark:border-[#7EA6FF] dark:bg-[#111C33] dark:text-[#DCE6FF]",
+  warn: "border-[#C6FF3A] bg-[#EEFBC8] text-[#121212] dark:bg-[#2B2610] dark:text-[#FDF3C4]",
+  info: "border-[#2F5BFF] bg-[#EEF3FF] text-[#121212] dark:border-[#8FA6FF] dark:bg-[#111C33] dark:text-[#DCE6FF]",
 } as const;
 
 /**
@@ -352,7 +352,7 @@ export function ApiExplorer({ operations, source, onReloadSpec, param }: ApiExpl
                   ) : null}
                   {keyKind ? (
                     <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-bold">
-                      <input type="checkbox" checked={sendKey} onChange={(event) => setSendKey(event.target.checked)} className="h-4 w-4 accent-[#0052FF]" />
+                      <input type="checkbox" checked={sendKey} onChange={(event) => setSendKey(event.target.checked)} className="h-4 w-4 accent-[#2F5BFF]" />
                       <KeyRound className="h-4 w-4" aria-hidden="true" />
                       Send the key <span className="font-code text-code-s font-normal">{maskKey(key)}</span>
                     </label>

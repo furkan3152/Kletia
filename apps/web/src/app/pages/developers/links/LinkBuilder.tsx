@@ -37,10 +37,10 @@ function Chips({ legend, options, value, onChange }: { readonly legend: string; 
               <label
                 className={cx(
                   "inline-flex min-h-9 cursor-pointer items-center gap-1.5 border-2 px-2.5 text-[12px] font-bold",
-                  on ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] dark:border-[#FFD60A]" : "border-[#1A1A1A]/40 text-[#45464B] dark:border-white/25 dark:text-[#A9B6C8]",
+                  on ? "border-[#121212] bg-[#C6FF3A] text-[#121212] dark:border-[#C6FF3A]" : "border-[#121212]/40 text-[#5C5850] dark:border-white/25 dark:text-[#9A968C]",
                 )}
               >
-                <input type="checkbox" className="h-3.5 w-3.5 accent-[#1A1A1A]" checked={on} onChange={(event) => onChange(event.target.checked ? [...value, option.value] : value.filter((entry) => entry !== option.value))} />
+                <input type="checkbox" className="h-3.5 w-3.5 accent-[#121212]" checked={on} onChange={(event) => onChange(event.target.checked ? [...value, option.value] : value.filter((entry) => entry !== option.value))} />
                 {option.label}
               </label>
             </li>
@@ -129,12 +129,12 @@ export function LinkBuilder({ apiKey, contracts, ruleBook, keyId, onCreated }: L
           {LINK_TEMPLATES.map((template) => {
             const on = draft.template === template.id;
             return (
-              <label key={template.id} className={cx("flex min-w-0 cursor-pointer flex-col gap-1.5 p-3", INK_BORDER, on ? "bg-[#FFD60A] text-[#1A1A1A]" : SURFACE, "has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[#0052FF]")}>
+              <label key={template.id} className={cx("flex min-w-0 cursor-pointer flex-col gap-1.5 p-3", INK_BORDER, on ? "bg-[#C6FF3A] text-[#121212]" : SURFACE, "has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[#2F5BFF]")}>
                 <span className="flex items-center gap-2 font-display text-[15px] font-bold">
-                  <input type="radio" name="link-template" className="h-4 w-4 accent-[#1A1A1A]" checked={on} onChange={() => switchTemplate(template.id)} />
+                  <input type="radio" name="link-template" className="h-4 w-4 accent-[#121212]" checked={on} onChange={() => switchTemplate(template.id)} />
                   {template.title}
                 </span>
-                <span className={cx("text-xs leading-relaxed", on ? "text-[#1A1A1A]" : TEXT_MUTED)}>{template.summary}</span>
+                <span className={cx("text-xs leading-relaxed", on ? "text-[#121212]" : TEXT_MUTED)}>{template.summary}</span>
               </label>
             );
           })}
@@ -239,11 +239,11 @@ export function LinkBuilder({ apiKey, contracts, ruleBook, keyId, onCreated }: L
           <TextField label="Uses per account" mono inputMode="numeric" value={draft.perAccountMaxUses} onChange={(event) => set({ perAccountMaxUses: event.target.value })} placeholder="No limit" />
           <TextField label="Max slippage (bps)" mono inputMode="numeric" value={draft.maxSlippageBps} onChange={(event) => set({ maxSlippageBps: event.target.value })} placeholder="Default" hint="Up to 300." />
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-bold md:col-span-2">
-            <input type="checkbox" className="h-4 w-4 accent-[#0052FF]" checked={draft.blink} onChange={(event) => set({ blink: event.target.checked })} />
+            <input type="checkbox" className="h-4 w-4 accent-[#2F5BFF]" checked={draft.blink} onChange={(event) => set({ blink: event.target.checked })} />
             Offer a Solana blink when eligible
           </label>
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-bold md:col-span-2">
-            <input type="checkbox" className="h-4 w-4 accent-[#0052FF]" checked={draft.allowHolds} onChange={(event) => set({ allowHolds: event.target.checked })} />
+            <input type="checkbox" className="h-4 w-4 accent-[#2F5BFF]" checked={draft.allowHolds} onChange={(event) => set({ allowHolds: event.target.checked })} />
             Publish even if my rule book holds its intents for approval
           </label>
         </fieldset>
@@ -287,7 +287,7 @@ export function LinkBuilder({ apiKey, contracts, ruleBook, keyId, onCreated }: L
         ) : null}
 
         {touched && issues.length > 0 ? (
-          <div role="alert" className="flex flex-col gap-1.5 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-4 text-sm text-[#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+          <div role="alert" className="flex flex-col gap-1.5 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-4 text-sm text-[#121212] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
             <p className="font-display text-lg font-bold">Fix these before publishing</p>
             {issues.slice(0, 12).map((issue, index) => (
               <p key={`${issue.path}-${index}`}>

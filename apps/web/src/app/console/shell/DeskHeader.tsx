@@ -62,7 +62,7 @@ function TasksPopover({ count, onOpenTask, onNewTask }: { readonly count: number
         {copy.tasksButton(count)}
       </button>
       {open ? (
-        <div id={panelId} className="absolute left-0 top-full z-50 mt-2 max-h-[70dvh] w-80 overflow-y-auto border-[3px] border-control bg-[var(--kl-paper)] p-3 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]">
+        <div id={panelId} className="absolute left-0 top-full z-50 mt-2 max-h-[70dvh] w-80 overflow-y-auto border-[3px] border-control bg-[var(--kl-paper)] p-3 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]">
           <TaskList
             headingLevel={2}
             onOpenTask={(id) => {

@@ -142,7 +142,7 @@ test("/app renders the desk, entered before the first paint; the classic shell i
   assert.match(main, /initialRouteKind === "console"\) \{\s*enterDeskMode\(\);/u, "main.tsx enters desk mode for /app before rendering");
   const router = readFileSync(new URL("../../router.tsx", import.meta.url), "utf8");
   const fallback = router.slice(router.indexOf("function ConsoleBootFallback"), router.indexOf("function EmbedBootFallback"));
-  assert.ok(fallback.includes("bg-[#F4F1EA]") && !/bg-\[#0B1120\] font-black/u.test(fallback), "the console's loading plate is paper, not the old dark shell");
+  assert.ok(fallback.includes("bg-[#D6D2C8]") && !/bg-\[#0B1120\] font-black/u.test(fallback), "the console's loading plate is the chassis, not the old dark shell");
   const html = readFileSync(new URL("../../../../index.html", import.meta.url), "utf8");
   assert.match(html, /interactive-widget=resizes-content/u, "the sticky composer stays above the phone keyboard");
   assert.ok(!/\^\\\/app/u.test(html), "the desk gets the site's font preloads");

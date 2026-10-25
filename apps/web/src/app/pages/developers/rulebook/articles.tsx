@@ -69,7 +69,7 @@ function Article({ n, ctx, children }: { readonly n: number; readonly ctx: Artic
   const open = ctx.isOpen(n);
   const marks = ctx.marks(n);
   return (
-    <section id={`rb-article-${n}`} aria-labelledby={`rb-article-${n}-title`} className={cx("flex min-w-0 flex-col", INK_BORDER_THIN, open ? "bg-white dark:bg-[#131E32]" : "")}>
+    <section id={`rb-article-${n}`} aria-labelledby={`rb-article-${n}-title`} className={cx("flex min-w-0 flex-col", INK_BORDER_THIN, open ? "bg-[#FBFAF6] dark:bg-[#19191C]" : "")}>
       <h5 id={`rb-article-${n}-title`} className="m-0">
         <button
           type="button"
@@ -95,7 +95,7 @@ function Article({ n, ctx, children }: { readonly n: number; readonly ctx: Artic
                   </span>
                 ) : null}
                 {marks.changed ? (
-                  <span className="border-2 border-dashed border-[#1A1A1A] px-1.5 font-code text-[12px] font-black uppercase tracking-[0.08em] dark:border-white/60">Changed in the draft</span>
+                  <span className="border-2 border-dashed border-[#121212] px-1.5 font-code text-[12px] font-black uppercase tracking-[0.08em] dark:border-white/60">Changed in the draft</span>
                 ) : null}
               </span>
             ) : null}
@@ -104,7 +104,7 @@ function Article({ n, ctx, children }: { readonly n: number; readonly ctx: Artic
         </button>
       </h5>
       {open ? (
-        <div id={`rb-article-${n}-body`} className="min-w-0 border-t-2 border-dashed border-[#1A1A1A]/20 px-3 pb-4 pt-4 dark:border-white/10 sm:px-5">
+        <div id={`rb-article-${n}-body`} className="min-w-0 border-t-2 border-dashed border-[#121212]/20 px-3 pb-4 pt-4 dark:border-white/10 sm:px-5">
           {children}
         </div>
       ) : null}
@@ -273,7 +273,7 @@ export function SidingsArticle({ draft, set, ctx }: ArticleProps) {
         {(ids) => (
           <div id={ids.id} aria-describedby={ids.describedBy} className="flex min-w-0 flex-col gap-2">
             <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 self-start text-sm font-bold">
-              <input type="checkbox" className="h-4 w-4 accent-[#0052FF]" disabled={ctx.disabled} checked={allow === undefined} onChange={(event) => update(event.target.checked ? undefined : [])} />
+              <input type="checkbox" className="h-4 w-4 accent-[#2F5BFF]" disabled={ctx.disabled} checked={allow === undefined} onChange={(event) => update(event.target.checked ? undefined : [])} />
               {ctx.defaults === "agent" ? "Default (none)" : "Any registration the key may use"}
             </label>
             {allow !== undefined ? (
@@ -288,7 +288,7 @@ export function SidingsArticle({ draft, set, ctx }: ArticleProps) {
                         <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm font-bold">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 accent-[#0052FF]"
+                            className="h-4 w-4 accent-[#2F5BFF]"
                             disabled={ctx.disabled}
                             checked={Boolean(entry)}
                             onChange={(event) => update(event.target.checked ? [...allow, { id: contract.id }] : allow.filter((item) => item.id !== contract.id))}
@@ -305,7 +305,7 @@ export function SidingsArticle({ draft, set, ctx }: ArticleProps) {
                                 <label key={action.id} className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 text-[13px]">
                                   <input
                                     type="checkbox"
-                                    className="h-3.5 w-3.5 accent-[#0052FF]"
+                                    className="h-3.5 w-3.5 accent-[#2F5BFF]"
                                     disabled={ctx.disabled}
                                     checked={on}
                                     onChange={(event) => {

@@ -191,25 +191,25 @@ export function ArcAppKitRouteCard({
   };
 
   return (
-    <div className="mt-5 flex w-full flex-col gap-4 border-[3px] border-[#1A1A1A] bg-white p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#0F172A] dark:text-white dark:shadow-[4px_4px_0_#475569] sm:w-80 md:w-[450px] md:p-5">
-      <div className="flex items-center justify-between gap-3 border-b-[3px] border-[#1A1A1A] pb-2 text-xs font-black uppercase tracking-widest dark:border-[#4B5563] md:text-sm">
+    <div className="mt-5 flex w-full flex-col gap-4 border-[3px] border-[#121212] bg-[#FBFAF6] p-4 text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:bg-[#121212] dark:text-white dark:shadow-[4px_4px_0_#2A2A30] sm:w-80 md:w-[450px] md:p-5">
+      <div className="flex items-center justify-between gap-3 border-b-[3px] border-[#121212] pb-2 text-xs font-black uppercase tracking-widest dark:border-[#4A4A52] md:text-sm">
         <span className="flex items-center gap-2">
           <Route className="h-4 w-4 text-[#8B5CF6] md:h-5 md:w-5" />
           Arc Money Route
         </span>
-        <span className="border-[2px] border-[#1A1A1A] bg-[#FACC15] px-2 py-1 text-[10px] text-[#1A1A1A]">
+        <span className="border-[2px] border-[#121212] bg-[#FACC15] px-2 py-1 text-[10px] text-[#121212]">
           TESTNET
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-        <div className="border-[2px] border-[#1A1A1A] bg-[#EFEFEF] p-2 text-[#1A1A1A] dark:border-[#4B5563]">
+        <div className="border-[2px] border-[#121212] bg-[#EFEFEF] p-2 text-[#121212] dark:border-[#4A4A52]">
           <span className="block text-[9px] font-black uppercase text-gray-500">
             Provider
           </span>
           Circle App Kit
         </div>
-        <div className="border-[2px] border-[#1A1A1A] bg-[#EFEFEF] p-2 text-[#1A1A1A] dark:border-[#4B5563]">
+        <div className="border-[2px] border-[#121212] bg-[#EFEFEF] p-2 text-[#121212] dark:border-[#4A4A52]">
           <span className="block text-[9px] font-black uppercase text-gray-500">
             Operation
           </span>
@@ -218,11 +218,11 @@ export function ArcAppKitRouteCard({
       </div>
 
       {isQuoting ? (
-        <div className="flex items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#EDE9FE] p-3 text-sm font-black text-[#1A1A1A]">
+        <div className="flex items-center gap-2 border-[3px] border-[#121212] bg-[#EDE9FE] p-3 text-sm font-black text-[#121212]">
           <Loader2 className="h-5 w-5 animate-spin" />
           Fetching official SDK estimate…</div>
       ) : quote ? (
-        <div className="space-y-2 border-[3px] border-[#1A1A1A] bg-[#D1FAE5] p-3 text-sm font-bold text-[#1A1A1A]">
+        <div className="space-y-2 border-[3px] border-[#121212] bg-[#D1FAE5] p-3 text-sm font-bold text-[#121212]">
           <div className="font-black">{quote.headline}</div>
           {quote.minimumOutput && (
             <div>Korunan minimum: {quote.minimumOutput}</div>
@@ -232,7 +232,7 @@ export function ArcAppKitRouteCard({
               ? quote.fees.map((fee) => <div key={fee}>Fee: {fee}</div>)
               : "SDK provider did not return any fee items."}
           </div>
-          <div className="border-t-[2px] border-[#1A1A1A] pt-2 text-[10px] leading-relaxed">
+          <div className="border-t-[2px] border-[#121212] pt-2 text-[10px] leading-relaxed">
             {quote.feeDisclosure}
           </div>
           <div className="text-[10px] uppercase text-gray-600">
@@ -243,14 +243,14 @@ export function ArcAppKitRouteCard({
       ) : null}
 
       {error && (
-        <div className="border-[3px] border-[#1A1A1A] bg-[#FCA5A5] p-3 text-xs font-black text-[#1A1A1A]">
+        <div className="border-[3px] border-[#121212] bg-[#FCA5A5] p-3 text-xs font-black text-[#121212]">
           {error}
         </div>
       )}
 
       {effectiveStatus && (
         <div
-          className={`border-[3px] border-[#1A1A1A] p-3 text-xs font-black text-[#1A1A1A] ${
+          className={`border-[3px] border-[#121212] p-3 text-xs font-black text-[#121212] ${
             effectiveStatus === "success"
               ? "bg-[#86EFAC]"
               : effectiveStatus === "pending"
@@ -281,7 +281,7 @@ export function ArcAppKitRouteCard({
           isExecuting ||
           !sessionMatches
         }
-        className="flex w-full items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-white py-3 text-xs font-black uppercase tracking-wider text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] transition-all enabled:hover:-translate-y-0.5 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4B5563]"
+        className="flex w-full items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#FBFAF6] py-3 text-xs font-black uppercase tracking-wider text-[#121212] shadow-[3px_3px_0_#121212] transition-all enabled:hover:-translate-y-0.5 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4A4A52]"
       >
         <RefreshCw className={`h-4 w-4 ${isQuoting ? "animate-spin" : ""}`} />
         Refresh Estimate
@@ -298,13 +298,13 @@ export function ArcAppKitRouteCard({
           (!quote && effectiveStatus !== "recoverable") ||
           !sessionMatches
         }
-        className={`flex w-full items-center justify-center gap-2 border-[3px] border-[#1A1A1A] py-3 text-sm font-black uppercase tracking-wide text-white shadow-[3px_3px_0_#1A1A1A] transition-all enabled:hover:-translate-y-0.5 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`flex w-full items-center justify-center gap-2 border-[3px] border-[#121212] py-3 text-sm font-black uppercase tracking-wide text-white shadow-[3px_3px_0_#121212] transition-all enabled:hover:-translate-y-0.5 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 ${
           effectiveStatus === "success"
             ? "bg-[#10B981]"
             : effectiveStatus === "recoverable"
               ? "bg-[#EA580C]"
               : effectiveStatus
-                ? "bg-[#64748B]"
+                ? "bg-[#8F8C84]"
                 : "bg-[#8B5CF6]"
         }`}
       >

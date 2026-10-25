@@ -29,10 +29,10 @@ export function IntentPrivacyDecisionCard({
   return (
     <section
       aria-labelledby="intent-privacy-decision-title"
-      className="mx-auto mb-2 w-full max-w-4xl border-[3px] border-[#1A1A1A] bg-[#EDE7FF] p-3 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#231C3D] dark:text-white dark:shadow-[4px_4px_0_#475569] sm:p-4"
+      className="mx-auto mb-2 w-full max-w-4xl border-[3px] border-[#121212] bg-[#EDE7FF] p-3 text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#8F8C84] dark:bg-[#231C3D] dark:text-white dark:shadow-[4px_4px_0_#2A2A30] sm:p-4"
     >
-      <div className="flex items-start gap-3 border-b-[3px] border-[#1A1A1A] pb-3 dark:border-[#64748B]">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#8B5CF6] text-white dark:border-[#94A3B8]">
+      <div className="flex items-start gap-3 border-b-[3px] border-[#121212] pb-3 dark:border-[#8F8C84]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#121212] bg-[#8B5CF6] text-white dark:border-[#94A3B8]">
           <BrainCircuit className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0">
@@ -55,7 +55,7 @@ export function IntentPrivacyDecisionCard({
             type="button"
             disabled={busy}
             onClick={() => onSelect(sessionOption)}
-            className="inline-flex min-h-12 items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#8B5CF6] px-4 py-3 text-xs font-black uppercase text-white shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow] enabled:hover:-translate-y-0.5 enabled:active:translate-y-0 enabled:active:shadow-none disabled:cursor-wait disabled:opacity-60 dark:border-[#94A3B8]"
+            className="inline-flex min-h-12 items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#8B5CF6] px-4 py-3 text-xs font-black uppercase text-white shadow-[3px_3px_0_#121212] transition-[transform,box-shadow] enabled:hover:-translate-y-0.5 enabled:active:translate-y-0 enabled:active:shadow-none disabled:cursor-wait disabled:opacity-60 dark:border-[#94A3B8]"
           >
             <BrainCircuit className="h-5 w-5" aria-hidden="true" />
             {sessionOption.label}
@@ -66,7 +66,7 @@ export function IntentPrivacyDecisionCard({
             type="button"
             disabled={busy}
             onClick={() => onSelect(editOption)}
-            className="inline-flex min-h-12 items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-white px-4 py-3 text-xs font-black uppercase shadow-[3px_3px_0_#1A1A1A] disabled:cursor-wait disabled:opacity-60 dark:border-[#64748B] dark:bg-[#111C2F] dark:shadow-[3px_3px_0_#475569]"
+            className="inline-flex min-h-12 items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#FBFAF6] px-4 py-3 text-xs font-black uppercase shadow-[3px_3px_0_#121212] disabled:cursor-wait disabled:opacity-60 dark:border-[#8F8C84] dark:bg-[#111C2F] dark:shadow-[3px_3px_0_#2A2A30]"
           >
             <PencilLine className="h-4 w-4" aria-hidden="true" />
             Edit
@@ -74,7 +74,7 @@ export function IntentPrivacyDecisionCard({
         ) : null}
       </div>
 
-      <details className="mt-3 border-t-2 border-[#1A1A1A] pt-2 text-xs dark:border-[#64748B]">
+      <details className="mt-3 border-t-2 border-[#121212] pt-2 text-xs dark:border-[#8F8C84]">
         <summary className="flex cursor-pointer list-none items-center gap-2 font-black">
           <ChevronDown className="h-4 w-4" aria-hidden="true" />
           Privacy options
@@ -91,7 +91,7 @@ export function IntentPrivacyDecisionCard({
                 type="button"
                 disabled={busy}
                 onClick={() => onSelect(option)}
-                className="border-[3px] border-[#1A1A1A] bg-white p-3 text-left shadow-[2px_2px_0_#1A1A1A] disabled:opacity-60 dark:border-[#64748B] dark:bg-[#111C2F] dark:shadow-[2px_2px_0_#475569]"
+                className="border-[3px] border-[#121212] bg-[#FBFAF6] p-3 text-left shadow-[2px_2px_0_#121212] disabled:opacity-60 dark:border-[#8F8C84] dark:bg-[#111C2F] dark:shadow-[2px_2px_0_#2A2A30]"
               >
                 <span className="flex items-center gap-2 text-xs font-black uppercase"><Icon className="h-4 w-4" />{option.label}</span>
                 <span className="mt-1 block text-[10px] font-bold leading-relaxed">{option.description}</span>

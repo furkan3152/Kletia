@@ -18,7 +18,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px 8px 8px;
-  background: #1a1a1a;
+  background: #121212;
   color: #f4f1ea;
 }
 .dark .kla-psign__board {
@@ -29,8 +29,8 @@
   align-items: center;
   gap: 7px;
   padding: 4px 9px 4px 8px;
-  background: #ffd60a;
-  color: #1a1a1a;
+  background: #c6ff3a;
+  color: #121212;
   font: 700 22px/1 var(--kla-font-display);
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
@@ -51,7 +51,7 @@
 }
 /* On the ink board the second ink is action blue, day and night. */
 .kla-psign__cat .kla-icon {
-  --kla-plate: #0052ff;
+  --kla-plate: #2f5bff;
 }
 .kla-psign__body {
   display: flex;
@@ -102,15 +102,15 @@
   text-transform: uppercase;
 }
 .kla-psign__services [data-service="execute"] {
-  color: #0047e0;
+  color: #1a36b0;
 }
 .dark .kla-psign__services [data-service="execute"] {
   color: #7ea6ff;
 }
 .kla-psign__services [data-service="quote"] {
-  color: #1a1a1a;
-  background: #ffd60a;
-  border-color: #1a1a1a;
+  color: #121212;
+  background: #c6ff3a;
+  border-color: #121212;
 }
 /* The foot grows to fill the sign: a plain action sits at the bottom, and a
    custom foot can keep its first rows up under the services and push only its

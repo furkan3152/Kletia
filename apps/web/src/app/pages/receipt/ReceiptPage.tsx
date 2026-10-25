@@ -29,7 +29,7 @@ type Recheck =
 /** The public nodes this page asks from the reader's browser (the SDK defaults minus nodes that refuse browsers). */
 const RECHECK_SOURCES = browserSources(DEFAULT_REVERIFY_RPCS);
 
-const PAPER = "kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]";
+const PAPER = "kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]";
 
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
@@ -82,7 +82,7 @@ function Missing() {
 function Loading() {
   return (
     <div key="loading" className={cx(CONTAINER, "flex min-h-[50vh] items-center justify-center py-16")} role="status">
-      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+      <span className="border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]">
         Checking the receipt
       </span>
     </div>
@@ -159,7 +159,7 @@ function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
             {announcement}
           </p>
           {status?.supersededBy ? (
-            <p className={cx("mt-5 max-w-2xl bg-[#FFF3B0] p-3 text-sm font-semibold text-[#1A1A1A]", INK_BORDER)}>
+            <p className={cx("mt-5 max-w-2xl bg-[#FFF3B0] p-3 text-sm font-semibold text-[#121212]", INK_BORDER)}>
               A newer receipt for this intent exists. Ask the owner for its link: this one may describe an earlier state of the intent.
             </p>
           ) : null}
@@ -167,7 +167,7 @@ function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
             <ReceiptTicket model={model} verdict={verdict} share={share} supersededBy={status?.supersededBy ?? null} rechecked={rechecked} animate />
           </div>
           {verdict.kind === "void" ? (
-            <div className={cx("mt-8 max-w-3xl bg-[#FFE4E4] p-4 text-[#1A1A1A] dark:bg-[#2A1215] dark:text-[#FEE2E2]", INK_BORDER, HARD_SHADOW)}>
+            <div className={cx("mt-8 max-w-3xl bg-[#FFE4E4] p-4 text-[#121212] dark:bg-[#2A1215] dark:text-[#FEE2E2]", INK_BORDER, HARD_SHADOW)}>
               <p className="font-display text-lg font-bold">What did not check out</p>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold">
                 {verdict.problems.map((problem) => (
@@ -182,7 +182,7 @@ function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
       <section aria-labelledby="kl-rcpt-check" className="py-12 sm:py-16">
         <div className={cx(CONTAINER, "grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]")}>
           <div className="kl-rcpt-blueprint min-w-0 p-5 sm:p-6">
-            <p className="font-code text-[10px] font-bold uppercase tracking-[0.2em] text-[#FFD60A]">Drawing KL-RCPT · check it yourself</p>
+            <p className="font-code text-[10px] font-bold uppercase tracking-[0.2em] text-[#C6FF3A]">Drawing KL-RCPT · check it yourself</p>
             <h2 id="kl-rcpt-check" className="mt-2 font-display text-2xl font-bold tracking-[-0.02em] text-white">
               Check it yourself
             </h2>
@@ -195,7 +195,7 @@ function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
                 <dt>Key</dt>
                 <dd>
                   {document.signature.kid}{" "}
-                  <span className="text-[#FFD60A]">
+                  <span className="text-[#C6FF3A]">
                     {provenance === "pinned"
                       ? "(pinned in @kletia/core)"
                       : provenance === "two-origins"
@@ -253,7 +253,7 @@ function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
           </div>
 
           <div className={cx("min-w-0 p-5 sm:p-6", INK_BORDER, HARD_SHADOW, SURFACE)}>
-            <p className={cx(LABEL, "flex items-center gap-2 text-[#0047E0] dark:text-[#7EA6FF]")}>
+            <p className={cx(LABEL, "flex items-center gap-2 text-[#1A36B0] dark:text-[#8FA6FF]")}>
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               Privacy
             </p>

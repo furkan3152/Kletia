@@ -34,12 +34,12 @@ const STATUS_PRESENTATION: Record<
 > = {
   pending: {
     label: "Pending",
-    className: "bg-[#FFD60A] text-[#1A1A1A]",
+    className: "bg-[#C6FF3A] text-[#121212]",
     Icon: LoaderCircle,
   },
   confirmed: {
     label: "Confirmed",
-    className: "bg-[#14F195] text-[#1A1A1A]",
+    className: "bg-[#14F195] text-[#121212]",
     Icon: CircleCheck,
   },
   failed: {
@@ -67,11 +67,11 @@ function ActivityRow({ entry, compact }: { entry: ActivityEntry; compact: boolea
   const chain = CHAINS[entry.network];
   const StatusIcon = status.Icon;
   return (
-    <li className="border-[3px] border-[#1A1A1A] bg-white p-3 shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:shadow-[3px_3px_0_#475569]">
+    <li className="border-[3px] border-[#121212] bg-[#FBFAF6] p-3 shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:shadow-[3px_3px_0_#2A2A30]">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <p
-            className={`truncate font-black text-[#1A1A1A] dark:text-white ${compact ? "text-xs" : "text-sm"}`}
+            className={`truncate font-black text-[#121212] dark:text-white ${compact ? "text-xs" : "text-sm"}`}
             title={entry.title}
           >
             {entry.title}
@@ -80,7 +80,7 @@ function ActivityRow({ entry, compact }: { entry: ActivityEntry; compact: boolea
             <span className="inline-flex items-center gap-1">
               <span
                 aria-hidden="true"
-                className="inline-block h-2 w-2 border border-[#1A1A1A]"
+                className="inline-block h-2 w-2 border border-[#121212]"
                 style={{ backgroundColor: chain.color }}
               />
               {chain.shortName}
@@ -94,7 +94,7 @@ function ActivityRow({ entry, compact }: { entry: ActivityEntry; compact: boolea
           </p>
         </div>
         <span
-          className={`inline-flex shrink-0 items-center gap-1 border-2 border-[#1A1A1A] px-1.5 py-0.5 text-[10px] font-black uppercase ${status.className}`}
+          className={`inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black uppercase ${status.className}`}
         >
           <StatusIcon
             className={`h-3 w-3 ${entry.status === "pending" ? "animate-spin" : ""}`}
@@ -108,7 +108,7 @@ function ActivityRow({ entry, compact }: { entry: ActivityEntry; compact: boolea
           href={entry.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-[11px] font-black uppercase text-[#0052FF] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] dark:text-[#93C5FD]"
+          className="mt-2 inline-flex items-center gap-1 text-[11px] font-black uppercase text-[#1A36B0] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF] dark:text-[#93C5FD]"
         >
           View on {chain.explorer.name}
           <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -155,7 +155,7 @@ export function ActivityFeed({
       ) : null}
       <div aria-live="polite" aria-relevant="additions text">
         {visible.length === 0 ? (
-          <p className="border-[3px] border-dashed border-[#1A1A1A] bg-white/70 p-4 text-sm font-bold text-gray-700 dark:border-[#4B5563] dark:bg-[#131E32]/70 dark:text-slate-300">
+          <p className="border-[3px] border-dashed border-[#121212] bg-white/70 p-4 text-sm font-bold text-gray-700 dark:border-[#4A4A52] dark:bg-[#19191C]/70 dark:text-slate-300">
             {emptyHint}
           </p>
         ) : (

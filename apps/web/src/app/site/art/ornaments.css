@@ -17,9 +17,9 @@
   height: 48px;
   padding: 0 4px;
   box-sizing: border-box;
-  background: #ffd60a;
-  color: #1a1a1a;
-  border: 3px solid #1a1a1a;
+  background: #c6ff3a;
+  color: #121212;
+  border: 3px solid #121212;
   box-shadow: 3px 3px 0 var(--kla-shadow);
   font: 700 22px/1 var(--kla-font-display);
   letter-spacing: -0.04em;
@@ -38,7 +38,7 @@
   color: var(--kla-text);
 }
 .kla-platform-no--ink .kla-platform-no__label {
-  color: #ffd60a;
+  color: #c6ff3a;
 }
 .kla-platform-no--ink .kla-platform-no__plate {
   box-shadow: 3px 3px 0 #000;
@@ -66,7 +66,7 @@
 }
 /* Sleepers are printed on the line itself, so they stay ink at night. */
 .kla-linerule__sleeper {
-  fill: #1a1a1a;
+  fill: #121212;
 }
 .kla-linerule__shadow {
   fill: var(--kla-shadow);

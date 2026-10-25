@@ -103,7 +103,7 @@ function UseAnotherKey({ onUsed, inputRef }: { readonly onUsed: () => void; read
           data-form-type="other"
           aria-describedby={`${id}-note`}
           className={cx(
-            "min-h-11 w-full min-w-0 border-r-0 bg-white px-3 py-2 font-code text-[13px] text-fg placeholder:text-placeholder dark:bg-[#0B1120]",
+            "min-h-11 w-full min-w-0 border-r-0 bg-[#FBFAF6] px-3 py-2 font-code text-[13px] text-fg placeholder:text-placeholder dark:bg-[#0E0E10]",
             CONTROL_BORDER,
             FOCUS_RING,
             "focus-visible:-outline-offset-4",
@@ -115,7 +115,7 @@ function UseAnotherKey({ onUsed, inputRef }: { readonly onUsed: () => void; read
           aria-pressed={visible}
           aria-label={visible ? "Hide the key" : "Show the key"}
           className={cx(
-            "inline-flex min-h-11 w-11 shrink-0 items-center justify-center border-r-0 bg-[#F1EFE8] text-[#1A1A1A] hover:bg-[#FFD60A] dark:bg-[#1A2841] dark:text-white dark:hover:bg-[#22345A]",
+            "inline-flex min-h-11 w-11 shrink-0 items-center justify-center border-r-0 bg-[#E6E2D9] text-[#121212] hover:bg-[#C6FF3A] dark:bg-[#232327] dark:text-white dark:hover:bg-[#2A2A2E]",
             CONTROL_BORDER,
             FOCUS_RING,
           )}
@@ -159,7 +159,7 @@ export function KeyMenu({ open, onOpen, onClose }: { readonly open: boolean; rea
         className={cx(
           "inline-flex min-h-11 min-w-0 max-w-[16rem] items-center gap-1.5 px-2.5 text-xs font-bold sm:max-w-[22rem]",
           CONTROL_BORDER,
-          warning ? "bg-danger-bg text-danger" : loaded ? "bg-[#FFD60A] text-[#1A1A1A]" : "bg-surface text-fg",
+          warning ? "bg-danger-bg text-danger" : loaded ? "bg-[#C6FF3A] text-[#121212]" : "bg-surface text-fg",
           FOCUS_RING,
         )}
       >
@@ -247,7 +247,7 @@ export function KeyMenu({ open, onOpen, onClose }: { readonly open: boolean; rea
               No key in this tab: pages use the public tier (30 requests a minute per IP). Load a key to manage your project.
             </p>
           )}
-          <div className="border-t-2 border-dashed border-[#1A1A1A]/25 pt-4 dark:border-white/15">
+          <div className="border-t-2 border-dashed border-[#121212]/25 pt-4 dark:border-white/15">
             <UseAnotherKey inputRef={inputRef} onUsed={() => setCopied("idle")} />
           </div>
           <p className="flex flex-wrap items-center gap-3 text-sm">

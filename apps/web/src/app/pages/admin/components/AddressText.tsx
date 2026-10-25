@@ -54,7 +54,7 @@ function IconCopy({ text, label }: { readonly text: string; readonly label: stri
         setCopied(ok);
         if (ok) window.setTimeout(() => setCopied(false), 1500);
       }}
-      className={cx("inline-flex h-8 w-8 items-center justify-center hover:bg-[#FFD60A] hover:text-[#1A1A1A]", FOCUS_RING)}
+      className={cx("inline-flex h-8 w-8 items-center justify-center hover:bg-[#C6FF3A] hover:text-[#121212]", FOCUS_RING)}
     >
       {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
       <span className="sr-only" role="status" aria-live="polite">

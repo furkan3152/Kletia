@@ -65,7 +65,7 @@ function Pin({ side }: { readonly side: "left" | "right" }) {
   return (
     <span
       aria-hidden="true"
-      className={`absolute -top-[9px] z-[2] h-4 w-4 rounded-full border-[3px] border-[#1A1A1A] bg-[#FFD60A] shadow-[inset_-2px_-2px_0_rgba(26,26,26,0.35)] ${side === "left" ? "left-7" : "right-7"}`}
+      className={`absolute -top-[9px] z-[2] h-4 w-4 rounded-full border-[3px] border-[#121212] bg-[#C6FF3A] shadow-[inset_-2px_-2px_0_rgba(26,26,26,0.35)] ${side === "left" ? "left-7" : "right-7"}`}
     />
   );
 }
@@ -86,18 +86,18 @@ export function FeatureGrid() {
       title="Rules the planner follows on every route."
       intro="Each one is enforced by the API and written down in the public spec."
     >
-      <div className="kla-grain relative -rotate-[0.4deg] border-[3px] border-[#1A1A1A] bg-[#FFFCF2] pb-3 text-[#1A1A1A] shadow-hard-lg dark:bg-[#ECE6D6] [--kla-plate:#FFD60A] [--kla-grain:var(--kla-stock-grain)]">
+      <div className="kla-grain relative -rotate-[0.4deg] border-[3px] border-[#121212] bg-[#FFFCF2] pb-3 text-[#121212] shadow-hard-lg dark:bg-[#ECE6D6] [--kla-plate:#FFD60A] [--kla-grain:var(--kla-stock-grain)]">
         <Pin side="left" />
         <Pin side="right" />
-        <p className="flex flex-wrap justify-between gap-2 bg-[#1A1A1A] px-6 py-3.5 font-code text-xs font-extrabold uppercase leading-tight tracking-[0.18em] text-[#FFD60A]">
+        <p className="flex flex-wrap justify-between gap-2 bg-[#121212] px-6 py-3.5 font-code text-xs font-extrabold uppercase leading-tight tracking-[0.18em] text-[#C6FF3A]">
           <span>Kletia planner</span>
-          <span className="font-semibold text-[#F4F1EA]">House rules · in force on every route</span>
+          <span className="font-semibold text-[#F2F0EA]">House rules · in force on every route</span>
         </p>
         <ol className="grid px-6 md:grid-cols-2">
           {RULES.map((rule, index) => (
             <li
               key={rule.title}
-              className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-4 border-b-[1.5px] border-dashed border-[#1A1A1A]/35 py-6 last:border-b-0 md:odd:pr-7 md:even:border-l-[1.5px] md:even:pl-7 md:[&:nth-last-child(2)]:border-b-0"
+              className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-4 border-b-[1.5px] border-dashed border-[#121212]/35 py-6 last:border-b-0 md:odd:pr-7 md:even:border-l-[1.5px] md:even:pl-7 md:[&:nth-last-child(2)]:border-b-0"
             >
               <Icon name={rule.icon} size={34} />
               <div className="min-w-0">
@@ -105,8 +105,8 @@ export function FeatureGrid() {
                   <span className="mr-2 font-code text-xs font-bold text-[#5B5C61]">{String(index + 1).padStart(2, "0")}</span>
                   {rule.title}
                 </h3>
-                <p className="mt-2 text-[14.5px] leading-relaxed text-[#45464B]">{rule.body}</p>
-                <code className="mt-2 inline-block font-code text-[11.5px] font-semibold text-[#0047E0]">{rule.tag}</code>
+                <p className="mt-2 text-[14.5px] leading-relaxed text-[#5C5850]">{rule.body}</p>
+                <code className="mt-2 inline-block font-code text-[11.5px] font-semibold text-[#1A36B0]">{rule.tag}</code>
               </div>
             </li>
           ))}

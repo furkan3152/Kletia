@@ -50,8 +50,8 @@ export function CopyButton({ text, label = "Copy", className, appearance = "dark
       className={cx(
         "inline-flex min-h-9 items-center gap-1.5 border-2 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] transition-colors",
         appearance === "dark"
-          ? "border-white/25 bg-white/5 text-white hover:border-[#FFD60A] hover:text-[#FFD60A]"
-          : "border-[#1A1A1A] bg-white text-[#1A1A1A] hover:bg-[#FFD60A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white dark:hover:bg-[#22345A]",
+          ? "border-white/25 bg-white/5 text-white hover:border-[#C6FF3A] hover:text-[#C6FF3A]"
+          : "border-[#121212] bg-[#FBFAF6] text-[#121212] hover:bg-[#C6FF3A] dark:border-[#4A4A52] dark:bg-[#232327] dark:text-white dark:hover:bg-[#2A2A2E]",
         FOCUS_RING,
         className,
       )}

@@ -11,8 +11,8 @@ const TONES: Record<SectionTone, string> = {
   paper: "bg-[#EDE9DF] dark:bg-[#0E1729]",
   ink: "bg-[#111318] text-white dark:bg-[#060A14]",
   // Printed ink stays ink on yellow in both themes (the art reads --kla-text and --kla-muted).
-  yellow: "bg-[#FFD60A] text-[#1A1A1A] [--kla-muted:#3A3B3F] [--kla-text:#1A1A1A]",
-  blue: "bg-[#0052FF] text-white",
+  yellow: "bg-[#C6FF3A] text-[#121212] [--kla-muted:#3A3B3F] [--kla-text:#1A1A1A]",
+  blue: "bg-[#2F5BFF] text-white",
 };
 
 export interface SectionProps {
@@ -83,7 +83,7 @@ export function Section({
       className={cx(
         "relative scroll-mt-24 py-16 sm:py-20 lg:py-24",
         TONES[tone],
-        bordered && "border-y-[3px] border-[#1A1A1A] dark:border-[#4B5563]",
+        bordered && "border-y-[3px] border-[#121212] dark:border-[#4A4A52]",
         className,
       )}
     >
@@ -104,7 +104,7 @@ export function Section({
                     className={cx(
                       LABEL,
                       "mb-4 font-code",
-                      dark ? "text-[#FFD60A]" : tone === "yellow" ? "text-[#1A1A1A]" : "text-[#0047E0] dark:text-[#7EA6FF]",
+                      dark ? "text-[#C6FF3A]" : tone === "yellow" ? "text-[#121212]" : "text-[#1A36B0] dark:text-[#8FA6FF]",
                     )}
                   >
                     {eyebrow}
@@ -125,7 +125,7 @@ export function Section({
                   {...item}
                   className={cx(
                     "mt-5 max-w-2xl text-base leading-relaxed sm:text-lg",
-                    dark ? "text-white/80" : tone === "yellow" ? "text-[#1A1A1A]/85" : TEXT_MUTED,
+                    dark ? "text-white/80" : tone === "yellow" ? "text-[#121212]/85" : TEXT_MUTED,
                   )}
                 >
                   {intro}

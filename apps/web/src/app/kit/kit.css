@@ -1,0 +1,1328 @@
+/*
+ * Kletia kit: the Card machine's components. Values are copied from the design prototype's
+ * kit.css. Colours come from the --k-* tokens in styles.css (light on :root, night on .dark).
+ * Every class is prefixed `k-`. Motion lives in motion.ts (WAAPI) and here (CSS loops); every
+ * loop stops under prefers-reduced-motion and html[data-motion="off"] (styles.css).
+ * This sheet ships with the kit components (a lazy chunk), never in the entry stylesheet.
+ */
+
+/* ---------- materials + type ---------- */
+.k-grain {
+  background-image: var(--k-grain);
+}
+.k-eng {
+  margin: 0;
+  font: 650 12.5px/1.2 var(--k-f-ui);
+  letter-spacing: 0.01em;
+  color: var(--k-ink-2);
+  text-shadow: var(--k-engrave);
+}
+.k-silk {
+  font: 600 11.5px/1.2 var(--k-f-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--k-ink-3);
+}
+.k-num {
+  font-family: var(--k-f-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "zero" 1, "tnum" 1;
+  letter-spacing: -0.01em;
+}
+.k-led-type {
+  font-family: var(--k-f-led);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.k-display {
+  font-family: var(--k-f-display);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+.k-muted {
+  color: var(--k-ink-3);
+}
+.k-up {
+  color: var(--k-up);
+}
+.k-down {
+  color: var(--k-down);
+}
+
+.k-glyph {
+  display: inline-block;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  -webkit-mask: url("/kletia-logo.png") center / contain no-repeat;
+  mask: url("/kletia-logo.png") center / contain no-repeat;
+}
+
+/* ---------- keys (physical buttons) ---------- */
+.k-key {
+  --kk-bg: var(--k-key);
+  --kk-edge: var(--k-key-edge);
+  --kk-ink: var(--k-ink);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--kk-edge) 60%, transparent);
+  border-radius: var(--k-r-key);
+  background: var(--kk-bg);
+  color: var(--kk-ink);
+  font: 650 14.5px/1.2 var(--k-f-ui);
+  letter-spacing: -0.005em;
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 4px 0 var(--kk-edge), 0 5px 10px -4px rgba(0, 0, 0, 0.25);
+  transform: translateY(0);
+  transition:
+    transform 60ms cubic-bezier(0.7, 0, 0.2, 1),
+    box-shadow 60ms cubic-bezier(0.7, 0, 0.2, 1),
+    background-color 120ms;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+}
+.k-key:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 5px 0 var(--kk-edge), 0 8px 14px -6px rgba(0, 0, 0, 0.3);
+}
+.k-key:active,
+.k-key[data-pressed] {
+  transform: translateY(3px);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 1px 0 var(--kk-edge), 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.k-key:disabled,
+.k-key[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.k-key--lime {
+  --kk-bg: var(--k-lime);
+  --kk-edge: var(--k-lime-edge);
+  --kk-ink: #121212;
+}
+.k-key--magenta {
+  --kk-bg: var(--k-magenta);
+  --kk-edge: var(--k-magenta-edge);
+  --kk-ink: #121212;
+}
+.k-key--ink {
+  --kk-bg: var(--k-dark-key);
+  --kk-edge: var(--k-dark-key-edge);
+  --kk-ink: var(--k-chassis);
+}
+.k-key--sm {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 13.5px;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 3px 0 var(--kk-edge);
+}
+.k-key--sq {
+  width: 44px;
+  padding: 0;
+}
+.k-key--sm.k-key--sq {
+  width: 36px;
+}
+.k-key--flat {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.k-key--flat:hover {
+  transform: none;
+  background: var(--k-panel-2);
+  box-shadow: none;
+}
+.k-key svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+@media (max-width: 640px) {
+  .k-key--sm {
+    min-height: 44px;
+  }
+  .k-key--sm.k-key--sq {
+    width: 44px;
+  }
+}
+
+/* link-like text key ("Details", "Back to the card") */
+.k-linkbtn {
+  min-height: 44px;
+  padding: 8px 2px;
+  border: 0;
+  background: none;
+  color: var(--k-ink-2);
+  font: 500 13px var(--k-f-ui);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--k-line-2);
+  cursor: pointer;
+}
+.k-linkbtn:hover {
+  color: var(--k-ink);
+  text-decoration-color: currentColor;
+}
+
+/* ---------- LED ---------- */
+.k-ledot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--k-led-off);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.25);
+}
+.k-ledot[data-tone="on"] {
+  background: var(--k-led-on);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-led-on) 25%, transparent), 0 0 8px color-mix(in srgb, var(--k-led-on) 70%, transparent);
+}
+.k-ledot[data-tone="magenta"] {
+  background: var(--k-magenta);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-magenta) 30%, transparent), 0 0 10px var(--k-magenta);
+}
+.k-ledot[data-tone="blue"] {
+  background: var(--k-blue);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-blue) 30%, transparent), 0 0 10px var(--k-blue);
+}
+.k-ledot[data-blink] {
+  animation: k-blink 2.4s steps(1) infinite;
+}
+
+/* ---------- modules + panels ---------- */
+.k-mod {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--k-line);
+  border-radius: 16px;
+  background: var(--k-raised);
+  box-shadow: var(--k-obj);
+  color: var(--k-ink);
+  min-width: 0;
+}
+.k-mod-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.k-mod-h .k-muted {
+  font-size: 12.5px;
+}
+.k-well {
+  border-radius: 14px;
+  background: var(--k-grain), var(--k-panel-2);
+  border: 1px solid var(--k-line);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+.k-vents {
+  flex: 1;
+  height: 10px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, var(--k-well) 0 14px, transparent 14px 20px);
+  opacity: 0.8;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2);
+  -webkit-mask: linear-gradient(90deg, #000 0 60%, transparent);
+  mask: linear-gradient(90deg, #000 0 60%, transparent);
+}
+.k-screws {
+  position: relative;
+}
+.k-screws::before,
+.k-screws::after {
+  content: "";
+  position: absolute;
+  top: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, var(--k-hi), transparent 60%), var(--k-chassis-2);
+  box-shadow: inset 0 0 0 1px var(--k-line-2);
+}
+.k-screws::before {
+  left: 9px;
+}
+.k-screws::after {
+  right: 9px;
+}
+
+/* ---------- nameplate ---------- */
+.k-plate {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px 10px;
+  overflow: hidden;
+  border-radius: 12px;
+  text-decoration: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #f0eee9, #cdc9bf);
+  border: 1px solid #a9a499;
+  box-shadow: inset 0 1px 0 #fff, 0 2px 0 #9e998e, 0 10px 18px -10px rgba(40, 30, 10, 0.45);
+  color: #2a2925;
+}
+.k-plate::before,
+.k-plate::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #9c978c 70%);
+  box-shadow: inset 0 0 0 1px #8d887d;
+}
+.k-plate::before {
+  left: 8px;
+}
+.k-plate::after {
+  right: 8px;
+}
+.k-plate-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.k-plate-mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  color: #2a2925;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7));
+}
+.k-plate-word {
+  margin-right: -0.16em;
+  font: 800 25px/1 var(--k-f-display);
+  letter-spacing: 0.16em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75), 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+.k-plate-model {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(0, 0, 0, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  font: 500 9.5px var(--k-f-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5c5850;
+  white-space: nowrap;
+}
+.k-plate-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.75) 48%, transparent 60%);
+  transform: translateX(-120%);
+  mix-blend-mode: soft-light;
+}
+.dark .k-plate {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #2c2c30, #1a1a1d);
+  border-color: #3a3a40;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 #000, 0 10px 18px -10px #000;
+  color: #e9e6de;
+}
+.dark .k-plate-mark {
+  color: var(--k-lime);
+  filter: none;
+}
+.dark .k-plate-word {
+  text-shadow: 0 -1px 0 #000, 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.dark .k-plate-model {
+  color: #9a968c;
+  border-top-color: rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.dark .k-plate::before,
+.dark .k-plate::after {
+  background: radial-gradient(circle at 35% 30%, #77757a, #26262a 70%);
+  box-shadow: inset 0 0 0 1px #000;
+}
+.dark .k-plate-shine {
+  background: linear-gradient(105deg, transparent 35%, rgba(198, 255, 58, 0.35) 48%, transparent 60%);
+  mix-blend-mode: screen;
+}
+.k-miniplate {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 9px;
+  text-decoration: none;
+  color: #2a2925;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #f0eee9, #cdc9bf);
+  border: 1px solid #a9a499;
+  box-shadow: inset 0 1px 0 #fff, 0 2px 0 #9e998e;
+}
+.k-miniplate svg {
+  width: 16px;
+  height: 16px;
+}
+.k-miniplate b {
+  font: 800 14px var(--k-f-display);
+  letter-spacing: 0.14em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+.dark .k-miniplate {
+  background: linear-gradient(180deg, #2c2c30, #1a1a1d);
+  border-color: #3a3a40;
+  box-shadow: 0 2px 0 #000;
+  color: #e9e6de;
+}
+.dark .k-miniplate svg {
+  color: var(--k-lime);
+}
+.dark .k-miniplate b {
+  text-shadow: 0 -1px 0 #000;
+}
+
+/* ---------- rotary dial ---------- */
+.k-dial {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+.k-dial-knobwell {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--k-well);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 1px 0 var(--k-hi);
+}
+.k-dial-tick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 7px;
+  margin: -38px 0 0 -1px;
+  border-radius: 1px;
+  background: var(--k-ink-3);
+  transform-origin: 1px 38px;
+}
+.k-dial-knob {
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 30%, var(--k-hi), transparent 55%),
+    repeating-conic-gradient(from 0deg, rgba(0, 0, 0, 0.06) 0 4deg, transparent 4deg 8deg),
+    var(--k-key);
+  border: 1px solid var(--k-line-2);
+  box-shadow: 0 4px 0 var(--k-key-edge), 0 8px 14px -6px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+.k-dial-knob i {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 4px;
+  height: 16px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--k-lime);
+  box-shadow: 0 0 0 1.5px #121212;
+}
+.k-dial-opts {
+  display: grid;
+}
+.k-dial-opt {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--k-ink-3);
+  font: 500 15px/1.2 var(--k-f-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.k-dial-opt:hover {
+  color: var(--k-ink);
+}
+.k-dial-opt[aria-checked="true"] {
+  color: var(--k-ink);
+  font-weight: 650;
+}
+.k-dial-dot {
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--k-line-2);
+}
+.k-dial-opt[aria-checked="true"] .k-dial-dot {
+  background: var(--k-ink);
+}
+.k-dial-opt small {
+  font: 500 12px var(--k-f-mono);
+  color: var(--k-ink-3);
+}
+
+/* ---------- segmented keys (sliding key) ---------- */
+.k-seg {
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--k-well);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.k-seg-btn {
+  position: relative;
+  z-index: 1;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--k-ink-2);
+  font: 620 13.5px/1 var(--k-f-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.k-seg-btn[aria-pressed="true"],
+.k-seg-btn[aria-current="page"] {
+  color: var(--k-ink);
+}
+.k-seg-pill {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  left: 0;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--k-key);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 2px 0 var(--k-key-edge);
+  transition:
+    transform 500ms var(--k-e-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    width 500ms var(--k-e-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+.k-seg--fill {
+  display: grid;
+  width: 100%;
+}
+.k-seg--tall .k-seg-btn,
+.k-seg--tall .k-seg-pill {
+  height: 40px;
+}
+
+/* ---------- toggle (hardware slide switch) ---------- */
+.k-switch {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--k-line);
+  border-radius: 10px;
+  background: var(--k-panel-2);
+  color: var(--k-ink-2);
+  font: 500 13px var(--k-f-ui);
+  cursor: pointer;
+}
+.k-switch-lbl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.k-switch svg {
+  width: 16px;
+  height: 16px;
+}
+.k-switch-track {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--k-well);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.k-switch-track i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--k-key);
+  box-shadow: 0 1px 0 var(--k-key-edge), inset 0 1px 0 var(--k-hi);
+  transition:
+    transform 220ms linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067, 1.089 26.4%, 1.084, 1.063 33.1%, 1.008 42%, 0.992 47.5%, 0.991 52.3%, 1.001 66.4%, 1),
+    background-color 120ms;
+}
+.k-switch[aria-checked="true"] .k-switch-track i,
+.k-switch[aria-pressed="true"] .k-switch-track i {
+  transform: translateX(14px);
+  background: var(--k-lime);
+}
+
+/* ---------- option keys (chips) ---------- */
+.k-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.k-opt {
+  display: grid;
+  gap: 2px;
+  min-height: 56px;
+  padding: 11px 16px 12px;
+  border: 1px solid color-mix(in srgb, var(--k-key-edge) 60%, transparent);
+  border-radius: 14px;
+  background: var(--k-key);
+  color: var(--k-ink);
+  text-align: left;
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 3px 0 var(--k-key-edge);
+  transition:
+    transform 60ms cubic-bezier(0.7, 0, 0.2, 1),
+    box-shadow 60ms cubic-bezier(0.7, 0, 0.2, 1),
+    opacity 220ms;
+  cursor: pointer;
+}
+.k-opt b {
+  font: 600 15px/1.3 var(--k-f-ui);
+}
+.k-opt span {
+  font-size: 13px;
+  color: var(--k-ink-3);
+}
+.k-opt:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 4px 0 var(--k-key-edge);
+}
+.k-opt:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 1px 0 var(--k-key-edge);
+}
+.k-opt[aria-pressed="true"],
+.k-opt[aria-checked="true"] {
+  transform: translateY(2px);
+  border-color: var(--k-lime-edge);
+  background: var(--k-lime);
+  color: #121212;
+  box-shadow: 0 1px 0 var(--k-lime-edge);
+}
+.k-opt[aria-pressed="true"] span,
+.k-opt[aria-checked="true"] span {
+  color: #2c3a08;
+}
+.k-opt[data-dim] {
+  opacity: 0.4;
+}
+.k-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--k-line);
+  border-radius: 22px;
+  background: var(--k-panel);
+  color: var(--k-ink-2);
+  font: 500 14px var(--k-f-ui);
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background-color 120ms;
+}
+.k-chip svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--k-ink-3);
+}
+.k-chip:hover {
+  border-color: var(--k-ink);
+  color: var(--k-ink);
+}
+
+/* ---------- field (screen) ---------- */
+.k-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.k-field-label {
+  margin: 0;
+  font: 500 13px var(--k-f-ui);
+  color: var(--k-ink-3);
+}
+.k-field-screen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 14px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 12px;
+  background: var(--k-panel);
+}
+.k-field-screen:focus-within {
+  border-color: var(--k-ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-lime) 55%, transparent);
+}
+:root .k-field-screen input,
+:root .k-field-screen input:focus {
+  all: unset;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  font: 600 20px var(--k-f-mono);
+  color: var(--k-ink);
+}
+.k-field-unit {
+  font: 600 14px var(--k-f-ui);
+  color: var(--k-ink-3);
+}
+.k-field-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--k-ink-3);
+}
+.k-field[data-invalid] .k-field-screen {
+  border-color: var(--k-down);
+}
+
+/* ---------- odometer ---------- */
+.k-odo {
+  display: inline-flex;
+  white-space: nowrap;
+}
+.k-odo-cell {
+  display: inline-block;
+  height: 1.2em;
+  overflow: hidden;
+  line-height: 1.2em;
+  vertical-align: bottom;
+}
+.k-odo-cell > span {
+  display: inline-block;
+}
+
+/* ---------- status display (LCD) ---------- */
+.k-lcd {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #0e120a;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.65), 0 1px 0 var(--k-hi);
+  color: #c6ff3a;
+}
+.k-lcd-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font: 800 12.5px/1.1 var(--k-f-led);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 6px rgba(198, 255, 58, 0.45);
+  white-space: nowrap;
+}
+.k-lcd-row dt {
+  color: #8fa65c;
+  text-shadow: none;
+}
+.k-lcd-row dd {
+  margin: 0;
+}
+
+/* ---------- printed card + tray ---------- */
+.k-tray {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: fit-content;
+  max-width: 100%;
+  padding: 14px 24px 26px;
+  border-radius: 26px;
+  background: var(--k-grain), var(--k-panel-2);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.12), inset 0 -1px 0 var(--k-hi), 0 1px 0 var(--k-hi);
+}
+.k-tray-h {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.k-tray-h .k-vents {
+  max-width: 90px;
+}
+.k-tray-h .k-muted {
+  margin-left: auto;
+  font-size: 12.5px;
+}
+.k-slot {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  height: 12px;
+}
+.k-slot::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--k-ink);
+  opacity: 0.85;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6);
+}
+.k-eject {
+  position: relative;
+  width: 500px;
+  max-width: calc(100% + 20px);
+  margin: -6px -10px 0;
+  padding: 0 10px 14px;
+  overflow: hidden;
+  perspective: 900px;
+}
+.k-card {
+  --mx: 50%;
+  --my: 30%;
+  --sx: 120%;
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --flip: 0deg;
+  position: relative;
+  display: block;
+  border-radius: var(--k-r-card);
+  color: var(--k-ink);
+  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(calc(var(--tilt-y) + var(--flip)));
+  transform-style: preserve-3d;
+  transition: transform 550ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.k-card-face {
+  border: 2px solid var(--k-slab-line);
+  border-radius: var(--k-r-card);
+  background: var(--k-stock);
+  box-shadow: 5px 5px 0 var(--k-slab-shadow);
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.k-card-face--back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  transform: rotateY(180deg);
+}
+.k-card[data-flipped] {
+  --flip: 180deg;
+}
+.k-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 2px solid var(--k-slab-line);
+  background: var(--k-lime);
+  color: #121212;
+}
+.k-card-type {
+  font: 650 13.5px var(--k-f-display);
+  letter-spacing: -0.01em;
+}
+.k-card-serial {
+  margin-left: auto;
+  font: 800 13px/1 var(--k-f-led);
+  letter-spacing: 0.06em;
+}
+.k-card-art {
+  position: relative;
+  height: 186px;
+  overflow: hidden;
+  border-bottom: 2px solid var(--k-slab-line);
+  background-color: var(--k-panel-2);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--k-ink) 16%, transparent) 1px, transparent 1.4px);
+  background-size: 8px 8px;
+}
+.k-card-art > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.k-foil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+  background:
+    linear-gradient(105deg, transparent 0 calc(var(--mx) - 30%), rgba(198, 255, 58, 0.55) calc(var(--mx) - 18%), rgba(255, 61, 154, 0.45) var(--mx), rgba(47, 91, 255, 0.4) calc(var(--mx) + 18%), transparent calc(var(--mx) + 32%)),
+    repeating-linear-gradient(115deg, transparent 0 3px, rgba(255, 255, 255, 0.55) 3px 4px);
+}
+.dark .k-foil {
+  mix-blend-mode: screen;
+  opacity: 0.2;
+}
+.k-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  border-radius: var(--k-r-card);
+  overflow: hidden;
+  mix-blend-mode: soft-light;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.75) 45%, transparent 60%);
+  background-size: 260% 100%;
+  background-position: var(--sx, 120%) 0;
+  backface-visibility: hidden;
+}
+.k-card-body {
+  padding: 18px 18px 0;
+}
+.k-card-from {
+  margin: 0;
+  font-size: 14px;
+  color: var(--k-ink-3);
+}
+.k-card-title {
+  margin: 4px 0 0;
+  font: 650 25px/1.15 var(--k-f-display);
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.k-facts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 16px 18px 0;
+  font-size: 15px;
+}
+.k-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.k-facts dt {
+  color: var(--k-ink-3);
+}
+.k-facts dd {
+  margin: 0;
+  font-family: var(--k-f-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.k-card-act {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  padding: 18px;
+}
+.k-card-face--back .k-card-act {
+  margin-top: auto;
+}
+.k-latch {
+  position: absolute;
+  top: -4px;
+  right: 70px;
+  z-index: 8;
+  width: 76px;
+  height: 26px;
+  pointer-events: none;
+  backface-visibility: hidden;
+}
+.k-latch-plate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #121212;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(#d9d7d0, #a9a59b);
+  box-shadow: 0 2px 0 #121212;
+}
+.k-latch-plate b {
+  font: 800 11px/1 var(--k-f-led);
+  letter-spacing: 0.08em;
+  color: #121212;
+}
+.k-stamp {
+  position: absolute;
+  top: 158px;
+  right: 22px;
+  z-index: 7;
+  padding: 6px 10px;
+  border: 2.5px solid var(--k-up);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--k-stock) 70%, transparent);
+  color: var(--k-up);
+  font: 800 18px/1 var(--k-f-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transform: rotate(-9deg);
+  backface-visibility: hidden;
+}
+.k-sleeve {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  min-height: 160px;
+  border: 2px dashed var(--k-line-2);
+  border-radius: var(--k-r-card);
+  color: var(--k-ink-3);
+  font-size: 13px;
+  text-align: center;
+}
+.k-sleeve svg {
+  width: 28px;
+  height: 28px;
+  color: var(--k-ink-2);
+}
+.k-sleeve b {
+  display: block;
+  color: var(--k-ink);
+  font-weight: 600;
+}
+
+/* mini card (binder thumbnails) */
+.k-thumb {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  width: 150px;
+  height: 112px;
+  margin-left: -75px;
+  padding: 0 0 8px;
+  overflow: hidden;
+  border: 1.5px solid var(--k-slab-line);
+  border-radius: 10px;
+  background: var(--k-stock);
+  box-shadow: 2px 2px 0 var(--k-slab-shadow), 0 8px 16px -10px rgba(0, 0, 0, 0.4);
+  color: var(--k-ink);
+  text-align: left;
+  translate: 0 var(--ry, 0px);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.k-thumb-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 8px;
+  border-bottom: 1.5px solid #121212;
+  background: var(--k-lime);
+  color: #121212;
+  font: 650 10px var(--k-f-ui);
+}
+.k-thumb-top span:last-child {
+  font: 800 10px var(--k-f-led);
+  letter-spacing: 0.04em;
+}
+.k-thumb b {
+  display: block;
+  padding: 10px 8px 0;
+  overflow: hidden;
+  font: 650 15px/1.15 var(--k-f-display);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.k-thumb small {
+  display: block;
+  padding: 0 8px;
+  overflow: hidden;
+  font: 500 11px var(--k-f-mono);
+  color: var(--k-ink-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.k-thumb--sleeve {
+  border-style: dashed;
+  border-color: var(--k-line-2);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---------- machine window (printer illustration) ---------- */
+.k-mwin {
+  position: relative;
+  height: 96px;
+  overflow: hidden;
+  border: 1px solid var(--k-line-2);
+  border-radius: 12px;
+  background: var(--k-grain), #e9e5dc;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.dark .k-mwin {
+  background: var(--k-grain), #101012;
+}
+.k-mwin svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 84px;
+}
+.k-mwin .k-mw-rl {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.k-mwin .k-mw-gear {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.k-mwin .k-mw-paper {
+  stroke-dasharray: 6 5;
+}
+.k-mwin .k-mw-head {
+  transform-box: fill-box;
+}
+.k-mwin .k-mw-bulb {
+  animation: k-blink 2.4s steps(1) infinite;
+}
+.k-mwin[data-state="idle"] .k-mw-head {
+  animation: k-sleepy 3.2s ease-in-out infinite;
+}
+.k-mwin[data-state="working"] .k-mw-rl {
+  animation: k-spin 1.1s linear infinite;
+}
+.k-mwin[data-state="working"] .k-mw-gear {
+  animation: k-spin 1.6s steps(12) infinite reverse;
+}
+.k-mwin[data-state="working"] .k-mw-paper {
+  animation: k-feed 0.5s linear infinite;
+}
+.k-mwin[data-state="working"] .k-mw-head {
+  animation: k-sweep 0.7s ease-in-out infinite alternate;
+}
+.k-mwin[data-state="working"] .k-mw-bulb {
+  animation: k-blink 0.3s steps(1) infinite;
+}
+.k-mwin[data-state="jam"] .k-mw-bulb {
+  fill: var(--k-magenta);
+  animation: k-blink 0.18s steps(1) infinite;
+}
+.k-mwin[data-state="jam"] .k-mw-head {
+  transform: translateX(10px) rotate(8deg);
+}
+.k-mw-l {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 6px;
+  overflow: hidden;
+  font-size: 11.5px;
+  color: var(--k-ink-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@keyframes k-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes k-feed {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+@keyframes k-sleepy {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(3px) rotate(-4deg);
+  }
+}
+@keyframes k-sweep {
+  from {
+    transform: translateX(-46px);
+  }
+  to {
+    transform: translateX(46px);
+  }
+}
+@keyframes k-blink {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* ---------- empty state + paper jam ---------- */
+.k-empty {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 32px 16px;
+  text-align: center;
+}
+.k-empty .k-mwin {
+  width: min(100%, 300px);
+}
+.k-empty-t {
+  margin: 0;
+  font: 650 20px/1.2 var(--k-f-display);
+  letter-spacing: -0.02em;
+  color: var(--k-ink);
+}
+.k-empty-p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--k-ink-3);
+}
+.k-jam {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 520px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--k-down);
+  border-radius: 14px;
+  background: var(--k-magenta-tint);
+  color: var(--k-ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.k-jam > svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--k-down);
+}
+.k-jam .k-key {
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .k-jam {
+    flex-wrap: wrap;
+  }
+  .k-jam .k-key {
+    margin-left: 32px;
+  }
+}
+
+/* ---------- toast ---------- */
+.k-toasts {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: grid;
+  gap: 10px;
+}
+.k-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 300px;
+  max-width: 380px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #161616;
+  color: #f2f0ea;
+  font: 400 14px/1.4 var(--k-f-ui);
+  box-shadow: 0 4px 0 #000, 0 20px 40px -12px rgba(0, 0, 0, 0.45);
+}
+.dark .k-toast {
+  background: #000;
+  box-shadow: 0 4px 0 #2a2a30, 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+}
+.k-toast-ic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--k-lime);
+  color: #121212;
+}
+.k-toast-ic svg {
+  width: 16px;
+  height: 16px;
+}
+.k-toast[data-tone="error"] .k-toast-ic {
+  background: var(--k-magenta);
+}
+.k-toast b {
+  font-weight: 650;
+}
+.k-toast small {
+  display: block;
+  color: #a9a69d;
+  font-size: 12px;
+}
+@media (max-width: 640px) {
+  .k-toasts {
+    left: 12px;
+    right: 12px;
+    bottom: 84px;
+  }
+  .k-toast {
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+/* ---------- reduced motion: loops stop, transitions collapse ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .k-mwin *,
+  .k-ledot,
+  .k-card,
+  .k-seg-pill,
+  .k-thumb,
+  .k-switch-track i {
+    animation: none !important;
+    transition-duration: 1ms !important;
+  }
+}
+html[data-motion="off"] .k-mwin *,
+html[data-motion="off"] .k-ledot {
+  animation: none !important;
+}
+html[data-kl-hidden] .k-mwin * {
+  animation-play-state: paused;
+}

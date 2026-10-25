@@ -98,14 +98,14 @@ export function UseCases() {
       title={`${countWordTitle(USE_CASES.length)} products that move money between networks.`}
       intro="Each example is a sentence the v1 grammar accepts today. Open one in Studio to see its legs."
     >
-      <div className="kla-grain border-[3px] border-[#1A1A1A] bg-[#FFFCF2] text-[#1A1A1A] shadow-hard-lg dark:bg-[#ECE6D6] [--kla-grain:var(--kla-stock-grain)] [--kla-plate:#FFD60A] [&_:focus-visible]:!outline-[#0052FF]">
-        <p className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 bg-[#1A1A1A] px-5 py-3 font-code text-xs font-extrabold uppercase leading-tight tracking-[0.18em] text-[#FFD60A] sm:px-6">
+      <div className="kla-grain border-[3px] border-[#121212] bg-[#FFFCF2] text-[#121212] shadow-hard-lg dark:bg-[#ECE6D6] [--kla-grain:var(--kla-stock-grain)] [--kla-plate:#FFD60A] [&_:focus-visible]:!outline-[#2F5BFF]">
+        <p className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 bg-[#121212] px-5 py-3 font-code text-xs font-extrabold uppercase leading-tight tracking-[0.18em] text-[#C6FF3A] sm:px-6">
           <span>Timetable · routes in service</span>
-          <span className="font-semibold text-[#F4F1EA]">Valid on the v1 grammar</span>
+          <span className="font-semibold text-[#F2F0EA]">Valid on the v1 grammar</span>
         </p>
         <div
           aria-hidden="true"
-          className="hidden grid-cols-[3rem_minmax(0,1.15fr)_9.5rem_minmax(0,1fr)_9rem] gap-x-6 border-b-[3px] border-[#1A1A1A] px-6 py-2.5 font-code text-[10.5px] font-bold uppercase tracking-[0.16em] text-[#55565B] lg:grid"
+          className="hidden grid-cols-[3rem_minmax(0,1.15fr)_9.5rem_minmax(0,1fr)_9rem] gap-x-6 border-b-[3px] border-[#121212] px-6 py-2.5 font-code text-[10.5px] font-bold uppercase tracking-[0.16em] text-[#55565B] lg:grid"
         >
           <span>Route</span>
           <span>Service</span>
@@ -118,11 +118,11 @@ export function UseCases() {
             <li
               key={useCase.title}
               data-reveal-item
-              className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b-[1.5px] border-dashed border-[#1A1A1A]/40 py-6 last:border-b-0 lg:grid-cols-[3rem_minmax(0,1.15fr)_9.5rem_minmax(0,1fr)_9rem] lg:items-start lg:gap-x-6"
+              className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b-[1.5px] border-dashed border-[#121212]/40 py-6 last:border-b-0 lg:grid-cols-[3rem_minmax(0,1.15fr)_9.5rem_minmax(0,1fr)_9rem] lg:items-start lg:gap-x-6"
             >
               <span
                 aria-hidden="true"
-                className="row-span-2 mt-0.5 flex h-8 w-10 items-center justify-center bg-[#1A1A1A] font-code text-[13px] font-extrabold text-[#F4F1EA] lg:row-span-1"
+                className="row-span-2 mt-0.5 flex h-8 w-10 items-center justify-center bg-[#121212] font-code text-[13px] font-extrabold text-[#F2F0EA] lg:row-span-1"
               >
                 {String(index + 1).padStart(2, "0")}
               </span>
@@ -131,13 +131,13 @@ export function UseCases() {
                   <Icon name={useCase.icon} size={24} />
                   {useCase.title}
                 </h3>
-                <p className="mt-2 text-[14.5px] leading-relaxed text-[#45464B]">{useCase.body}</p>
+                <p className="mt-2 text-[14.5px] leading-relaxed text-[#5C5850]">{useCase.body}</p>
               </div>
               <div className="col-start-2 lg:col-start-auto lg:pt-1.5">
                 <RouteLines route={useCase.route} />
               </div>
               <p className="col-start-2 font-code text-[13px] font-semibold leading-relaxed [overflow-wrap:anywhere] lg:col-start-auto lg:pt-1">
-                <span className="text-[#0047E0]" aria-hidden="true">
+                <span className="text-[#1A36B0]" aria-hidden="true">
                   &gt;{" "}
                 </span>
                 {useCase.example}
@@ -145,7 +145,7 @@ export function UseCases() {
               <Link
                 to={studioHref(useCase.example)}
                 className={cx(
-                  "group/try col-start-2 inline-flex min-h-9 items-center gap-1.5 self-start justify-self-start whitespace-nowrap text-xs font-black uppercase tracking-[0.12em] text-[#0047E0] underline decoration-2 underline-offset-4 lg:col-start-auto lg:justify-self-end",
+                  "group/try col-start-2 inline-flex min-h-9 items-center gap-1.5 self-start justify-self-start whitespace-nowrap text-xs font-black uppercase tracking-[0.12em] text-[#1A36B0] underline decoration-2 underline-offset-4 lg:col-start-auto lg:justify-self-end",
                   FOCUS_RING,
                 )}
               >

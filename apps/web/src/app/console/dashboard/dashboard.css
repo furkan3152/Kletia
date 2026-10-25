@@ -241,7 +241,7 @@
 .kdb-range[aria-pressed="true"] {
   border-color: var(--kl-accent);
   background: var(--kl-accent);
-  /* White on the accent blue (#0052ff) reads in both themes. */
+  /* White on the accent blue (#2f5bff) reads in both themes. */
   color: #ffffff;
 }
 

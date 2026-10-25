@@ -191,7 +191,7 @@ export function KeysTable({ keys, now, onChanged }: { readonly keys: readonly Ap
             tabIndex={-1}
             role="group"
             aria-label={`Revoke ${target.item.name}`}
-            className="kl-rise flex flex-col gap-3 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#1A1A1A] outline-none dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2] sm:p-4"
+            className="kl-rise flex flex-col gap-3 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#121212] outline-none dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2] sm:p-4"
           >
             <p className="flex items-start gap-2 text-sm font-bold">
               <ShieldX className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

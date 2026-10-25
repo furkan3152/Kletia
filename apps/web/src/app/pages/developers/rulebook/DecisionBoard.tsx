@@ -133,7 +133,7 @@ export function DecisionBoard({ apiKey, keys, names }: DecisionBoardProps) {
                 setExhausted(false);
                 page.reload();
               }}
-              className="inline-flex min-h-9 items-center gap-1.5 border-2 border-[#3A3F4A] px-2.5 font-code text-[12px] font-bold uppercase tracking-[0.12em] text-[#F4F1EA] hover:border-[#FFD60A] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]"
+              className="inline-flex min-h-9 items-center gap-1.5 border-2 border-[#3A3F4A] px-2.5 font-code text-[12px] font-bold uppercase tracking-[0.12em] text-[#F2F0EA] hover:border-[#C6FF3A] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#C6FF3A]"
             >
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
               Reload
@@ -165,24 +165,24 @@ export function DecisionBoard({ apiKey, keys, names }: DecisionBoardProps) {
                 const tone = TONE[decision.outcome] ?? "observed";
                 return (
                   <tr key={decision.id}>
-                    <td className="whitespace-nowrap font-code text-[12px] text-[#F4F1EA]">{clock(decision.at)}</td>
-                    <th scope="row" className="min-w-0 max-w-[10rem] truncate text-[13px] font-semibold text-[#F4F1EA]">
+                    <td className="whitespace-nowrap font-code text-[12px] text-[#F2F0EA]">{clock(decision.at)}</td>
+                    <th scope="row" className="min-w-0 max-w-[10rem] truncate text-[13px] font-semibold text-[#F2F0EA]">
                       {decision.keyId ? names.get(decision.keyId) ?? shortId(decision.keyId) : "Project"}
                     </th>
-                    <td className="hidden font-code text-[12px] text-[#A9B6C8] md:table-cell">{decision.intentId ? shortId(decision.intentId) : decision.dryRun ? "dry run" : "—"}</td>
-                    <td className="hidden font-code text-[12px] uppercase tracking-[0.08em] text-[#A9B6C8] sm:table-cell">{decision.stage}</td>
+                    <td className="hidden font-code text-[12px] text-[#9A968C] md:table-cell">{decision.intentId ? shortId(decision.intentId) : decision.dryRun ? "dry run" : "—"}</td>
+                    <td className="hidden font-code text-[12px] uppercase tracking-[0.08em] text-[#9A968C] sm:table-cell">{decision.stage}</td>
                     <td>
                       <span className="kl-rb-flap" data-tone={tone}>
                         {OUTCOME_FLAPS[decision.outcome] ?? decision.outcome.toUpperCase()}
                       </span>
                     </td>
-                    <td className="hidden font-code text-[12px] text-[#F4F1EA] lg:table-cell">{rule ?? "—"}</td>
+                    <td className="hidden font-code text-[12px] text-[#F2F0EA] lg:table-cell">{rule ?? "—"}</td>
                   </tr>
                 );
               })}
               {decisions.length === 0 && page.status !== "loading" ? (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-sm text-[#A9B6C8]">
+                  <td colSpan={6} className="py-6 text-center text-sm text-[#9A968C]">
                     {filtered ? "No decision matches these filters." : "No decisions yet. Every plan, prepare, simulator run, approval and amendment is logged here."}
                   </td>
                 </tr>

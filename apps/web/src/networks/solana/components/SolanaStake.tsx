@@ -68,9 +68,9 @@ export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
               return (
                 <label
                   key={option.symbol}
-                  className={`flex cursor-pointer flex-col gap-1 border-[3px] border-[#1A1A1A] p-3 shadow-[3px_3px_0_#1A1A1A] transition-[transform,background-color] duration-100 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-focus dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] ${
+                  className={`flex cursor-pointer flex-col gap-1 border-[3px] border-[#121212] p-3 shadow-[3px_3px_0_#121212] transition-[transform,background-color] duration-100 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-focus dark:border-[#4A4A52] dark:shadow-[3px_3px_0_#2A2A30] ${
                     selected
-                      ? "bg-[#1A1A1A] text-white dark:bg-[#F1F5F9] dark:text-[#0B1120]"
+                      ? "bg-[#121212] text-white dark:bg-[#F2F0EA] dark:text-[#0E0E10]"
                       : "bg-surface hover:-translate-y-0.5 motion-reduce:hover:translate-y-0"
                   }`}
                 >
@@ -86,7 +86,7 @@ export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
                           setLst(option.symbol);
                           execution.reset();
                         }}
-                        className="h-4 w-4 accent-[#0052FF]"
+                        className="h-4 w-4 accent-[#2F5BFF]"
                       />
                       {option.symbol}
                     </span>

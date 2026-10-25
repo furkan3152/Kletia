@@ -66,7 +66,7 @@ function Choice<T extends string | number>({
             onClick={() => onChange(option.id)}
             className={cx(
               "min-h-10 border-2 border-control px-2.5 text-xs font-bold",
-              option.id === value ? "bg-[#1A1A1A] text-white dark:bg-white dark:text-[#0B1120]" : "bg-white text-fg dark:bg-[#0B1120]",
+              option.id === value ? "bg-[#121212] text-white dark:bg-white dark:text-[#0E0E10]" : "bg-[#FBFAF6] text-fg dark:bg-[#0E0E10]",
               FOCUS_RING,
             )}
           >
@@ -92,7 +92,7 @@ function ColorField({ color, value, error, onChange }: { color: BuilderColor; va
           aria-label={`${COLOR_LABELS[color]} colour picker`}
           value={/^#[0-9A-Fa-f]{6}$/u.test(value) ? value : "#ffffff"}
           onChange={(event) => onChange(event.target.value.toUpperCase())}
-          className={cx("h-10 w-10 shrink-0 cursor-pointer border-2 border-control bg-white p-0.5", FOCUS_RING)}
+          className={cx("h-10 w-10 shrink-0 cursor-pointer border-2 border-control bg-[#FBFAF6] p-0.5", FOCUS_RING)}
         />
         <input
           id={id}
@@ -102,7 +102,7 @@ function ColorField({ color, value, error, onChange }: { color: BuilderColor; va
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.target.value.trim())}
-          className={cx("min-h-10 w-full min-w-0 border-2 border-control bg-white px-2 font-code text-[13px] text-fg dark:bg-[#0B1120]", FOCUS_RING)}
+          className={cx("min-h-10 w-full min-w-0 border-2 border-control bg-[#FBFAF6] px-2 font-code text-[13px] text-fg dark:bg-[#0E0E10]", FOCUS_RING)}
         />
       </div>
       {error ? (
@@ -131,8 +131,8 @@ function NetworkChips({ selected, onToggle, error }: { selected: readonly Networ
             {NETWORKS.filter((chain) => (lane.id === "testnet") === (chain.environment === "testnet")).map((chain) => {
               const checked = selected.includes(chain.key as NetworkKey);
               return (
-                <label key={chain.key} className={cx("flex min-h-10 cursor-pointer items-center gap-1.5 border-2 border-control px-2 text-xs font-bold", checked ? "bg-[#FFF3B0] dark:bg-[#3B2F0B]" : "bg-white dark:bg-[#0B1120]")}>
-                  <input type="checkbox" checked={checked} onChange={() => onToggle(chain.key as NetworkKey)} className="h-4 w-4 accent-[#0052FF]" />
+                <label key={chain.key} className={cx("flex min-h-10 cursor-pointer items-center gap-1.5 border-2 border-control px-2 text-xs font-bold", checked ? "bg-[#FFF3B0] dark:bg-[#3B2F0B]" : "bg-[#FBFAF6] dark:bg-[#0E0E10]")}>
+                  <input type="checkbox" checked={checked} onChange={() => onToggle(chain.key as NetworkKey)} className="h-4 w-4 accent-[#2F5BFF]" />
                   {chain.name}
                 </label>
               );
@@ -269,10 +269,10 @@ export function EmbedBuilder() {
             <legend className={cx(LABEL, "text-fg")}>Actions</legend>
             <div className="flex flex-wrap gap-1.5">
               {BUILDER_ACTIONS.map((action) => (
-                <label key={action} className="flex min-h-10 cursor-pointer items-center gap-1.5 border-2 border-control bg-white px-2 text-xs font-bold dark:bg-[#0B1120]">
+                <label key={action} className="flex min-h-10 cursor-pointer items-center gap-1.5 border-2 border-control bg-[#FBFAF6] px-2 text-xs font-bold dark:bg-[#0E0E10]">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 accent-[#0052FF]"
+                    className="h-4 w-4 accent-[#2F5BFF]"
                     checked={state.actions.includes(action)}
                     onChange={() =>
                       setState((current) => ({
@@ -306,7 +306,7 @@ export function EmbedBuilder() {
           {notes.length > 0 ? (
             <ul className="flex flex-col gap-2" aria-label="Contrast warnings">
               {notes.map((note) => (
-                <li key={`${note.color}:${note.message}`} className="border-2 border-[#B45309] bg-[#FFF3B0] p-2 text-xs font-semibold text-[#1A1A1A]">
+                <li key={`${note.color}:${note.message}`} className="border-2 border-[#B45309] bg-[#FFF3B0] p-2 text-xs font-semibold text-[#121212]">
                   {note.color ? `${COLOR_LABELS[note.color]}: ` : ""}
                   {note.message}
                   {note.fix && note.color ? (
@@ -322,7 +322,7 @@ export function EmbedBuilder() {
             <label htmlFor="builder-radius" className={cx(LABEL, "text-fg")}>
               Radius · {state.radius} px
             </label>
-            <input id="builder-radius" type="range" min={0} max={16} value={state.radius} onChange={(event) => set("radius", Number(event.target.value))} className={cx("accent-[#0052FF]", FOCUS_RING)} />
+            <input id="builder-radius" type="range" min={0} max={16} value={state.radius} onChange={(event) => set("radius", Number(event.target.value))} className={cx("accent-[#2F5BFF]", FOCUS_RING)} />
           </div>
           <Choice label="Border" value={state.border} options={[{ id: 1, label: "1" }, { id: 2, label: "2" }, { id: 3, label: "3" }]} onChange={(border) => set("border", border)} />
           <Choice label="Shadow" value={state.shadow} options={[{ id: "hard", label: "Hard" }, { id: "soft", label: "Soft" }, { id: "none", label: "None" }]} onChange={(shadow) => set("shadow", shadow)} />
@@ -368,7 +368,7 @@ export function EmbedBuilder() {
                   type="color"
                   value={pageColor}
                   onChange={(event) => setPageColor(event.target.value)}
-                  className={cx("h-10 w-14 cursor-pointer border-2 border-control bg-white p-0.5", FOCUS_RING)}
+                  className={cx("h-10 w-14 cursor-pointer border-2 border-control bg-[#FBFAF6] p-0.5", FOCUS_RING)}
                 />
               </div>
             </div>

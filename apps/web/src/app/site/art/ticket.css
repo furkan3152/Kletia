@@ -10,8 +10,8 @@
   --notch: 13px;
   --stub: 172px;
   --cut: calc(100% - var(--stub) - 3px);
-  --kla-focus: #0052ff;
-  --kla-link: #0047e0;
+  --kla-focus: #2f5bff;
+  --kla-link: #1a36b0;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--stub);
@@ -20,7 +20,7 @@
   background-color: var(--kla-stock);
   background-image: var(--kla-stock-grain);
   background-size: 180px 180px;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   -webkit-mask:
     radial-gradient(circle at var(--cut) 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
     radial-gradient(circle at var(--cut) 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
@@ -38,7 +38,7 @@
   width: calc(2 * var(--notch) + 6px);
   height: calc(2 * var(--notch) + 6px);
   box-sizing: border-box;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   border-radius: 50%;
   pointer-events: none;
 }
@@ -62,7 +62,7 @@
   justify-content: space-between;
   gap: 6px 12px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #1a1a1a;
+  border-bottom: 2px solid #121212;
   font: 800 12px/1.2 var(--kla-font-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -73,7 +73,7 @@
   gap: 8px;
 }
 .kla-ticket .kla-icon {
-  --kla-plate: #ffd60a;
+  --kla-plate: #c6ff3a;
 }
 .kla-ticket__serial {
   font-weight: 600;
@@ -82,8 +82,8 @@
 .kla-ticket__example {
   margin-right: 8px;
   padding: 2px 6px;
-  background: #1a1a1a;
-  color: #ffd60a;
+  background: #121212;
+  color: #c6ff3a;
   font-weight: 800;
 }
 .kla-ticket__eyebrow,
@@ -128,8 +128,8 @@
   min-width: 28px;
   height: 10px;
   background:
-    linear-gradient(#1a1a1a, #1a1a1a) center / 100% 2px no-repeat,
-    repeating-linear-gradient(90deg, #1a1a1a 0 2px, transparent 2px 7px) center / 100% 10px no-repeat;
+    linear-gradient(#121212, #121212) center / 100% 2px no-repeat,
+    repeating-linear-gradient(90deg, #121212 0 2px, transparent 2px 7px) center / 100% 10px no-repeat;
 }
 .kla-ticket__legs {
   list-style: none;
@@ -152,7 +152,7 @@
 }
 .kla-ticket__leg-no {
   padding: 2px 5px;
-  background: #1a1a1a;
+  background: #121212;
   color: #fffcf2;
   font: 700 12px/1 var(--kla-font-mono);
 }
@@ -194,7 +194,7 @@
   position: relative;
   min-height: 150px;
   padding: 16px 16px 14px 24px;
-  background-image: linear-gradient(#1a1a1a 55%, transparent 55%);
+  background-image: linear-gradient(#121212 55%, transparent 55%);
   background-size: 3px 9px;
   background-repeat: repeat-y;
   background-position: 0 4px;
@@ -223,7 +223,7 @@
 }
 /* A punched hole shows whatever the ticket lies on (--kla-table). */
 .kla-ticket__punch[data-punched] {
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
   background: var(--kla-table);
   color: transparent;
   box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.28);
@@ -307,7 +307,7 @@
 }
 .kla-receipt__tx {
   font-weight: 700;
-  color: #1a1a1a;
+  color: #121212;
 }
 a.kla-receipt__tx {
   color: var(--kla-link);
@@ -344,7 +344,7 @@ a.kla-receipt__tx {
 .kla-linkt__badge {
   align-self: center;
   padding: 3px 7px;
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
   font: 800 12px/1 var(--kla-font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -354,8 +354,8 @@ a.kla-receipt__tx {
   border-color: #0b7a4b;
 }
 .kla-linkt__badge--warn {
-  color: #1a1a1a;
-  background: #ffd60a;
+  color: #121212;
+  background: #c6ff3a;
 }
 .kla-linkt__bounds {
   display: grid;
@@ -363,7 +363,7 @@ a.kla-receipt__tx {
   gap: 8px 22px;
   margin: 2px 0 0;
   padding: 10px 12px;
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
   background: rgba(255, 214, 10, 0.16);
 }
 .kla-linkt__bounds dd {
@@ -443,8 +443,8 @@ a.kla-receipt__tx {
   right: 16px;
   bottom: 16px;
   height: 14px;
-  border: 2px solid #1a1a1a;
-  background: repeating-linear-gradient(-45deg, #ffd60a 0 8px, #1a1a1a 8px 16px);
+  border: 2px solid #121212;
+  background: repeating-linear-gradient(-45deg, #c6ff3a 0 8px, #121212 8px 16px);
 }
 
 /* Narrow: the stub moves under the ticket and the cut turns sideways. */
@@ -495,8 +495,8 @@ a.kla-receipt__tx {
     height: 14px;
     margin-left: 52px;
     background:
-      linear-gradient(#1a1a1a, #1a1a1a) center / 2px 100% no-repeat,
-      repeating-linear-gradient(180deg, #1a1a1a 0 2px, transparent 2px 5px) center / 10px 100% no-repeat;
+      linear-gradient(#121212, #121212) center / 2px 100% no-repeat,
+      repeating-linear-gradient(180deg, #121212 0 2px, transparent 2px 5px) center / 10px 100% no-repeat;
   }
   .kla-ticket__leg {
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -519,7 +519,7 @@ a.kla-receipt__tx {
     min-height: 0;
     box-sizing: border-box;
     padding: 18px 16px 12px;
-    background-image: linear-gradient(90deg, #1a1a1a 55%, transparent 55%);
+    background-image: linear-gradient(90deg, #121212 55%, transparent 55%);
     background-size: 9px 3px;
     background-repeat: repeat-x;
     background-position: 4px 0;
@@ -560,9 +560,9 @@ a.kla-receipt__tx {
   padding: 14px 14px 14px 22px;
   color: var(--kla-stock-ink);
   background-color: var(--kla-stock);
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   border-left-width: 0;
-  background-image: linear-gradient(#1a1a1a 55%, transparent 55%), var(--kla-stock-grain);
+  background-image: linear-gradient(#121212 55%, transparent 55%), var(--kla-stock-grain);
   background-size: 3px 9px, 180px 180px;
   background-repeat: repeat-y, repeat;
   background-position: 0 4px, 0 0;
@@ -581,7 +581,7 @@ a.kla-receipt__tx {
   width: calc(2 * var(--notch) + 6px);
   height: calc(2 * var(--notch) + 6px);
   box-sizing: border-box;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   border-radius: 50%;
 }
 .kla-stub::before {

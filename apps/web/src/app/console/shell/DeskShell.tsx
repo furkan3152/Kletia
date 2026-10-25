@@ -17,7 +17,7 @@ import { DESK_COPY } from "../content/copy";
 const copy = DESK_COPY.header;
 
 const SKIP = cx(
-  "sr-only z-[200] border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#1A1A1A] focus:not-sr-only focus:fixed focus:left-4 focus:top-4",
+  "sr-only z-[200] border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#121212] focus:not-sr-only focus:fixed focus:left-4 focus:top-4",
   FOCUS_RING,
 );
 
@@ -31,7 +31,7 @@ export interface DeskShellProps {
 
 export function DeskShell({ header, viewNav, leftRail, rightRail, children }: DeskShellProps) {
   return (
-    <div className="kd-shell font-body antialiased selection:bg-[#FFD60A] selection:text-[#1A1A1A]">
+    <div className="kd-shell font-body antialiased selection:bg-[#C6FF3A] selection:text-[#121212]">
       <a
         href="#desk-composer-input"
         className={SKIP}

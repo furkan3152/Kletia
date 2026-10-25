@@ -4,14 +4,14 @@
 :root {
   --kla-map-paper: #fbf8f0;
   --kla-map-card: #ffffff;
-  --kla-map-ink: #1a1a1a;
-  --kla-map-edge: #1a1a1a;
-  --kla-map-text: #1a1a1a;
+  --kla-map-ink: #121212;
+  --kla-map-edge: #121212;
+  --kla-map-text: #121212;
   --kla-map-muted: #45464b;
-  --kla-map-shadow: #1a1a1a;
+  --kla-map-shadow: #121212;
   --kla-map-yard: #efe8d6;
-  --kla-map-sign: #1a1a1a;
-  --kla-map-sign-text: #ffd60a;
+  --kla-map-sign: #121212;
+  --kla-map-sign-text: #c6ff3a;
 }
 .dark {
   --kla-map-paper: #0f1a2c;
@@ -157,7 +157,7 @@
   stroke-dasharray: 5 4;
 }
 .kla-map__sleepers--bullet {
-  stroke: #1a1a1a;
+  stroke: #121212;
   stroke-width: 2;
   stroke-dasharray: 4 3;
 }
@@ -203,14 +203,14 @@
 }
 /* Kletia's own plate: signage yellow with ink, day and night. */
 .kla-map__plate {
-  fill: #ffd60a;
-  stroke: #1a1a1a;
+  fill: #c6ff3a;
+  stroke: #121212;
   stroke-width: 3;
 }
 .kla-map__plate-text {
   font: 700 16px/1 var(--kla-font-display);
   letter-spacing: -0.02em;
-  fill: #1a1a1a;
+  fill: #121212;
 }
 .kla-map__plate-text--sm {
   font-size: 14px;
@@ -281,21 +281,21 @@
   stroke-width: 1.5;
 }
 .kla-map__leg-dot {
-  fill: #ffd60a;
-  stroke: #1a1a1a;
+  fill: #c6ff3a;
+  stroke: #121212;
   stroke-width: 2.5;
 }
 .kla-map__leg-num {
   font: 800 12px/1 var(--kla-font-mono);
-  fill: #1a1a1a;
+  fill: #121212;
 }
 .kla-map__train-body {
-  fill: #ffd60a;
-  stroke: #1a1a1a;
+  fill: #c6ff3a;
+  stroke: #121212;
   stroke-width: 2.5;
 }
 .kla-map__train-window {
-  fill: #1a1a1a;
+  fill: #121212;
 }
 
 /* ---- Draw-in: the lines lay themselves down once, then the rest settles in. ---- */

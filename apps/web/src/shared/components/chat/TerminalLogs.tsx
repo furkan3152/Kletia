@@ -15,7 +15,7 @@ export const TerminalLogs: React.FC<TerminalLogsProps> = ({ msg }) => {
   const explorerName = CHAINS[messageNetwork].explorer.name;
 
   return (
-    <div className="mt-4 md:mt-5 p-3 md:p-4 bg-[#1A1A1A] dark:bg-slate-900 border-[3px] border-gray-500 dark:border-[#4B5563] font-mono text-xs md:text-[13px] text-green-400 leading-relaxed overflow-x-hidden w-full sm:w-80 md:w-[450px] shadow-[3px_3px_0_#475569] dark:shadow-[3px_3px_0_#475569]">
+    <div className="mt-4 md:mt-5 p-3 md:p-4 bg-[#121212] dark:bg-slate-900 border-[3px] border-gray-500 dark:border-[#4A4A52] font-mono text-xs md:text-[13px] text-green-400 leading-relaxed overflow-x-hidden w-full sm:w-80 md:w-[450px] shadow-[3px_3px_0_#2A2A30] dark:shadow-[3px_3px_0_#2A2A30]">
       <div className="text-white font-black mb-2 md:mb-3 pb-1.5 md:pb-2 border-b-[3px] border-gray-600 dark:border-slate-700 flex items-center gap-2 uppercase tracking-wide">
         <TerminalIcon className="w-4 h-4 md:w-5 md:h-5" /> X-Ray Console
       </div>
@@ -42,7 +42,7 @@ export const TerminalLogs: React.FC<TerminalLogsProps> = ({ msg }) => {
           href={explorerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[#0052FF] hover:text-white hover:underline mt-3 md:mt-4 pt-2 md:pt-3 border-t-[3px] border-gray-600 dark:border-slate-700 block flex items-center gap-1 font-black transition-colors break-all"
+          className="text-[#1A36B0] hover:text-white hover:underline mt-3 md:mt-4 pt-2 md:pt-3 border-t-[3px] border-gray-600 dark:border-slate-700 block flex items-center gap-1 font-black transition-colors break-all"
         >
           {explorerName} ↗
           <span className="sr-only"> (opens in a new tab)</span>

@@ -138,10 +138,10 @@ export function SignInView({ client, ops, onSignedIn }: { readonly client: Admin
     const standard = kind === "evm" ? "Sign-In with Ethereum (EIP-4361). Smart-contract wallets (ERC-1271) work too." : "Sign In With Solana: an ed25519 signature over plain text.";
     const active = prepared?.kind === kind;
     return (
-      <div className={cx("flex min-w-0 flex-col gap-4 p-5", INK_BORDER, HARD_SHADOW, SURFACE, active && "outline outline-[3px] outline-offset-2 outline-[#FFD60A]")}>
+      <div className={cx("flex min-w-0 flex-col gap-4 p-5", INK_BORDER, HARD_SHADOW, SURFACE, active && "outline outline-[3px] outline-offset-2 outline-[#C6FF3A]")}>
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-display text-xl font-bold">{title}</h2>
-          <span className={cx(LABEL, "border-2 border-current px-1.5", kind === "solana" ? "bg-[#14F195] text-[#0B1120]" : "bg-[#0052FF] text-white")}>{kind === "evm" ? "EVM" : "Solana"}</span>
+          <span className={cx(LABEL, "border-2 border-current px-1.5", kind === "solana" ? "bg-[#14F195] text-[#0E0E10]" : "bg-[#2F5BFF] text-white")}>{kind === "evm" ? "EVM" : "Solana"}</span>
         </div>
         <p className={cx("text-sm", TEXT_MUTED)}>{standard}</p>
         {address ? (

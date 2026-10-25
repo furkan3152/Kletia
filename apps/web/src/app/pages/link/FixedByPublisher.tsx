@@ -68,14 +68,14 @@ export function FixedByPublisher({ view, needsAcknowledgement, acknowledged, onA
               {view.fixed.recipients.map((recipient) => {
                 const href = explorerFor(recipient.network, recipient.address);
                 return (
-                  <li key={`${recipient.network}:${recipient.address}`} className="flex flex-col gap-1 border-l-[3px] border-[#1A1A1A] pl-3">
+                  <li key={`${recipient.network}:${recipient.address}`} className="flex flex-col gap-1 border-l-[3px] border-[#121212] pl-3">
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       {recipient.name ? <span className="font-display text-lg font-bold">{recipient.name}</span> : null}
                       <NetworkTag network={recipient.network} />
                     </span>
                     <span className="kl-link-fixed__addr">{displayAddress(recipient.network, recipient.address)}</span>
                     {recipient.name ? (
-                      <span className="text-xs font-semibold text-[#45464B]">
+                      <span className="text-xs font-semibold text-[#5C5850]">
                         The name was resolved and pinned when the link was published. If it ever points elsewhere, the link pauses itself.
                       </span>
                     ) : null}
@@ -110,13 +110,13 @@ export function FixedByPublisher({ view, needsAcknowledgement, acknowledged, onA
               ).map((contract) => {
                 const href = explorerFor(contract.network, contract.address);
                 return (
-                  <li key={`${contract.network}:${contract.address}`} className="flex flex-col gap-1 border-l-[3px] border-[#1A1A1A] pl-3">
+                  <li key={`${contract.network}:${contract.address}`} className="flex flex-col gap-1 border-l-[3px] border-[#121212] pl-3">
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="font-display text-lg font-bold">{contract.label}</span>
                       <NetworkTag network={contract.network} />
                     </span>
                     <span className="kl-link-fixed__addr">{displayAddress(contract.network, contract.address)}</span>
-                    <span className="text-xs font-semibold text-[#45464B]">
+                    <span className="text-xs font-semibold text-[#5C5850]">
                       {contract.integrator ? `Registered by ${contract.integrator}` : "Registered by the publisher"}
                       {contract.revision !== null ? `, revision ${contract.revision}` : ""}
                       {contract.source ? `, source ${contract.source.replace(/_/gu, " ")}` : ""}
@@ -136,11 +136,11 @@ export function FixedByPublisher({ view, needsAcknowledgement, acknowledged, onA
         ) : null}
 
         {needsAcknowledgement ? (
-          <div className="flex items-start gap-3 border-[3px] border-[#1A1A1A] bg-[#FFF3B0] p-3">
+          <div className="flex items-start gap-3 border-[3px] border-[#121212] bg-[#FFF3B0] p-3">
             <input
               id={checkboxId}
               type="checkbox"
-              className={cx("mt-1 h-5 w-5 shrink-0 accent-[#0052FF]")}
+              className={cx("mt-1 h-5 w-5 shrink-0 accent-[#2F5BFF]")}
               checked={acknowledged}
               disabled={disabled}
               onChange={(event) => onAcknowledge(event.target.checked)}

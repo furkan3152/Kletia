@@ -56,7 +56,7 @@ export function DeliveriesTable({ rows }: DeliveriesTableProps) {
       <table className="hidden w-full border-collapse text-left text-body-s sm:table">
         <caption className="sr-only">Delivery attempts, newest first</caption>
         <thead className="bg-surface-2">
-          <tr className="border-b-2 border-[#1A1A1A]/10 dark:border-white/10">
+          <tr className="border-b-2 border-[#121212]/10 dark:border-white/10">
             {["Time (UTC)", "Event", "Attempt", "Result", "HTTP", "Duration", "Next retry", "Intent"].map((header) => (
               <th key={header} scope="col" className={cx(LABEL, CELL, "py-2.5 font-extrabold", TEXT_MUTED)}>
                 {header}
@@ -67,7 +67,7 @@ export function DeliveriesTable({ rows }: DeliveriesTableProps) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10">
+        <tbody className="divide-y-2 divide-[#121212]/10 dark:divide-white/10">
           {rows.map((row) => {
             const expanded = open === row.id;
             const panel = `delivery-${row.id}`;
@@ -115,7 +115,7 @@ export function DeliveriesTable({ rows }: DeliveriesTableProps) {
         </tbody>
       </table>
 
-      <ul className="divide-y-2 divide-[#1A1A1A]/10 sm:hidden dark:divide-white/10" aria-label="Delivery attempts, newest first">
+      <ul className="divide-y-2 divide-[#121212]/10 sm:hidden dark:divide-white/10" aria-label="Delivery attempts, newest first">
         {rows.map((row) => {
           const expanded = open === row.id;
           const panel = `delivery-phone-${row.id}`;

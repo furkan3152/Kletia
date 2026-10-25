@@ -11,7 +11,7 @@ export interface ControlIds {
 }
 
 const CONTROL =
-  "w-full min-w-0 border-[3px] border-[#1A1A1A] bg-white px-3 py-2 text-[14px] text-[#1A1A1A] placeholder:text-[#6B7280] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-[#F1F5F9] dark:placeholder:text-[#64748B] disabled:opacity-60";
+  "w-full min-w-0 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 py-2 text-[14px] text-[#121212] placeholder:text-[#6B7280] dark:border-[#4A4A52] dark:bg-[#0E0E10] dark:text-[#F2F0EA] dark:placeholder:text-[#8F8C84] disabled:opacity-60";
 
 export interface ClauseProps {
   /** `§8.3`. */
@@ -42,12 +42,12 @@ export function ClauseRow({ code, field, label, meaning, issues = [], warnings =
   const noteId = `${id}-notes`;
   const describedBy = [meaningId, issues.length + warnings.length > 0 || change ? noteId : ""].filter(Boolean).join(" ");
   return (
-    <div className={cx("grid min-w-0 gap-2 border-t-2 border-dashed border-[#1A1A1A]/20 py-4 first:border-t-0 first:pt-0 dark:border-white/10", !wide && "md:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] md:gap-5")}>
+    <div className={cx("grid min-w-0 gap-2 border-t-2 border-dashed border-[#121212]/20 py-4 first:border-t-0 first:pt-0 dark:border-white/10", !wide && "md:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] md:gap-5")}>
       <div className="min-w-0">
         <label id={`${id}-label`} htmlFor={id} className="block font-display text-[15px] font-bold leading-snug">
           {label}
         </label>
-        <p className="mt-0.5 break-words font-code text-[12px] font-bold text-[#0047E0] [font-variant-ligatures:none] dark:text-[#7EA6FF]">
+        <p className="mt-0.5 break-words font-code text-[12px] font-bold text-[#1A36B0] [font-variant-ligatures:none] dark:text-[#8FA6FF]">
           {code} {field}
         </p>
       </div>
@@ -133,7 +133,7 @@ export function TextControl({
   return (
     <span className="flex min-w-0 sm:max-w-xs">
       {prefix ? (
-        <span aria-hidden="true" className="inline-flex shrink-0 items-center border-[3px] border-r-0 border-[#1A1A1A] bg-[#F1EFE8] px-2.5 font-code text-sm font-bold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white">
+        <span aria-hidden="true" className="inline-flex shrink-0 items-center border-[3px] border-r-0 border-[#121212] bg-[#E6E2D9] px-2.5 font-code text-sm font-bold text-[#121212] dark:border-[#4A4A52] dark:bg-[#232327] dark:text-white">
           {prefix}
         </span>
       ) : null}
@@ -232,7 +232,7 @@ export function ChipsControl({
   return (
     <fieldset id={ids.id} aria-labelledby={ids.labelId} aria-describedby={ids.describedBy} className="flex min-w-0 flex-col gap-2" disabled={disabled}>
       <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 self-start text-sm font-bold">
-        <input type="checkbox" className="h-4 w-4 accent-[#0052FF]" checked={any} onChange={(event) => onChange(event.target.checked ? undefined : options.map((option) => option.value))} />
+        <input type="checkbox" className="h-4 w-4 accent-[#2F5BFF]" checked={any} onChange={(event) => onChange(event.target.checked ? undefined : options.map((option) => option.value))} />
         {anyLabel}
       </label>
       {!any ? (
@@ -244,12 +244,12 @@ export function ChipsControl({
                 <label
                   className={cx(
                     "inline-flex min-h-9 cursor-pointer items-center gap-1.5 border-2 px-2.5 text-[12px] font-bold",
-                    on ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] dark:border-[#FFD60A]" : "border-[#1A1A1A]/40 text-[#45464B] dark:border-white/25 dark:text-[#A9B6C8]",
+                    on ? "border-[#121212] bg-[#C6FF3A] text-[#121212] dark:border-[#C6FF3A]" : "border-[#121212]/40 text-[#5C5850] dark:border-white/25 dark:text-[#9A968C]",
                   )}
                 >
                   <input
                     type="checkbox"
-                    className="h-3.5 w-3.5 accent-[#1A1A1A]"
+                    className="h-3.5 w-3.5 accent-[#121212]"
                     checked={on}
                     onChange={(event) => onChange(event.target.checked ? [...value, option.value] : value.filter((entry) => entry !== option.value))}
                   />

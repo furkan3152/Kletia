@@ -89,7 +89,7 @@ export function TimetableGrid({ labelId, describedBy, schedule, onChange, now }:
             value={timezone}
             disabled={!schedule}
             onChange={(event) => (schedule ? onChange({ ...schedule, timezone: event.target.value }) : undefined)}
-            className="min-h-10 max-w-[16rem] border-[3px] border-[#1A1A1A] bg-white px-2 font-code text-[13px] text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-white"
+            className="min-h-10 max-w-[16rem] border-[3px] border-[#121212] bg-[#FBFAF6] px-2 font-code text-[13px] text-[#121212] dark:border-[#4A4A52] dark:bg-[#0E0E10] dark:text-white"
           >
             {(allZones.includes(timezone) ? allZones : [timezone, ...allZones]).map((zone) => (
               <option key={zone} value={zone}>
@@ -164,7 +164,7 @@ export function TimetableGrid({ labelId, describedBy, schedule, onChange, now }:
         {readOnly
           ? "This timetable has windows that start or end off the hour. Edit it in the JSON view; the grid shows hours only."
           : "Arrow keys move between hours, Space toggles one. Filled cells are open; the time zone applies once an hour is closed."}{" "}
-        <span className="font-bold text-[#1A1A1A] dark:text-white">{timetableStatus(schedule, now)}</span>
+        <span className="font-bold text-[#121212] dark:text-white">{timetableStatus(schedule, now)}</span>
       </p>
     </div>
   );

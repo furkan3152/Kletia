@@ -35,7 +35,7 @@ export function EventEditor({ entry, events, labels, index, issues, onChange }: 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {events.length === 0 ? (
-        <p className="border-l-[6px] border-[#B91C1C] bg-[#FFE4E4] px-3 py-2 text-sm text-[#1A1A1A]">
+        <p className="border-l-[6px] border-[#B91C1C] bg-[#FFE4E4] px-3 py-2 text-sm text-[#121212]">
           The ABI has no (non-anonymous) event. Add the event your function emits to the ABI in step 2: Kletia needs one to prove success.
         </p>
       ) : null}

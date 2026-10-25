@@ -54,16 +54,16 @@ export function StatusBoard({ data }: { readonly data: HomeData }) {
       }
       containerClassName="grid gap-10 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:items-start lg:gap-14 [&>header]:mb-0"
     >
-      <dl className="order-3 grid gap-3 border-t-2 border-dashed border-[#1A1A1A]/25 pt-6 dark:border-white/15 lg:order-none lg:col-start-1 lg:row-start-2 lg:-mt-2">
+      <dl className="order-3 grid gap-3 border-t-2 border-dashed border-[#121212]/25 pt-6 dark:border-white/15 lg:order-none lg:col-start-1 lg:row-start-2 lg:-mt-2">
         {KEY.map((item) => (
           <div key={item.label} className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-baseline gap-x-2 text-sm">
             <span
               aria-hidden="true"
-              className="h-2.5 w-2.5 translate-y-[1px] rounded-full shadow-[0_0_0_2px_#1A1A1A]"
+              className="h-2.5 w-2.5 translate-y-[1px] rounded-full shadow-[0_0_0_2px_#121212]"
               style={{ backgroundColor: item.lamp }}
             />
             <dt className="inline font-code text-[11px] font-bold uppercase tracking-[0.14em]">{item.label}</dt>
-            <dd className="col-start-2 text-[#45464B] dark:text-[#A9B6C8]">{item.body}</dd>
+            <dd className="col-start-2 text-[#5C5850] dark:text-[#9A968C]">{item.body}</dd>
           </div>
         ))}
       </dl>
@@ -94,7 +94,7 @@ export function StatusBoard({ data }: { readonly data: HomeData }) {
           <Link
             to="/networks"
             className={cx(
-              "group inline-flex min-h-11 items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#0047E0] underline decoration-2 underline-offset-4 dark:text-[#7EA6FF]",
+              "group inline-flex min-h-11 items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#1A36B0] underline decoration-2 underline-offset-4 dark:text-[#8FA6FF]",
               FOCUS_RING,
             )}
           >

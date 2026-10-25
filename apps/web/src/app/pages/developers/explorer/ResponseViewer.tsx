@@ -54,12 +54,12 @@ function RateLimitMeter({ exchange }: { readonly exchange: ExplorerExchange }) {
       </p>
       {limit !== null ? (
         <div
-          className="h-2 w-full max-w-56 border-2 border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0B1120]"
+          className="h-2 w-full max-w-56 border-2 border-[#121212] bg-[#FBFAF6] dark:border-[#4A4A52] dark:bg-[#0E0E10]"
           role="img"
           aria-label={`${used} of ${limit} requests used in this window`}
         >
           <div
-            className={cx("h-full", percent > 85 ? "bg-[#FF5A5F]" : percent > 60 ? "bg-[#FFD60A]" : "bg-[#4ADE80]")}
+            className={cx("h-full", percent > 85 ? "bg-[#FF5A5F]" : percent > 60 ? "bg-[#C6FF3A]" : "bg-[#4ADE80]")}
             style={{ width: `${percent}%` }}
           />
         </div>
@@ -161,7 +161,7 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
       </div>
 
       {error ? (
-        <div className="flex flex-col gap-2 border-l-[6px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#1A1A1A] dark:border-[#FCA5A5] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+        <div className="flex flex-col gap-2 border-l-[6px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#121212] dark:border-[#FCA5A5] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
           <p className="flex flex-wrap items-center gap-2 text-sm">
             <CircleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
             <code className="font-code font-bold">{error.code}</code>
@@ -182,7 +182,7 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
         </div>
       ) : null}
 
-      <div role="tablist" aria-label="Response view" className="flex gap-1 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+      <div role="tablist" aria-label="Response view" className="flex gap-1 border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         {tabs.map((item, index) => {
           const selected = item.id === tab;
           return (
@@ -202,8 +202,8 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
               className={cx(
                 "-mb-[3px] min-h-10 border-[3px] border-b-0 px-3 text-xs font-black uppercase tracking-[0.12em]",
                 selected
-                  ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] dark:border-[#4B5563]"
-                  : "border-transparent text-[#45464B] hover:text-[#1A1A1A] dark:text-[#A9B6C8] dark:hover:text-white",
+                  ? "border-[#121212] bg-[#C6FF3A] text-[#121212] dark:border-[#4A4A52]"
+                  : "border-transparent text-[#5C5850] hover:text-[#121212] dark:text-[#9A968C] dark:hover:text-white",
                 FOCUS_RING,
               )}
             >
@@ -221,7 +221,7 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
                 <dd className="break-all">{value}</dd>
               </React.Fragment>
             ))}
-            <dt className="col-span-2 mt-2 font-sans text-xs text-[#45464B] dark:text-[#A9B6C8]">
+            <dt className="col-span-2 mt-2 font-sans text-xs text-[#5C5850] dark:text-[#9A968C]">
               Browsers expose only the headers the API lists in Access-Control-Expose-Headers, plus a few safe ones.
             </dt>
           </dl>
@@ -231,7 +231,7 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
           <p className={cx("text-sm", TEXT_MUTED)}>No content.</p>
         ) : isSvg ? (
           <div className="flex flex-col gap-3">
-            <div className={cx("flex items-center justify-center bg-white p-4", INK_BORDER_THIN)}>
+            <div className={cx("flex items-center justify-center bg-[#FBFAF6] p-4", INK_BORDER_THIN)}>
               <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(exchange.bodyText)}`} alt="Status badge returned by the API" />
             </div>
             <CodeBlock code={exchange.bodyText} language="html" label="SVG source" filename="badge.svg" maxHeightClassName="max-h-60" />
@@ -254,14 +254,14 @@ export interface ResponseViewerProps {
 export function ResponseViewer({ result, origin, onRetry }: ResponseViewerProps) {
   if (!result) {
     return (
-      <p className="border-[3px] border-dashed border-[#1A1A1A]/30 px-4 py-5 text-center text-sm text-[#45464B] dark:border-white/15 dark:text-[#A9B6C8]">
+      <p className="border-[3px] border-dashed border-[#121212]/30 px-4 py-5 text-center text-sm text-[#5C5850] dark:border-white/15 dark:text-[#9A968C]">
         Send the request to see the live response from <span className="break-all font-code">{origin}</span>.
       </p>
     );
   }
   if (result.state === "loading") {
     return (
-      <div role="status" className="kl-hatch kl-loop relative overflow-hidden border-[3px] border-dashed border-[#1A1A1A]/40 px-4 py-5 text-center text-sm font-bold dark:border-white/20">
+      <div role="status" className="kl-hatch kl-loop relative overflow-hidden border-[3px] border-dashed border-[#121212]/40 px-4 py-5 text-center text-sm font-bold dark:border-white/20">
         <span className="relative">Waiting for the API…</span>
       </div>
     );
@@ -270,7 +270,7 @@ export function ResponseViewer({ result, origin, onRetry }: ResponseViewerProps)
     return (
       <div
         role="alert"
-        className="kl-rise flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#FFE4E4] p-4 text-[#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]"
+        className="kl-rise flex flex-col gap-3 border-[3px] border-[#121212] bg-[#FFE4E4] p-4 text-[#121212] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]"
       >
         <p className="flex items-start gap-2 font-display text-lg font-bold leading-tight">
           <WifiOff className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />

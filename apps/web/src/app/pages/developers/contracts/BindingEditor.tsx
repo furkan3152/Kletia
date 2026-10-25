@@ -138,7 +138,7 @@ function ParamRow({ param, onChange, onRemove }: { readonly param: ParamDraft; r
         <TextField label="Default" mono value={param.defaultValue} onChange={(event) => onChange({ ...param, defaultValue: event.target.value })} />
       ) : (
         <label className="inline-flex min-h-11 items-center gap-2 text-sm font-bold">
-          <input type="checkbox" className="h-4 w-4 accent-[#0052FF]" checked={param.required} onChange={(event) => onChange({ ...param, required: event.target.checked })} />
+          <input type="checkbox" className="h-4 w-4 accent-[#2F5BFF]" checked={param.required} onChange={(event) => onChange({ ...param, required: event.target.checked })} />
           Required
         </label>
       )}

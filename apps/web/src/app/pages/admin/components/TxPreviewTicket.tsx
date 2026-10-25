@@ -47,7 +47,7 @@ export function TxPreviewTicket({ label, icon, title, serial, headline, lines, f
           {lines.length > 0 ? (
             <dl className="mt-3 grid gap-2">
               {lines.map((line) => (
-                <div key={line.label} className="grid min-w-0 gap-0.5 border-t-2 border-dotted border-[#1A1A1A]/30 pt-2 sm:grid-cols-[11rem_1fr] sm:gap-3">
+                <div key={line.label} className="grid min-w-0 gap-0.5 border-t-2 border-dotted border-[#121212]/30 pt-2 sm:grid-cols-[11rem_1fr] sm:gap-3">
                   <dt className="kla-ticket__k">{line.label}</dt>
                   <dd className="min-w-0">
                     {line.note ? <span className="block font-body text-[13px] font-bold">{line.note}</span> : null}

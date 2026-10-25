@@ -1,7 +1,3 @@
-import "@fontsource-variable/space-grotesk";
-import "@fontsource-variable/inter";
-import "@fontsource-variable/jetbrains-mono";
-
 import React, { useLayoutEffect } from "react";
 
 import { PaperDefs } from "./art/PaperDefs";
@@ -15,7 +11,7 @@ function PageFallback() {
   return (
     // Fills the first screen so the footer never paints above the fold and then jumps down when the page arrives.
     <div className="flex min-h-[calc(100vh-4.5rem)] items-center justify-center" role="status">
-      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+      <span className="border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]">
         Loading
       </span>
     </div>
@@ -34,7 +30,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
   const { theme, toggle } = useSiteTheme();
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-x-clip bg-[#F4F1EA] font-body text-[#1A1A1A] antialiased selection:bg-[#FFD60A] selection:text-[#1A1A1A] dark:bg-[#0B1120] dark:text-[#F1F5F9]">
+    <div className="relative flex min-h-screen flex-col overflow-x-clip bg-[#D6D2C8] font-body text-[#121212] antialiased selection:bg-[#C6FF3A] selection:text-[#121212] dark:bg-[#0E0E10] dark:text-[#F2F0EA]">
       <a
         href="#main-content"
         onClick={(event) => {
@@ -44,7 +40,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           main?.scrollIntoView();
         }}
         className={cx(
-          "sr-only z-[200] border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#1A1A1A] focus:not-sr-only focus:fixed focus:left-4 focus:top-4",
+          "sr-only z-[200] border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#121212] focus:not-sr-only focus:fixed focus:left-4 focus:top-4",
           FOCUS_RING,
         )}
       >

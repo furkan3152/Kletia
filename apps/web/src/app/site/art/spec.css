@@ -51,13 +51,13 @@
 }
 .kla-spec__box--yours {
   fill: rgba(255, 214, 10, 0.12);
-  stroke: #ffd60a;
+  stroke: #c6ff3a;
   stroke-width: 2.5;
 }
 .kla-spec__tag {
   font: 800 9px/1 var(--kla-font-mono);
   letter-spacing: 0.18em;
-  fill: #ffd60a;
+  fill: #c6ff3a;
 }
 .kla-spec__title {
   font: 800 14px/1 var(--kla-font-mono);

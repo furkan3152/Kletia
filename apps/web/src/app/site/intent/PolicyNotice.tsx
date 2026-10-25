@@ -40,9 +40,9 @@ export function PolicyNotice({ outcome, onCheckAgain, busy = false, className }:
     <div
       role={held ? "status" : "alert"}
       className={cx(
-        "relative flex flex-col gap-3 p-4 pr-4 text-[#1A1A1A] sm:pr-36",
+        "relative flex flex-col gap-3 p-4 pr-4 text-[#121212] sm:pr-36",
         INK_BORDER,
-        "shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]",
+        "shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]",
         held ? "bg-[#FFF3B0]" : "bg-[#FFE4E4]",
         className,
       )}
@@ -52,16 +52,16 @@ export function PolicyNotice({ outcome, onCheckAgain, busy = false, className }:
         detail={held ? "Waiting for approval" : "Rule book"}
         className="pointer-events-none !absolute right-3 top-3 hidden w-28 sm:block"
       />
-      <p className={cx(LABEL, "!text-[#1A1A1A]")}>{held ? "Held" : "Refused"} · Rule Book</p>
+      <p className={cx(LABEL, "!text-[#121212]")}>{held ? "Held" : "Refused"} · Rule Book</p>
       <p className="font-display text-xl font-bold leading-tight">{outcome.title}</p>
       <p className="text-sm font-semibold leading-relaxed">{outcome.message}</p>
       {outcome.rules.length > 0 ? (
         <ul className="flex flex-col gap-1.5" aria-label="Rules that decided">
           {outcome.rules.map((rule) => (
-            <li key={rule.key} className="flex flex-col gap-0.5 border-l-[3px] border-[#1A1A1A] pl-3 text-sm sm:flex-row sm:flex-wrap sm:gap-2">
+            <li key={rule.key} className="flex flex-col gap-0.5 border-l-[3px] border-[#121212] pl-3 text-sm sm:flex-row sm:flex-wrap sm:gap-2">
               <code className="font-code text-xs font-bold">{rule.rule}</code>
               {rule.message ? <span>{rule.message}</span> : null}
-              {rule.detail ? <span className="text-[#45464B]">({rule.detail})</span> : null}
+              {rule.detail ? <span className="text-[#5C5850]">({rule.detail})</span> : null}
             </li>
           ))}
         </ul>
@@ -73,7 +73,7 @@ export function PolicyNotice({ outcome, onCheckAgain, busy = false, className }:
               href={outcome.approval.href}
               target="_blank"
               rel="noreferrer noopener"
-              className="inline-flex items-center gap-1.5 font-bold text-[#0047E0] underline decoration-2 underline-offset-2 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#0052FF]"
+              className="inline-flex items-center gap-1.5 font-bold text-[#1A36B0] underline decoration-2 underline-offset-2 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF]"
             >
               Open the approval request
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
@@ -84,16 +84,16 @@ export function PolicyNotice({ outcome, onCheckAgain, busy = false, className }:
               Approval <code className="font-code font-bold">{outcome.approval.id}</code>
             </span>
           )}
-          {outcome.approval.ceilingUsd ? <span className="text-[#45464B]">Up to {outcome.approval.ceilingUsd}</span> : null}
-          {expires ? <span className="text-[#45464B]">Expires {expires}</span> : null}
+          {outcome.approval.ceilingUsd ? <span className="text-[#5C5850]">Up to {outcome.approval.ceilingUsd}</span> : null}
+          {expires ? <span className="text-[#5C5850]">Expires {expires}</span> : null}
         </p>
       ) : null}
       {held ? (
-        <p className="text-xs font-semibold text-[#45464B]">
+        <p className="text-xs font-semibold text-[#5C5850]">
           The link only shows the request. An approver with the right key or wallet decides; nothing is signed until then.
         </p>
       ) : null}
-      {retry ? <p className="text-xs font-semibold text-[#45464B]">A retry may pass after {retry}.</p> : null}
+      {retry ? <p className="text-xs font-semibold text-[#5C5850]">A retry may pass after {retry}.</p> : null}
       {held && onCheckAgain ? (
         <Button size="sm" variant="secondary" onClick={onCheckAgain} disabled={busy} className="self-start">
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />

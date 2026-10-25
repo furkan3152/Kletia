@@ -20,7 +20,7 @@ function InlineText({ inline }: { readonly inline: readonly Inline[] }) {
         switch (part.kind) {
           case "code":
             return (
-              <code key={index} className="break-words border border-[#1A1A1A]/20 bg-surface-2 px-1 py-px font-code text-[0.88em] dark:border-white/15">
+              <code key={index} className="break-words border border-[#121212]/20 bg-surface-2 px-1 py-px font-code text-[0.88em] dark:border-white/15">
                 {part.text}
               </code>
             );
@@ -54,7 +54,7 @@ function Blocks({ blocks, note = false }: { readonly blocks: readonly ChangelogB
     ) : (
       <ul key={index} className="flex max-w-3xl flex-col gap-2.5">
         {block.items.map((item, itemIndex) => (
-          <li key={itemIndex} className="relative pl-5 leading-relaxed before:absolute before:left-0 before:top-[0.6em] before:h-2 before:w-2 before:bg-[#1A1A1A] dark:before:bg-[#F1F5F9]">
+          <li key={itemIndex} className="relative pl-5 leading-relaxed before:absolute before:left-0 before:top-[0.6em] before:h-2 before:w-2 before:bg-[#121212] dark:before:bg-[#F2F0EA]">
             <InlineText inline={item} />
           </li>
         ))}
@@ -73,7 +73,7 @@ function formatDay(date: string): string {
 function Release({ release }: { readonly release: ChangelogRelease }) {
   const headingId = `${release.id}-heading`;
   return (
-    <section id={release.id} aria-labelledby={headingId} className="scroll-mt-24 border-t-[3px] border-[#1A1A1A] py-12 first:border-t-0 first:pt-0 dark:border-[#4B5563]">
+    <section id={release.id} aria-labelledby={headingId} className="scroll-mt-24 border-t-[3px] border-[#121212] py-12 first:border-t-0 first:pt-0 dark:border-[#4A4A52]">
       <h2 id={headingId} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-display text-3xl font-bold tracking-[-0.03em] sm:text-4xl">
         <a href={`#${release.id}`} className={cx("hover:underline", FOCUS_RING)}>
           {release.version}
@@ -101,7 +101,7 @@ function Release({ release }: { readonly release: ChangelogRelease }) {
 export default function ChangelogPage() {
   return (
     <>
-      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+      <header className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "py-14 sm:py-20")}>
           <PlatformNumber code="LOG">Release notes</PlatformNumber>
           <h1 className="mt-6 font-display text-[clamp(2.5rem,6vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]">Changelog</h1>
@@ -126,7 +126,7 @@ export default function ChangelogPage() {
                 <a
                   href={`#${release.id}`}
                   className={cx(
-                    "inline-flex min-h-11 items-center border-2 border-[#1A1A1A] px-3 text-sm font-bold dark:border-[#4B5563] lg:min-h-9 lg:border-0 lg:px-0 lg:underline lg:decoration-2 lg:underline-offset-4",
+                    "inline-flex min-h-11 items-center border-2 border-[#121212] px-3 text-sm font-bold dark:border-[#4A4A52] lg:min-h-9 lg:border-0 lg:px-0 lg:underline lg:decoration-2 lg:underline-offset-4",
                     FOCUS_RING,
                   )}
                 >

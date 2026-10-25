@@ -78,7 +78,7 @@ export function StarterMenu({ departure, actions, onPick, variant = "row", class
       <ul
         id={listId}
         aria-label={copy.examplesLabel}
-        className="absolute bottom-full left-0 z-40 mb-2 flex max-h-[min(50dvh,var(--kd-starter-room,50dvh))] w-full max-w-xl flex-col overflow-y-auto border-[3px] border-control bg-surface shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]"
+        className="absolute bottom-full left-0 z-40 mb-2 flex max-h-[min(50dvh,var(--kd-starter-room,50dvh))] w-full max-w-xl flex-col overflow-y-auto border-[3px] border-control bg-surface shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]"
       >
         {starters.map((starter) => {
           const sentence = sentenceOf(starter.sentence);

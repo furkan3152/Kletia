@@ -215,7 +215,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
       <div className="flex flex-wrap items-center gap-3">
         <span
           aria-hidden="true"
-          className="inline-flex -rotate-2 items-center border-[3px] border-[#0047E0] px-2.5 py-1 font-code text-[11px] font-black uppercase tracking-[0.12em] text-[#0047E0] dark:border-[#7EA6FF] dark:text-[#7EA6FF]"
+          className="inline-flex -rotate-2 items-center border-[3px] border-[#1A36B0] px-2.5 py-1 font-code text-[11px] font-black uppercase tracking-[0.12em] text-[#1A36B0] dark:border-[#8FA6FF] dark:text-[#8FA6FF]"
         >
           Receipt · No. {receiptNumber(ready.receiptId)}
         </span>
@@ -247,7 +247,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
                 value={item.id}
                 checked={profile === item.id}
                 onChange={() => setProfile(item.id)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#0052FF]"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#2F5BFF]"
               />
               <span>
                 <span className="font-bold">{item.label}.</span> <span className={TEXT_MUTED}>{item.description}</span>
@@ -261,7 +261,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
               value="custom"
               checked={profile === "custom"}
               onChange={() => setProfile("custom")}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[#0052FF]"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[#2F5BFF]"
             />
             <span>
               <span className="font-bold">Choose what to show.</span>{" "}
@@ -269,7 +269,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
             </span>
           </label>
           {profile === "custom" ? (
-            <ul className="ml-6 flex flex-col gap-1.5 border-l-[3px] border-[#1A1A1A]/30 pl-3 dark:border-white/20" aria-label="Parts to show">
+            <ul className="ml-6 flex flex-col gap-1.5 border-l-[3px] border-[#121212]/30 pl-3 dark:border-white/20" aria-label="Parts to show">
               {RECEIPT_SHARE_GROUPS.map((group) => (
                 <li key={group.pattern}>
                   <label className="flex cursor-pointer items-start gap-2.5 text-sm">
@@ -277,7 +277,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
                       type="checkbox"
                       checked={groups.includes(group.pattern)}
                       onChange={(event) => toggleGroup(group.pattern, event.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-[#0052FF]"
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-[#2F5BFF]"
                     />
                     <span>
                       <span className="font-bold">{group.label}.</span> <span className={TEXT_MUTED}>{group.description}</span>
@@ -288,7 +288,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
             </ul>
           ) : null}
           {revealsAddresses ? (
-            <p className="border-2 border-[#1A1A1A] bg-[#FFF3B0] px-2.5 py-1.5 text-xs font-bold text-[#1A1A1A]">{RECEIPT_EVIDENCE_WARNING}</p>
+            <p className="border-2 border-[#121212] bg-[#FFF3B0] px-2.5 py-1.5 text-xs font-bold text-[#121212]">{RECEIPT_EVIDENCE_WARNING}</p>
           ) : null}
           <label htmlFor={expiryId} className="mt-1 text-xs font-bold">
             Link expires after
@@ -297,7 +297,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
             id={expiryId}
             value={expiry}
             onChange={(event) => setExpiry(Number(event.target.value))}
-            className={cx("min-h-11 max-w-[12rem] bg-white px-2 text-sm font-semibold dark:bg-[#0B1120]", INK_BORDER)}
+            className={cx("min-h-11 max-w-[12rem] bg-[#FBFAF6] px-2 text-sm font-semibold dark:bg-[#0E0E10]", INK_BORDER)}
           >
             {EXPIRY_OPTIONS.map((option, index) => (
               <option key={option.label} value={index}>
@@ -326,7 +326,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
               href={link}
               target="_blank"
               rel="noreferrer noopener"
-              className="inline-flex min-h-9 items-center gap-1.5 border-[3px] border-[#1A1A1A] bg-white px-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#1A1A1A] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white dark:focus-visible:outline-[#FFD60A]"
+              className="inline-flex min-h-9 items-center gap-1.5 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#121212] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF] dark:border-[#4A4A52] dark:bg-[#232327] dark:text-white dark:focus-visible:outline-[#C6FF3A]"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               Open receipt
@@ -342,7 +342,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
           <p className={LABEL}>Shared links</p>
           <ul className="flex flex-col gap-1.5">
             {shares.map((item) => (
-              <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t-2 border-dashed border-[#1A1A1A]/20 pt-1.5 text-sm dark:border-white/10">
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t-2 border-dashed border-[#121212]/20 pt-1.5 text-sm dark:border-white/10">
                 <span>
                   <span className="font-bold">{receiptGroupsLabel(item.groups)}</span>
                   <span className={TEXT_MUTED}>

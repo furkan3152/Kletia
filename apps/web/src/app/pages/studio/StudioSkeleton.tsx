@@ -6,7 +6,7 @@ const STAT_CELLS = ["w-10", "w-24", "w-8", "w-16", "w-14", "w-28"];
 function NodeSkeleton({ className }: { className?: string }) {
   return (
     <div className={cx("relative flex min-w-0 flex-col", INK_BORDER, HARD_SHADOW, SURFACE, className)}>
-      <div className="h-2 w-full border-b-[3px] border-[#1A1A1A]/30 bg-[#E7E2D6] dark:border-[#4B5563] dark:bg-[#1A2841]" />
+      <div className="h-2 w-full border-b-[3px] border-[#121212]/30 bg-[#E7E2D6] dark:border-[#4A4A52] dark:bg-[#232327]" />
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2">
           <Skeleton surface="card" className="h-4 w-6 border-2" />
@@ -32,7 +32,7 @@ export function StudioSkeleton({ prompt }: { prompt: string }) {
     <SkeletonGroup label="Planning intent" className="flex flex-col gap-6">
       <p className={cx("font-code text-xs leading-relaxed", TEXT_MUTED)}>
         Compiling “
-        <span className="kl-shimmer kl-loop inline-block max-w-full break-words bg-[#FFF3B0] px-1 align-bottom text-[#1A1A1A] dark:bg-[#2A2410] dark:text-[#FDE68A]">
+        <span className="kl-shimmer kl-loop inline-block max-w-full break-words bg-[#FFF3B0] px-1 align-bottom text-[#121212] dark:bg-[#2A2410] dark:text-[#FDE68A]">
           {prompt || "your intent"}
         </span>
         ”…
@@ -43,7 +43,7 @@ export function StudioSkeleton({ prompt }: { prompt: string }) {
         <Skeleton className="h-3 w-24 border-2" />
       </div>
       <div className={cx(INK_BORDER, HARD_SHADOW, SURFACE)}>
-        <div className="flex flex-col gap-3 border-b-[3px] border-[#1A1A1A] p-4 dark:border-[#4B5563] sm:flex-row sm:items-start sm:justify-between sm:p-5">
+        <div className="flex flex-col gap-3 border-b-[3px] border-[#121212] p-4 dark:border-[#4A4A52] sm:flex-row sm:items-start sm:justify-between sm:p-5">
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             <Skeleton surface="card" className="h-3 w-44 border-2" />
             <Skeleton surface="card" className="h-8 w-[60%]" />
@@ -54,9 +54,9 @@ export function StudioSkeleton({ prompt }: { prompt: string }) {
             <Skeleton surface="card" className="h-6 w-28 border-2" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-[2px] bg-[#1A1A1A] dark:bg-[#4B5563] sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-[2px] bg-[#121212] dark:bg-[#4A4A52] sm:grid-cols-3">
           {STAT_CELLS.map((width, index) => (
-            <div key={index} className="flex flex-col gap-2 bg-white px-4 py-3 dark:bg-[#131E32]">
+            <div key={index} className="flex flex-col gap-2 bg-[#FBFAF6] px-4 py-3 dark:bg-[#19191C]">
               <Skeleton surface="card" className="h-2.5 w-14 border-2" />
               <Skeleton surface="card" className={cx("h-5 border-2", width)} />
             </div>
@@ -89,11 +89,11 @@ export function StudioSkeleton({ prompt }: { prompt: string }) {
             strokeWidth={3}
             strokeDasharray="6 6"
             vectorEffect="non-scaling-stroke"
-            className="stroke-[#1A1A1A]/35 dark:stroke-white/25"
+            className="stroke-[#121212]/35 dark:stroke-white/25"
           />
         </svg>
         <div className="flex h-12 justify-center md:hidden">
-          <span className="h-full border-l-[3px] border-dashed border-[#1A1A1A]/35 dark:border-white/25" />
+          <span className="h-full border-l-[3px] border-dashed border-[#121212]/35 dark:border-white/25" />
         </div>
         <NodeSkeleton className="md:ml-auto md:w-[calc(50%-1rem)]" />
       </div>

@@ -221,7 +221,7 @@ export function JourneyPanel({
       ))}
       {promptPlaced ? null : promptCard}
       {folded.length > 0 ? (
-        <details className="kl-details border-[3px] border-dashed border-[#1A1A1A]/30 dark:border-white/15">
+        <details className="kl-details border-[3px] border-dashed border-[#121212]/30 dark:border-white/15">
           <summary className={cx("flex min-h-11 cursor-pointer items-center gap-2 px-3", LABEL)}>More about this route ({folded.length})</summary>
           <div className="flex flex-col gap-3 px-3 pb-3">
             {folded.map((notice) => (

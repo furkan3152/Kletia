@@ -214,7 +214,7 @@ function SignedIn({
     <>
       <WalletDock evmWorkspace={false} />
       <div className="flex min-h-11 items-center gap-2 border-[3px] border-control bg-surface px-2.5 text-xs font-bold shadow-hard-sm" title={session.address}>
-        <span className={cx(LABEL, "border-2 border-current px-1", kind === "solana" ? "bg-[#14F195] text-[#0B1120]" : "bg-[#0052FF] text-white")}>{kind === "solana" ? "SOL" : "EVM"}</span>
+        <span className={cx(LABEL, "border-2 border-current px-1", kind === "solana" ? "bg-[#14F195] text-[#0E0E10]" : "bg-[#2F5BFF] text-white")}>{kind === "solana" ? "SOL" : "EVM"}</span>
         <code className="font-code text-[13px]">{shortAddress(session.address)}</code>
         <span className={cx("hidden sm:inline", TEXT_MUTED)} aria-label={`Session ends in ${left}`}>
           {left}
@@ -245,7 +245,7 @@ function SignedIn({
                     }}
                     className={cx(
                       "flex min-h-11 items-center gap-2 border-[3px] px-3 text-sm font-bold",
-                      item.id === section ? "border-control bg-[#FFD60A] text-[#1A1A1A] shadow-hard-sm" : "border-control bg-surface text-fg",
+                      item.id === section ? "border-control bg-[#C6FF3A] text-[#121212] shadow-hard-sm" : "border-control bg-surface text-fg",
                       FOCUS_RING,
                     )}
                   >
@@ -270,7 +270,7 @@ function SignedIn({
                       }}
                       className={cx(
                         "-ml-[3px] flex min-h-11 items-center gap-3 border-l-[3px] px-3 text-[15px] font-bold transition-colors",
-                        active ? "border-[#0052FF] bg-surface text-accent-text dark:border-[#FFD60A] dark:text-[#FFD60A]" : "border-transparent text-fg hover:border-control hover:bg-surface",
+                        active ? "border-[#2F5BFF] bg-surface text-accent-text dark:border-[#C6FF3A] dark:text-[#C6FF3A]" : "border-transparent text-fg hover:border-control hover:bg-surface",
                         FOCUS_RING,
                         "focus-visible:-outline-offset-2",
                       )}
@@ -285,7 +285,7 @@ function SignedIn({
           </nav>
           <div className="flex min-w-0 flex-col gap-6">
             {!signer.ready ? (
-              <div role="note" className="flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#FFF3B0] p-4 text-[#1A1A1A] shadow-hard-sm sm:flex-row sm:items-center sm:justify-between dark:border-[#FFD60A] dark:bg-[#2A2110] dark:text-[#FDE68A]">
+              <div role="note" className="flex flex-col gap-3 border-[3px] border-[#121212] bg-[#FFF3B0] p-4 text-[#121212] shadow-hard-sm sm:flex-row sm:items-center sm:justify-between dark:border-[#C6FF3A] dark:bg-[#2A2110] dark:text-[#FDE68A]">
                 <p className="flex items-start gap-2 text-sm font-semibold">
                   <Wallet className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                   <span>{kind === "solana" && !wallets.evm ? SOLANA_ONLY_NOTICE : signer.reason}</span>

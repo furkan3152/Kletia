@@ -98,7 +98,7 @@ function OriginGate() {
 function Loading() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6" role="status">
-      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+      <span className="border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]">
         Checking the admin session
       </span>
     </div>

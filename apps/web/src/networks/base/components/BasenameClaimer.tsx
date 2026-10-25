@@ -85,12 +85,12 @@ export function BasenameClaimer({ onActionClick }: BasenameClaimerProps) {
 
   return (
     <div className="flex h-full w-full flex-1 items-center justify-center overflow-y-auto p-6">
-      <div className="flex w-full max-w-xl flex-col items-center border-[4px] border-[#1A1A1A] bg-white p-8 text-center shadow-[8px_8px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[8px_8px_0_#475569]">
-        <div className="mb-6 flex h-20 w-20 -rotate-6 items-center justify-center rounded-full border-[3px] border-[#1A1A1A] bg-[#0052FF] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+      <div className="flex w-full max-w-xl flex-col items-center border-[4px] border-[#121212] bg-[#FBFAF6] p-8 text-center shadow-[8px_8px_0_#121212] dark:border-[#4A4A52] dark:bg-[#232327] dark:shadow-[8px_8px_0_#2A2A30]">
+        <div className="mb-6 flex h-20 w-20 -rotate-6 items-center justify-center rounded-full border-[3px] border-[#121212] bg-[#2F5BFF] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]">
           <Tag className="h-10 w-10 text-white" strokeWidth={3} />
         </div>
 
-        <h2 className="mb-2 text-3xl font-black uppercase tracking-tighter text-[#1A1A1A] dark:text-white">
+        <h2 className="mb-2 text-3xl font-black uppercase tracking-tighter text-[#121212] dark:text-white">
           Base identity intent
         </h2>
         <p className="mb-8 px-4 text-sm font-bold text-gray-500 dark:text-gray-400">
@@ -108,9 +108,9 @@ export function BasenameClaimer({ onActionClick }: BasenameClaimerProps) {
               )
             }
             placeholder="yourname"
-            className="w-full border-[3px] border-[#1A1A1A] bg-[#EFEFEF] p-4 pr-32 text-2xl font-black text-[#1A1A1A] outline-none transition-colors focus:bg-white dark:border-[#4B5563] dark:bg-slate-800 dark:text-white dark:focus:bg-slate-700"
+            className="w-full border-[3px] border-[#121212] bg-[#EFEFEF] p-4 pr-32 text-2xl font-black text-[#121212] outline-none transition-colors focus:bg-white dark:border-[#4A4A52] dark:bg-slate-800 dark:text-white dark:focus:bg-slate-700"
           />
-          <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xl font-black text-[#0052FF] opacity-80">
+          <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xl font-black text-[#1A36B0] opacity-80">
             .base.eth
           </div>
         </div>
@@ -148,7 +148,7 @@ export function BasenameClaimer({ onActionClick }: BasenameClaimerProps) {
             type="button"
             onClick={() => createIntent("register")}
             disabled={!validName}
-            className="flex items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#0052FF] py-4 text-sm font-black uppercase text-white shadow-[4px_4px_0_#1A1A1A] transition-all hover:bg-blue-700 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569] dark:disabled:bg-slate-700"
+            className="flex items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#2F5BFF] py-4 text-sm font-black uppercase text-white shadow-[4px_4px_0_#121212] transition-all hover:bg-blue-700 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30] dark:disabled:bg-slate-700"
           >
             Register intent
             <ArrowRight className="h-5 w-5" strokeWidth={4} />
@@ -157,14 +157,14 @@ export function BasenameClaimer({ onActionClick }: BasenameClaimerProps) {
             type="button"
             onClick={() => createIntent("renew")}
             disabled={!validName}
-            className="flex items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#FFD700] py-4 text-sm font-black uppercase text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] transition-all hover:bg-yellow-300 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:border-[#4B5563] dark:bg-[#CCA000] dark:shadow-[4px_4px_0_#475569]"
+            className="flex items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#FFD700] py-4 text-sm font-black uppercase text-[#121212] shadow-[4px_4px_0_#121212] transition-all hover:bg-yellow-300 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:border-[#4A4A52] dark:bg-[#CCA000] dark:shadow-[4px_4px_0_#2A2A30]"
           >
             Renew intent
             <ArrowRight className="h-5 w-5" strokeWidth={4} />
           </button>
         </div>
 
-        <div className="mt-5 w-full border-[2px] border-[#1A1A1A] bg-blue-50 p-3 text-left text-xs font-bold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-slate-900 dark:text-gray-300">
+        <div className="mt-5 w-full border-[2px] border-[#121212] bg-blue-50 p-3 text-left text-xs font-bold text-[#121212] dark:border-[#4A4A52] dark:bg-slate-900 dark:text-gray-300">
           Canonical target: Base ENSIP-19 Upgradeable Registrar Controller. This
           preview is not a transaction proposal.
         </div>

@@ -97,7 +97,7 @@ export function OperationTree({ operations, selectedId, caption }: OperationTree
                         title={`${operation.method} ${operation.path}: ${operation.summary}`}
                         className={cx(
                           "flex min-h-10 w-full min-w-0 items-center gap-2 border-l-[4px] px-2 py-1.5 text-left font-code text-code-s transition-colors",
-                          selected ? "border-[#0052FF] bg-surface-2 font-bold dark:border-[#FFD60A]" : "border-transparent hover:bg-surface-2",
+                          selected ? "border-[#2F5BFF] bg-surface-2 font-bold dark:border-[#C6FF3A]" : "border-transparent hover:bg-surface-2",
                           FOCUS_RING,
                           "focus-visible:-outline-offset-2",
                         )}

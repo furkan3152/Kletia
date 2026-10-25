@@ -39,7 +39,7 @@ import { useApproval, type DigestCheck } from "./useApproval";
 const loadDesk = () => import("./ApproveSignPanel");
 const ApproveSignPanel = React.lazy(loadDesk);
 
-const PAPER = "kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]";
+const PAPER = "kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]";
 
 function NoService({ title, body }: { readonly title: string; readonly body: string }) {
   return (
@@ -215,7 +215,7 @@ function DigestNote({ check }: { readonly check: DigestCheck }) {
     );
   }
   return (
-    <p className={cx("flex items-start gap-2 bg-[#FFF3B0] p-3 text-sm font-semibold text-[#1A1A1A]", INK_BORDER)}>
+    <p className={cx("flex items-start gap-2 bg-[#FFF3B0] p-3 text-sm font-semibold text-[#121212]", INK_BORDER)}>
       <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       The intent could not be read, so the digest was not checked here. Your wallet would sign the digest printed above.
     </p>
@@ -291,7 +291,7 @@ function Gate({ id }: { readonly id: string }) {
     return (
       // Keyed: the loaded page mounts new nodes instead of reusing (and moving) this one, a layout shift with reduced motion.
       <div key="loading" className={cx(CONTAINER, "flex min-h-[50vh] items-center justify-center py-16")} role="status">
-        <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+        <span className="border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]">
           Reading the approval
         </span>
       </div>

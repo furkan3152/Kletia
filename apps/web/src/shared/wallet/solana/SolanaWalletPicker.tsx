@@ -16,7 +16,7 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const buttonBase =
-  "flex min-h-11 items-center gap-2 border-[3px] border-[#1A1A1A] px-3 py-2 text-xs font-black uppercase tracking-wider shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#9945FF] active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]";
+  "flex min-h-11 items-center gap-2 border-[3px] border-[#121212] px-3 py-2 text-xs font-black uppercase tracking-wider shadow-[3px_3px_0_#121212] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#9945FF] active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#4A4A52] dark:shadow-[3px_3px_0_#2A2A30]";
 
 /**
  * Accessible Solana wallet picker. Opened through `useSolanaWallet().openPicker()`
@@ -98,12 +98,12 @@ export function SolanaWalletPicker() {
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         onKeyDown={handleKeyDown}
-        className="relative z-10 flex max-h-[min(90dvh,40rem)] w-full max-w-md flex-col overflow-hidden border-[4px] border-[#1A1A1A] bg-white text-[#1A1A1A] shadow-[8px_8px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white dark:shadow-[8px_8px_0_#475569]"
+        className="relative z-10 flex max-h-[min(90dvh,40rem)] w-full max-w-md flex-col overflow-hidden border-[4px] border-[#121212] bg-[#FBFAF6] text-[#121212] shadow-[8px_8px_0_#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-white dark:shadow-[8px_8px_0_#2A2A30]"
       >
-        <div className="flex items-center justify-between gap-3 border-b-[4px] border-[#1A1A1A] bg-gradient-to-r from-[#9945FF] to-[#14F195] px-4 py-3 dark:border-[#4B5563]">
+        <div className="flex items-center justify-between gap-3 border-b-[4px] border-[#121212] bg-gradient-to-r from-[#9945FF] to-[#14F195] px-4 py-3 dark:border-[#4A4A52]">
           <h2
             id={titleId}
-            className="flex items-center gap-2 text-base font-black uppercase tracking-wider text-[#1A1A1A]"
+            className="flex items-center gap-2 text-base font-black uppercase tracking-wider text-[#121212]"
           >
             <WalletIcon className="h-5 w-5" aria-hidden="true" />
             Solana wallet
@@ -112,7 +112,7 @@ export function SolanaWalletPicker() {
             type="button"
             onClick={closePicker}
             aria-label="Close Solana wallet dialog"
-            className="flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-white text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#1A1A1A] active:translate-y-0.5 active:shadow-none"
+            className="flex h-11 w-11 items-center justify-center border-[3px] border-[#121212] bg-[#FBFAF6] text-[#121212] shadow-[2px_2px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#121212] active:translate-y-0.5 active:shadow-none"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -127,7 +127,7 @@ export function SolanaWalletPicker() {
 
           <div aria-live="polite" className="min-h-0">
             {status === "connecting" ? (
-              <p className="flex items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-3 py-2 text-xs font-black uppercase text-[#1A1A1A] dark:border-[#4B5563]">
+              <p className="flex items-center gap-2 border-[3px] border-[#121212] bg-[#C6FF3A] px-3 py-2 text-xs font-black uppercase text-[#121212] dark:border-[#4A4A52]">
                 <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
                 Waiting for wallet approval
               </p>
@@ -136,7 +136,7 @@ export function SolanaWalletPicker() {
           {error ? (
             <p
               role="alert"
-              className="border-[3px] border-[#1A1A1A] bg-[#FEE2E2] px-3 py-2 text-sm font-bold text-[#7F1D1D] dark:border-red-500 dark:bg-red-950/40 dark:text-red-200"
+              className="border-[3px] border-[#121212] bg-[#FEE2E2] px-3 py-2 text-sm font-bold text-[#7F1D1D] dark:border-red-500 dark:bg-red-950/40 dark:text-red-200"
             >
               {error}
             </p>
@@ -145,7 +145,7 @@ export function SolanaWalletPicker() {
           {account && wallet ? (
             <section
               aria-label="Connected Solana account"
-              className="flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#F5F5F0] p-3 shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#0F172A] dark:shadow-[3px_3px_0_#475569]"
+              className="flex flex-col gap-3 border-[3px] border-[#121212] bg-[#F5F5F0] p-3 shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:bg-[#121212] dark:shadow-[3px_3px_0_#2A2A30]"
             >
               <div className="flex items-center gap-3">
                 {safeWalletIcon(wallet.icon) ? (
@@ -154,7 +154,7 @@ export function SolanaWalletPicker() {
                     alt=""
                     width={32}
                     height={32}
-                    className="h-8 w-8 border-2 border-[#1A1A1A] bg-white object-contain"
+                    className="h-8 w-8 border-2 border-[#121212] bg-[#FBFAF6] object-contain"
                   />
                 ) : null}
                 <div className="min-w-0">
@@ -170,7 +170,7 @@ export function SolanaWalletPicker() {
                 <button
                   type="button"
                   onClick={() => void copyAddress()}
-                  className={`${buttonBase} bg-white text-[#1A1A1A] dark:bg-[#1A2841] dark:text-white`}
+                  className={`${buttonBase} bg-[#FBFAF6] text-[#121212] dark:bg-[#232327] dark:text-white`}
                 >
                   <Copy className="h-4 w-4" aria-hidden="true" />
                   <span aria-live="polite">{copied ? "Copied" : "Copy address"}</span>
@@ -179,7 +179,7 @@ export function SolanaWalletPicker() {
                   href={explorerAddressUrl("solana", account.address)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`${buttonBase} bg-white text-[#1A1A1A] dark:bg-[#1A2841] dark:text-white`}
+                  className={`${buttonBase} bg-[#FBFAF6] text-[#121212] dark:bg-[#232327] dark:text-white`}
                 >
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
                   Solscan
@@ -215,7 +215,7 @@ export function SolanaWalletPicker() {
                         disabled={status === "connecting" || active}
                         onClick={() => void handleConnect(candidate.name)}
                         aria-current={active ? "true" : undefined}
-                        className={`${buttonBase} w-full justify-between bg-white text-[#1A1A1A] hover:bg-[#F3E8FF] dark:bg-[#1A2841] dark:text-white dark:hover:bg-[#243652]`}
+                        className={`${buttonBase} w-full justify-between bg-[#FBFAF6] text-[#121212] hover:bg-[#F3E8FF] dark:bg-[#232327] dark:text-white dark:hover:bg-[#243652]`}
                       >
                         <span className="flex min-w-0 items-center gap-3">
                           {icon ? (
@@ -255,7 +255,7 @@ export function SolanaWalletPicker() {
                       href={link.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`${buttonBase} w-full justify-center bg-[#14F195] text-[#1A1A1A]`}
+                      className={`${buttonBase} w-full justify-center bg-[#14F195] text-[#121212]`}
                     >
                       {link.name}
                       <ExternalLink className="h-4 w-4" aria-hidden="true" />

@@ -9,8 +9,8 @@
 }
 .kl-rcpt__ticket {
   --notch: 13px;
-  --kla-focus: #0052ff;
-  --kla-link: #0047e0;
+  --kla-focus: #2f5bff;
+  --kla-link: #1a36b0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(250px, 36%);
   filter: drop-shadow(5px 5px 0 var(--kla-shadow));
@@ -23,7 +23,7 @@
   background-color: var(--kla-stock);
   background-image: var(--kla-stock-grain);
   background-size: 180px 180px;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
 }
 :where(.kl-rcpt__coupon) p,
 :where(.kl-rcpt__coupon) h2,
@@ -57,7 +57,7 @@
 .kl-rcpt__passenger {
   padding: 16px 18px 18px 26px;
   border-left: 0;
-  background-image: linear-gradient(#1a1a1a 55%, transparent 55%), var(--kla-stock-grain);
+  background-image: linear-gradient(#121212 55%, transparent 55%), var(--kla-stock-grain);
   background-size: 3px 9px, 180px 180px;
   background-repeat: repeat-y, repeat;
   background-position: 0 4px, 0 0;
@@ -79,7 +79,7 @@
   width: calc(2 * var(--notch) + 6px);
   height: calc(2 * var(--notch) + 6px);
   box-sizing: border-box;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   border-radius: 50%;
   pointer-events: none;
 }
@@ -125,8 +125,8 @@
   min-width: 18px;
   height: 10px;
   background:
-    linear-gradient(#1a1a1a, #1a1a1a) center / 100% 2px no-repeat,
-    repeating-linear-gradient(90deg, #1a1a1a 0 2px, transparent 2px 7px) center / 100% 10px no-repeat;
+    linear-gradient(#121212, #121212) center / 100% 2px no-repeat,
+    repeating-linear-gradient(90deg, #121212 0 2px, transparent 2px 7px) center / 100% 10px no-repeat;
 }
 .kl-rcpt__legs {
   margin-top: 4px !important;
@@ -175,7 +175,7 @@
   color: var(--kla-stock-muted);
 }
 .kl-rcpt__leg-note strong {
-  color: #1a1a1a;
+  color: #121212;
 }
 .kl-rcpt__fields {
   grid-template-columns: repeat(3, minmax(0, max-content)) !important;
@@ -291,7 +291,7 @@
 .kl-rcpt__notice {
   margin-top: 12px !important;
   padding: 8px 10px;
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
   background: rgba(255, 214, 10, 0.22);
   font: 600 12px/1.45 var(--kla-font-body);
 }
@@ -323,7 +323,7 @@
   }
   .kl-rcpt__control {
     padding: 14px 16px 16px;
-    border-right: 3px solid #1a1a1a;
+    border-right: 3px solid #121212;
     border-bottom: 0;
     -webkit-mask:
       radial-gradient(circle at 0 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) left / 51% 100% no-repeat,
@@ -334,9 +334,9 @@
   }
   .kl-rcpt__passenger {
     padding: 22px 16px 16px;
-    border-left: 3px solid #1a1a1a;
+    border-left: 3px solid #121212;
     border-top: 0;
-    background-image: linear-gradient(90deg, #1a1a1a 55%, transparent 55%), var(--kla-stock-grain);
+    background-image: linear-gradient(90deg, #121212 55%, transparent 55%), var(--kla-stock-grain);
     background-size: 9px 3px, 180px 180px;
     background-repeat: repeat-x, repeat;
     background-position: 4px 0, 0 0;
@@ -406,7 +406,7 @@
   --kla-rot: 3deg;
 }
 .kl-rdie--rechecked {
-  --kla-stamp-ink: #0047e0;
+  --kla-stamp-ink: #1a36b0;
   --kla-rot: -4deg;
 }
 .kl-rdie__word--verified {
@@ -449,7 +449,7 @@
     linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
   background-size: 22px 22px;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   box-shadow: 5px 5px 0 var(--kla-shadow);
 }
 .dark .kl-rcpt-blueprint {
@@ -483,8 +483,8 @@
 }
 .kl-recheck__legno {
   padding: 2px 5px;
-  background: #ffd60a;
-  color: #1a1a1a;
+  background: #c6ff3a;
+  color: #121212;
   font: 800 12px/1 var(--kla-font-mono);
 }
 .kl-recheck__net {

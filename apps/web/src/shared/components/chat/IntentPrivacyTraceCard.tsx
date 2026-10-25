@@ -22,7 +22,7 @@ export function IntentPrivacyTraceCard({
     "route_specific_public_settlement";
 
   return (
-    <details className="mt-4 border-[3px] border-[#1A1A1A] bg-[#EDE7FF] text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#231C3D] dark:text-white dark:shadow-[3px_3px_0_#475569]">
+    <details className="mt-4 border-[3px] border-[#121212] bg-[#EDE7FF] text-[#121212] shadow-[3px_3px_0_#121212] dark:border-[#8F8C84] dark:bg-[#231C3D] dark:text-white dark:shadow-[3px_3px_0_#2A2A30]">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]">
         <span className="flex min-w-0 items-center gap-2">
           <ShieldCheck className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -38,8 +38,8 @@ export function IntentPrivacyTraceCard({
         <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
       </summary>
 
-      <div className="grid gap-2 border-t-[3px] border-[#1A1A1A] p-3 text-[10px] font-bold dark:border-[#64748B] sm:grid-cols-2">
-        <div className="border-[2px] border-[#1A1A1A] bg-white p-2.5 dark:border-[#64748B] dark:bg-[#111C2F]">
+      <div className="grid gap-2 border-t-[3px] border-[#121212] p-3 text-[10px] font-bold dark:border-[#8F8C84] sm:grid-cols-2">
+        <div className="border-[2px] border-[#121212] bg-[#FBFAF6] p-2.5 dark:border-[#8F8C84] dark:bg-[#111C2F]">
           <span className="flex items-center gap-1 font-black uppercase">
             <Eye className="h-4 w-4" aria-hidden="true" /> Planning disclosure
           </span>
@@ -49,7 +49,7 @@ export function IntentPrivacyTraceCard({
             expires.
           </p>
         </div>
-        <div className="border-[2px] border-[#1A1A1A] bg-white p-2.5 dark:border-[#64748B] dark:bg-[#111C2F]">
+        <div className="border-[2px] border-[#121212] bg-[#FBFAF6] p-2.5 dark:border-[#8F8C84] dark:bg-[#111C2F]">
           <span className="flex items-center gap-1 font-black uppercase">
             <BrainCircuit className="h-4 w-4" aria-hidden="true" /> Semantic boundary
           </span>
@@ -61,7 +61,7 @@ export function IntentPrivacyTraceCard({
                 : "No semantic-model prompt disclosure influenced this plan; deterministic parsing remained active."}
           </p>
         </div>
-        <div className="border-[2px] border-[#1A1A1A] bg-white p-2.5 leading-relaxed dark:border-[#64748B] dark:bg-[#111C2F] sm:col-span-2">
+        <div className="border-[2px] border-[#121212] bg-[#FBFAF6] p-2.5 leading-relaxed dark:border-[#8F8C84] dark:bg-[#111C2F] sm:col-span-2">
           <strong className="font-black uppercase">Execution boundary</strong>
           <p className="mt-1">
             {ledgerPublic

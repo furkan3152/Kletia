@@ -3,7 +3,7 @@
 
 .kl-admin {
   min-height: 100dvh;
-  background-color: var(--kl-paper, #f4f1ea);
+  background-color: var(--kl-paper);
 }
 
 /* The top bar: the site's ink rule along the bottom, sticky over the content. */
@@ -11,8 +11,8 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  border-bottom: 3px solid #1a1a1a;
-  background-color: var(--kl-paper, #f4f1ea);
+  border-bottom: 3px solid #121212;
+  background-color: var(--kl-paper);
 }
 .dark .kl-admin__bar {
   border-bottom-color: #4b5563;
@@ -22,16 +22,16 @@
 .kl-admin__plate {
   display: inline-flex;
   align-items: center;
-  border: 3px solid #1a1a1a;
-  background: #ffd60a;
-  color: #1a1a1a;
+  border: 3px solid #121212;
+  background: #c6ff3a;
+  color: #121212;
   padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
   font-weight: 900;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   transform: rotate(-2deg);
-  box-shadow: 2px 2px 0 #1a1a1a;
+  box-shadow: 2px 2px 0 #121212;
 }
 
 /* Section tabs under 1024 px: one scrolling row, no page scroll sideways. */
@@ -51,7 +51,7 @@
   align-items: center;
   justify-content: center;
   border: 2px solid currentColor;
-  font-family: var(--font-code, "JetBrains Mono Variable", ui-monospace, monospace);
+  font-family: var(--font-code, var(--k-f-mono));
   font-size: 0.8125rem;
   font-weight: 800;
 }
@@ -60,13 +60,13 @@
   color: #0b5e3a;
 }
 .kl-admin__cell[data-cell="V"] {
-  background: #ffd60a;
-  color: #1a1a1a;
-  border-color: #1a1a1a;
+  background: #c6ff3a;
+  color: #121212;
+  border-color: #121212;
 }
 .kl-admin__cell[data-cell="D"] {
   background: #e8efff;
-  color: #0047e0;
+  color: #1a36b0;
 }
 .kl-admin__cell[data-cell="Q"] {
   background: #ffe4e4;
@@ -112,7 +112,7 @@
   bottom: 1.5rem;
   left: 1.375rem;
   width: 4px;
-  background: repeating-linear-gradient(to bottom, #1a1a1a 0 10px, transparent 10px 16px);
+  background: repeating-linear-gradient(to bottom, #121212 0 10px, transparent 10px 16px);
   opacity: 0.25;
 }
 .dark .kl-admin__steps::before {
@@ -137,7 +137,7 @@
 .kl-admin__message {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-family: var(--font-code, "JetBrains Mono Variable", ui-monospace, monospace);
+  font-family: var(--font-code, var(--k-f-mono));
   font-size: 0.8125rem;
   line-height: 1.55;
 }

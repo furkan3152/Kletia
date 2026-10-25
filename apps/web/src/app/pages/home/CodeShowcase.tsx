@@ -37,12 +37,12 @@ export function CodeShowcase() {
               <li key={point.title} data-reveal-item className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-4">
                 <span
                   aria-hidden="true"
-                  className="flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] font-display text-xl font-bold text-[#1A1A1A] shadow-[3px_3px_0_#000]"
+                  className="flex h-11 w-11 items-center justify-center border-[3px] border-[#121212] bg-[#C6FF3A] font-display text-xl font-bold text-[#121212] shadow-[3px_3px_0_#000]"
                 >
                   {index + 1}
                 </span>
                 <div className="min-w-0">
-                  <h3 className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#FFD60A]">{point.title}</h3>
+                  <h3 className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#C6FF3A]">{point.title}</h3>
                   <p className="mt-1 text-[15px] leading-relaxed text-white/80">
                     <code className="font-code text-[0.92em] font-semibold text-white">{point.call}</code> {point.body}
                   </p>
@@ -58,7 +58,7 @@ export function CodeShowcase() {
               Quickstart
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </ButtonLink>
-            <ButtonLink to="/developers/api" variant="secondary" className="!border-white !shadow-[3px_3px_0_#FFD60A]">
+            <ButtonLink to="/developers/api" variant="secondary" className="!border-white !shadow-[3px_3px_0_#C6FF3A]">
               Try the API in the explorer
             </ButtonLink>
             <ButtonLink to="/developers/embed" variant="ghost" className="!border-white/40 !text-white hover:!bg-white/10">
@@ -70,7 +70,7 @@ export function CodeShowcase() {
           tabs={TABS}
           label="Integration examples"
           reveal="lines"
-          className="!shadow-[8px_8px_0_#FFD60A] dark:!shadow-[8px_8px_0_#FFD60A]"
+          className="!shadow-[8px_8px_0_#C6FF3A] dark:!shadow-[8px_8px_0_#C6FF3A]"
           maxHeightClassName="max-h-[30rem]"
         />
       </div>

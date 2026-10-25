@@ -23,7 +23,7 @@ export function ToolSign({ tool, onOpen }: ToolSignProps) {
   const external = tool.kind === "link" && tool.external && !tool.flow;
   return (
     <li className={cx("flex flex-col", INK_BORDER, SURFACE)}>
-      <div className="flex items-center justify-between gap-2 bg-[#1A1A1A] px-3 py-2 text-white dark:bg-[#F1F5F9] dark:text-[#0B1120]">
+      <div className="flex items-center justify-between gap-2 bg-[#121212] px-3 py-2 text-white dark:bg-[#F2F0EA] dark:text-[#0E0E10]">
         <span className="font-code text-sm font-bold" aria-hidden="true">
           {String(tool.number).padStart(2, "0")}
         </span>
@@ -44,7 +44,7 @@ export function ToolSign({ tool, onOpen }: ToolSignProps) {
           type="button"
           onClick={onOpen}
           aria-label={`${copy.open} ${tool.title}${external ? ` (${copy.opensInNewTab})` : ""}`}
-          className="mt-auto inline-flex min-h-11 items-center justify-center gap-1.5 self-start border-[3px] border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] dark:shadow-[2px_2px_0_#475569]"
+          className="mt-auto inline-flex min-h-11 items-center justify-center gap-1.5 self-start border-[3px] border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] dark:shadow-[2px_2px_0_#2A2A30]"
         >
           {copy.open}
           {external ? <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /> : null}

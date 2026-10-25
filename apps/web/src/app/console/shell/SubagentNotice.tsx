@@ -44,7 +44,7 @@ export function SubagentNotice({ evm, solana }: SubagentNoticeProps) {
   return (
     <Link
       to={notice.href}
-      className={cx("block border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-3 py-2 text-sm font-bold text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#FFD60A]", FOCUS_RING)}
+      className={cx("block border-[3px] border-[#121212] bg-[#C6FF3A] px-3 py-2 text-sm font-bold text-[#121212] shadow-[3px_3px_0_#121212] dark:border-[#C6FF3A]", FOCUS_RING)}
     >
       {notice.text} <span className="underline decoration-2 underline-offset-2">Review in Agents</span>
     </Link>

@@ -128,7 +128,7 @@ export function DeploymentsSection() {
                   })}
                 </tr>
               </thead>
-              <tbody className="divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10">
+              <tbody className="divide-y-2 divide-[#121212]/10 dark:divide-white/10">
                 {matrix.map((row) => (
                   <tr key={row.contractId}>
                     <th scope="row" className="px-4 py-2 font-bold">
@@ -302,7 +302,7 @@ function RecordSheet({ record, onClose }: { readonly record: AdminDeploymentReco
             Reverify against the latest block
           </Button>
           {shown.status !== "archived" ? (
-            <div className="flex flex-col gap-3 border-t-2 border-dashed border-[#1A1A1A]/25 pt-4 dark:border-white/15">
+            <div className="flex flex-col gap-3 border-t-2 border-dashed border-[#121212]/25 pt-4 dark:border-white/15">
               <p className={cx("text-sm", TEXT_MUTED)}>Changing a record's status changes what the checklist offers next, so the wallet that holds the session signs a confirmation.</p>
               <TextAreaField label="Note (optional)" rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} />
               <div className="flex flex-wrap gap-2">

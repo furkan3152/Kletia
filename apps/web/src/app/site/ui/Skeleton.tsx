@@ -6,8 +6,8 @@ export type SkeletonSurface = "paper" | "card";
 
 const SURFACES: Record<SkeletonSurface, string> = {
   // On the beige page vs. on white cards; navy blocks in dark mode.
-  paper: "bg-[#E7E2D6] dark:bg-[#1A2841]",
-  card: "bg-[#EFEBE3] dark:bg-[#1A2841]",
+  paper: "bg-[#E7E2D6] dark:bg-[#232327]",
+  card: "bg-[#EFEBE3] dark:bg-[#232327]",
 };
 
 export interface SkeletonProps extends React.HTMLAttributes<HTMLElement> {
@@ -28,7 +28,7 @@ export function Skeleton({ as: Element = "div", surface = "paper", shimmer = tru
     <Element
       aria-hidden="true"
       className={cx(
-        "block border-[3px] border-dashed border-[#1A1A1A]/25 dark:border-white/15",
+        "block border-[3px] border-dashed border-[#121212]/25 dark:border-white/15",
         SURFACES[surface],
         shimmer && "kl-shimmer kl-loop",
         className,

@@ -169,27 +169,27 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
 
   return (
     <div className="w-full space-y-8 animate-fade-in pb-4">
-      <div className="bg-[#0052FF] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white border-[4px] border-[#1A1A1A] rotate-12 opacity-20 pointer-events-none"></div>
-        <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#1A1A1A] pointer-events-none"></div>
+      <div className="bg-[#2F5BFF] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[8px_8px_0_#121212] dark:shadow-[8px_8px_0_#2A2A30] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#FBFAF6] border-[4px] border-[#121212] rotate-12 opacity-20 pointer-events-none"></div>
+        <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#121212] pointer-events-none"></div>
 
         <div className="z-10 flex flex-col gap-4 max-w-2xl">
-          <div className="inline-block bg-white text-[#1A1A1A] border-[3px] border-[#1A1A1A] font-black uppercase tracking-widest text-xs px-3 py-1 shadow-[3px_3px_0_#1A1A1A] w-max">
+          <div className="inline-block bg-[#FBFAF6] text-[#121212] border-[3px] border-[#121212] font-black uppercase tracking-widest text-xs px-3 py-1 shadow-[3px_3px_0_#121212] w-max">
             KLETIA LENDING PROTOCOL
           </div>
-          <h3 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase leading-none drop-shadow-[4px_4px_0_#1A1A1A]">
+          <h3 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase leading-none drop-shadow-[4px_4px_0_#121212]">
             KLETIA LENDING
           </h3>
-          <p className="text-lg md:text-xl font-bold text-white bg-[#1A1A1A] p-2 inline-block shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] w-max">
+          <p className="text-lg md:text-xl font-bold text-white bg-[#121212] p-2 inline-block shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] w-max">
             Built on Arc Testnet — live on-chain risk and lending data
           </p>
 
           <div className="flex flex-wrap gap-4 mt-6">
-            <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
+            <div className="bg-[#FBFAF6] border-[3px] border-[#121212] p-4 shadow-[4px_4px_0_#121212] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">
                 KLET Price
               </span>
-              <span className="text-xl font-black text-[#1A1A1A] flex items-center gap-2">
+              <span className="text-xl font-black text-[#121212] flex items-center gap-2">
                 {isPriceReadPending
                   ? "Checking…"
                   : kletPrice === null
@@ -200,7 +200,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
                 </span>
               </span>
             </div>
-            <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
+            <div className="bg-[#FBFAF6] border-[3px] border-[#121212] p-4 shadow-[4px_4px_0_#121212] min-w-[140px]">
               <div className="flex flex-col">
                 <span className="text-xs font-black text-gray-500 uppercase block mb-1">
                   Protocol Status
@@ -209,7 +209,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
                   className={`text-2xl font-black flex items-center gap-2 ${protocolStatus === "AT RISK" || protocolStatus === "UNAVAILABLE" ? "text-[#EF4444]" : "text-[#10B981]"}`}
                 >
                   <span
-                    className={`w-3 h-3 border-[2px] border-[#1A1A1A] rounded-full ${protocolStatus === "AT RISK" || protocolStatus === "UNAVAILABLE" ? "bg-[#EF4444]" : "bg-[#10B981] animate-pulse"}`}
+                    className={`w-3 h-3 border-[2px] border-[#121212] rounded-full ${protocolStatus === "AT RISK" || protocolStatus === "UNAVAILABLE" ? "bg-[#EF4444]" : "bg-[#10B981] animate-pulse"}`}
                   ></span>
                   {protocolStatus}
                 </span>
@@ -218,12 +218,12 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
           </div>
         </div>
 
-        <div className="z-10 bg-white dark:bg-[#0F172A] border-[4px] border-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A] p-6 lg:min-w-[300px] flex flex-col justify-center">
+        <div className="z-10 bg-[#FBFAF6] dark:bg-[#121212] border-[4px] border-[#121212] shadow-[6px_6px_0_#121212] p-6 lg:min-w-[300px] flex flex-col justify-center">
           <div className="mb-4">
             <span className="text-xs font-black text-gray-500 uppercase block mb-1">
               Balance
             </span>
-            <div className="text-4xl font-black text-[#1A1A1A] dark:text-white flex items-end gap-2">
+            <div className="text-4xl font-black text-[#121212] dark:text-white flex items-end gap-2">
               {isArcConnected && balance.data
                 ? Number(ethers.formatEther(balance.data.value)).toFixed(6)
                 : "—"}
@@ -240,11 +240,11 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
               <span className="text-sm text-[#8B5CF6] font-black">KLET</span>
             </div>
           </div>
-          <div className="pt-4 border-t-[3px] border-[#1A1A1A] dark:border-slate-700 flex items-center gap-2">
+          <div className="pt-4 border-t-[3px] border-[#121212] dark:border-slate-700 flex items-center gap-2">
             <div
-              className={`w-4 h-4 border-[2px] border-[#1A1A1A] ${isArcConnected ? "bg-[#10B981]" : "bg-[#EF4444]"}`}
+              className={`w-4 h-4 border-[2px] border-[#121212] ${isArcConnected ? "bg-[#10B981]" : "bg-[#EF4444]"}`}
             ></div>
-            <span className="font-black text-[#1A1A1A] dark:text-white uppercase text-sm">
+            <span className="font-black text-[#121212] dark:text-white uppercase text-sm">
               {isArcConnected
                 ? "ARC WALLET CONNECTED"
                 : isConnected
@@ -256,12 +256,12 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-          <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
-            <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
+        <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[4px] border-[#121212] dark:border-[#4A4A52] p-6 shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+          <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-3">
+            <div className="p-2 border-[3px] border-[#121212] shadow-[2px_2px_0_#121212] bg-[#FBFAF6] dark:bg-[#232327]">
               <Shield className="w-6 h-6 text-[#10B981]" />
             </div>
-            <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase">
+            <h3 className="text-xl font-black text-[#121212] dark:text-white uppercase">
               Health Score
             </h3>
           </div>
@@ -282,9 +282,9 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
                 %
               </span>
             </div>
-            <div className="w-full bg-gray-200 border-[3px] border-[#1A1A1A] h-4">
+            <div className="w-full bg-gray-200 border-[3px] border-[#121212] h-4">
               <div
-                className={`h-full border-r-[3px] border-[#1A1A1A] ${!isHealthy ? "bg-[#EF4444]" : "bg-[#10B981]"}`}
+                className={`h-full border-r-[3px] border-[#121212] ${!isHealthy ? "bg-[#EF4444]" : "bg-[#10B981]"}`}
                 style={{
                   width: `${
                     borrowed !== null &&
@@ -310,17 +310,17 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-          <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
-            <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
-              <Coins className="w-6 h-6 text-[#0052FF]" />
+        <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[4px] border-[#121212] dark:border-[#4A4A52] p-6 shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+          <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-3">
+            <div className="p-2 border-[3px] border-[#121212] shadow-[2px_2px_0_#121212] bg-[#FBFAF6] dark:bg-[#232327]">
+              <Coins className="w-6 h-6 text-[#1A36B0]" />
             </div>
-            <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase">
+            <h3 className="text-xl font-black text-[#121212] dark:text-white uppercase">
               Your Collateral
             </h3>
           </div>
           <div>
-            <div className="text-3xl font-black text-[#1A1A1A] dark:text-white">
+            <div className="text-3xl font-black text-[#121212] dark:text-white">
               {collateral === null ? "—" : collateral.toFixed(2)} KLET
             </div>
             <div className="text-lg font-bold text-gray-500 mt-1">
@@ -335,24 +335,24 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
                 )
               }
               disabled={!isArcConnected}
-              className="mt-6 w-full p-3 bg-[#0052FF] text-white font-black uppercase tracking-widest border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] dark:hover:shadow-[6px_6px_0_#475569] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all"
+              className="mt-6 w-full p-3 bg-[#2F5BFF] text-white font-black uppercase tracking-widest border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] hover:-translate-y-1 hover:shadow-[6px_6px_0_#121212] dark:hover:shadow-[6px_6px_0_#2A2A30] active:translate-y-0 active:shadow-[1px_1px_0_#121212] transition-all"
             >
               Collateral Management
             </button>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-          <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
-            <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
-              <DollarSign className="w-6 h-6 text-[#0052FF]" />
+        <div className="bg-[#FBFAF6] dark:bg-[#19191C] border-[4px] border-[#121212] dark:border-[#4A4A52] p-6 shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30]">
+          <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-3">
+            <div className="p-2 border-[3px] border-[#121212] shadow-[2px_2px_0_#121212] bg-[#FBFAF6] dark:bg-[#232327]">
+              <DollarSign className="w-6 h-6 text-[#1A36B0]" />
             </div>
-            <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase">
+            <h3 className="text-xl font-black text-[#121212] dark:text-white uppercase">
               Your Debt
             </h3>
           </div>
           <div>
-            <div className="text-3xl font-black text-[#1A1A1A] dark:text-white">
+            <div className="text-3xl font-black text-[#121212] dark:text-white">
               {borrowed === null ? "—" : borrowed.toFixed(2)} USDC
             </div>
             <div className="text-lg font-bold text-gray-500 mt-1">
@@ -368,7 +368,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
                 )
               }
               disabled={!isArcConnected}
-              className="mt-6 w-full p-3 bg-[#0052FF] text-white font-black uppercase tracking-widest border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] dark:hover:shadow-[6px_6px_0_#475569] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all"
+              className="mt-6 w-full p-3 bg-[#2F5BFF] text-white font-black uppercase tracking-widest border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] hover:-translate-y-1 hover:shadow-[6px_6px_0_#121212] dark:hover:shadow-[6px_6px_0_#2A2A30] active:translate-y-0 active:shadow-[1px_1px_0_#121212] transition-all"
             >
               Borrowing Operations
             </button>
@@ -377,7 +377,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
       </div>
 
       <div className="mt-12">
-        <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-widest mb-6 border-b-[4px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 inline-block">
+        <h3 className="text-xl font-black text-[#121212] dark:text-white uppercase tracking-widest mb-6 border-b-[4px] border-[#121212] dark:border-[#4A4A52] pb-2 inline-block">
           Prepare lending operations
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -411,14 +411,14 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
               key={idx}
               onClick={() => onActionClick(action.prompt)}
               disabled={!isArcConnected}
-              className="group flex flex-col items-center justify-center p-6 bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] hover:-translate-y-1 hover:shadow-[8px_8px_0_#1A1A1A] active:translate-y-0 active:shadow-[2px_2px_0_#1A1A1A] transition-all"
+              className="group flex flex-col items-center justify-center p-6 bg-[#FBFAF6] dark:bg-[#19191C] border-[4px] border-[#121212] dark:border-[#4A4A52] shadow-[6px_6px_0_#121212] dark:shadow-[6px_6px_0_#2A2A30] hover:-translate-y-1 hover:shadow-[8px_8px_0_#121212] active:translate-y-0 active:shadow-[2px_2px_0_#121212] transition-all"
             >
               <div
-                className={`w-14 h-14 flex items-center justify-center border-[3px] border-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] text-2xl bg-[#0052FF] dark:bg-slate-700 text-white group-hover:-translate-y-1 transition-transform mb-4`}
+                className={`w-14 h-14 flex items-center justify-center border-[3px] border-[#121212] shadow-[3px_3px_0_#121212] text-2xl bg-[#2F5BFF] dark:bg-slate-700 text-white group-hover:-translate-y-1 transition-transform mb-4`}
               >
                 <action.icon className="h-6 w-6" aria-hidden="true" />
               </div>
-              <span className="font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight text-center">
+              <span className="font-black text-[#121212] dark:text-white uppercase tracking-tight text-center">
                 {action.title}
               </span>
             </button>

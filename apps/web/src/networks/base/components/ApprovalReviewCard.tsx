@@ -19,7 +19,7 @@ export function ApprovalReviewCard({
   if (exactApprovals.length === 0) return null;
 
   return (
-    <div className="border-[3px] border-[#1A1A1A] bg-[#FFE4A3] p-3 text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+    <div className="border-[3px] border-[#121212] bg-[#FFE4A3] p-3 text-[#121212] shadow-[3px_3px_0_#121212]">
       <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide">
         <ShieldAlert className="h-4 w-4" strokeWidth={3} />
         Approval review · {exactApprovals.length} exact allowance
@@ -28,7 +28,7 @@ export function ApprovalReviewCard({
         {exactApprovals.map((approval) => (
           <div
             key={`${approval.token}:${approval.spender}`}
-            className="border-[2px] border-[#1A1A1A] bg-white p-2 text-[10px] font-bold"
+            className="border-[2px] border-[#121212] bg-[#FBFAF6] p-2 text-[10px] font-bold"
           >
             <div className="font-black uppercase">
               {approval.symbol || "ERC-20 token"} · exact atomic amount{" "}

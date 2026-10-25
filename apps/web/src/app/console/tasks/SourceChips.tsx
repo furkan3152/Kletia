@@ -32,7 +32,7 @@ export function SourceChips({ lane, details, holdings, exclude, onChoose }: Sour
   );
   const question = parsed?.amount && parsed.asset ? copy.question(parsed.amount, parsed.asset) : copy.questionGeneric;
   return (
-    <div role="group" aria-label={question} className="flex flex-col gap-3 border-[3px] border-control bg-surface p-4 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]">
+    <div role="group" aria-label={question} className="flex flex-col gap-3 border-[3px] border-control bg-surface p-4 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]">
       <p className="font-display text-lg font-bold">{question}</p>
       {parsed && parsed.candidates.length > 0 && parsed.candidates.every((candidate) => candidate.enough === false) ? (
         <p className="text-sm font-semibold">{copy.none}</p>

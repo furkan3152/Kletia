@@ -15,8 +15,8 @@ export interface ToasterProps {
 const TONES: Record<ToastTone, { stripe: string; icon: typeof Info; iconClass: string; label: string }> = {
   success: { stripe: "#4ADE80", icon: CircleCheck, iconClass: "text-[#0B7A4B] dark:text-[#4ADE80]", label: "Success" },
   error: { stripe: "#FF5A5F", icon: CircleAlert, iconClass: "text-[#B91C1C] dark:text-[#FCA5A5]", label: "Error" },
-  info: { stripe: "#0052FF", icon: Info, iconClass: "text-[#0052FF] dark:text-[#7EA6FF]", label: "Info" },
-  warning: { stripe: "#FFD60A", icon: TriangleAlert, iconClass: "text-[#8A6100] dark:text-[#FFD60A]", label: "Warning" },
+  info: { stripe: "#0052FF", icon: Info, iconClass: "text-[#1A36B0] dark:text-[#8FA6FF]", label: "Info" },
+  warning: { stripe: "#FFD60A", icon: TriangleAlert, iconClass: "text-[#8A6100] dark:text-[#C6FF3A]", label: "Warning" },
 };
 
 function announcement(toast: ToastRecord): string {
@@ -63,7 +63,7 @@ function ToastItem({ toast, pageVisible }: ToastItemProps) {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHeld(false);
       }}
       className={cx(
-        "kl-toast pointer-events-auto relative flex overflow-hidden border-[3px] border-[#1A1A1A] bg-white text-[#1A1A1A] shadow-hard dark:border-[#4B5563] dark:bg-[#131E32] dark:text-[#F1F5F9]",
+        "kl-toast pointer-events-auto relative flex overflow-hidden border-[3px] border-[#121212] bg-[#FBFAF6] text-[#121212] shadow-hard dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-[#F2F0EA]",
         toast.leaving && "kl-toast--leaving",
       )}
     >
@@ -75,7 +75,7 @@ function ToastItem({ toast, pageVisible }: ToastItemProps) {
           <div aria-hidden={toast.silent ? undefined : true}>
             <p className="font-display text-sm font-bold leading-snug">{toast.title}</p>
             {toast.description ? (
-              <p className="mt-0.5 text-[13px] leading-snug text-[#45464B] dark:text-[#A9B6C8]">{toast.description}</p>
+              <p className="mt-0.5 text-[13px] leading-snug text-[#5C5850] dark:text-[#9A968C]">{toast.description}</p>
             ) : null}
           </div>
           {toast.action ? (
@@ -86,7 +86,7 @@ function ToastItem({ toast, pageVisible }: ToastItemProps) {
                 toastApi.dismiss(toast.id);
               }}
               className={cx(
-                "mt-2 inline-flex min-h-9 items-center border-2 border-[#1A1A1A] bg-[#FFD60A] px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#1A1A1A] shadow-hard-sm transition-[transform,box-shadow] duration-90 ease-kl-snap active:translate-x-[3px] active:translate-y-[3px] active:shadow-none dark:border-[#4B5563]",
+                "mt-2 inline-flex min-h-9 items-center border-2 border-[#121212] bg-[#C6FF3A] px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#121212] shadow-hard-sm transition-[transform,box-shadow] duration-90 ease-kl-snap active:translate-x-[3px] active:translate-y-[3px] active:shadow-none dark:border-[#4A4A52]",
                 FOCUS_RING,
               )}
             >
@@ -99,7 +99,7 @@ function ToastItem({ toast, pageVisible }: ToastItemProps) {
         type="button"
         onClick={() => toastApi.dismiss(toast.id)}
         className={cx(
-          "inline-flex h-11 w-11 shrink-0 items-center justify-center text-[#1A1A1A] hover:bg-[#1A1A1A]/5 dark:text-white dark:hover:bg-white/10",
+          "inline-flex h-11 w-11 shrink-0 items-center justify-center text-[#121212] hover:bg-[#121212]/5 dark:text-white dark:hover:bg-white/10",
           FOCUS_RING,
           "focus-visible:-outline-offset-4",
         )}

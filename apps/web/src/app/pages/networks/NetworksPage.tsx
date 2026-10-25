@@ -58,7 +58,7 @@ function CountdownRing({ remaining, active }: { remaining: number; active: boole
   return (
     <span aria-hidden="true" className="relative inline-flex h-5 w-5 items-center justify-center">
       <svg viewBox="0 0 20 20" className="absolute inset-0 -rotate-90">
-        <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" className="stroke-[#1A1A1A]/15 dark:stroke-white/15" />
+        <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" className="stroke-[#121212]/15 dark:stroke-white/15" />
         <circle
           cx="10"
           cy="10"
@@ -68,7 +68,7 @@ function CountdownRing({ remaining, active }: { remaining: number; active: boole
           pathLength={1}
           strokeDasharray="1"
           strokeDashoffset={1 - progress}
-          className={cx("stroke-[#0052FF] dark:stroke-[#FFD60A]", active && progress > 0 && "transition-[stroke-dashoffset] duration-1000 ease-linear")}
+          className={cx("stroke-[#2F5BFF] dark:stroke-[#C6FF3A]", active && progress > 0 && "transition-[stroke-dashoffset] duration-1000 ease-linear")}
         />
       </svg>
       <RefreshCw className="h-2.5 w-2.5" />
@@ -175,7 +175,7 @@ function HealthPanel({ health }: HealthPanelProps) {
             onClick={recheck}
             disabled={health.status === "loading"}
             className={cx(
-              "inline-flex min-h-9 items-center gap-1.5 border-[3px] border-[#1A1A1A] bg-white px-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#1A1A1A] shadow-hard-sm transition-[transform,box-shadow] duration-90 ease-kl-snap hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard-md active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0 dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white",
+              "inline-flex min-h-9 items-center gap-1.5 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#121212] shadow-hard-sm transition-[transform,box-shadow] duration-90 ease-kl-snap hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard-md active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0 dark:border-[#4A4A52] dark:bg-[#232327] dark:text-white",
               FOCUS_RING,
             )}
           >
@@ -208,12 +208,12 @@ function HealthPanel({ health }: HealthPanelProps) {
         <ul className={cx("flex flex-col gap-2 text-sm", TEXT_MUTED)} aria-label="Notices">
           {notices.map((entry) => (
             <li key={entry.network} className="border-l-[3px] border-[#FF5A5F] pl-3">
-              <strong className="text-[#1A1A1A] dark:text-white">{networkLabel(entry.network).name}:</strong> {entry.detail}
+              <strong className="text-[#121212] dark:text-white">{networkLabel(entry.network).name}:</strong> {entry.detail}
             </li>
           ))}
           {board.unknown.map((entry) => (
-            <li key={`unknown-${entry.network}`} className="border-l-[3px] border-dashed border-[#1A1A1A]/40 pl-3 dark:border-white/30">
-              <strong className="text-[#1A1A1A] dark:text-white">{entry.name || entry.network}</strong> is reported by the API but not
+            <li key={`unknown-${entry.network}`} className="border-l-[3px] border-dashed border-[#121212]/40 pl-3 dark:border-white/30">
+              <strong className="text-[#121212] dark:text-white">{entry.name || entry.network}</strong> is reported by the API but not
               yet in this page&apos;s registry: {entry.ok ? "running" : "no service"}
               {typeof entry.latencyMs === "number" ? `, ${formatMs(entry.latencyMs)}` : ""}.
             </li>
@@ -243,7 +243,7 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
 
   return (
     <div className={cx("min-w-0", INK_BORDER, HARD_SHADOW, SURFACE)}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b-[3px] border-[#1A1A1A] px-4 py-3 dark:border-[#4B5563]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b-[3px] border-[#121212] px-4 py-3 dark:border-[#4A4A52]">
         <p id={captionId} className="text-xs font-bold">
           Intent kinds per network {live ? "from GET /v1/networks" : "from the @kletia/core registry and the v1 support table"}
         </p>
@@ -260,16 +260,16 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
       >
         <table className="w-full min-w-[640px] border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
-              <th scope="col" className={cx(LABEL, "sticky left-0 z-10 bg-[#F1EFE8] px-4 py-3 dark:bg-[#0F1A2C]")}>
+            <tr className="border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
+              <th scope="col" className={cx(LABEL, "sticky left-0 z-10 bg-[#E6E2D9] px-4 py-3 dark:bg-[#151517]")}>
                 Network
               </th>
               {actions.map((action) => (
-                <th key={action} scope="col" className={cx(LABEL, "bg-[#F1EFE8] px-3 py-3 text-center dark:bg-[#0F1A2C]")}>
+                <th key={action} scope="col" className={cx(LABEL, "bg-[#E6E2D9] px-3 py-3 text-center dark:bg-[#151517]")}>
                   {action}
                 </th>
               ))}
-              <th scope="col" className={cx(LABEL, "bg-[#F1EFE8] px-4 py-3 dark:bg-[#0F1A2C]")}>
+              <th scope="col" className={cx(LABEL, "bg-[#E6E2D9] px-4 py-3 dark:bg-[#151517]")}>
                 CAIP-2
               </th>
             </tr>
@@ -280,11 +280,11 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
               return (
                 <tr
                   key={network.key}
-                  className="group/row border-b-2 border-[#1A1A1A]/10 transition-colors duration-150 last:border-b-0 hover:bg-[#FFF7CC]/70 motion-reduce:transition-none dark:border-white/10 dark:hover:bg-white/[0.04]"
+                  className="group/row border-b-2 border-[#121212]/10 transition-colors duration-150 last:border-b-0 hover:bg-[#EEFBC8]/70 motion-reduce:transition-none dark:border-white/10 dark:hover:bg-white/[0.04]"
                 >
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 font-bold transition-colors duration-150 group-hover/row:bg-[#FFF9DB] motion-reduce:transition-none dark:bg-[#131E32] dark:group-hover/row:bg-[#18243A]"
+                    className="sticky left-0 z-10 whitespace-nowrap bg-[#FBFAF6] px-4 py-3 font-bold transition-colors duration-150 group-hover/row:bg-[#FFF9DB] motion-reduce:transition-none dark:bg-[#19191C] dark:group-hover/row:bg-[#18243A]"
                   >
                     <span className="inline-flex items-center gap-2.5">
                       <MatrixBullet network={network.key} />
@@ -308,7 +308,7 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
                       </td>
                     );
                   })}
-                  <td className="whitespace-nowrap px-4 py-3 font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">{network.id}</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-code text-[11px] text-[#5C5850] dark:text-[#9A968C]">{network.id}</td>
                 </tr>
               );
             })}
@@ -321,7 +321,7 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
 
 const LAMP: Readonly<Record<StatusTone, string>> = {
   ok: "bg-[#16A34A]",
-  slow: "bg-[#FFD60A]",
+  slow: "bg-[#C6FF3A]",
   down: "bg-[#DC2626]",
   unknown: "bg-transparent",
   checking: "bg-transparent border-dashed",
@@ -332,7 +332,7 @@ function HeadlineLamp({ tone }: { readonly tone: StatusTone }) {
   return (
     <span
       aria-hidden="true"
-      className={cx("mt-[0.22em] inline-block h-[0.55em] w-[0.55em] shrink-0 rounded-full border-[3px] border-[#1A1A1A] dark:border-[#F1F5F9]", LAMP[tone])}
+      className={cx("mt-[0.22em] inline-block h-[0.55em] w-[0.55em] shrink-0 rounded-full border-[3px] border-[#121212] dark:border-[#F2F0EA]", LAMP[tone])}
     />
   );
 }
@@ -358,7 +358,7 @@ export default function NetworksPage() {
   return (
     <>
       {/* The departures board is the hero: the page is the station hall, and its H1 is the live status. */}
-      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+      <header className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "py-14 sm:py-20")}>
           <div className="grid gap-x-16 gap-y-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-end">
             <div className="min-w-0">

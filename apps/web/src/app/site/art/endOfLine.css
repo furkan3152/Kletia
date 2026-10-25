@@ -5,7 +5,7 @@
   display: block;
   width: 100%;
   height: auto;
-  --eol-ink: #1a1a1a;
+  --eol-ink: #121212;
 }
 .dark .kla-eol {
   --eol-ink: #cbd5e1;
@@ -23,7 +23,7 @@
   stroke-width: 3;
 }
 .kla-eol__edge {
-  fill: #ffd60a;
+  fill: #c6ff3a;
   stroke: var(--eol-ink);
   stroke-width: 3;
 }
@@ -47,51 +47,51 @@
   fill: #02050b;
 }
 .kla-eol__sign {
-  fill: #ffd60a;
-  stroke: #1a1a1a;
+  fill: #c6ff3a;
+  stroke: #121212;
   stroke-width: 3.5;
 }
 .kla-eol__sign-k {
   font: 800 12px/1 var(--kla-font-mono);
   letter-spacing: 0.32em;
-  fill: #1a1a1a;
+  fill: #121212;
 }
 .kla-eol__sign-n {
   font: 700 44px/1 var(--kla-font-display);
   letter-spacing: -0.04em;
-  fill: #1a1a1a;
+  fill: #121212;
 }
 .kla-eol__notice {
   fill: #fffcf2;
-  stroke: #1a1a1a;
+  stroke: #121212;
   stroke-width: 2;
 }
 .kla-eol__notice-head {
-  fill: #1a1a1a;
+  fill: #121212;
 }
 .kla-eol__notice-k {
   font: 800 7.5px/1 var(--kla-font-mono);
   letter-spacing: 0.2em;
-  fill: #ffd60a;
+  fill: #c6ff3a;
 }
 .kla-eol__notice-lines {
-  stroke: #1a1a1a;
+  stroke: #121212;
   stroke-width: 2.5;
   opacity: 0.45;
 }
 .kla-eol__pin {
   fill: #ff5a5f;
-  stroke: #1a1a1a;
+  stroke: #121212;
   stroke-width: 1;
 }
 .kla-eol__hazard-y {
-  fill: #ffd60a;
+  fill: #c6ff3a;
 }
 .kla-eol__hazard-k {
-  fill: #1a1a1a;
+  fill: #121212;
 }
 .kla-eol__beam {
-  stroke: #1a1a1a;
+  stroke: #121212;
   stroke-width: 3;
 }
 .kla-eol__buffer {

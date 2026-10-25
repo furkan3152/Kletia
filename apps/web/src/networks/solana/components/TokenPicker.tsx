@@ -120,9 +120,9 @@ export function TokenPicker({
               close();
             }
           }}
-          className="absolute left-0 right-0 top-full z-30 mt-2 flex max-h-80 flex-col border-[3px] border-[#1A1A1A] bg-white shadow-[6px_6px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:shadow-[6px_6px_0_#475569]"
+          className="absolute left-0 right-0 top-full z-30 mt-2 flex max-h-80 flex-col border-[3px] border-[#121212] bg-[#FBFAF6] shadow-[6px_6px_0_#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:shadow-[6px_6px_0_#2A2A30]"
         >
-          <div className="border-b-[3px] border-[#1A1A1A] p-2 dark:border-[#4B5563]">
+          <div className="border-b-[3px] border-[#121212] p-2 dark:border-[#4A4A52]">
             <label htmlFor={searchId} className="sr-only">
               Search tokens by symbol, name or mint
             </label>
@@ -162,15 +162,15 @@ export function TokenPicker({
                       close();
                     }}
                     aria-current={token.mint === value.mint ? "true" : undefined}
-                    className="flex min-h-11 w-full items-center justify-between gap-3 border-2 border-transparent px-2 py-2 text-left hover:border-[#1A1A1A] hover:bg-[#F3E8FF] focus-visible:border-[#1A1A1A] focus-visible:bg-[#F3E8FF] focus-visible:outline-none dark:hover:border-[#4B5563] dark:hover:bg-[#243652] dark:focus-visible:bg-[#243652]"
+                    className="flex min-h-11 w-full items-center justify-between gap-3 border-2 border-transparent px-2 py-2 text-left hover:border-[#121212] hover:bg-[#F3E8FF] focus-visible:border-[#121212] focus-visible:bg-[#F3E8FF] focus-visible:outline-none dark:hover:border-[#4A4A52] dark:hover:bg-[#243652] dark:focus-visible:bg-[#243652]"
                   >
                     <span className="min-w-0">
-                      <span className="flex items-center gap-1.5 text-sm font-black text-[#1A1A1A] dark:text-white">
+                      <span className="flex items-center gap-1.5 text-sm font-black text-[#121212] dark:text-white">
                         {token.symbol}
                         {token.verified ? (
                           <BadgeCheck className="h-3.5 w-3.5 text-[#9945FF]" aria-label="Verified" />
                         ) : (
-                          <span className="border border-[#1A1A1A] bg-[#FFD60A] px-1 text-[9px] font-black uppercase text-[#1A1A1A]">
+                          <span className="border border-[#121212] bg-[#C6FF3A] px-1 text-[9px] font-black uppercase text-[#121212]">
                             Unverified
                           </span>
                         )}

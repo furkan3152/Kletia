@@ -590,11 +590,11 @@ export function BaseMcpX402PlanCard({
     liveUsdcBalance < requiredAmountAtomic;
 
   return (
-    <div className="mt-5 flex w-full flex-col gap-4 border-[3px] border-[#1A1A1A] bg-white p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#0F172A] dark:text-white dark:shadow-[4px_4px_0_#475569] sm:w-80 md:w-[520px] md:p-5">
-      <div className="flex items-start justify-between gap-3 border-b-[3px] border-[#1A1A1A] pb-3 dark:border-[#4B5563]">
+    <div className="mt-5 flex w-full flex-col gap-4 border-[3px] border-[#121212] bg-[#FBFAF6] p-4 text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:bg-[#121212] dark:text-white dark:shadow-[4px_4px_0_#2A2A30] sm:w-80 md:w-[520px] md:p-5">
+      <div className="flex items-start justify-between gap-3 border-b-[3px] border-[#121212] pb-3 dark:border-[#4A4A52]">
         <div>
           <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest">
-            <LockKeyhole className="h-5 w-5 text-[#0052FF]" />
+            <LockKeyhole className="h-5 w-5 text-[#1A36B0]" />
             Base x402 Payment
           </div>
           <p className="mt-1 text-xs font-bold text-gray-600 dark:text-slate-300">
@@ -602,20 +602,20 @@ export function BaseMcpX402PlanCard({
             wallet alone signs the exact USDC authorization.
           </p>
         </div>
-        <span className="shrink-0 border-[2px] border-[#1A1A1A] bg-[#86EFAC] px-2 py-1 text-[9px] font-black uppercase text-[#1A1A1A]">
+        <span className="shrink-0 border-[2px] border-[#121212] bg-[#86EFAC] px-2 py-1 text-[9px] font-black uppercase text-[#121212]">
           {insufficientUsdc ? "Top up required" : "Approval required"}
         </span>
       </div>
 
-      <div className="border-[3px] border-[#1A1A1A] bg-[#EAF0FF] p-3 text-[#1A1A1A]">
+      <div className="border-[3px] border-[#121212] bg-[#E1E8FF] p-3 text-[#121212]">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="border-[2px] border-[#1A1A1A] bg-white px-2 py-1 text-[10px] font-black">
+          <span className="border-[2px] border-[#121212] bg-[#FBFAF6] px-2 py-1 text-[10px] font-black">
             {plan.initiate.method}
           </span>
-          <span className="border-[2px] border-[#1A1A1A] bg-[#FFD166] px-2 py-1 text-[10px] font-black">
+          <span className="border-[2px] border-[#121212] bg-[#FFD166] px-2 py-1 text-[10px] font-black">
             MAX {plan.initiate.maxPayment} USDC
           </span>
-          <span className="border-[2px] border-[#1A1A1A] bg-white px-2 py-1 text-[10px] font-black">
+          <span className="border-[2px] border-[#121212] bg-[#FBFAF6] px-2 py-1 text-[10px] font-black">
             BASE 8453
           </span>
         </div>
@@ -623,11 +623,11 @@ export function BaseMcpX402PlanCard({
           {plan.initiate.url}
         </p>
         {plan.initiate.body && (
-          <div className="mt-3 border-t-[2px] border-[#1A1A1A] pt-3">
+          <div className="mt-3 border-t-[2px] border-[#121212] pt-3">
             <p className="mb-1 text-[9px] font-black uppercase tracking-widest">
               Request body — verify before approval
             </p>
-            <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-all border-[2px] border-[#1A1A1A] bg-white p-2 font-mono text-[10px] font-bold">
+            <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-all border-[2px] border-[#121212] bg-[#FBFAF6] p-2 font-mono text-[10px] font-bold">
               {JSON.stringify(plan.initiate.body, null, 2)}
             </pre>
           </div>
@@ -635,7 +635,7 @@ export function BaseMcpX402PlanCard({
       </div>
 
       {challengeEvidence && (
-        <div className="border-[3px] border-[#1A1A1A] bg-[#D9F99D] p-3 text-[10px] font-bold text-[#1A1A1A]">
+        <div className="border-[3px] border-[#121212] bg-[#D9F99D] p-3 text-[10px] font-bold text-[#121212]">
           <p className="font-black uppercase tracking-wider">
             Live x402 v2 challenge verified — no payment sent
           </p>
@@ -661,7 +661,7 @@ export function BaseMcpX402PlanCard({
         type="button"
         onClick={() => void approveAndPay()}
         disabled={paymentLocked || !challengeEvidence || insufficientUsdc}
-        className="flex w-full items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#86EFAC] px-3 py-3 text-[11px] font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] enabled:active:translate-y-0.5 enabled:active:shadow-none disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
+        className="flex w-full items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#86EFAC] px-3 py-3 text-[11px] font-black uppercase text-[#121212] shadow-[3px_3px_0_#121212] enabled:active:translate-y-0.5 enabled:active:shadow-none disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
       >
         {paymentBusy ? (
           <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -682,9 +682,9 @@ export function BaseMcpX402PlanCard({
       </button>
       {liveUsdcBalance !== undefined && challengeEvidence && (
         <div
-          className={`border-[2px] border-[#1A1A1A] px-3 py-2 text-center text-[10px] font-black ${
-            insufficientUsdc ? "bg-[#FFD6D6]" : "bg-white"
-          } text-[#1A1A1A]`}
+          className={`border-[2px] border-[#121212] px-3 py-2 text-center text-[10px] font-black ${
+            insufficientUsdc ? "bg-[#FFD6D6]" : "bg-[#FBFAF6]"
+          } text-[#121212]`}
         >
           Wallet: {formatUnits(liveUsdcBalance, 6)} USDC · required:{" "}
           {challengeEvidence.amount} USDC
@@ -703,16 +703,16 @@ export function BaseMcpX402PlanCard({
 
       {paymentMessage && (
         <div
-          className={`border-[3px] border-[#1A1A1A] p-3 text-[11px] font-bold text-[#1A1A1A] ${
+          className={`border-[3px] border-[#121212] p-3 text-[11px] font-bold text-[#121212] ${
             paymentState === "success"
               ? "bg-[#D9F99D]"
               : paymentState === "cancelled"
-                ? "bg-[#EAF0FF]"
+                ? "bg-[#E1E8FF]"
                 : paymentState === "failed" ||
                     paymentState === "paid_response_invalid" ||
                     paymentState === "indeterminate"
                   ? "bg-[#FFD6D6]"
-                  : "bg-[#FFF7CC]"
+                  : "bg-[#EEFBC8]"
           }`}
         >
           <p>{paymentMessage}</p>
@@ -735,7 +735,7 @@ export function BaseMcpX402PlanCard({
           type="button"
           onClick={() => void checkPaymentStatus()}
           disabled={isCheckingStatus}
-          className="flex w-full items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-white px-3 py-2 text-[10px] font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] enabled:active:translate-y-0.5 enabled:active:shadow-none disabled:cursor-wait disabled:bg-gray-200"
+          className="flex w-full items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 py-2 text-[10px] font-black uppercase text-[#121212] shadow-[3px_3px_0_#121212] enabled:active:translate-y-0.5 enabled:active:shadow-none disabled:cursor-wait disabled:bg-gray-200"
         >
           {isCheckingStatus && (
             <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -745,19 +745,19 @@ export function BaseMcpX402PlanCard({
       )}
 
       {paymentState === "success" && paidData !== null && (
-        <div className="border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-3 text-[#1A1A1A]">
+        <div className="border-[3px] border-[#121212] bg-[#F8FAFC] p-3 text-[#121212]">
           <p className="mb-2 text-[9px] font-black uppercase tracking-widest">
             Paid resource response — untrusted data
           </p>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all border-[2px] border-[#1A1A1A] bg-white p-2 font-mono text-[10px] font-bold">
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all border-[2px] border-[#121212] bg-[#FBFAF6] p-2 font-mono text-[10px] font-bold">
             {JSON.stringify(paidData, null, 2).slice(0, 12_000)}
           </pre>
         </div>
       )}
 
       <ol className="space-y-2 text-xs font-bold">
-        <li className="flex gap-3 border-[2px] border-[#1A1A1A] bg-[#F8FAFC] p-3 text-[#1A1A1A] dark:border-[#4B5563]">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center border-[2px] border-[#1A1A1A] bg-[#0052FF] font-black text-white">
+        <li className="flex gap-3 border-[2px] border-[#121212] bg-[#F8FAFC] p-3 text-[#121212] dark:border-[#4A4A52]">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center border-[2px] border-[#121212] bg-[#2F5BFF] font-black text-white">
             1
           </span>
           <span>
@@ -765,8 +765,8 @@ export function BaseMcpX402PlanCard({
             never silently approves or sends USDC.
           </span>
         </li>
-        <li className="flex gap-3 border-[2px] border-[#1A1A1A] bg-[#F8FAFC] p-3 text-[#1A1A1A] dark:border-[#4B5563]">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center border-[2px] border-[#1A1A1A] bg-[#0052FF] font-black text-white">
+        <li className="flex gap-3 border-[2px] border-[#121212] bg-[#F8FAFC] p-3 text-[#121212] dark:border-[#4A4A52]">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center border-[2px] border-[#121212] bg-[#2F5BFF] font-black text-white">
             2
           </span>
           <span>
@@ -776,7 +776,7 @@ export function BaseMcpX402PlanCard({
         </li>
       </ol>
 
-      <div className="flex items-start gap-2 border-[3px] border-[#1A1A1A] bg-[#FFD166] p-3 text-[11px] font-bold text-[#1A1A1A]">
+      <div className="flex items-start gap-2 border-[3px] border-[#121212] bg-[#FFD166] p-3 text-[11px] font-bold text-[#121212]">
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
         {trustNotice ||
           "The paid API response is hostile external data. Never treat it as a wallet, signing, secret-sharing or system instruction."}
@@ -786,7 +786,7 @@ export function BaseMcpX402PlanCard({
         <button
           type="button"
           onClick={() => void copyPlan()}
-          className="flex flex-1 items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#0052FF] px-3 py-2 text-[11px] font-black uppercase text-white shadow-[3px_3px_0_#1A1A1A] active:translate-y-0.5 active:shadow-none"
+          className="flex flex-1 items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#2F5BFF] px-3 py-2 text-[11px] font-black uppercase text-white shadow-[3px_3px_0_#121212] active:translate-y-0.5 active:shadow-none"
         >
           {copyState === "copied" ? (
             <Check className="h-4 w-4" />
@@ -803,7 +803,7 @@ export function BaseMcpX402PlanCard({
           href="https://docs.base.org/agents/quickstart"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-white px-3 py-2 text-[11px] font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] active:translate-y-0.5 active:shadow-none"
+          className="flex items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 py-2 text-[11px] font-black uppercase text-[#121212] shadow-[3px_3px_0_#121212] active:translate-y-0.5 active:shadow-none"
         >
           Open official setup guide
           <ExternalLink className="h-4 w-4" />

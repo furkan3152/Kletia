@@ -74,11 +74,11 @@ const WAYS: readonly Way[] = [
 /** A station entrance sign over each way in: the letter plate, then where it leads. */
 function EntranceHead({ way, letter }: { readonly way: Way; readonly letter: string }) {
   return (
-    <div className="-mx-6 -mt-6 mb-6 flex items-center justify-between gap-3 border-b-[3px] border-[#1A1A1A] bg-[#1A1A1A] px-4 py-2.5 text-[#F4F1EA] [--kla-plate:#FFD60A] dark:bg-[#060A14] sm:-mx-7 sm:-mt-7 sm:px-5">
+    <div className="-mx-6 -mt-6 mb-6 flex items-center justify-between gap-3 border-b-[3px] border-[#121212] bg-[#121212] px-4 py-2.5 text-[#F2F0EA] [--kla-plate:#FFD60A] dark:bg-[#060A14] sm:-mx-7 sm:-mt-7 sm:px-5">
       <p className="flex min-w-0 items-center gap-3">
         <span
           aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#F4F1EA] font-display text-xl font-bold leading-none text-[#1A1A1A]"
+          className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#D6D2C8] font-display text-xl font-bold leading-none text-[#121212]"
         >
           {letter}
         </span>
@@ -92,12 +92,12 @@ function EntranceHead({ way, letter }: { readonly way: Way; readonly letter: str
 }
 
 function WayCard({ way, letter }: { readonly way: Way; readonly letter: string }) {
-  const muted = way.signage ? "text-[#1A1A1A]/85" : "text-[#45464B] dark:text-[#A9B6C8]";
+  const muted = way.signage ? "text-[#121212]/85" : "text-[#5C5850] dark:text-[#9A968C]";
   const linkClass = cx(
     "group/cta mt-auto inline-flex min-h-11 items-center gap-2 self-start pt-6 text-xs font-black uppercase tracking-[0.12em] underline decoration-2 underline-offset-4",
-    way.signage ? "text-[#1A1A1A]" : "text-[#0047E0] dark:text-[#7EA6FF]",
+    way.signage ? "text-[#121212]" : "text-[#1A36B0] dark:text-[#8FA6FF]",
     FOCUS_RING,
-    way.signage && "focus-visible:!outline-[#1A1A1A]",
+    way.signage && "focus-visible:!outline-[#121212]",
   );
   return (
     <li
@@ -105,8 +105,8 @@ function WayCard({ way, letter }: { readonly way: Way; readonly letter: string }
       className={cx(
         "flex min-w-0 flex-col border-[3px] p-6 shadow-hard-md sm:p-7",
         way.signage
-          ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] [--kla-plate:#FFFFFF] dark:shadow-[5px_5px_0_#475569]"
-          : "border-[#1A1A1A] bg-[#FBFAF7] dark:border-[#4B5563] dark:bg-[#131E32]",
+          ? "border-[#121212] bg-[#C6FF3A] text-[#121212] [--kla-plate:#FFFFFF] dark:shadow-[5px_5px_0_#2A2A30]"
+          : "border-[#121212] bg-[#FBFAF6] dark:border-[#4A4A52] dark:bg-[#19191C]",
         way.span,
       )}
     >
@@ -116,7 +116,7 @@ function WayCard({ way, letter }: { readonly way: Way; readonly letter: string }
       <ul className="mt-4 space-y-1 font-code text-[13px] font-semibold leading-snug">
         {way.points.map((point) => (
           <li key={point} className="flex gap-2">
-            <span aria-hidden="true" className={way.signage ? "text-[#1A1A1A]" : "text-[#0047E0] dark:text-[#7EA6FF]"}>
+            <span aria-hidden="true" className={way.signage ? "text-[#121212]" : "text-[#1A36B0] dark:text-[#8FA6FF]"}>
               →
             </span>
             {point}

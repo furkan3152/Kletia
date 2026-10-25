@@ -15,55 +15,129 @@
    The art (--kla-*), the network colours and the widget's --kw-* tokens
    are separate and never read these.
    ========================================================================= */
+/* Semantic tokens: the Card machine palette.
+   Light is warm grey hardware, dark is black hardware; lime is the one accent and always sits
+   under ink text. The --k-* design tokens below are the kit's raw palette (src/app/kit/index.ts). */
 :root {
-  --kl-paper: #f4f1ea;
-  --kl-surface: #ffffff;
-  --kl-surface-2: #fbfaf7;
-  --kl-text: #1a1a1a;
-  --kl-muted: #45464b;
-  --kl-line: #1a1a1a;
-  --kl-control: #1a1a1a;
-  --kl-accent: #0052ff;
-  --kl-accent-text: #0047e0;
-  --kl-signal: #ffd60a;
-  --kl-focus: #0052ff;
-  --kl-field-focus: #1a1a1a;
-  --kl-placeholder: #6b7280;
-  --kl-success: #0b5e3a;
-  --kl-success-bg: #e6fff4;
-  --kl-info: #0047e0;
-  --kl-info-bg: #e8eeff;
+  --kl-paper: #d6d2c8;
+  --kl-surface: #f1eee7;
+  --kl-surface-2: #e6e2d9;
+  --kl-text: #121212;
+  --kl-muted: #57534b;
+  --kl-line: #b3aea2;
+  --kl-control: #5c5850;
+  --kl-accent: #c6ff3a;
+  --kl-accent-text: #3d3b36;
+  --kl-signal: #c6ff3a;
+  --kl-focus: #2448e0;
+  --kl-field-focus: #121212;
+  --kl-placeholder: #5c5850;
+  --kl-success: #12782a;
+  --kl-success-bg: #eefbc8;
+  --kl-info: #1a36b0;
+  --kl-info-bg: #e1e8ff;
   --kl-warning: #7a3500;
   --kl-warning-bg: #fff3b0;
-  --kl-danger: #b91c1c;
-  --kl-danger-bg: #ffe4e4;
-  --kl-neutral: #45464b;
-  --kl-neutral-bg: #f1efe8;
+  --kl-danger: #c4005a;
+  --kl-danger-bg: #ffe0ef;
+  --kl-neutral: #57534b;
+  --kl-neutral-bg: #e6e2d9;
+  --k-chassis: #d6d2c8;
+  --k-chassis-2: #cbc6bb;
+  --k-panel: #e6e2d9;
+  --k-panel-2: #dcd7cd;
+  --k-raised: #f1eee7;
+  --k-screen: #fbfaf6;
+  --k-stock: #fbfaf6;
+  --k-ink: #121212;
+  --k-ink-2: #3d3b36;
+  --k-ink-3: #5c5850;
+  --k-line: #c9c5ba;
+  --k-line-2: #b3aea2;
+  --k-hi: rgba(255, 255, 255, 0.75);
+  --k-key: #f7f6f2;
+  --k-key-edge: #b7b2a6;
+  --k-dark-key: #1a1a1a;
+  --k-dark-key-edge: #000;
+  --k-slab-line: #121212;
+  --k-slab-shadow: #121212;
+  --k-well: #cfcbc1;
+  --k-slot: #161616;
+  --k-lime: #c6ff3a;
+  --k-lime-edge: #88b514;
+  --k-lime-tint: #eefbc8;
+  --k-magenta: #ff3d9a;
+  --k-magenta-edge: #b8186a;
+  --k-magenta-tint: #ffe0ef;
+  --k-blue: #2f5bff;
+  --k-up: #12782a;
+  --k-down: #c4005a;
+  --k-led-off: #b9b4a8;
+  --k-led-on: #8acb00;
+  --k-engrave: 0 1px 0 rgba(255, 255, 255, 0.65);
+  --k-obj: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 1px 2px rgba(40, 30, 10, 0.1), 0 10px 24px -14px rgba(40, 30, 10, 0.35);
+  --k-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .07 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+  --k-f-display: "Funnel Display", ui-sans-serif, system-ui, sans-serif;
+  --k-f-ui: "Funnel Sans", ui-sans-serif, system-ui, sans-serif;
+  --k-f-mono: "Geist Mono", ui-monospace, monospace;
+  --k-f-led: "Doto", "Geist Mono", ui-monospace, monospace;
+  --k-r-key: 10px;
+  --k-r-card: 16px;
+  --k-r-module: 20px;
 }
 .dark {
-  --kl-paper: #0b1120;
-  --kl-surface: #131e32;
-  --kl-surface-2: #0f1a2c;
-  --kl-text: #f1f5f9;
-  --kl-muted: #a9b6c8;
-  --kl-line: #4b5563;
-  --kl-control: #64748b;
-  --kl-accent: #0052ff;
-  --kl-accent-text: #7ea6ff;
-  --kl-signal: #ffd60a;
-  --kl-focus: #ffd60a;
-  --kl-field-focus: #ffd60a;
-  --kl-placeholder: #94a3b8;
-  --kl-success: #5cf2b4;
-  --kl-success-bg: #0e2a22;
-  --kl-info: #7ea6ff;
-  --kl-info-bg: #14213d;
+  --kl-paper: #0e0e10;
+  --kl-surface: #19191c;
+  --kl-surface-2: #232327;
+  --kl-text: #f2f0ea;
+  --kl-muted: #9a968c;
+  --kl-line: #3a3a40;
+  --kl-control: #8f8c84;
+  --kl-accent: #c6ff3a;
+  --kl-accent-text: #c9c6bd;
+  --kl-signal: #c6ff3a;
+  --kl-focus: #c6ff3a;
+  --kl-field-focus: #c6ff3a;
+  --kl-placeholder: #9a968c;
+  --kl-success: #b6ff3d;
+  --kl-success-bg: #1c230e;
+  --kl-info: #8fa6ff;
+  --kl-info-bg: #121a3a;
   --kl-warning: #fbbf24;
   --kl-warning-bg: #2a2110;
-  --kl-danger: #fca5a5;
-  --kl-danger-bg: #2a1215;
-  --kl-neutral: #a9b6c8;
-  --kl-neutral-bg: #1a2841;
+  --kl-danger: #ff6cb6;
+  --kl-danger-bg: #2a1020;
+  --kl-neutral: #9a968c;
+  --kl-neutral-bg: #1f1f23;
+  --k-chassis: #0e0e10;
+  --k-chassis-2: #131315;
+  --k-panel: #19191c;
+  --k-panel-2: #1f1f23;
+  --k-raised: #232327;
+  --k-screen: #121214;
+  --k-stock: #19191c;
+  --k-ink: #f2f0ea;
+  --k-ink-2: #c9c6bd;
+  --k-ink-3: #9a968c;
+  --k-line: #2a2a2e;
+  --k-line-2: #3a3a40;
+  --k-hi: rgba(255, 255, 255, 0.06);
+  --k-key: #232326;
+  --k-key-edge: #000;
+  --k-dark-key: #f2f0ea;
+  --k-dark-key-edge: #8f8c84;
+  --k-slab-line: #4a4a52;
+  --k-slab-shadow: #2a2a30;
+  --k-well: #070708;
+  --k-slot: #000;
+  --k-lime-tint: #1c230e;
+  --k-magenta-tint: #2a1020;
+  --k-up: #b6ff3d;
+  --k-down: #ff6cb6;
+  --k-led-off: #34343a;
+  --k-led-on: #c6ff3a;
+  --k-engrave: 0 -1px 0 rgba(0, 0, 0, 0.8);
+  --k-obj: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 28px -14px rgba(0, 0, 0, 0.8);
 }
 
 html,
@@ -76,13 +150,11 @@ body,
   padding: 0;
   overflow: hidden;
   overscroll-behavior: none;
-  background-color: #0d0d0d;
-  color: #ececec;
+  background-color: var(--kl-paper);
+  color: var(--kl-text);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
-    sans-serif;
+  font-family: var(--k-f-ui);
 }
 
 @supports (height: 100dvh) {
@@ -116,43 +188,27 @@ select {
 /* NeoBrutalist Custom Scrollbar */
 .custom-scrollbar {
   scrollbar-width: auto;
-  scrollbar-color: #1a1a1a transparent;
+  scrollbar-color: var(--k-line-2) transparent;
 }
 
 .dark .custom-scrollbar {
-  scrollbar-color: #475569 transparent;
+  scrollbar-color: var(--k-line-2) transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
   width: 12px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-  border-left: 2px dashed #1a1a1a44;
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-track {
-  border-left: 2px dashed #ffffff22;
-}
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #1a1a1a;
-  border: 2px solid #efefef;
-  border-radius: 0px;
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #475569;
-  border: 2px solid #0b1120;
+  background-color: var(--k-line-2);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: #0052ff;
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  background-color: var(--k-ink-3);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -181,14 +237,9 @@ html.kletia-site #root {
 }
 
 html.kletia-site {
-  background-color: #f4f1ea;
-  color: #1a1a1a;
+  background: var(--k-grain), var(--kl-paper);
+  color: var(--kl-text);
   scroll-padding-top: 96px;
-}
-
-html.kletia-site.dark {
-  background-color: #0b1120;
-  color: #f1f5f9;
 }
 
 html.kletia-site body {
@@ -353,10 +404,7 @@ html.kletia-embed.kletia-embed-transparent body {
   --kl-stagger: 60ms;
 
   /* hard shadow ink (theme-aware; used by shadow-hard*) */
-  --kl-shadow-ink: #1a1a1a;
-}
-.dark {
-  --kl-shadow-ink: #475569;
+  --kl-shadow-ink: var(--k-slab-shadow);
 }
 
 /* The motion system's classes (entrances, loops, toasts, View Transitions)
@@ -424,5 +472,5 @@ html[data-motion="off"]::view-transition-new(*) {
   outline-offset: 0;
   box-shadow:
     inset 0 0 0 2px var(--kl-field-focus),
-    5px 5px 0 var(--kl-shadow-ink);
+    0 0 0 4px color-mix(in srgb, var(--k-lime) 50%, transparent);
 }

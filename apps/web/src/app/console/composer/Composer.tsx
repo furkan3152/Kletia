@@ -314,7 +314,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <button
               type="submit"
               aria-label={answeringTitle ? copy.sendAnswer : editing ? copy.sendEdit : copy.sendLabel}
-              className="inline-flex h-12 min-w-12 shrink-0 items-center justify-center gap-1.5 border-[3px] border-[#1A1A1A] bg-[#0052FF] px-3 text-xs font-black uppercase tracking-wider text-white shadow-[2px_2px_0_#1A1A1A] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] active:translate-y-0.5 active:shadow-none dark:border-[#64748B] motion-reduce:hover:translate-y-0"
+              className="inline-flex h-12 min-w-12 shrink-0 items-center justify-center gap-1.5 border-[3px] border-[#121212] bg-[#2F5BFF] px-3 text-xs font-black uppercase tracking-wider text-white shadow-[2px_2px_0_#121212] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] active:translate-y-0.5 active:shadow-none dark:border-[#8F8C84] motion-reduce:hover:translate-y-0"
             >
               <ArrowUp className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">{answeringTitle ? copy.sendAnswer : editing ? copy.sendEditShort : copy.send}</span>

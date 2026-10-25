@@ -234,8 +234,8 @@ function SiteBootFallback() {
 /** The desk's loading plate: the site's paper and theme (the entry entered desk mode before the first paint), never a dark flash. */
 function ConsoleBootFallback() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#F4F1EA] dark:bg-[#0B1120]" role="status">
-      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#D6D2C8] dark:bg-[#0E0E10]" role="status">
+      <span className="border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]">
         Loading Kletia
       </span>
     </div>
@@ -245,7 +245,7 @@ function ConsoleBootFallback() {
 function EmbedBootFallback() {
   return (
     <div className="flex min-h-[12rem] items-center justify-center" role="status">
-      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.24em] text-[#1A1A1A]">
+      <span className="border-[3px] border-[#121212] bg-[#C6FF3A] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.24em] text-[#121212]">
         Loading Kletia
       </span>
     </div>
@@ -274,8 +274,8 @@ const CROSS_ORIGIN_FRAMED = typeof window !== "undefined" && isCrossOriginFramed
 
 function FramedRouteNotice({ href }: { href: string }) {
   return (
-    <main id="main-content" className="flex min-h-[100dvh] items-center justify-center bg-[#F4F1EA] p-4">
-      <div className="flex max-w-md flex-col items-start gap-3 border-[3px] border-[#1A1A1A] bg-white p-5 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A]">
+    <main id="main-content" className="flex min-h-[100dvh] items-center justify-center bg-[#D6D2C8] p-4">
+      <div className="flex max-w-md flex-col items-start gap-3 border-[3px] border-[#121212] bg-[#FBFAF6] p-5 text-[#121212] shadow-[4px_4px_0_#121212]">
         <h1 className="font-display text-xl font-bold">Kletia opens in its own tab</h1>
         <p className="text-sm font-semibold">
           For your safety this page cannot run inside another website. Open it directly to continue.
@@ -284,7 +284,7 @@ function FramedRouteNotice({ href }: { href: string }) {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#0052FF] px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]"
+          className="inline-flex min-h-11 items-center justify-center border-[3px] border-[#121212] bg-[#2F5BFF] px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#C6FF3A]"
         >
           Open Kletia
           <span className="sr-only"> (opens in a new tab)</span>
@@ -297,12 +297,12 @@ function FramedRouteNotice({ href }: { href: string }) {
 function RouteLoadFailed({ reload }: { reload: () => void }) {
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6" role="alert">
-      <div className="flex max-w-md flex-col items-start gap-4 border-[3px] border-[#1A1A1A] bg-white p-6 text-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#111827] dark:text-white dark:shadow-[6px_6px_0_#475569]">
+      <div className="flex max-w-md flex-col items-start gap-4 border-[3px] border-[#121212] bg-[#FBFAF6] p-6 text-[#121212] shadow-[6px_6px_0_#121212] dark:border-[#4A4A52] dark:bg-[#111827] dark:text-white dark:shadow-[6px_6px_0_#2A2A30]">
         <p className="font-display text-2xl font-bold">This page could not load</p>
         <p className="text-sm font-semibold">
           Part of Kletia failed to download, usually because of a lost connection or a new release. Reload to try again.
         </p>
-        <button type="button" onClick={reload} className="inline-flex min-h-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none">
+        <button type="button" onClick={reload} className="inline-flex min-h-11 items-center justify-center border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#121212] shadow-[3px_3px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF] active:translate-y-0.5 active:shadow-none">
           Reload
         </button>
       </div>
@@ -314,7 +314,7 @@ function PendingBar({ pending }: { pending: boolean }) {
   return (
     <div
       aria-hidden="true"
-      className={`kl-pending-bar pointer-events-none fixed inset-x-0 top-0 z-[100] h-1 origin-left bg-[#0052FF] ${
+      className={`kl-pending-bar pointer-events-none fixed inset-x-0 top-0 z-[100] h-1 origin-left bg-[#2F5BFF] ${
         pending ? "kl-pending-bar--active" : ""
       }`}
     />

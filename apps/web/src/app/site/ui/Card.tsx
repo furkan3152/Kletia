@@ -7,11 +7,11 @@ export type CardTone = "surface" | "muted" | "yellow" | "blue" | "ink" | "solana
 
 const TONES: Record<CardTone, string> = {
   surface: SURFACE,
-  muted: "bg-[#FBFAF7] dark:bg-[#0F1A2C]",
-  yellow: "bg-[#FFD60A] text-[#1A1A1A]",
-  blue: "bg-[#0052FF] text-white",
+  muted: "bg-[#FBFAF6] dark:bg-[#151517]",
+  yellow: "bg-[#C6FF3A] text-[#121212]",
+  blue: "bg-[#2F5BFF] text-white",
   ink: "bg-[#111318] text-white dark:bg-[#060A14]",
-  solana: "bg-[#14F195] text-[#0B1120]",
+  solana: "bg-[#14F195] text-[#0E0E10]",
 };
 
 /** Spotlight colour per tone (ink on yellow so the light reads). */

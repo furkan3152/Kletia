@@ -91,15 +91,15 @@ export function ArcUnifiedBalanceCard() {
   );
 
   return (
-    <section className="border-[4px] border-[#1A1A1A] bg-[#D1FAE5] p-5 text-[#1A1A1A] shadow-[8px_8px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[8px_8px_0_#475569] md:p-7">
+    <section className="border-[4px] border-[#121212] bg-[#D1FAE5] p-5 text-[#121212] shadow-[8px_8px_0_#121212] dark:border-[#4A4A52] dark:shadow-[8px_8px_0_#2A2A30] md:p-7">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div className="max-w-3xl">
-          <div className="mb-2 inline-flex items-center gap-2 border-[2px] border-[#1A1A1A] bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest">
+          <div className="mb-2 inline-flex items-center gap-2 border-[2px] border-[#121212] bg-[#FBFAF6] px-2 py-1 text-[10px] font-black uppercase tracking-widest">
             <ShieldCheck className="h-3.5 w-3.5" />
             Read only • no signature
           </div>
           <h3 className="flex items-center gap-3 text-2xl font-black uppercase md:text-4xl">
-            <span className="flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#8B5CF6] text-white shadow-[3px_3px_0_#1A1A1A]">
+            <span className="flex h-11 w-11 items-center justify-center border-[3px] border-[#121212] bg-[#8B5CF6] text-white shadow-[3px_3px_0_#121212]">
               <CircleDollarSign className="h-6 w-6" />
             </span>
             Unified USDC
@@ -112,7 +112,7 @@ export function ArcUnifiedBalanceCard() {
           type="button"
           onClick={() => void refresh()}
           disabled={!sessionMatches || isLoading}
-          className="flex min-w-[190px] items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-white px-4 py-3 text-xs font-black uppercase tracking-wider shadow-[4px_4px_0_#1A1A1A] transition-all enabled:hover:-translate-y-1 enabled:hover:shadow-[6px_6px_0_#1A1A1A] enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-w-[190px] items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#FBFAF6] px-4 py-3 text-xs font-black uppercase tracking-wider shadow-[4px_4px_0_#121212] transition-all enabled:hover:-translate-y-1 enabled:hover:shadow-[6px_6px_0_#121212] enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -124,7 +124,7 @@ export function ArcUnifiedBalanceCard() {
       </div>
 
       {!sessionMatches && (
-        <div className="mt-5 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black uppercase shadow-[3px_3px_0_#1A1A1A]">
+        <div className="mt-5 border-[3px] border-[#121212] bg-[#FACC15] p-3 text-xs font-black uppercase shadow-[3px_3px_0_#121212]">
           {isConnected
             ? "Wrong network: even read-only queries open only in Arc Testnet session."
             : "Enable read-only query by connecting the Arc Testnet wallet."}
@@ -132,7 +132,7 @@ export function ArcUnifiedBalanceCard() {
       )}
 
       {error && (
-        <div className="mt-5 border-[3px] border-[#1A1A1A] bg-[#FCA5A5] p-3 text-xs font-black shadow-[3px_3px_0_#1A1A1A]">
+        <div className="mt-5 border-[3px] border-[#121212] bg-[#FCA5A5] p-3 text-xs font-black shadow-[3px_3px_0_#121212]">
           {error}
         </div>
       )}
@@ -140,7 +140,7 @@ export function ArcUnifiedBalanceCard() {
       {snapshot && (
         <div className="mt-6">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="border-[3px] border-[#1A1A1A] bg-white p-4 shadow-[4px_4px_0_#1A1A1A]">
+            <div className="border-[3px] border-[#121212] bg-[#FBFAF6] p-4 shadow-[4px_4px_0_#121212]">
               <span className="block text-[10px] font-black uppercase tracking-widest text-gray-500">
                 Confirmed Gateway balance
               </span>
@@ -148,7 +148,7 @@ export function ArcUnifiedBalanceCard() {
                 {snapshot.totalConfirmedBalance} USDC
               </span>
             </div>
-            <div className="border-[3px] border-[#1A1A1A] bg-[#FDE68A] p-4 shadow-[4px_4px_0_#1A1A1A]">
+            <div className="border-[3px] border-[#121212] bg-[#FDE68A] p-4 shadow-[4px_4px_0_#121212]">
               <span className="block text-[10px] font-black uppercase tracking-widest text-gray-600">
                 Pending deposits
               </span>
@@ -158,8 +158,8 @@ export function ArcUnifiedBalanceCard() {
             </div>
           </div>
 
-          <div className="mt-4 border-[3px] border-[#1A1A1A] bg-white p-4 shadow-[4px_4px_0_#1A1A1A]">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b-[2px] border-[#1A1A1A] pb-2 text-[10px] font-black uppercase tracking-widest">
+          <div className="mt-4 border-[3px] border-[#121212] bg-[#FBFAF6] p-4 shadow-[4px_4px_0_#121212]">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b-[2px] border-[#121212] pb-2 text-[10px] font-black uppercase tracking-widest">
               <span>Circle Gateway • testnet only</span>
               <span>
                 {new Date(snapshot.observedAt).toLocaleTimeString("en-US")}
@@ -173,7 +173,7 @@ export function ArcUnifiedBalanceCard() {
                 {visibleRows.map((chain) => (
                   <div
                     key={chain.chain}
-                    className="border-[2px] border-[#1A1A1A] bg-[#F8FAFC] p-3 text-xs font-bold"
+                    className="border-[2px] border-[#121212] bg-[#F8FAFC] p-3 text-xs font-bold"
                   >
                     <div className="font-black uppercase">{chain.chain}</div>
                     <div>Verified: {chain.confirmedBalance} USDC</div>

@@ -49,7 +49,7 @@ export function OverviewSection() {
           <h2 id="admin-board-title" className="font-code text-sm font-extrabold uppercase tracking-[0.2em]">
             Deployment board
           </h2>
-          <span className="font-code text-xs uppercase tracking-[0.16em] text-[#FFD60A]">{data ? `${data.networks.length + ADMIN_NO_PROGRAM_NETWORKS.length} networks` : "Reading"}</span>
+          <span className="font-code text-xs uppercase tracking-[0.16em] text-[#C6FF3A]">{data ? `${data.networks.length + ADMIN_NO_PROGRAM_NETWORKS.length} networks` : "Reading"}</span>
         </div>
         {!data && !overview.error ? (
           <div className="flex flex-col gap-2 p-4" role="status" aria-label="Loading the board">
@@ -62,7 +62,7 @@ export function OverviewSection() {
           <table className="w-full border-collapse text-left text-sm">
             <caption className="sr-only">Contracts per network</caption>
             <thead className="bg-surface-2">
-              <tr className="border-b-2 border-[#1A1A1A]/10 dark:border-white/10">
+              <tr className="border-b-2 border-[#121212]/10 dark:border-white/10">
                 <th scope="col" className={cx(LABEL, "px-4 py-2.5", TEXT_MUTED)}>
                   Network
                 </th>
@@ -80,7 +80,7 @@ export function OverviewSection() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10">
+            <tbody className="divide-y-2 divide-[#121212]/10 dark:divide-white/10">
               {data.networks.map((row) => {
                 const line = lineFor(row.network);
                 return (

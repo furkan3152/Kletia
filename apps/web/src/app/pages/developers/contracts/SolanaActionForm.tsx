@@ -98,7 +98,7 @@ export function SolanaActionForm({ apiKey, onRegistered, onCancel }: SolanaActio
     const site = httpsUrl(website.trim());
     return (
       <div className="flex min-w-0 flex-col gap-6">
-        <div role="status" className={cx("flex flex-col gap-2 p-4", INK_BORDER_THIN, registered.status === "pending" ? "bg-[#FFF3B0] text-[#1A1A1A]" : "bg-[#E9FFF5] dark:bg-[#0E2A20]")}>
+        <div role="status" className={cx("flex flex-col gap-2 p-4", INK_BORDER_THIN, registered.status === "pending" ? "bg-[#FFF3B0] text-[#121212]" : "bg-[#E9FFF5] dark:bg-[#0E2A20]")}>
           <p className="font-display text-xl font-bold">
             Registered {registered.integrator.name} as <code className="font-code text-base">{registered.id}</code>.
           </p>
@@ -175,7 +175,7 @@ export function SolanaActionForm({ apiKey, onRegistered, onCancel }: SolanaActio
           {inspection ? (
             <ul className="flex flex-col gap-2">
               {inspection.programs.map((entry) => (
-                <li key={entry.program} className={cx("flex min-w-0 flex-col gap-1 p-3 text-sm", INK_BORDER_THIN, entry.denied ? "bg-[#FFE4E4] text-[#1A1A1A]" : "")}>
+                <li key={entry.program} className={cx("flex min-w-0 flex-col gap-1 p-3 text-sm", INK_BORDER_THIN, entry.denied ? "bg-[#FFE4E4] text-[#121212]" : "")}>
                   <p className="flex min-w-0 flex-wrap items-center gap-2">
                     <code className="min-w-0 break-all font-code text-[12px] font-bold">{entry.program}</code>
                     {entry.denied ? <Badge tone="red">Refused</Badge> : entry.pin ? <Badge tone="green">Pinned</Badge> : <Badge tone="yellow">Not found</Badge>}
@@ -312,7 +312,7 @@ export function SolanaActionForm({ apiKey, onRegistered, onCancel }: SolanaActio
 
       <div className="flex min-w-0 flex-col gap-3">
         {issues.length === 0 ? (
-          <p role="status" className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#1A1A1A] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">
+          <p role="status" className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#121212] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">
             The definition passes the same checks the API runs. Registering pins the programs and fetches each action&apos;s metadata.
           </p>
         ) : (

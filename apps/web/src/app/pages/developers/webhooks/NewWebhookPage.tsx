@@ -27,14 +27,14 @@ import {
   type WebhookScope,
 } from "./webhookModel";
 
-const RADIO = "h-4 w-4 shrink-0 accent-[#0052FF]";
+const RADIO = "h-4 w-4 shrink-0 accent-[#2F5BFF]";
 const OPTION = "flex min-h-11 cursor-pointer items-start gap-2.5 py-1.5 text-sm";
 
 /** One event family: a group checkbox (all, some or none) and its types. */
 function EventGroupField({ group, selected, onChange }: { readonly group: (typeof WEBHOOK_EVENT_GROUPS)[number]; readonly selected: ReadonlySet<string>; readonly onChange: (next: Set<string>) => void }) {
   const state = groupState(group, selected);
   return (
-    <fieldset className="min-w-0 border-t-2 border-[#1A1A1A]/10 pt-3 dark:border-white/10">
+    <fieldset className="min-w-0 border-t-2 border-[#121212]/10 pt-3 dark:border-white/10">
       <legend className="sr-only">{group.label}</legend>
       <label className={cx(OPTION, "font-bold")}>
         <input

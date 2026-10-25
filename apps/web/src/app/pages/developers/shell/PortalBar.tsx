@@ -91,7 +91,7 @@ export function PortalBar({ match, health, sectionsOpen, onOpenSections, keyMenu
   return (
     <nav
       aria-label="Developer portal"
-      className="sticky top-[75px] z-40 border-b-[3px] border-[#1A1A1A] bg-[#F4F1EA]/95 backdrop-blur-sm dark:border-[#4B5563] dark:bg-[#0B1120]/95"
+      className="sticky top-[75px] z-40 border-b-[3px] border-[#121212] bg-[#D6D2C8]/95 backdrop-blur-sm dark:border-[#4A4A52] dark:bg-[#0E0E10]/95"
     >
       <div className="flex h-12 min-w-0 items-center gap-2 px-3 sm:px-6 md:h-[52px] lg:px-8">
         <button

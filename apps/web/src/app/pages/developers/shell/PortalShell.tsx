@@ -86,7 +86,7 @@ function OutletSkeleton() {
 
 function PageLoadFailed({ reload }: { readonly reload: () => void }) {
   return (
-    <div role="alert" className="mt-10 flex max-w-xl flex-col items-start gap-3 border-[3px] border-[#1A1A1A] bg-surface p-5 dark:border-[#4B5563]">
+    <div role="alert" className="mt-10 flex max-w-xl flex-col items-start gap-3 border-[3px] border-[#121212] bg-surface p-5 dark:border-[#4A4A52]">
       <p className="font-display text-title font-bold">This page could not load</p>
       <p className="text-sm">Part of the portal failed to download, usually because of a lost connection or a new release. Reload to try again.</p>
       <Button onClick={reload}>Reload</Button>
@@ -97,7 +97,7 @@ function PageLoadFailed({ reload }: { readonly reload: () => void }) {
 /** One announcement under the portal bar when the API stops answering; panels keep their own errors. */
 function ApiDownBanner({ onRetry }: { readonly onRetry: () => void }) {
   return (
-    <div role="status" className="border-b-[3px] border-[#1A1A1A] bg-warning-bg text-fg dark:border-[#4B5563]">
+    <div role="status" className="border-b-[3px] border-[#121212] bg-warning-bg text-fg dark:border-[#4A4A52]">
       <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:px-6 lg:px-8">
         <p className="min-w-0 flex-1 text-sm font-semibold">
           The Kletia API is not answering from this browser. Reference pages work; tools retry when it is back.
@@ -112,7 +112,7 @@ function ApiDownBanner({ onRetry }: { readonly onRetry: () => void }) {
 }
 
 const SKIP_LINK = cx(
-  "sr-only z-[200] border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#1A1A1A] focus:not-sr-only focus:fixed focus:left-4 focus:top-4",
+  "sr-only z-[200] border-[3px] border-[#121212] bg-[#C6FF3A] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#121212] focus:not-sr-only focus:fixed focus:left-4 focus:top-4",
   FOCUS_RING,
 );
 
@@ -199,12 +199,12 @@ export default function PortalShell() {
         />
         {health.state === "unreachable" ? <ApiDownBanner onRetry={health.retry} /> : null}
         <div className="mx-auto flex w-full min-w-0 max-w-[1680px]">
-          <div id="portal-sections" className="hidden w-60 shrink-0 border-r-[3px] border-[#1A1A1A]/15 dark:border-white/10 xl:block">
+          <div id="portal-sections" className="hidden w-60 shrink-0 border-r-[3px] border-[#121212]/15 dark:border-white/10 xl:block">
             <div className="sticky top-[130px] max-h-[calc(100dvh-130px)] overflow-y-auto overscroll-contain">
               <PortalSidebar current={match.page.id} />
             </div>
           </div>
-          <div className="hidden w-14 shrink-0 border-r-[3px] border-[#1A1A1A]/15 dark:border-white/10 md:block xl:hidden">
+          <div className="hidden w-14 shrink-0 border-r-[3px] border-[#121212]/15 dark:border-white/10 md:block xl:hidden">
             <div className="sticky top-[130px]">
               <PortalRail current={match.page.id} onOpenGroup={(group) => openSections(group)} />
             </div>

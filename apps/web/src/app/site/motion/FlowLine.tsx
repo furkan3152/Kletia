@@ -36,8 +36,8 @@ export interface FlowLineProps {
 
 const DRAW_MS = 380;
 const SAMPLES = 32;
-const INK = "stroke-[#1A1A1A] dark:stroke-[#CBD5E1]";
-const ARROW = "fill-[#1A1A1A] dark:fill-[#CBD5E1]";
+const INK = "stroke-[#121212] dark:stroke-[#CBD5E1]";
+const ARROW = "fill-[#121212] dark:fill-[#CBD5E1]";
 
 /**
  * An edge between two nodes in an SVG diagram: a glow underlay in the network
@@ -188,7 +188,7 @@ export function FlowLine({
           fill={packetColor ?? color}
           strokeWidth={1.5}
           opacity={0}
-          className="stroke-[#1A1A1A] dark:stroke-[#0B1120]"
+          className="stroke-[#121212] dark:stroke-[#0E0E10]"
         />
       ))}
     </g>

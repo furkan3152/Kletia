@@ -51,7 +51,7 @@ export function Panel({ title, aside, children, className }: { readonly title: s
 /** An empty state: a dashed box with one sentence (and optional action). */
 export function EmptyState({ children, action }: { readonly children: React.ReactNode; readonly action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-start gap-3 border-[3px] border-dashed border-[#1A1A1A]/40 bg-surface-2 px-5 py-6 dark:border-white/25">
+    <div className="flex flex-col items-start gap-3 border-[3px] border-dashed border-[#121212]/40 bg-surface-2 px-5 py-6 dark:border-white/25">
       <p className="text-[15px] font-semibold">{children}</p>
       {action}
     </div>

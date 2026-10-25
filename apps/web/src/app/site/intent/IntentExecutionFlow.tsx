@@ -51,7 +51,7 @@ export function ExecutionErrorPanel({
   return (
     <div
       role="alert"
-      className="flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#FFE4E4] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2] dark:shadow-[4px_4px_0_#7F1D1D]"
+      className="flex flex-col gap-3 border-[3px] border-[#121212] bg-[#FFE4E4] p-4 text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2] dark:shadow-[4px_4px_0_#7F1D1D]"
     >
       <div className="flex items-start gap-2.5">
         <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-[#B91C1C] dark:text-[#FCA5A5]" aria-hidden="true" />
@@ -225,7 +225,7 @@ export function IntentExecutionFlow({
         <div
           tabIndex={-1}
           data-flow-focus=""
-          className={cx("flex flex-col gap-3 bg-[#FFF3B0] p-4 text-[#1A1A1A] focus:outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF]", INK_BORDER)}
+          className={cx("flex flex-col gap-3 bg-[#FFF3B0] p-4 text-[#121212] focus:outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF]", INK_BORDER)}
         >
           <p className={cx(LABEL, "flex items-center gap-2")}>
             <CirclePause className="h-4 w-4" aria-hidden="true" />
@@ -306,7 +306,7 @@ export function IntentExecutionFlow({
             {anySubmitted ? "Stop following" : "Cancel intent"}
           </Button>
           {signing ? (
-            <span className="text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
+            <span className="text-xs font-bold text-[#5C5850] dark:text-[#9A968C]">
               To stop now, reject the request in your wallet.
             </span>
           ) : null}

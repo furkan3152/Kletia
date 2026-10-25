@@ -41,7 +41,7 @@ export function HeroSection({ protocols }: HeroSectionProps) {
   return (
     <section
       aria-labelledby="hero-heading"
-      className="kla-grain relative overflow-hidden border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]"
+      className="kla-grain relative overflow-hidden border-b-[3px] border-[#121212] dark:border-[#4A4A52]"
     >
       <div
         className={cx(
@@ -50,7 +50,7 @@ export function HeroSection({ protocols }: HeroSectionProps) {
         )}
       >
         <div className="min-w-0 xl:pt-6">
-          <p className="inline-flex max-w-full items-center gap-2.5 border-[3px] border-[#1A1A1A] bg-[#FBFAF7] px-3 py-1.5 font-code text-xs font-bold uppercase leading-snug tracking-[0.12em] shadow-hard-sm dark:border-[#4B5563] dark:bg-[#131E32]">
+          <p className="inline-flex max-w-full items-center gap-2.5 border-[3px] border-[#121212] bg-[#FBFAF6] px-3 py-1.5 font-code text-xs font-bold uppercase leading-snug tracking-[0.12em] shadow-hard-sm dark:border-[#4A4A52] dark:bg-[#19191C]">
             <Icon name="route" size={18} />
             <span className="[text-wrap:balance]">
               Intent routing API · {networks} networks · {protocols}
@@ -66,7 +66,7 @@ export function HeroSection({ protocols }: HeroSectionProps) {
 
           <p className={cx("mt-7 max-w-xl text-lg leading-relaxed sm:text-[1.2rem]", TEXT_MUTED)}>
             One grammar on {productionNames}, plus {countWord(YARD.length)} test networks. Send Kletia{" "}
-            <q className="font-semibold text-[#1A1A1A] dark:text-white">{HERO_INTENT}</q>: it plans the legs, quotes each one and
+            <q className="font-semibold text-[#121212] dark:text-white">{HERO_INTENT}</q>: it plans the legs, quotes each one and
             returns unsigned transactions. Your users sign them in their own wallets, and Kletia marks a leg done only after it
             reads it on-chain.
           </p>
@@ -85,7 +85,7 @@ export function HeroSection({ protocols }: HeroSectionProps) {
             <Link
               to="/app"
               className={cx(
-                "group inline-flex min-h-9 items-center gap-1.5 font-semibold underline decoration-2 underline-offset-4 hover:text-[#1A1A1A] dark:hover:text-white",
+                "group inline-flex min-h-9 items-center gap-1.5 font-semibold underline decoration-2 underline-offset-4 hover:text-[#121212] dark:hover:text-white",
                 FOCUS_RING,
               )}
             >
@@ -95,19 +95,19 @@ export function HeroSection({ protocols }: HeroSectionProps) {
           </p>
 
           {/* The small print on the back of a ticket, not a row of badges. */}
-          <div className="mt-9 max-w-xl border-t-2 border-dashed border-[#1A1A1A]/30 pt-4 dark:border-white/20">
-            <p id="hero-conditions" className="font-code text-xs font-bold uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8]">
+          <div className="mt-9 max-w-xl border-t-2 border-dashed border-[#121212]/30 pt-4 dark:border-white/20">
+            <p id="hero-conditions" className="font-code text-xs font-bold uppercase tracking-[0.12em] text-[#5C5850] dark:text-[#9A968C]">
               How a route is carried
             </p>
             <ul
               aria-labelledby="hero-conditions"
-              className="mt-2 flex flex-wrap gap-x-2 gap-y-1 font-code text-[12px] font-semibold leading-relaxed text-[#1A1A1A] dark:text-[#E2E8F0]"
+              className="mt-2 flex flex-wrap gap-x-2 gap-y-1 font-code text-[12px] font-semibold leading-relaxed text-[#121212] dark:text-[#D6D2C8]"
             >
               {FACTS.map((fact, index) => (
                 <li key={fact}>
                   {fact}
                   {index < FACTS.length - 1 ? (
-                    <span aria-hidden="true" className="text-[#45464B] dark:text-[#A9B6C8]">
+                    <span aria-hidden="true" className="text-[#5C5850] dark:text-[#9A968C]">
                       {" "}·
                     </span>
                   ) : null}

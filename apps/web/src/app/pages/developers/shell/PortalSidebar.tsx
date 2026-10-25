@@ -63,7 +63,7 @@ export function PortalSidebar({ current, variant = "column", className }: Portal
                         "-ml-[3px] flex items-center justify-between gap-2 border-l-[3px] px-4 text-[15px] font-bold transition-colors",
                         item,
                         active
-                          ? "border-[#0052FF] bg-surface text-accent-text dark:border-[#FFD60A] dark:text-[#FFD60A]"
+                          ? "border-[#2F5BFF] bg-surface text-accent-text dark:border-[#C6FF3A] dark:text-[#C6FF3A]"
                           : "border-transparent text-fg hover:border-control hover:bg-surface",
                         FOCUS_RING,
                         "focus-visible:-outline-offset-2",
@@ -81,7 +81,7 @@ export function PortalSidebar({ current, variant = "column", className }: Portal
           </div>
         );
       })}
-      <ul className="mx-4 flex flex-col gap-1 border-t-2 border-dashed border-[#1A1A1A]/25 pt-4 dark:border-white/15">
+      <ul className="mx-4 flex flex-col gap-1 border-t-2 border-dashed border-[#121212]/25 pt-4 dark:border-white/15">
         {FOOTER_LINKS.map((link) => (
           <li key={link.label}>
             {link.external ? (
@@ -127,7 +127,7 @@ export function PortalRail({ current, onOpenGroup }: { readonly current: PortalP
             aria-current={active ? "true" : undefined}
             className={cx(
               "relative flex h-11 w-11 items-center justify-center border-[3px] transition-colors",
-              active ? "border-control bg-[#FFD60A] text-[#1A1A1A]" : "border-transparent text-fg hover:border-control",
+              active ? "border-control bg-[#C6FF3A] text-[#121212]" : "border-transparent text-fg hover:border-control",
               FOCUS_RING,
             )}
           >

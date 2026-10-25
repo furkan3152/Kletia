@@ -142,10 +142,10 @@ export function WebacyScanner({
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col items-center">
       <div className="w-full max-w-2xl flex flex-col gap-6">
-        <div className="bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] p-6 text-center">
+        <div className="bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] p-6 text-center">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-[#0052FF]" strokeWidth={3} />
-            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-[#1A1A1A] dark:text-white">
+            <Shield className="w-8 h-8 text-[#1A36B0]" strokeWidth={3} />
+            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-[#121212] dark:text-white">
               Due Diligence Hub
             </h1>
           </div>
@@ -173,12 +173,12 @@ export function WebacyScanner({
             aria-describedby={hintId}
             aria-invalid={Boolean(error)}
             onChange={(e) => setAddress(e.target.value)}
-            className="flex-1 bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 text-base md:text-lg font-mono font-bold text-[#1A1A1A] dark:text-white"
+            className="flex-1 bg-[#FBFAF6] dark:bg-[#19191C] border-[3px] border-[#121212] dark:border-[#4A4A52] p-4 text-base md:text-lg font-mono font-bold text-[#121212] dark:text-white"
           />
           <button
             type="submit"
             disabled={loading || !address}
-            className="bg-[#0052FF] hover:bg-blue-700 disabled:bg-gray-400 text-white font-black px-8 py-4 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] active:translate-y-1 active:shadow-none transition-all uppercase tracking-wide flex items-center justify-center gap-2 cursor-pointer focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700]"
+            className="bg-[#2F5BFF] hover:bg-blue-700 disabled:bg-gray-400 text-white font-black px-8 py-4 border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] active:translate-y-1 active:shadow-none transition-all uppercase tracking-wide flex items-center justify-center gap-2 cursor-pointer focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700]"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" strokeWidth={3} />
@@ -200,9 +200,9 @@ export function WebacyScanner({
         )}
 
         {result && (
-          <div className="bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col overflow-hidden">
+          <div className="bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] flex flex-col overflow-hidden">
             <div
-              className={`p-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] flex flex-col md:flex-row items-center justify-between gap-4 ${
+              className={`p-6 border-b-[3px] border-[#121212] dark:border-[#4A4A52] flex flex-col md:flex-row items-center justify-between gap-4 ${
                 result.decision === "blocked"
                   ? "bg-red-500 text-white"
                   : (result.riskScore ?? 0) > 20
@@ -241,7 +241,7 @@ export function WebacyScanner({
             </div>
 
             <div className="p-6 flex flex-col gap-4">
-              <h3 className="font-black text-[#1A1A1A] dark:text-white uppercase tracking-widest border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2">
+              <h3 className="font-black text-[#121212] dark:text-white uppercase tracking-widest border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-2">
                 {result.source === "webacy" ? "Detected Risk Tags" : "Verification Evidence"}
               </h3>
 
@@ -250,7 +250,7 @@ export function WebacyScanner({
                   {result.tags.map((tag: string, idx: number) => (
                     <span
                       key={idx}
-                      className="bg-[#1A1A1A] dark:bg-slate-700 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5 border-[2px] border-transparent"
+                      className="bg-[#121212] dark:bg-slate-700 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5 border-[2px] border-transparent"
                     >
                       {tag}
                     </span>

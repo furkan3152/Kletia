@@ -40,7 +40,7 @@ function Metric({
       <span className="font-bold text-xs md:text-sm text-slate-700 dark:text-slate-300">
         {label}
       </span>
-      <span className="font-black font-mono text-right text-[#1A1A1A] dark:text-white">
+      <span className="font-black font-mono text-right text-[#121212] dark:text-white">
         {value}
         {unit ? ` ${unit}` : ""}
       </span>
@@ -59,12 +59,12 @@ export default function ArcPortfolioViewer({
 
   return (
     <div className="w-full space-y-5 text-sm md:text-base">
-      <div className="bg-[#67E8F9] p-5 md:p-6 border-[3px] border-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] text-center">
+      <div className="bg-[#67E8F9] p-5 md:p-6 border-[3px] border-[#121212] shadow-[4px_4px_0_#121212] text-center">
         <h3 className="text-black font-black uppercase tracking-widest text-xs md:text-sm mb-1 flex items-center justify-center gap-2">
           <FlaskConical className="w-4 h-4" />
           Arc Testnet Native Balance
         </h3>
-        <div className="text-3xl md:text-5xl font-black text-[#1A1A1A] tracking-tighter break-all">
+        <div className="text-3xl md:text-5xl font-black text-[#121212] tracking-tighter break-all">
           {nativeUsdc
             ? `${displayAmount(nativeUsdc.formatted)} USDC`
             : "Unavailable"}
@@ -73,8 +73,8 @@ export default function ArcPortfolioViewer({
           Native USDC is both a value and gas asset on Arc. This view does not produce a USD valuation.</p>
       </div>
 
-      <div className="p-4 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
-        <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 text-[#1A1A1A] dark:text-white">
+      <div className="p-4 bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30]">
+        <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#121212] dark:border-[#4A4A52] pb-2 text-[#121212] dark:text-white">
           <Coins className="w-4 h-4" strokeWidth={3} />
           Wallet Assets</h4>
         {data.wallet.length > 0 ? (
@@ -92,8 +92,8 @@ export default function ArcPortfolioViewer({
         )}
       </div>
 
-      <div className="p-4 bg-[#ECFEFF] dark:bg-cyan-950/30 border-[3px] border-[#1A1A1A] dark:border-cyan-500 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#06B6D4]">
-        <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#1A1A1A] dark:border-cyan-500 pb-2 text-cyan-900 dark:text-cyan-200">
+      <div className="p-4 bg-[#ECFEFF] dark:bg-cyan-950/30 border-[3px] border-[#121212] dark:border-cyan-500 shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#06B6D4]">
+        <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#121212] dark:border-cyan-500 pb-2 text-cyan-900 dark:text-cyan-200">
           <Vault className="w-4 h-4" strokeWidth={3} />
           Kletia Vault
         </h4>
@@ -119,8 +119,8 @@ export default function ArcPortfolioViewer({
       </div>
 
       {data.legacyVault ? (
-        <div className="p-4 bg-[#FEF3C7] dark:bg-amber-950/40 border-[3px] border-[#1A1A1A] dark:border-amber-400 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#F59E0B]">
-          <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#1A1A1A] dark:border-amber-400 pb-2 text-amber-950 dark:text-amber-100">
+        <div className="p-4 bg-[#FEF3C7] dark:bg-amber-950/40 border-[3px] border-[#121212] dark:border-amber-400 shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#F59E0B]">
+          <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#121212] dark:border-amber-400 pb-2 text-amber-950 dark:text-amber-100">
             <AlertTriangle className="w-4 h-4" strokeWidth={3} />
             Legacy Vault Position
           </h4>
@@ -139,8 +139,8 @@ export default function ArcPortfolioViewer({
         </div>
       ) : null}
 
-      <div className="p-4 bg-[#F5F3FF] dark:bg-violet-950/30 border-[3px] border-[#1A1A1A] dark:border-violet-500 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#8B5CF6]">
-        <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#1A1A1A] dark:border-violet-500 pb-2 text-violet-900 dark:text-violet-200">
+      <div className="p-4 bg-[#F5F3FF] dark:bg-violet-950/30 border-[3px] border-[#121212] dark:border-violet-500 shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#8B5CF6]">
+        <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#121212] dark:border-violet-500 pb-2 text-violet-900 dark:text-violet-200">
           <Database className="w-4 h-4" strokeWidth={3} />
           Kletia Staking
         </h4>
@@ -165,8 +165,8 @@ export default function ArcPortfolioViewer({
         />
       </div>
 
-      <div className="p-4 bg-[#FFF7ED] dark:bg-orange-950/30 border-[3px] border-[#1A1A1A] dark:border-orange-500 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#F97316]">
-        <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#1A1A1A] dark:border-orange-500 pb-2 text-orange-900 dark:text-orange-200">
+      <div className="p-4 bg-[#FFF7ED] dark:bg-orange-950/30 border-[3px] border-[#121212] dark:border-orange-500 shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#F97316]">
+        <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#121212] dark:border-orange-500 pb-2 text-orange-900 dark:text-orange-200">
           <Landmark className="w-4 h-4" strokeWidth={3} />
           Kletia Lending
         </h4>
@@ -195,7 +195,7 @@ export default function ArcPortfolioViewer({
         />
       </div>
 
-      <div className="p-3 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] bg-[#D1FAE5] dark:bg-emerald-950/30 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
+      <div className="p-3 border-[3px] border-[#121212] dark:border-[#4A4A52] bg-[#D1FAE5] dark:bg-emerald-950/30 shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30]">
         <div className="font-black uppercase text-xs flex items-center gap-2 text-emerald-900 dark:text-emerald-200">
           <ShieldCheck className="w-4 h-4" />
           Chain Source Verified</div>

@@ -24,7 +24,7 @@ const SITE_ENV: readonly { readonly name: string; readonly set: boolean; readonl
 
 function EnvList({ items }: { readonly items: readonly Pick<AdminEnvItem, "name" | "set" | "required">[] }) {
   return (
-    <ul className={cx("divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER_THIN, SURFACE)}>
+    <ul className={cx("divide-y-2 divide-[#121212]/10 dark:divide-white/10", INK_BORDER_THIN, SURFACE)}>
       {items.map((item) => (
         <li key={item.name} className="flex min-h-12 flex-wrap items-center justify-between gap-2 px-4 py-2">
           <code className="break-all font-code text-[13px] font-bold">{item.name}</code>

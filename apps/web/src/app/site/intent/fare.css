@@ -5,13 +5,13 @@
 
 .klf {
   container-type: inline-size;
-  color: var(--kla-stock-ink, #1a1a1a);
+  color: var(--kla-stock-ink, #121212);
   background-color: var(--kla-stock, #fffcf2);
   background-image: var(--kla-stock-grain);
   background-size: 180px 180px;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   border-top-width: 6px;
-  box-shadow: 4px 4px 0 var(--kla-shadow, #1a1a1a);
+  box-shadow: 4px 4px 0 var(--kla-shadow, #121212);
   font: 500 13px/1.45 var(--kla-font-body);
   --klf-muted: var(--kla-stock-muted, #55565b);
 }
@@ -24,13 +24,13 @@
   padding: 0;
 }
 .klf a {
-  color: #0047e0;
+  color: #1a36b0;
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
 }
 .klf :focus-visible {
-  outline: 3px solid #0052ff;
+  outline: 3px solid #2f5bff;
   outline-offset: 2px;
 }
 .klf__head {
@@ -40,7 +40,7 @@
   justify-content: space-between;
   gap: 4px 12px;
   padding: 10px 14px 8px;
-  border-bottom: 2px solid #1a1a1a;
+  border-bottom: 2px solid #121212;
   font: 800 11px/1.2 var(--kla-font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -56,7 +56,7 @@
 .klf__changed {
   margin: 8px 0 2px;
   padding: 6px 8px;
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
   font-weight: 600;
 }
 .klf__basis {
@@ -171,9 +171,9 @@
   align-items: baseline;
   gap: 2px 8px;
   padding: 1px 8px 2px;
-  background: #ffd60a;
-  color: #1a1a1a;
-  border: 2px solid #1a1a1a;
+  background: #c6ff3a;
+  color: #121212;
+  border: 2px solid #121212;
   font: 800 12.5px/1.35 var(--kla-font-mono);
 }
 .klf__plate b {
@@ -193,7 +193,7 @@
   width: 11px;
   height: 11px;
   vertical-align: -1px;
-  color: #1a1a1a;
+  color: #121212;
 }
 .klf__list {
   display: grid;
@@ -219,7 +219,7 @@
   gap: 4px 14px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 2px solid #1a1a1a;
+  border-top: 2px solid #121212;
   font: 600 11px/1.3 var(--kla-font-body);
   color: var(--klf-muted);
 }

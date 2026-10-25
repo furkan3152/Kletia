@@ -444,7 +444,7 @@ function DeployFlow({ row, profile, testnet, records }: { readonly row: PlanRow;
   const sizeBytes = deployData?.data ? (deployData.data.length - 2) / 2 : null;
 
   return (
-    <div className="flex flex-col gap-4 border-t-2 border-dashed border-[#1A1A1A]/25 pt-4 dark:border-white/15">
+    <div className="flex flex-col gap-4 border-t-2 border-dashed border-[#121212]/25 pt-4 dark:border-white/15">
       {spec && spec.constructorInputs.some((input) => input.source.kind === "literal" && input.source.editable) ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {spec.constructorInputs.map((input) =>

@@ -77,11 +77,11 @@ function DirectorySign({
   return (
     <section
       aria-labelledby="directory-heading"
-      className="border-[3px] border-[#1A1A1A] bg-[#1A1A1A] text-[#F4F1EA] shadow-[8px_8px_0_#1A1A1A] [--kla-plate:#FFD60A] dark:border-[#4B5563] dark:bg-[#060A14] dark:shadow-[8px_8px_0_#475569]"
+      className="border-[3px] border-[#121212] bg-[#121212] text-[#F2F0EA] shadow-[8px_8px_0_#121212] [--kla-plate:#FFD60A] dark:border-[#4A4A52] dark:bg-[#060A14] dark:shadow-[8px_8px_0_#2A2A30]"
     >
       <h2
         id="directory-heading"
-        className="flex items-baseline justify-between gap-4 bg-[#FFD60A] px-5 py-3 font-code text-xs font-extrabold uppercase tracking-[0.18em] text-[#1A1A1A]"
+        className="flex items-baseline justify-between gap-4 bg-[#C6FF3A] px-5 py-3 font-code text-xs font-extrabold uppercase tracking-[0.18em] text-[#121212]"
       >
         <span>Station directory</span>
         <span className="font-semibold">{protocolNoun(totals.protocols)}</span>
@@ -90,15 +90,15 @@ function DirectorySign({
         {rows.map((row) => {
           const pressed = isRowSelected(row, category);
           return (
-            <li key={row.key} className="border-b border-dashed border-[#F4F1EA]/25 last:border-b-0">
+            <li key={row.key} className="border-b border-dashed border-[#F2F0EA]/25 last:border-b-0">
               <button
                 type="button"
                 aria-pressed={pressed}
                 onClick={() => onPick(directoryRowFilter(row, category))}
                 title={pressed ? "Show every category" : `Show only ${row.word.toLowerCase()} venues`}
                 className={cx(
-                  "flex min-h-11 w-full items-center gap-4 px-2 py-2 text-left transition-colors duration-150 hover:bg-[#F4F1EA]/10 motion-reduce:transition-none focus-visible:outline focus-visible:outline-[3px] focus-visible:-outline-offset-[3px] focus-visible:outline-[#FFD60A]",
-                  pressed && "bg-[#FFD60A] text-[#1A1A1A] hover:bg-[#FFD60A] [--kla-plate:#F4F1EA]",
+                  "flex min-h-11 w-full items-center gap-4 px-2 py-2 text-left transition-colors duration-150 hover:bg-[#D6D2C8]/10 motion-reduce:transition-none focus-visible:outline focus-visible:outline-[3px] focus-visible:-outline-offset-[3px] focus-visible:outline-[#C6FF3A]",
+                  pressed && "bg-[#C6FF3A] text-[#121212] hover:bg-[#C6FF3A] [--kla-plate:#F4F1EA]",
                 )}
               >
                 <Icon name={row.icon} size={26} />
@@ -113,10 +113,10 @@ function DirectorySign({
           );
         })}
       </ul>
-      <p className="border-t-[3px] border-[#F4F1EA]/20 px-5 py-3 font-code text-xs font-semibold uppercase leading-relaxed tracking-[0.1em] text-[#F4F1EA]/85">
+      <p className="border-t-[3px] border-[#F2F0EA]/20 px-5 py-3 font-code text-xs font-semibold uppercase leading-relaxed tracking-[0.1em] text-[#F2F0EA]/85">
         {executable !== null ? `${executable} executable through the API · ` : loading ? "·· executable through the API · " : ""}
         {totals.crossChain} cross-network · {totals.networks} networks
-        {ownContracts ? <span className="block text-[#FFD60A]">+ your own contracts, listed apart</span> : null}
+        {ownContracts ? <span className="block text-[#C6FF3A]">+ your own contracts, listed apart</span> : null}
       </p>
     </section>
   );
@@ -204,8 +204,8 @@ const LEGEND: readonly { readonly title: string; readonly body: string; readonly
 
 /** The service chips exactly as the signs print them. */
 const SERVICE_CHIP: Readonly<Record<"execute" | "quote" | "discover", string>> = {
-  execute: "border-current text-[#0047E0] dark:text-[#7EA6FF]",
-  quote: "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]",
+  execute: "border-current text-[#1A36B0] dark:text-[#8FA6FF]",
+  quote: "border-[#121212] bg-[#C6FF3A] text-[#121212]",
   discover: "border-current",
 };
 
@@ -219,7 +219,7 @@ function OwnContractsPanel({ entries }: { readonly entries: readonly ProtocolEnt
     <section
       id="your-contracts"
       aria-labelledby="own-contracts-heading"
-      className={cx("grid scroll-mt-48 gap-6 bg-[#FFF7CC] p-6 text-[#1A1A1A] dark:bg-[#1A2841] dark:text-[#E2E8F0] sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center", INK_BORDER, SHADOW_HARD)}
+      className={cx("grid scroll-mt-48 gap-6 bg-[#EEFBC8] p-6 text-[#121212] dark:bg-[#232327] dark:text-[#D6D2C8] sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center", INK_BORDER, SHADOW_HARD)}
     >
       <div className="min-w-0">
         <p className={cx(LABEL, "flex items-center gap-2 font-code")}>
@@ -235,7 +235,7 @@ function OwnContractsPanel({ entries }: { readonly entries: readonly ProtocolEnt
         </p>
         <ul className="mt-4 flex flex-wrap gap-2">
           {entries.map((entry) => (
-            <li key={entry.id} className="border-2 border-[#1A1A1A] bg-white px-2.5 py-1 font-code text-xs font-bold dark:border-[#4B5563] dark:bg-[#0B1120]">
+            <li key={entry.id} className="border-2 border-[#121212] bg-[#FBFAF6] px-2.5 py-1 font-code text-xs font-bold dark:border-[#4A4A52] dark:bg-[#0E0E10]">
               {entry.name}
               <span className="font-medium"> · {networksOf(entry).length} {networksOf(entry).length === 1 ? "network" : "networks"}</span>
             </li>
@@ -317,7 +317,7 @@ export default function ProtocolsPage() {
 
   return (
     <>
-      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+      <header className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "grid gap-12 py-14 sm:py-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start lg:gap-16")}>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-4">
@@ -339,10 +339,10 @@ export default function ProtocolsPage() {
               )}
             </h1>
             <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
-              <strong className="text-[#1A1A1A] dark:text-white">Executable</strong> means Platform API v1 builds the
-              transaction on this deployment; <strong className="text-[#1A1A1A] dark:text-white">named</strong> venues run
-              through the protocol shown beside them. <strong className="text-[#1A1A1A] dark:text-white">Data feeds</strong> are
-              only read, and <strong className="text-[#1A1A1A] dark:text-white">Console only</strong> venues run in the Kletia
+              <strong className="text-[#121212] dark:text-white">Executable</strong> means Platform API v1 builds the
+              transaction on this deployment; <strong className="text-[#121212] dark:text-white">named</strong> venues run
+              through the protocol shown beside them. <strong className="text-[#121212] dark:text-white">Data feeds</strong> are
+              only read, and <strong className="text-[#121212] dark:text-white">Console only</strong> venues run in the Kletia
               console, not the API. Every sign lists the networks the venue calls at.
             </p>
             <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3">
@@ -391,7 +391,7 @@ export default function ProtocolsPage() {
           {protocolsResource.status === "error" && protocolsResource.error && !liveProtocols ? (
             <div
               role="status"
-              className="mb-8 flex flex-col gap-3 border-[3px] border-dashed border-[#1A1A1A]/40 bg-[#FFF7CC] p-4 text-sm text-[#1A1A1A] dark:border-white/20 dark:bg-[#1A2841] dark:text-[#E2E8F0] sm:flex-row sm:items-center sm:justify-between"
+              className="mb-8 flex flex-col gap-3 border-[3px] border-dashed border-[#121212]/40 bg-[#EEFBC8] p-4 text-sm text-[#121212] dark:border-white/20 dark:bg-[#232327] dark:text-[#D6D2C8] sm:flex-row sm:items-center sm:justify-between"
             >
               <p>
                 <strong>Registry view.</strong> {describePlatformError(protocolsResource.error)} These cards come from the
@@ -406,8 +406,8 @@ export default function ProtocolsPage() {
           {protocolsLoading ? (
             <GridSkeleton />
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-4 border-[3px] border-dashed border-[#1A1A1A]/40 px-6 py-14 text-center dark:border-white/20">
-              <SearchX className="h-10 w-10 text-[#45464B] dark:text-[#A9B6C8]" aria-hidden="true" />
+            <div className="flex flex-col items-center gap-4 border-[3px] border-dashed border-[#121212]/40 px-6 py-14 text-center dark:border-white/20">
+              <SearchX className="h-10 w-10 text-[#5C5850] dark:text-[#9A968C]" aria-hidden="true" />
               <p className="font-display text-2xl font-bold tracking-[-0.02em]">No protocol matches these filters</p>
               <p className={cx("max-w-md text-sm", TEXT_MUTED)}>
                 Try fewer networks, another capability or a shorter search. The registry grows as venues are added to{" "}
@@ -455,14 +455,14 @@ export default function ProtocolsPage() {
 
       <section aria-labelledby="missing-venue-heading" className="py-16 sm:py-20">
         <div className={CONTAINER}>
-          <div className={cx("flex flex-col gap-8 bg-[#111318] p-8 text-white dark:bg-[#060A14] sm:p-10 lg:flex-row lg:items-center lg:justify-between", INK_BORDER, "shadow-[8px_8px_0_#FFD60A] dark:shadow-[8px_8px_0_#FFD60A]")}>
+          <div className={cx("flex flex-col gap-8 bg-[#111318] p-8 text-white dark:bg-[#060A14] sm:p-10 lg:flex-row lg:items-center lg:justify-between", INK_BORDER, "shadow-[8px_8px_0_#C6FF3A] dark:shadow-[8px_8px_0_#C6FF3A]")}>
             <div className="max-w-2xl">
-              <p className="font-code text-xs font-bold uppercase tracking-[0.16em] text-[#FFD60A]">Open registry</p>
+              <p className="font-code text-xs font-bold uppercase tracking-[0.16em] text-[#C6FF3A]">Open registry</p>
               <h2 id="missing-venue-heading" className="mt-3 font-display text-3xl font-bold tracking-[-0.03em] sm:text-4xl">
                 Is a venue missing?
               </h2>
               <p className="mt-4 text-[15px] leading-relaxed text-white/80">
-                Adapters live in <code className="font-code text-[#FFD60A]">apps/api/src/platform/engine/adapters</code>. Open an
+                Adapters live in <code className="font-code text-[#C6FF3A]">apps/api/src/platform/engine/adapters</code>. Open an
                 issue with the venue, the networks and the calls you need, or send a pull request.
               </p>
             </div>

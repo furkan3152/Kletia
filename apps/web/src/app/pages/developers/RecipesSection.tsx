@@ -69,9 +69,9 @@ export function RecipeView({ recipe }: { readonly recipe: Recipe }) {
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {recipe.install ? (
-        <div className="flex min-w-0 items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#0D1117] py-1.5 pl-3 pr-1.5 text-[#E6EDF3] dark:border-[#4B5563]">
+        <div className="flex min-w-0 items-center gap-2 border-[3px] border-[#121212] bg-[#0D1117] py-1.5 pl-3 pr-1.5 text-[#E6EDF3] dark:border-[#4A4A52]">
           <code className="min-w-0 flex-1 break-words font-code text-code">
-            <span className="text-[#FFD60A]">$</span> {recipe.install}
+            <span className="text-[#C6FF3A]">$</span> {recipe.install}
           </code>
           <CopyButton text={recipe.install} label={`Copy install command for ${recipe.label}`} />
         </div>

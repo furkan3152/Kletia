@@ -55,6 +55,8 @@ import { failureFromBody, type DeskPlanFailure } from "../hooks/planPreview";
 import { useDeskSlots } from "../hooks/useDeskSlots";
 import { useSigningLock } from "../hooks/useSigningLock";
 import { useDeskActions } from "../shell/deskContext";
+import { clearLegs, publishLegs } from "../shell/machine/machineFeed";
+import { machineLegs } from "../shell/machine/machineModel";
 import { DESK_MORE_COPY } from "../shell/deskCopy";
 import {
   accountsForLane,
@@ -566,6 +568,12 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   }, [anyWallet, connectedKey, failure, options, run, task.sentence, turning]);
 
   const shown: IntentGraph | null = execution.intent ?? dry?.intent ?? null;
+  // The machine panel's "Now": this plan's legs as the executor and the API report them.
+  useEffect(() => {
+    if (shown) publishLegs(task.id, machineLegs(shown.steps, execution.stepPhases));
+    else clearLegs(task.id);
+  }, [execution.stepPhases, shown, task.id]);
+  useEffect(() => () => clearLegs(task.id), [task.id]);
   const line = useMemo(() => {
     if (!shown) return null;
     const first = [...shown.steps].sort((a, b) => a.index - b.index)[0];
@@ -653,7 +661,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   let body: React.ReactNode;
   if (resumable) {
     body = (
-      <div className="kl-rise flex flex-col gap-3 border-[3px] border-control bg-surface p-4 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]">
+      <div className="kl-rise flex flex-col gap-3 border-[3px] border-control bg-surface p-4 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]">
         <p className="font-display text-lg font-bold">{copy.pickUp}</p>
         <p className="text-sm">{task.origin === "automation" ? copy.automationRun : copy.sentenceForgotten}</p>
         {signingBlocked ? <p className="text-sm font-bold">{signingBlocked}</p> : null}

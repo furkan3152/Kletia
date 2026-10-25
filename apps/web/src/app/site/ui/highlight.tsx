@@ -18,7 +18,7 @@ const PATTERNS: Record<Exclude<CodeLanguage, "text">, RegExp> = {
 const TOKEN_CLASS: Record<string, string> = {
   comment: "text-[#8B97A8] italic",
   string: "text-[#5CF2B4]",
-  keyword: "text-[#FFD60A]",
+  keyword: "text-[#C6FF3A]",
   literal: "text-[#FF9EC4]",
   number: "text-[#FF9EC4]",
   tag: "text-[#C4A1FF]",

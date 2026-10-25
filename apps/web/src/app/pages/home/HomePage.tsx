@@ -119,7 +119,7 @@ function Deferred({ size, children }: { readonly size: string; readonly children
 
 /** The departure board's place while the live modules load: its own height, so nothing below it moves. */
 function StatusBoardSlot() {
-  return <div aria-hidden="true" className="min-h-[46rem] border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] sm:min-h-[40rem]" />;
+  return <div aria-hidden="true" className="min-h-[46rem] border-b-[3px] border-[#121212] dark:border-[#4A4A52] sm:min-h-[40rem]" />;
 }
 
 /**

@@ -99,7 +99,7 @@ function RecentCalls({ contract, apiKey }: { readonly contract: ContractView; re
   );
   if (rows.length === 0) return <p className={cx("text-sm", TEXT_MUTED)}>No intent among your latest 50 calls this registration yet.</p>;
   return (
-    <ul className={cx("divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER_THIN)}>
+    <ul className={cx("divide-y-2 divide-[#121212]/10 dark:divide-white/10", INK_BORDER_THIN)}>
       {rows.slice(0, 12).map(({ intent, step }) => (
         <li key={`${intent.id}-${step.id}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 p-3 text-sm">
           <span className="min-w-0">

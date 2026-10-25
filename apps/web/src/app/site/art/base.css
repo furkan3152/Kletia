@@ -7,24 +7,24 @@
    ========================================================================= */
 
 :root {
-  --kla-ink: #1a1a1a;
-  --kla-text: #1a1a1a;
-  --kla-muted: #45464b;
-  --kla-paper: #f4f1ea;
-  --kla-card: #fbfaf7;
-  --kla-stock: #fffcf2;
-  --kla-stock-ink: #1a1a1a;
+  --kla-ink: #121212;
+  --kla-text: #121212;
+  --kla-muted: #57534b;
+  --kla-paper: #d6d2c8;
+  --kla-card: #f1eee7;
+  --kla-stock: #fbfaf6;
+  --kla-stock-ink: #121212;
   --kla-stock-muted: #55565b;
-  --kla-shadow: #1a1a1a;
-  --kla-plate: #ffd60a;
+  --kla-shadow: #121212;
+  --kla-plate: #c6ff3a;
   /* What shows through punched holes and notches: pages set it to their section colour. */
   --kla-table: var(--kla-paper);
-  --kla-line-ink: #1a1a1a;
-  --kla-focus: #0052ff;
-  --kla-link: #0047e0;
-  --kla-font-display: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --kla-font-body: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --kla-font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+  --kla-line-ink: #121212;
+  --kla-focus: #2448e0;
+  --kla-link: #1a36b0;
+  --kla-font-display: var(--k-f-display);
+  --kla-font-body: var(--k-f-ui);
+  --kla-font-mono: var(--k-f-mono);
   --kla-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --kla-ease-snap: cubic-bezier(0.2, 0.9, 0.3, 1.25);
   /* Paper grain: one 180 px noise tile, rasterised once by the browser. */
@@ -34,18 +34,18 @@
 }
 
 .dark {
-  --kla-ink: #4b5563;
-  --kla-text: #f1f5f9;
-  --kla-muted: #a9b6c8;
-  --kla-paper: #0b1120;
-  --kla-card: #131e32;
+  --kla-ink: #4a4a52;
+  --kla-text: #f2f0ea;
+  --kla-muted: #9a968c;
+  --kla-paper: #0e0e10;
+  --kla-card: #19191c;
   --kla-stock: #ece6d6;
   --kla-stock-muted: #4f5056;
-  --kla-shadow: #475569;
-  --kla-plate: #2f5bea;
-  --kla-line-ink: #cbd5e1;
-  --kla-focus: #ffd60a;
-  --kla-link: #7ea6ff;
+  --kla-shadow: #2a2a30;
+  --kla-plate: #c6ff3a;
+  --kla-line-ink: #c9c6bd;
+  --kla-focus: #c6ff3a;
+  --kla-link: #8fa6ff;
   --kla-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
@@ -102,7 +102,7 @@
   box-sizing: border-box;
   min-width: 2.6em;
   padding: 0.28em 0.5em 0.36em;
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
   font: 800 10.5px/1 var(--kla-font-mono);
   letter-spacing: 0.06em;
   white-space: nowrap;
@@ -115,7 +115,7 @@
   right: 2px;
   bottom: 1px;
   height: 2px;
-  background: repeating-linear-gradient(90deg, #1a1a1a 0 4px, transparent 4px 7px);
+  background: repeating-linear-gradient(90deg, #121212 0 4px, transparent 4px 7px);
 }
 .kla-bullet--yard {
   border-style: dashed;

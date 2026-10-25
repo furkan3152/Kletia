@@ -5,7 +5,7 @@
   container-type: inline-size;
   color: #f4f1ea;
   background: #121418;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   box-shadow: 6px 6px 0 var(--kla-shadow);
 }
 .dark .kl-link-board {
@@ -25,7 +25,7 @@
   margin: 0;
   font: 700 21px/1 var(--kla-font-display);
   letter-spacing: -0.01em;
-  color: #ffd60a;
+  color: #c6ff3a;
 }
 .kl-link-board__sub {
   margin: 0;
@@ -62,7 +62,7 @@
 }
 .kl-link-row[data-checked] {
   background: #20242d;
-  box-shadow: inset 4px 0 0 #ffd60a;
+  box-shadow: inset 4px 0 0 #c6ff3a;
 }
 .kl-link-row[data-disabled] {
   cursor: not-allowed;
@@ -76,7 +76,7 @@
   margin: 0;
 }
 .kl-link-row:has(input:focus-visible) {
-  outline: 3px solid #ffd60a;
+  outline: 3px solid #c6ff3a;
   outline-offset: -3px;
 }
 .kl-link-row__lamp {
@@ -87,8 +87,8 @@
   box-sizing: border-box;
 }
 .kl-link-row[data-checked] .kl-link-row__lamp {
-  border-color: #ffd60a;
-  background: radial-gradient(circle, #ffd60a 0 3.5px, transparent 4px);
+  border-color: #c6ff3a;
+  background: radial-gradient(circle, #c6ff3a 0 3.5px, transparent 4px);
 }
 .kl-link-row .kla-bullet {
   border-color: #050608;
@@ -101,7 +101,7 @@
   overflow-wrap: anywhere;
 }
 .kl-link-row__asset {
-  color: #ffd60a;
+  color: #c6ff3a;
 }
 .kl-link-row__eta {
   font: 600 12px/1.2 var(--kla-font-mono);
@@ -133,21 +133,21 @@
 /* The publisher's fixed plate: hazard stripes, because this is where the money goes. */
 .kl-link-fixed {
   position: relative;
-  color: #1a1a1a;
+  color: #121212;
   background: #fffcf2;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   box-shadow: 5px 5px 0 var(--kla-shadow);
 }
 .kl-link-fixed::before {
   content: "";
   display: block;
   height: 12px;
-  border-bottom: 3px solid #1a1a1a;
-  background: repeating-linear-gradient(-45deg, #ffd60a 0 10px, #1a1a1a 10px 20px);
+  border-bottom: 3px solid #121212;
+  background: repeating-linear-gradient(-45deg, #c6ff3a 0 10px, #121212 10px 20px);
 }
 .kl-link-fixed .kla-link {
-  --kla-link: #0047e0;
-  --kla-focus: #0052ff;
+  --kla-link: #1a36b0;
+  --kla-focus: #2f5bff;
 }
 .kl-link-fixed__addr {
   font: 600 12.5px/1.45 var(--kla-font-mono);

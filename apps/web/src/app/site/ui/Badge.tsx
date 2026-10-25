@@ -10,15 +10,15 @@ export type BadgeTone = "neutral" | "blue" | "yellow" | "green" | "purple" | "re
  * instead, so one state never wears two colours.
  */
 const TONES: Record<BadgeTone, string> = {
-  neutral: "bg-[#F1EFE8] text-[#1A1A1A] dark:bg-[#1A2841] dark:text-[#E2E8F0]",
-  blue: "bg-[#0052FF] text-white",
-  yellow: "bg-[#FFD60A] text-[#1A1A1A]",
+  neutral: "bg-[#E6E2D9] text-[#121212] dark:bg-[#232327] dark:text-[#D6D2C8]",
+  blue: "bg-[#2F5BFF] text-white",
+  yellow: "bg-[#C6FF3A] text-[#121212]",
   // Status green (the departure board lamp), not a network colour.
-  green: "bg-[#4ADE80] text-[#0B1120]",
+  green: "bg-[#4ADE80] text-[#0E0E10]",
   purple: "bg-[#6D28D9] text-white",
-  red: "bg-[#FF5A5F] text-[#1A1A1A]",
-  ink: "bg-[#1A1A1A] text-white dark:bg-white dark:text-[#0B1120]",
-  outline: "bg-transparent text-[#1A1A1A] dark:text-[#E2E8F0]",
+  red: "bg-[#FF5A5F] text-[#121212]",
+  ink: "bg-[#121212] text-white dark:bg-white dark:text-[#0E0E10]",
+  outline: "bg-transparent text-[#121212] dark:text-[#D6D2C8]",
 };
 
 export interface BadgeProps {
@@ -47,7 +47,7 @@ export function Badge({ tone = "neutral", dot, className, title, children }: Bad
       title={title}
       onMouseEnter={title === undefined ? titleWhenTruncated : undefined}
       className={cx(
-        "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap border-2 border-[#1A1A1A] px-2 py-0.5 text-label uppercase leading-5 dark:border-[#4B5563]",
+        "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap border-2 border-[#121212] px-2 py-0.5 text-label uppercase leading-5 dark:border-[#4A4A52]",
         TONES[tone],
         className,
       )}
@@ -55,7 +55,7 @@ export function Badge({ tone = "neutral", dot, className, title, children }: Bad
       {dot ? (
         <span
           aria-hidden="true"
-          className="h-2.5 w-2.5 shrink-0 border-[1.5px] border-[#1A1A1A] dark:border-[#0B1120]"
+          className="h-2.5 w-2.5 shrink-0 border-[1.5px] border-[#121212] dark:border-[#0E0E10]"
           style={{ backgroundColor: dot }}
         />
       ) : null}

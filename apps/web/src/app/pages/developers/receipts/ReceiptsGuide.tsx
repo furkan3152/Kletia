@@ -136,7 +136,7 @@ export default function ReceiptsGuide() {
             <div className={cx("min-w-0 overflow-x-auto", FOCUS_RING)} tabIndex={0} role="region" aria-label="Receipt signing keys (scrolls sideways)">
               <table className={cx("w-full min-w-[36rem] text-left text-sm", INK_BORDER_THIN)}>
                 <caption className="sr-only">Receipt signing keys</caption>
-                <thead className="bg-[#F1EFE8] dark:bg-[#0F1A2C]">
+                <thead className="bg-[#E6E2D9] dark:bg-[#151517]">
                   <tr>
                     <th scope="col" className="px-3 py-2">Key id</th>
                     <th scope="col" className="px-3 py-2">Status</th>
@@ -146,7 +146,7 @@ export default function ReceiptsGuide() {
                 </thead>
                 <tbody>
                   {keys.data.api.map((key) => (
-                    <tr key={key.kid} className="border-t-2 border-[#1A1A1A]/10 dark:border-white/10">
+                    <tr key={key.kid} className="border-t-2 border-[#121212]/10 dark:border-white/10">
                       <th scope="row" className="max-w-[16rem] break-all px-3 py-2 font-code text-[12px]">
                         {key.kid}
                       </th>
@@ -197,7 +197,7 @@ export default function ReceiptsGuide() {
           log.data.length === 0 ? (
             <p className={cx("text-sm", TEXT_MUTED)}>No batch closed yet.</p>
           ) : (
-            <ul className={cx("divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER_THIN)}>
+            <ul className={cx("divide-y-2 divide-[#121212]/10 dark:divide-white/10", INK_BORDER_THIN)}>
               {log.data.map((batch) => (
                 <li key={batch.seq} className="flex min-w-0 flex-col gap-1 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                   <span className="min-w-0">

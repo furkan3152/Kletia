@@ -75,8 +75,9 @@ test("every text pair reaches 4.5:1 in both themes", () => {
       ["muted on surface-2", t.muted, t["surface-2"]],
       ["accent text on paper", t["accent-text"], t.paper],
       ["accent text on surface", t["accent-text"], t.surface],
-      ["white on the accent fill", "#ffffff", t.accent],
-      ["ink on the signal yellow", "#1a1a1a", t.signal],
+      // The accent is the Card machine's lime: always under ink text.
+      ["ink on the accent fill", "#121212", t.accent],
+      ["ink on the signal lime", "#121212", t.signal],
       // Inputs are white (the light surface) or the dark paper colour.
       ["placeholder in an input", t.placeholder, theme === "light" ? t.surface : t.paper],
       ["placeholder on surface", t.placeholder, t.surface],

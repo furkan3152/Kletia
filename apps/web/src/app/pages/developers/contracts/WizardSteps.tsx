@@ -29,7 +29,7 @@ export function WizardSteps({ steps, current, reached, flagged = [], onGo }: Wiz
           const issue = flagged.includes(step.n);
           return (
             <li key={step.n} className="flex min-w-0 items-center gap-1">
-              {index > 0 ? <span aria-hidden="true" className={cx("hidden h-[3px] w-4 sm:block", step.n <= reached ? "bg-[#1A1A1A] dark:bg-[#E2E8F0]" : "bg-[#1A1A1A]/25 dark:bg-white/20")} /> : null}
+              {index > 0 ? <span aria-hidden="true" className={cx("hidden h-[3px] w-4 sm:block", step.n <= reached ? "bg-[#121212] dark:bg-[#D6D2C8]" : "bg-[#121212]/25 dark:bg-white/20")} /> : null}
               <button
                 type="button"
                 disabled={!open}
@@ -38,10 +38,10 @@ export function WizardSteps({ steps, current, reached, flagged = [], onGo }: Wiz
                 className={cx(
                   "inline-flex min-h-10 items-center gap-2 border-[3px] px-2.5 text-[12px] font-black uppercase tracking-[0.1em] disabled:cursor-not-allowed",
                   here
-                    ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] dark:border-[#FFD60A]"
+                    ? "border-[#121212] bg-[#C6FF3A] text-[#121212] dark:border-[#C6FF3A]"
                     : done
-                      ? "border-[#1A1A1A] bg-white text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white"
-                      : "border-dashed border-[#1A1A1A]/40 text-[#45464B] dark:border-white/25 dark:text-[#A9B6C8]",
+                      ? "border-[#121212] bg-[#FBFAF6] text-[#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-white"
+                      : "border-dashed border-[#121212]/40 text-[#5C5850] dark:border-white/25 dark:text-[#9A968C]",
                   FOCUS_RING,
                 )}
               >

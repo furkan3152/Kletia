@@ -131,7 +131,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = () => {
 
   return (
     <div className="flex w-full flex-col gap-5 text-fg">
-      <div className="flex flex-col gap-3 border-b-[3px] border-[#1A1A1A] pb-4 dark:border-[#4B5563] sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 border-b-[3px] border-[#121212] pb-4 dark:border-[#4A4A52] sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="font-display text-xl font-bold">Allora price observation</h3>
           <p className="mt-1 text-sm text-muted">
@@ -159,12 +159,12 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = () => {
         <p role="status" className="flex items-center gap-3 text-sm font-bold">
           <span
             aria-hidden="true"
-            className="h-6 w-6 animate-spin rounded-full border-4 border-dashed border-[#0052FF] motion-reduce:animate-none dark:border-[#7EA6FF]"
+            className="h-6 w-6 animate-spin rounded-full border-4 border-dashed border-[#2F5BFF] motion-reduce:animate-none dark:border-[#8FA6FF]"
           />
           Reading the latest inference
         </p>
       ) : error ? (
-        <p role="alert" className="border-[3px] border-[#1A1A1A] bg-[#FEE2E2] p-4 text-sm font-bold text-[#7F1D1D] dark:border-[#4B5563] dark:bg-[#3A1414] dark:text-[#FECACA]">
+        <p role="alert" className="border-[3px] border-[#121212] bg-[#FEE2E2] p-4 text-sm font-bold text-[#7F1D1D] dark:border-[#4A4A52] dark:bg-[#3A1414] dark:text-[#FECACA]">
           {error}
         </p>
       ) : (
@@ -181,9 +181,9 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = () => {
             return (
               <div
                 key={item.asset}
-                className="flex flex-col gap-4 border-[3px] border-[#1A1A1A] bg-surface p-5 shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]"
+                className="flex flex-col gap-4 border-[3px] border-[#121212] bg-surface p-5 shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30]"
               >
-                <div className="flex items-center justify-between border-b-2 border-dashed border-[#1A1A1A]/40 pb-2 dark:border-white/20">
+                <div className="flex items-center justify-between border-b-2 border-dashed border-[#121212]/40 pb-2 dark:border-white/20">
                   <h4 className="font-display text-2xl font-bold">{item.asset}</h4>
                   <span className={`border-2 border-current px-2 py-1 text-xs font-black uppercase ${diffColor}`}>
                     {item.direction}
@@ -198,7 +198,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = () => {
                 <div className="flex flex-col gap-1">
                   <span className="text-label uppercase text-muted">Allora inference ({timeframe})</span>
                   <div className="flex flex-wrap items-end gap-2">
-                    <span className="font-code text-2xl font-bold text-[#0052FF] dark:text-[#7EA6FF]">
+                    <span className="font-code text-2xl font-bold text-[#1A36B0] dark:text-[#8FA6FF]">
                       ${item.predictedPrice}
                     </span>
                     <span className={`mb-0.5 text-base font-bold ${diffColor}`}>
@@ -208,7 +208,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = () => {
                   </div>
                 </div>
 
-                <p className="mt-auto border-t-2 border-dashed border-[#1A1A1A]/40 pt-3 text-xs font-bold text-muted dark:border-white/20">
+                <p className="mt-auto border-t-2 border-dashed border-[#121212]/40 pt-3 text-xs font-bold text-muted dark:border-white/20">
                   A model observation, not a buy or sell recommendation.
                   <span className="mt-1 block font-normal">
                     Updated {new Date(item.fetchedAt).toLocaleTimeString("en-US")}

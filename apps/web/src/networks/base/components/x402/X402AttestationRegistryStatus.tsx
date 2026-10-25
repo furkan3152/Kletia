@@ -123,10 +123,10 @@ export function X402AttestationRegistryStatus() {
   }, []);
 
   return (
-    <div className="mt-4 border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-3 text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#172033] dark:text-white">
+    <div className="mt-4 border-[3px] border-[#121212] bg-[#F8FAFC] p-3 text-[#121212] dark:border-[#4A4A52] dark:bg-[#172033] dark:text-white">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-2">
-          <DatabaseZap className="mt-0.5 h-5 w-5 shrink-0 text-[#0052FF]" />
+          <DatabaseZap className="mt-0.5 h-5 w-5 shrink-0 text-[#1A36B0]" />
           <div>
             <p className="text-[11px] font-black uppercase tracking-wider">
               Supplemental claim registry
@@ -140,7 +140,7 @@ export function X402AttestationRegistryStatus() {
         </div>
 
         {!status && !unavailable && (
-          <span className="flex items-center gap-1 border-[2px] border-[#1A1A1A] bg-[#E2E8F0] px-2 py-1 text-[9px] font-black uppercase text-[#1A1A1A]">
+          <span className="flex items-center gap-1 border-[2px] border-[#121212] bg-[#D6D2C8] px-2 py-1 text-[9px] font-black uppercase text-[#121212]">
             <Loader2 className="h-3 w-3 animate-spin" />
             Checking Base
           </span>
@@ -150,7 +150,7 @@ export function X402AttestationRegistryStatus() {
             href={`${NETWORKS.base.explorer.url}/address/${status.address}`}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1 border-[2px] border-[#1A1A1A] bg-[#86EFAC] px-2 py-1 text-[9px] font-black uppercase text-[#1A1A1A]"
+            className="flex items-center gap-1 border-[2px] border-[#121212] bg-[#86EFAC] px-2 py-1 text-[9px] font-black uppercase text-[#121212]"
           >
             <ShieldCheck className="h-3 w-3" />
             Deployment verified
@@ -158,7 +158,7 @@ export function X402AttestationRegistryStatus() {
           </a>
         )}
         {unavailable && (
-          <span className="flex items-center gap-1 border-[2px] border-[#1A1A1A] bg-[#FFD166] px-2 py-1 text-[9px] font-black uppercase text-[#1A1A1A]">
+          <span className="flex items-center gap-1 border-[2px] border-[#121212] bg-[#FFD166] px-2 py-1 text-[9px] font-black uppercase text-[#121212]">
             <CircleAlert className="h-3 w-3" />
             Fail-closed
           </span>
@@ -178,7 +178,7 @@ export function X402AttestationRegistryStatus() {
         </p>
       ) : null}
 
-      <p className="mt-2 border-t-[2px] border-[#1A1A1A] pt-2 text-[10px] font-bold dark:border-[#4B5563]">
+      <p className="mt-2 border-t-[2px] border-[#121212] pt-2 text-[10px] font-bold dark:border-[#4A4A52]">
         A service is never inferred as attested from its URL, payTo, or Bazaar
         metadata. Verification requires all five exact claim fields plus a named
         attester and remains read-only.

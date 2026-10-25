@@ -8,7 +8,7 @@ import { CONTAINER, cx, TEXT_MUTED } from "../../site/ui/styles";
 export default function NotFoundPage() {
   const { location } = useRoute();
   return (
-    <div className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+    <div className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
       <div
         className={cx(
           CONTAINER,
@@ -22,7 +22,7 @@ export default function NotFoundPage() {
           </h1>
           <p className={cx("mt-6 max-w-xl text-lg leading-relaxed", TEXT_MUTED)}>
             Nothing runs to{" "}
-            <code className="break-all border-2 border-[#1A1A1A] bg-[#FBFAF7] px-1.5 py-0.5 font-code text-base text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white">
+            <code className="break-all border-2 border-[#121212] bg-[#FBFAF6] px-1.5 py-0.5 font-code text-base text-[#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-white">
               {location.pathname}
             </code>
             . The link may be old, or the page moved. These platforms are open:

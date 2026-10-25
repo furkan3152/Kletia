@@ -25,7 +25,7 @@ export interface WalletDockProps {
 }
 
 const pillBase =
-  "flex min-h-11 min-w-0 items-center gap-2 border-[3px] border-[#1A1A1A] px-2.5 py-2 text-[11px] font-black uppercase tracking-wider shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] sm:px-3 sm:text-xs";
+  "flex min-h-11 min-w-0 items-center gap-2 border-[3px] border-[#121212] px-2.5 py-2 text-[11px] font-black uppercase tracking-wider shadow-[3px_3px_0_#121212] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 active:translate-y-0.5 active:shadow-none dark:border-[#4A4A52] dark:shadow-[3px_3px_0_#2A2A30] sm:px-3 sm:text-xs";
 
 function EvmPill({ evmWorkspace }: { evmWorkspace: boolean }) {
   return (
@@ -59,7 +59,7 @@ function EvmPill({ evmWorkspace }: { evmWorkspace: boolean }) {
                 type="button"
                 onClick={openConnectModal}
                 aria-label="Connect EVM wallet"
-                className={`${pillBase} bg-[#0052FF] text-white focus-visible:outline-[#FFD60A]`}
+                className={`${pillBase} bg-[#2F5BFF] text-white focus-visible:outline-[#C6FF3A]`}
               >
                 <span className="sm:hidden">EVM</span>
                 <span className="hidden sm:inline">Connect EVM</span>
@@ -68,7 +68,7 @@ function EvmPill({ evmWorkspace }: { evmWorkspace: boolean }) {
               <button
                 type="button"
                 onClick={openChainModal}
-                className={`${pillBase} bg-[#EF4444] text-white focus-visible:outline-[#FFD60A]`}
+                className={`${pillBase} bg-[#EF4444] text-white focus-visible:outline-[#C6FF3A]`}
               >
                 Wrong network
               </button>
@@ -77,11 +77,11 @@ function EvmPill({ evmWorkspace }: { evmWorkspace: boolean }) {
                 type="button"
                 onClick={openAccountModal}
                 aria-label={`EVM wallet ${account.displayName}. Open account options`}
-                className={`${pillBase} max-w-[8.5rem] bg-white text-[#1A1A1A] focus-visible:outline-[#0052FF] dark:bg-[#1A2841] dark:text-white sm:max-w-[10rem]`}
+                className={`${pillBase} max-w-[8.5rem] bg-[#FBFAF6] text-[#121212] focus-visible:outline-[#2F5BFF] dark:bg-[#232327] dark:text-white sm:max-w-[10rem]`}
               >
                 <span
                   aria-hidden="true"
-                  className={`h-2.5 w-2.5 shrink-0 border border-[#1A1A1A] ${chain.unsupported ? "bg-[#FFD60A]" : "bg-[#10B981]"}`}
+                  className={`h-2.5 w-2.5 shrink-0 border border-[#121212] ${chain.unsupported ? "bg-[#C6FF3A]" : "bg-[#10B981]"}`}
                 />
                 <span className="truncate font-mono normal-case tracking-normal">
                   {account.displayName}
@@ -110,7 +110,7 @@ function SolanaPill() {
       }
       className={`${pillBase} focus-visible:outline-[#9945FF] ${
         connected
-          ? "max-w-[8.5rem] bg-white text-[#1A1A1A] dark:bg-[#1A2841] dark:text-white sm:max-w-[10rem]"
+          ? "max-w-[8.5rem] bg-[#FBFAF6] text-[#121212] dark:bg-[#232327] dark:text-white sm:max-w-[10rem]"
           : "whitespace-nowrap bg-[#9945FF] text-white"
       }`}
     >
@@ -119,7 +119,7 @@ function SolanaPill() {
       ) : (
         <span
           aria-hidden="true"
-          className="h-2.5 w-2.5 shrink-0 border border-[#1A1A1A] bg-gradient-to-br from-[#9945FF] to-[#14F195]"
+          className="h-2.5 w-2.5 shrink-0 border border-[#121212] bg-gradient-to-br from-[#9945FF] to-[#14F195]"
         />
       )}
       {account ? (

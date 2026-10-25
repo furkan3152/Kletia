@@ -34,7 +34,7 @@ export function SecretReveal({ secret, onUse, onDone }: { secret: Secret; onUse?
   return (
     <div
       role="status"
-      className="kl-drop flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#FFD60A] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569] sm:p-5"
+      className="kl-drop flex flex-col gap-3 border-[3px] border-[#121212] bg-[#C6FF3A] p-4 text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:shadow-[4px_4px_0_#2A2A30] sm:p-5"
     >
       <div className="flex flex-wrap items-center gap-2">
         <p className={LABEL}>
@@ -50,7 +50,7 @@ export function SecretReveal({ secret, onUse, onDone }: { secret: Secret; onUse?
             ? "Copy it now into your page's code or build settings. It is safe in browsers (it works only from your allowed origins), but this is the only time Kletia shows it."
             : "Copy it now into your server's secret store. This is the only time Kletia shows this secret."}
       </p>
-      <div className="flex flex-col gap-2 border-[3px] border-[#1A1A1A] bg-white p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 border-[3px] border-[#121212] bg-[#FBFAF6] p-3 sm:flex-row sm:items-center">
         <code className="min-w-0 flex-1 break-all font-code text-sm">{secret.key}</code>
         <CopyButton text={secret.key} label={secret.kind === "publishable" ? "Copy the publishable key" : "Copy the new secret"} appearance="light" />
       </div>

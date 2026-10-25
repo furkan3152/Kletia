@@ -123,7 +123,7 @@ export function InspectionDesk({ apiKey, keys, keyId, draft, names }: Inspection
 
   return (
     <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] 2xl:items-start">
-      <form id={formId} onSubmit={submit} noValidate className={cx("flex min-w-0 flex-col gap-4 bg-[#F1EFE8] p-4 dark:bg-[#0F1A2C] sm:p-5", INK_BORDER)}>
+      <form id={formId} onSubmit={submit} noValidate className={cx("flex min-w-0 flex-col gap-4 bg-[#E6E2D9] p-4 dark:bg-[#151517] sm:p-5", INK_BORDER)}>
         <p className={cx(LABEL, "flex items-center gap-2")}>
           <Printer className="h-4 w-4" aria-hidden="true" />
           Ticket printer
@@ -132,11 +132,11 @@ export function InspectionDesk({ apiKey, keys, keyId, draft, names }: Inspection
         <fieldset className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
           <legend className={cx(LABEL, "mb-1")}>Request</legend>
           <label className="inline-flex min-h-9 cursor-pointer items-center gap-2">
-            <input type="radio" name={`${formId}-mode`} className="accent-[#0052FF]" checked={mode === "text"} onChange={() => setMode("text")} />
+            <input type="radio" name={`${formId}-mode`} className="accent-[#2F5BFF]" checked={mode === "text"} onChange={() => setMode("text")} />
             A sentence
           </label>
           <label className="inline-flex min-h-9 cursor-pointer items-center gap-2">
-            <input type="radio" name={`${formId}-mode`} className="accent-[#0052FF]" checked={mode === "actions"} onChange={() => setMode("actions")} />
+            <input type="radio" name={`${formId}-mode`} className="accent-[#2F5BFF]" checked={mode === "actions"} onChange={() => setMode("actions")} />
             Structured actions
           </label>
         </fieldset>
@@ -170,7 +170,7 @@ export function InspectionDesk({ apiKey, keys, keyId, draft, names }: Inspection
         </div>
         {draftApplies ? (
           <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-sm font-bold">
-            <input type="checkbox" className="h-4 w-4 accent-[#0052FF]" checked={useDraft} onChange={(event) => setUseDraft(event.target.checked)} />
+            <input type="checkbox" className="h-4 w-4 accent-[#2F5BFF]" checked={useDraft} onChange={(event) => setUseDraft(event.target.checked)} />
             Use my unsaved draft instead of the key&apos;s rule book
           </label>
         ) : null}
@@ -185,7 +185,7 @@ export function InspectionDesk({ apiKey, keys, keyId, draft, names }: Inspection
         {run.status === "error" && run.error ? <ApiErrorPanel error={run.error} title="Could not simulate this request" /> : null}
         {!evaluation ? (
           run.status === "loading" ? null : (
-            <div className="flex min-h-48 items-center justify-center border-[3px] border-dashed border-[#1A1A1A]/30 p-6 text-center text-sm dark:border-white/15">
+            <div className="flex min-h-48 items-center justify-center border-[3px] border-dashed border-[#121212]/30 p-6 text-center text-sm dark:border-white/15">
               <p className={TEXT_MUTED}>Simulate a request to see what the rule books say, rule by rule.</p>
             </div>
           )
@@ -248,7 +248,7 @@ export function InspectionDesk({ apiKey, keys, keyId, draft, names }: Inspection
 
             <div className="min-w-0">
               <p className={cx(LABEL, "mb-2")}>Every clause it met</p>
-              <ul className="flex min-w-0 flex-col divide-y-2 divide-dashed divide-[#1A1A1A]/15 dark:divide-white/10">
+              <ul className="flex min-w-0 flex-col divide-y-2 divide-dashed divide-[#121212]/15 dark:divide-white/10">
                 {evaluation.rules.map((row, index) => {
                   const info = ruleInfo(row.rule);
                   return (

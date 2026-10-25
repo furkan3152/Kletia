@@ -41,8 +41,8 @@ export function LaunchTokenPreviewCard({
       : "Canonical token parameters";
 
   return (
-    <section className="space-y-3 border-[3px] border-[#1A1A1A] bg-[#FFF7A8] p-3 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#FDE68A] dark:shadow-[4px_4px_0_#475569] md:p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b-[3px] border-[#1A1A1A] pb-3">
+    <section className="space-y-3 border-[3px] border-[#121212] bg-[#FFF7A8] p-3 text-[#121212] shadow-[4px_4px_0_#121212] dark:border-[#4A4A52] dark:bg-[#FDE68A] dark:shadow-[4px_4px_0_#2A2A30] md:p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b-[3px] border-[#121212] pb-3">
         <div>
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em]">
             <Rocket className="h-4 w-4" strokeWidth={4} />
@@ -50,16 +50,16 @@ export function LaunchTokenPreviewCard({
           </div>
           <h3 className="mt-1 break-words text-xl font-black leading-tight md:text-2xl">
             {evidence.name}{" "}
-            <span className="text-[#0052FF]">${evidence.symbol}</span>
+            <span className="text-[#1A36B0]">${evidence.symbol}</span>
           </h3>
         </div>
-        <span className="border-[3px] border-[#1A1A1A] bg-[#D9F99D] px-2 py-1 text-[10px] font-black uppercase shadow-[2px_2px_0_#1A1A1A]">
+        <span className="border-[3px] border-[#121212] bg-[#D9F99D] px-2 py-1 text-[10px] font-black uppercase shadow-[2px_2px_0_#121212]">
           Fixed supply
         </span>
       </div>
 
       <div className="grid gap-2 md:grid-cols-2">
-        <div className="border-[3px] border-[#1A1A1A] bg-white p-3">
+        <div className="border-[3px] border-[#121212] bg-[#FBFAF6] p-3">
           <div className="text-[9px] font-black uppercase tracking-widest text-[#555]">
             Full supply to recipient
           </div>
@@ -71,7 +71,7 @@ export function LaunchTokenPreviewCard({
           </div>
         </div>
 
-        <div className="border-[3px] border-[#1A1A1A] bg-[#BFF7FF] p-3">
+        <div className="border-[3px] border-[#121212] bg-[#BFF7FF] p-3">
           <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-[#555]">
             <WalletCards className="h-3.5 w-3.5" strokeWidth={4} />
             Recipient = active wallet
@@ -82,7 +82,7 @@ export function LaunchTokenPreviewCard({
         </div>
       </div>
 
-      <div className="border-[3px] border-[#1A1A1A] bg-[#E9D5FF] p-3">
+      <div className="border-[3px] border-[#121212] bg-[#E9D5FF] p-3">
         <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-[#555]">
           <Fingerprint className="h-3.5 w-3.5" strokeWidth={4} />
           Creator-scoped CREATE2 identity
@@ -98,7 +98,7 @@ export function LaunchTokenPreviewCard({
         </div>
       </div>
 
-      <div className="border-[3px] border-[#1A1A1A] bg-white p-3">
+      <div className="border-[3px] border-[#121212] bg-[#FBFAF6] p-3">
         <div className="text-[9px] font-black uppercase tracking-widest text-[#555]">
           Predicted token address
         </div>
@@ -106,14 +106,14 @@ export function LaunchTokenPreviewCard({
           href={`https://basescan.org/address/${evidence.predictedAddress}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-1 block break-all font-mono text-[10px] font-black text-[#0052FF] underline decoration-[2px] underline-offset-2"
+          className="mt-1 block break-all font-mono text-[10px] font-black text-[#1A36B0] underline decoration-[2px] underline-offset-2"
         >
           {evidence.predictedAddress}
         </a>
       </div>
 
       <div className="grid gap-2 text-[10px] font-bold md:grid-cols-2">
-        <div className="border-[3px] border-[#1A1A1A] bg-[#FFD6A5] p-3">
+        <div className="border-[3px] border-[#121212] bg-[#FFD6A5] p-3">
           <div className="font-black uppercase">Exact deployment fee</div>
           <div className="mt-1 text-base font-black">
             {nativeFee(evidence.deploymentFee)}
@@ -122,7 +122,7 @@ export function LaunchTokenPreviewCard({
             value {evidence.value} wei
           </div>
         </div>
-        <div className="border-[3px] border-[#1A1A1A] bg-[#D9F99D] p-3">
+        <div className="border-[3px] border-[#121212] bg-[#D9F99D] p-3">
           <div className="font-black uppercase">Signed fee ceiling</div>
           <div className="mt-1 text-base font-black">
             {nativeFee(evidence.maxDeploymentFee)}
@@ -134,14 +134,14 @@ export function LaunchTokenPreviewCard({
       </div>
 
       <div className="flex flex-wrap gap-2 text-[9px] font-black uppercase">
-        <span className="flex items-center gap-1 border-[2px] border-[#1A1A1A] bg-[#D9F99D] px-2 py-1">
+        <span className="flex items-center gap-1 border-[2px] border-[#121212] bg-[#D9F99D] px-2 py-1">
           <ShieldCheck className="h-3.5 w-3.5" strokeWidth={4} />
           Simulation passed
         </span>
-        <span className="border-[2px] border-[#1A1A1A] bg-white px-2 py-1">
+        <span className="border-[2px] border-[#121212] bg-[#FBFAF6] px-2 py-1">
           No admin · no mint · no tax
         </span>
-        <span className="border-[2px] border-[#1A1A1A] bg-white px-2 py-1">
+        <span className="border-[2px] border-[#121212] bg-[#FBFAF6] px-2 py-1">
           Factory block {evidence.observedAtBlock}
         </span>
       </div>
@@ -150,12 +150,12 @@ export function LaunchTokenPreviewCard({
         type="button"
         onClick={onExecute}
         disabled={disabled || isExecuting || Boolean(txHash)}
-        className={`flex w-full items-center justify-center gap-2 border-[3px] border-[#1A1A1A] py-3 text-sm font-black uppercase tracking-wide text-white shadow-[3px_3px_0_#1A1A1A] transition-all active:translate-y-1 active:shadow-none ${
+        className={`flex w-full items-center justify-center gap-2 border-[3px] border-[#121212] py-3 text-sm font-black uppercase tracking-wide text-white shadow-[3px_3px_0_#121212] transition-all active:translate-y-1 active:shadow-none ${
           txHash
             ? "bg-[#10B981]"
             : disabled || isExecuting
               ? "cursor-not-allowed bg-gray-400"
-              : "bg-[#0052FF] hover:bg-blue-700"
+              : "bg-[#2F5BFF] hover:bg-blue-700"
         }`}
       >
         {isExecuting ? (

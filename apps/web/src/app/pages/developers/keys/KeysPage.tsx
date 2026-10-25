@@ -86,8 +86,8 @@ export function KeysPage() {
         }
       />
       <div className="flex min-w-0 flex-col gap-10">
-        <div className="flex items-start gap-3 border-[3px] border-[#1A1A1A] bg-[#1A1A1A] p-4 text-white dark:border-[#4B5563] dark:bg-[#060A14]">
-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[#FFD60A]" aria-hidden="true" />
+        <div className="flex items-start gap-3 border-[3px] border-[#121212] bg-[#121212] p-4 text-white dark:border-[#4A4A52] dark:bg-[#060A14]">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[#C6FF3A]" aria-hidden="true" />
           <p className="text-sm leading-relaxed text-white/80">
             <span className="font-bold text-white">Keys belong on servers.</span> Keep <code className="font-code">kl_dev_</code> and{" "}
             <code className="font-code">kl_agt_</code> keys in your server&apos;s secret store, never in browser code. This page holds a key only in

@@ -7,9 +7,9 @@ import { ArrowUpRight, Bot } from "lucide-react";
  */
 export function AgentsHandoffCard() {
   return (
-    <div className="mt-5 flex w-full flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#EAF0FF] p-4 text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white dark:shadow-[3px_3px_0_#475569] sm:w-80 md:w-[450px] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569]">
-      <p className="flex items-center gap-2 border-b-[3px] border-[#1A1A1A] pb-2 text-xs font-black uppercase tracking-widest dark:border-[#4B5563] md:text-sm">
-        <Bot className="h-4 w-4 text-[#0052FF] md:h-5 md:w-5" aria-hidden="true" />
+    <div className="mt-5 flex w-full flex-col gap-3 border-[3px] border-[#121212] bg-[#E1E8FF] p-4 text-[#121212] shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-white dark:shadow-[3px_3px_0_#2A2A30] sm:w-80 md:w-[450px] md:shadow-[4px_4px_0_#121212] dark:md:shadow-[4px_4px_0_#2A2A30]">
+      <p className="flex items-center gap-2 border-b-[3px] border-[#121212] pb-2 text-xs font-black uppercase tracking-widest dark:border-[#4A4A52] md:text-sm">
+        <Bot className="h-4 w-4 text-[#1A36B0] md:h-5 md:w-5" aria-hidden="true" />
         Run this with Kletia Agents
       </p>
       <p className="text-sm font-bold leading-relaxed">
@@ -19,7 +19,7 @@ export function AgentsHandoffCard() {
       </p>
       <a
         href="/developers#agents"
-        className="inline-flex min-h-11 items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#0052FF] px-3 py-2 text-xs font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563]"
+        className="inline-flex min-h-11 items-center justify-center gap-2 border-[3px] border-[#121212] bg-[#2F5BFF] px-3 py-2 text-xs font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#121212] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none dark:border-[#4A4A52]"
       >
         Set up an agent
         <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

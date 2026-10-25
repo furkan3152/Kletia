@@ -160,20 +160,20 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, phaseOf, 
   return (
     <div className={cx("flex min-w-0 flex-col gap-6", className)}>
       <section aria-label="Intent summary" className={cx(INK_BORDER, HARD_SHADOW, SURFACE, entrance && "kl-drop")}>
-        <div className="flex flex-col gap-3 border-b-[3px] border-[#1A1A1A] p-4 dark:border-[#4B5563] sm:flex-row sm:items-start sm:justify-between sm:p-5">
+        <div className="flex flex-col gap-3 border-b-[3px] border-[#121212] p-4 dark:border-[#4A4A52] sm:flex-row sm:items-start sm:justify-between sm:p-5">
           <div className="min-w-0">
-            <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Intent graph · {intent.spec}</p>
+            <p className={cx(LABEL, "text-[#1A36B0] dark:text-[#8FA6FF]")}>Intent graph · {intent.spec}</p>
             <h3 className="mt-1 font-display text-2xl font-bold leading-tight tracking-[-0.02em] sm:text-3xl">
               {summary.title}
             </h3>
-            <p className="mt-2 break-all font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">{intent.id}</p>
+            <p className="mt-2 break-all font-code text-[11px] text-[#5C5850] dark:text-[#9A968C]">{intent.id}</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Badge tone={STATUS_TONE[intent.status] ?? "neutral"}>{humanize(intent.status)}</Badge>
             {summary.crossNetwork ? <Badge tone="purple">Cross-network</Badge> : <Badge tone="neutral">Single network</Badge>}
           </div>
         </div>
-        <dl className="grid grid-cols-2 gap-[2px] bg-[#1A1A1A] dark:bg-[#4B5563] sm:grid-cols-3 [&>div]:bg-white dark:[&>div]:bg-[#131E32]">
+        <dl className="grid grid-cols-2 gap-[2px] bg-[#121212] dark:bg-[#4A4A52] sm:grid-cols-3 [&>div]:bg-white dark:[&>div]:bg-[#19191C]">
           <SummaryItem label="Steps" value={entrance ? <AnimatedNumber value={intent.steps.length} duration={600} startOnView={false} /> : intent.steps.length} />
           <SummaryItem label="Networks" value={summary.networks.map(networkName).join(" → ") || "—"} />
           <SummaryItem
@@ -187,7 +187,7 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, phaseOf, 
             value={summary.outputs.map((output) => formatAmount(output)).join(" + ") || "—"}
           />
         </dl>
-        {actions ? <div className="border-t-[3px] border-[#1A1A1A] p-4 dark:border-[#4B5563]">{actions}</div> : null}
+        {actions ? <div className="border-t-[3px] border-[#121212] p-4 dark:border-[#4A4A52]">{actions}</div> : null}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -197,17 +197,17 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, phaseOf, 
             Interpretation
           </h4>
           <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt className="font-bold text-[#45464B] dark:text-[#A9B6C8]">Compiler</dt>
+            <dt className="font-bold text-[#5C5850] dark:text-[#9A968C]">Compiler</dt>
             <dd className="font-code">{interpretation.source}</dd>
             {confidence ? (
               <>
-                <dt className="font-bold text-[#45464B] dark:text-[#A9B6C8]">Confidence</dt>
+                <dt className="font-bold text-[#5C5850] dark:text-[#9A968C]">Confidence</dt>
                 <dd className="font-code">{confidence}</dd>
               </>
             ) : null}
             {interpretation.normalizedText ? (
               <>
-                <dt className="font-bold text-[#45464B] dark:text-[#A9B6C8]">Normalised</dt>
+                <dt className="font-bold text-[#5C5850] dark:text-[#9A968C]">Normalised</dt>
                 <dd className="break-words font-code">{interpretation.normalizedText}</dd>
               </>
             ) : null}
@@ -222,7 +222,7 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, phaseOf, 
             <ul className="mt-3 space-y-2 text-sm">
               {interpretation.optimizations.map((item) => (
                 <li key={item} className="flex gap-2">
-                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 bg-[#1A1A1A] dark:bg-[#CBD5E1]" />
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 bg-[#121212] dark:bg-[#CBD5E1]" />
                   <span>{item}</span>
                 </li>
               ))}
@@ -236,7 +236,7 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, phaseOf, 
       {intent.warnings.length > 0 ? (
         <section
           aria-label="Plan warnings"
-          className="border-[3px] border-[#1A1A1A] bg-[#FFF3B0] p-4 text-[#1A1A1A] dark:border-[#4B5563]"
+          className="border-[3px] border-[#121212] bg-[#FFF3B0] p-4 text-[#121212] dark:border-[#4A4A52]"
         >
           <h4 className={cx(LABEL, "flex items-center gap-2")}>
             <TriangleAlert className="h-4 w-4" aria-hidden="true" />
@@ -309,7 +309,7 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, phaseOf, 
             >
               <div
                 className={cx(
-                  "inline-flex items-center gap-2 border-[3px] border-[#1A1A1A] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]",
+                  "inline-flex items-center gap-2 border-[3px] border-[#121212] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:shadow-[3px_3px_0_#2A2A30]",
                   building && "kl-node-in",
                 )}
                 style={{

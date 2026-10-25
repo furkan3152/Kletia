@@ -38,7 +38,7 @@ export function KeyGate({ purpose, agentKeys = false, children }: KeyGateProps) 
   return (
     <section aria-labelledby="key-gate-title" className={cx("flex min-w-0 flex-col gap-4 p-5 sm:p-6", INK_BORDER, HARD_SHADOW, SURFACE)}>
       <div className="flex min-w-0 items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0B1120]">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#121212] bg-[#FBFAF6] dark:border-[#4A4A52] dark:bg-[#0E0E10]">
           <Icon name="key" size={26} />
         </span>
         <div className="flex min-w-0 flex-col gap-2">

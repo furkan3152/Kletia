@@ -64,13 +64,13 @@ export function StudioExamples({ text, onPick }: StudioExamplesProps) {
 
   return (
     <div className="min-w-0">
-      <p className={cx(LABEL, "mb-2 text-[#1A1A1A] dark:text-[#E2E8F0]")} id={labelId}>
+      <p className={cx(LABEL, "mb-2 text-[#121212] dark:text-[#D6D2C8]")} id={labelId}>
         Examples
       </p>
       <div
         role="tablist"
         aria-labelledby={labelId}
-        className="grid grid-cols-4 border-2 border-[#1A1A1A] shadow-hard-sm dark:border-[#4B5563]"
+        className="grid grid-cols-4 border-2 border-[#121212] shadow-hard-sm dark:border-[#4A4A52]"
       >
         {STUDIO_EXAMPLE_GROUPS.map((candidate, index) => {
           const current = candidate.id === active.id;
@@ -90,10 +90,10 @@ export function StudioExamples({ text, onPick }: StudioExamplesProps) {
               onKeyDown={(event) => onTabKey(event, index)}
               className={cx(
                 "relative min-h-10 px-1 text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-150 motion-reduce:transition-none",
-                index > 0 && "border-l-2 border-[#1A1A1A] dark:border-[#4B5563]",
+                index > 0 && "border-l-2 border-[#121212] dark:border-[#4A4A52]",
                 current
-                  ? "bg-[#1A1A1A] text-white dark:bg-[#FFD60A] dark:text-[#1A1A1A]"
-                  : "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#0B1120] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]",
+                  ? "bg-[#121212] text-white dark:bg-[#C6FF3A] dark:text-[#121212]"
+                  : "bg-[#FBFAF6] text-[#121212] hover:bg-[#EEFBC8] dark:bg-[#0E0E10] dark:text-[#D6D2C8] dark:hover:bg-[#232327]",
                 FOCUS_RING,
               )}
             >
@@ -120,11 +120,11 @@ export function StudioExamples({ text, onPick }: StudioExamplesProps) {
                 }}
                 style={motion === "group" ? { ["--kl-i" as string]: index } : undefined}
                 className={cx(
-                  "min-h-11 w-full whitespace-normal break-words border-2 border-[#1A1A1A] px-2 py-1 text-left font-code text-[12px] transition-colors duration-150 dark:border-[#4B5563] sm:min-h-0 sm:w-auto sm:shrink-0 sm:snap-start sm:whitespace-nowrap md:shrink md:whitespace-normal",
+                  "min-h-11 w-full whitespace-normal break-words border-2 border-[#121212] px-2 py-1 text-left font-code text-[12px] transition-colors duration-150 dark:border-[#4A4A52] sm:min-h-0 sm:w-auto sm:shrink-0 sm:snap-start sm:whitespace-nowrap md:shrink md:whitespace-normal",
                   index >= 4 && "max-sm:hidden",
                   isSelected
-                    ? "bg-[#FFD60A] text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]"
-                    : "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#0B1120] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]",
+                    ? "bg-[#C6FF3A] text-[#121212] shadow-[2px_2px_0_#121212] dark:shadow-[2px_2px_0_#2A2A30]"
+                    : "bg-[#FBFAF6] text-[#121212] hover:bg-[#EEFBC8] dark:bg-[#0E0E10] dark:text-[#D6D2C8] dark:hover:bg-[#232327]",
                   motion === "group" && "kl-rise",
                   motion === "pick" && isSelected && "kl-stamp",
                   FOCUS_RING,

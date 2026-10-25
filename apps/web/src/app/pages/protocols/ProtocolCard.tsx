@@ -34,8 +34,8 @@ const BADGE_TONE: Readonly<Record<ProtocolBadgeKind, string>> = {
   named: "border-[#0B7A4B] text-[#0B5E3A] dark:border-[#5CF2B4] dark:text-[#5CF2B4]",
   data: "border-current",
   read: "border-current",
-  console: "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]",
-  service: "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]",
+  console: "border-[#121212] bg-[#C6FF3A] text-[#121212]",
+  service: "border-[#121212] bg-[#C6FF3A] text-[#121212]",
   orders: "border-[#0B7A4B] text-[#0B5E3A] dark:border-[#5CF2B4] dark:text-[#5CF2B4]",
   listed: "border-dashed border-current",
 };
@@ -99,7 +99,7 @@ export function ProtocolCard({ protocol, platform, transitionName, introIndex = 
                 ) : null}
               </ul>
             ) : null}
-            <p className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-dashed border-[#1A1A1A]/20 pt-3 dark:border-white/15">
+            <p className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t-2 border-dashed border-[#121212]/20 pt-3 dark:border-white/15">
               {example ? (
                 <Link to={studioHref(example.prompt)} title={`Plans “${example.prompt}” in Intent Studio`} className="group/try">
                   Try a {example.action}
@@ -116,7 +116,7 @@ export function ProtocolCard({ protocol, platform, transitionName, introIndex = 
                     <ArrowRight className="ml-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
                   </Link>
                 ) : (
-                  <span className="font-code text-xs font-bold uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8]">
+                  <span className="font-code text-xs font-bold uppercase tracking-[0.12em] text-[#5C5850] dark:text-[#9A968C]">
                     {discoverOnly ? "Read-only data" : "Quotes and routes only"}
                   </span>
                 )

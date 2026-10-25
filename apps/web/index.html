@@ -12,8 +12,8 @@
       content="Kletia turns one sentence, like “bridge 100 USDC from Ethereum to Base”, into planned, quoted transactions on nine networks that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed."
     />
     <!-- Browser chrome in the page's paper per theme (applySiteTheme keeps it in step with the site's own theme switch). -->
-    <meta name="theme-color" content="#F4F1EA" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0B1120" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#D6D2C8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0E0E10" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="light dark" />
     <meta name="robots" content="index,follow" />
     <link rel="canonical" href="https://kletiaai.xyz/" />
@@ -71,18 +71,18 @@
     <style>
       html[data-kl-boot="site"],
       html[data-kl-boot="paper"] {
-        background-color: #f4f1ea;
+        background-color: #d6d2c8;
       }
       html.dark[data-kl-boot="site"],
       html.dark[data-kl-boot="paper"] {
-        background-color: #0b1120;
+        background-color: #0e0e10;
       }
       .kl-boot {
         min-height: 100vh;
-        background-color: #f4f1ea;
+        background-color: #d6d2c8;
       }
       .dark .kl-boot {
-        background-color: #0b1120;
+        background-color: #0e0e10;
       }
       html[data-kl-boot="none"] .kl-boot {
         display: none;
@@ -90,12 +90,12 @@
       .kl-boot__bar {
         box-sizing: border-box;
         height: 75px;
-        border-bottom: 3px solid #1a1a1a;
-        background-color: #f4f1ea;
+        border-bottom: 3px solid #121212;
+        background-color: #d6d2c8;
       }
       .dark .kl-boot__bar {
-        border-bottom-color: #4b5563;
-        background-color: #0b1120;
+        border-bottom-color: #4a4a52;
+        background-color: #0e0e10;
       }
       html[data-kl-boot="paper"] .kl-boot__bar {
         display: none;
@@ -115,23 +115,24 @@
         box-sizing: border-box;
         width: 44px;
         height: 44px;
-        border: 3px solid #1a1a1a;
-        background-color: #ffffff;
-        box-shadow: 3px 3px 0 #1a1a1a;
+        border: 1px solid #a9a499;
+        border-radius: 9px;
+        background-color: #e6e2d9;
+        box-shadow: 0 2px 0 #9e998e;
       }
       .dark .kl-boot__mark {
-        border-color: #4b5563;
-        background-color: #0b1220;
-        box-shadow: 3px 3px 0 #475569;
+        border-color: #3a3a40;
+        background-color: #232327;
+        box-shadow: 0 2px 0 #000;
       }
       .kl-boot__word {
         width: 92px;
         height: 18px;
-        background-color: #1a1a1a;
+        background-color: #121212;
         opacity: 0.12;
       }
       .dark .kl-boot__word {
-        background-color: #f1f5f9;
+        background-color: #f2f0ea;
       }
       @media (min-width: 640px) {
         .kl-boot__in {
@@ -145,27 +146,26 @@
       }
     </style>
     <!--
-      Latin web fonts, fetched while the entry script loads so text first
-      paints in its final font (no swap, no layout shift). The site and the
-      desk at /app use all three, /embed only Inter, so the script below skips
-      the rest there. The build fingerprints these hrefs to the same files the
-      @fontsource-variable stylesheets use; the dev server cannot serve them
-      at these paths, so nothing is preloaded under it.
+      Card machine type: Funnel Display, Funnel Sans and Geist Mono from Google Fonts
+      (Latin subsets by unicode-range, font-display: swap), and Doto subset to the characters of
+      the card serial and the status LCD (text=). The stylesheet is added by the script below so
+      it never blocks the first paint; /embed (the widget, its own type) skips it.
     -->
-    <template id="kl-font-preloads">
-      <link rel="preload" as="font" type="font/woff2" crossorigin href="../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2" data-embed />
-      <link rel="preload" as="font" type="font/woff2" crossorigin href="../../node_modules/@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2" />
-      <link rel="preload" as="font" type="font/woff2" crossorigin href="../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2" />
-    </template>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <script>
       (function () {
-        var path = location.pathname;
-        if (document.querySelector('script[src$="/@vite/client"]')) return;
-        var embed = /^\/embed(?:\/|$)/.test(path);
-        var template = document.getElementById("kl-font-preloads");
-        var links = template && template.content ? template.content.querySelectorAll("link") : [];
-        for (var i = 0; i < links.length; i += 1) {
-          if (!embed || links[i].hasAttribute("data-embed")) document.head.appendChild(links[i].cloneNode(true));
+        if (/^\/embed(?:\/|$)/.test(location.pathname)) return;
+        var base = "https://fonts.googleapis.com/css2?display=swap&family=";
+        var hrefs = [
+          base + "Funnel+Display:wght@500..800&family=Funnel+Sans:wght@300..800&family=Geist+Mono:wght@400..600",
+          base + "Doto:wght@800&text=" + encodeURIComponent("#0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ .,:/-%\u00b7\u2014"),
+        ];
+        for (var i = 0; i < hrefs.length; i += 1) {
+          var link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = hrefs[i];
+          document.head.appendChild(link);
         }
       })();
     </script>

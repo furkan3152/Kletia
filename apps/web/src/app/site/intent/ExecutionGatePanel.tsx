@@ -47,10 +47,10 @@ export function ExecutionGatePanel({
       tabIndex={-1}
       role="group"
       aria-label={gate.kind === "fare" ? "Approve the fare again before signing" : "Confirm the custom contract before signing"}
-      className={cx("kl-rise flex flex-col gap-4 p-4 focus:outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] sm:p-5", INK_BORDER, HARD_SHADOW, SURFACE)}
+      className={cx("kl-rise flex flex-col gap-4 p-4 focus:outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF] sm:p-5", INK_BORDER, HARD_SHADOW, SURFACE)}
     >
       <div>
-        <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Before your wallet asks</p>
+        <p className={cx(LABEL, "text-[#1A36B0] dark:text-[#8FA6FF]")}>Before your wallet asks</p>
         <p className="mt-1 font-display text-xl font-bold leading-tight">{gate.stepTitle}</p>
         <p className="mt-1.5 text-sm font-semibold leading-relaxed" role="status">
           {gate.kind === "fare"

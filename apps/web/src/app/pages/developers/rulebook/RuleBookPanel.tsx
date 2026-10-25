@@ -132,7 +132,7 @@ export default function RuleBookPanel({ initialKey = null, initialView = "rules"
         </Button>
       </div>
       <div aria-live="polite">
-        {notice ? <p className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#1A1A1A] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">{notice}</p> : null}
+        {notice ? <p className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#121212] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">{notice}</p> : null}
       </div>
       <div className="grid min-w-0 gap-6 xl:grid-cols-[17rem_minmax(0,1fr)] xl:items-start">
         {/* Below 1280 px the tree would stack above the book: one "Editing" picker instead. */}

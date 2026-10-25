@@ -215,7 +215,7 @@ function CodeWindow({
 
   return (
     <div className={cx("flex min-w-0 flex-col bg-[#0D1117] text-[#E6EDF3]", INK_BORDER, HARD_SHADOW, className)}>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b-[3px] border-[#1A1A1A] bg-[#161B22] px-3 py-2 dark:border-[#4B5563] sm:flex-nowrap">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b-[3px] border-[#121212] bg-[#161B22] px-3 py-2 dark:border-[#4A4A52] sm:flex-nowrap">
         {list ? (
           // File tabs wrap onto a second row below 480 px instead of becoming another sideways scroller.
           <div
@@ -227,7 +227,7 @@ function CodeWindow({
             <span
               ref={indicatorRef}
               aria-hidden="true"
-              className="kl-tab-indicator pointer-events-none absolute left-0 top-0 hidden bg-[#FFD60A] group-data-[indicator=on]/tabs:block"
+              className="kl-tab-indicator pointer-events-none absolute left-0 top-0 hidden bg-[#C6FF3A] group-data-[indicator=on]/tabs:block"
             />
             {list.map((tab, index) => {
               const selected = tab.id === active?.id;
@@ -248,7 +248,7 @@ function CodeWindow({
                   className={cx(
                     "relative inline-flex min-h-9 shrink-0 items-center gap-2 border-2 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] transition-colors",
                     selected
-                      ? "border-[#FFD60A] bg-[#FFD60A] text-[#1A1A1A] group-data-[indicator=on]/tabs:border-transparent group-data-[indicator=on]/tabs:bg-transparent group-data-[indicator=on]/tabs:delay-100"
+                      ? "border-[#C6FF3A] bg-[#C6FF3A] text-[#121212] group-data-[indicator=on]/tabs:border-transparent group-data-[indicator=on]/tabs:bg-transparent group-data-[indicator=on]/tabs:delay-100"
                       : "border-transparent text-white/70 hover:border-white/30 hover:text-white",
                     FOCUS_RING,
                   )}
@@ -291,7 +291,7 @@ function CodeWindow({
           <span
             ref={caretRef}
             aria-hidden="true"
-            className="pointer-events-none absolute left-1 top-4 h-[18px] w-1.5 bg-[#FFD60A] opacity-0"
+            className="pointer-events-none absolute left-1 top-4 h-[18px] w-1.5 bg-[#C6FF3A] opacity-0"
           />
         ) : null}
       </div>

@@ -29,11 +29,11 @@ function RequestBars({ series }: { series: UsageReport["series"] }) {
   return (
     <figure className="flex min-w-0 flex-col gap-2">
       <figcaption className={cx(LABEL, TEXT_MUTED)}>Requests per hour (peak {max})</figcaption>
-      <div className="flex h-24 min-w-0 items-end gap-[2px] border-b-2 border-[#1A1A1A]/40 dark:border-white/30" aria-describedby={tableId}>
+      <div className="flex h-24 min-w-0 items-end gap-[2px] border-b-2 border-[#121212]/40 dark:border-white/30" aria-describedby={tableId}>
         {series.map((point) => (
           <div key={point.hour} className="group relative flex h-full min-w-[3px] flex-1 items-end" title={`${hourLabel(point.hour)}: ${point.requests} requests`}>
             <div
-              className="w-full bg-[#0052FF] group-hover:bg-[#1A1A1A] dark:bg-[#7EA6FF] dark:group-hover:bg-white"
+              className="w-full bg-[#2F5BFF] group-hover:bg-[#121212] dark:bg-[#8FA6FF] dark:group-hover:bg-white"
               style={{ height: point.requests === 0 ? "1px" : `${Math.max(4, (point.requests / max) * 100)}%` }}
             />
           </div>
@@ -68,7 +68,7 @@ function RequestBars({ series }: { series: UsageReport["series"] }) {
 
 function Figure({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 border-l-[6px] border-[#0052FF] pl-3 dark:border-[#7EA6FF]">
+    <div className="flex min-w-0 flex-col gap-1 border-l-[6px] border-[#2F5BFF] pl-3 dark:border-[#8FA6FF]">
       <dt className={cx(LABEL, "order-2", TEXT_MUTED)}>{label}</dt>
       <dd className="order-1 font-display text-3xl font-bold leading-none tracking-[-0.03em]">{value}</dd>
       {note ? <dd className={cx("order-3 text-xs", TEXT_MUTED)}>{note}</dd> : null}
@@ -86,7 +86,7 @@ function RouteTable({ routes }: { routes: UsageReport["byRoute"] }) {
       <table className="w-full min-w-[300px] border-collapse text-left text-body-s">
         <caption className={cx(LABEL, "pb-2 text-left", TEXT_MUTED)}>By route</caption>
         <thead className="bg-surface-2">
-          <tr className="border-b-2 border-[#1A1A1A]/10 dark:border-white/10">
+          <tr className="border-b-2 border-[#121212]/10 dark:border-white/10">
             <th scope="col" className={cx(LABEL, "px-3 py-2 font-extrabold", TEXT_MUTED)}>
               Route
             </th>
@@ -97,7 +97,7 @@ function RouteTable({ routes }: { routes: UsageReport["byRoute"] }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10">
+        <tbody className="divide-y-2 divide-[#121212]/10 dark:divide-white/10">
           {rows.map((row) => (
             <tr key={row.route} className={row.highlight ? "bg-warning-bg" : undefined}>
               <th scope="row" className="px-3 py-2 font-code font-normal">
@@ -148,8 +148,8 @@ export function UsagePanel() {
                 aria-pressed={range === item}
                 onClick={() => setRange(item)}
                 className={cx(
-                  "min-h-9 border-[3px] border-[#1A1A1A] px-3 font-code text-xs font-bold first:border-r-0 dark:border-[#4B5563]",
-                  range === item ? "bg-[#1A1A1A] text-white dark:bg-[#FFD60A] dark:text-[#1A1A1A]" : "bg-white dark:bg-[#0B1120]",
+                  "min-h-9 border-[3px] border-[#121212] px-3 font-code text-xs font-bold first:border-r-0 dark:border-[#4A4A52]",
+                  range === item ? "bg-[#121212] text-white dark:bg-[#C6FF3A] dark:text-[#121212]" : "bg-[#FBFAF6] dark:bg-[#0E0E10]",
                   FOCUS_RING,
                 )}
               >

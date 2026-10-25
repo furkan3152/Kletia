@@ -20,12 +20,12 @@ export function LinkShare({ link }: { readonly link: LinkOwnerView }) {
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 flex-col gap-1.5">
         <p className={LABEL}>Page</p>
-        <div className="flex min-w-0 flex-col gap-2 border-[3px] border-[#1A1A1A] bg-[#0D1117] p-2 pl-3 text-[#E6EDF3] dark:border-[#4B5563] sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-col gap-2 border-[3px] border-[#121212] bg-[#0D1117] p-2 pl-3 text-[#E6EDF3] dark:border-[#4A4A52] sm:flex-row sm:items-center">
           <code className="min-w-0 flex-1 break-all font-code text-[13px]">{link.urls.page}</code>
           <div className="flex shrink-0 gap-2">
             <CopyButton text={link.urls.page} label="Copy the link" />
             {page ? (
-              <a href={page} target="_blank" rel="noopener noreferrer" className={cx("inline-flex min-h-9 items-center gap-1 border-2 border-white/25 px-2.5 text-[12px] font-black uppercase tracking-[0.14em] text-white hover:border-[#FFD60A] hover:text-[#FFD60A]", FOCUS_RING)}>
+              <a href={page} target="_blank" rel="noopener noreferrer" className={cx("inline-flex min-h-9 items-center gap-1 border-2 border-white/25 px-2.5 text-[12px] font-black uppercase tracking-[0.14em] text-white hover:border-[#C6FF3A] hover:text-[#C6FF3A]", FOCUS_RING)}>
                 Open
                 <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 <span className="sr-only"> (opens in a new tab)</span>
@@ -46,7 +46,7 @@ export function LinkShare({ link }: { readonly link: LinkOwnerView }) {
       {blink ? (
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={LABEL}>Blink</p>
-          <div className="flex min-w-0 items-center gap-2 border-2 border-[#1A1A1A] p-2 dark:border-[#4B5563]">
+          <div className="flex min-w-0 items-center gap-2 border-2 border-[#121212] p-2 dark:border-[#4A4A52]">
             <code className="min-w-0 flex-1 break-all font-code text-[12px]">{blink}</code>
             <CopyButton text={blink} label="Copy the blink URL" appearance="light" />
           </div>

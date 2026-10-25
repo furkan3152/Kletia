@@ -103,7 +103,7 @@ export function PublishableKeys({ apiKey, view, readOnly }: { readonly apiKey: s
             : "No publishable keys yet. Issue one for each site that embeds the widget."}
         </p>
       ) : (
-        <ul className={cx("divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER_THIN)} aria-label="Publishable keys">
+        <ul className={cx("divide-y-2 divide-[#121212]/10 dark:divide-white/10", INK_BORDER_THIN)} aria-label="Publishable keys">
           {keys.map((item) => {
             const row = keyRowModel(item, now);
             const warnings = !row.ended ? publishableWarnings(view.settings, chains.data?.get(item.id) ?? []) : [];
@@ -146,7 +146,7 @@ export function PublishableKeys({ apiKey, view, readOnly }: { readonly apiKey: s
                   </ul>
                 ) : null}
                 {revoking === item.id ? (
-                  <div className="kl-rise flex flex-col gap-3 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+                  <div className="kl-rise flex flex-col gap-3 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#121212] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
                     <p className="flex items-start gap-2 text-sm font-bold">
                       <ShieldX className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                       Revoke {item.name}? Every page that uses it stops working. This cannot be undone.

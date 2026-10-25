@@ -97,13 +97,13 @@ export function IssueKeySheet({ open, onClose, onIssued }: { readonly open: bool
               <fieldset className="flex flex-col gap-1.5 text-sm">
                 <legend className={cx(LABEL, "mb-1.5")}>Project</legend>
                 <label className="inline-flex min-h-11 cursor-pointer items-center gap-2">
-                  <input type="radio" name={`${nameId}-project`} checked={sibling} onChange={() => setSibling(true)} className="h-4 w-4 accent-[#0052FF]" />
+                  <input type="radio" name={`${nameId}-project`} checked={sibling} onChange={() => setSibling(true)} className="h-4 w-4 accent-[#2F5BFF]" />
                   <span>
                     Add to the project of <code className="font-code text-xs">{maskKey(key)}</code>
                   </span>
                 </label>
                 <label className="inline-flex min-h-11 cursor-pointer items-center gap-2">
-                  <input type="radio" name={`${nameId}-project`} checked={!sibling} onChange={() => setSibling(false)} className="h-4 w-4 accent-[#0052FF]" />
+                  <input type="radio" name={`${nameId}-project`} checked={!sibling} onChange={() => setSibling(false)} className="h-4 w-4 accent-[#2F5BFF]" />
                   Start a new project
                 </label>
               </fieldset>

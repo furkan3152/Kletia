@@ -24,7 +24,7 @@ function Counter({ label, value }: { readonly label: string; readonly value: str
     <div className="flex min-w-0 flex-col items-start gap-1">
       <span className="inline-flex gap-[2px]" aria-hidden="true">
         {value.split("").map((char, index) => (
-          <span key={index} className="inline-flex h-7 min-w-[1.15rem] items-center justify-center border border-[#050608] bg-[#1B1E25] px-[3px] font-code text-[14px] font-bold text-[#F4F1EA] shadow-[inset_0_-1px_0_#050608]">
+          <span key={index} className="inline-flex h-7 min-w-[1.15rem] items-center justify-center border border-[#050608] bg-[#1B1E25] px-[3px] font-code text-[14px] font-bold text-[#F2F0EA] shadow-[inset_0_-1px_0_#050608]">
             {char}
           </span>
         ))}
@@ -100,9 +100,9 @@ function StatsView({ link, apiKey }: { readonly link: LinkOwnerView; readonly ap
           {data.daily.length > 0 ? (
             <figure className="m-0 min-w-0">
               <figcaption className={cx(LABEL, "mb-2")}>Page views per day</figcaption>
-              <div className="flex h-24 min-w-0 items-end gap-[2px] border-b-2 border-[#1A1A1A] dark:border-[#E2E8F0]" aria-hidden="true">
+              <div className="flex h-24 min-w-0 items-end gap-[2px] border-b-2 border-[#121212] dark:border-[#D6D2C8]" aria-hidden="true">
                 {data.daily.map((day) => (
-                  <span key={day.day} title={`${day.day}: ${day.pageView ?? 0} views, ${day.completed ?? 0} completed`} className="min-w-[3px] flex-1 bg-[#0052FF] dark:bg-[#7EA6FF]" style={{ height: `${Math.max(2, Math.round(((day.pageView ?? 0) / peak) * 100))}%` }} />
+                  <span key={day.day} title={`${day.day}: ${day.pageView ?? 0} views, ${day.completed ?? 0} completed`} className="min-w-[3px] flex-1 bg-[#2F5BFF] dark:bg-[#8FA6FF]" style={{ height: `${Math.max(2, Math.round(((day.pageView ?? 0) / peak) * 100))}%` }} />
                 ))}
               </div>
               <table className="sr-only">
@@ -131,7 +131,7 @@ function StatsView({ link, apiKey }: { readonly link: LinkOwnerView; readonly ap
               <table className="w-full min-w-[28rem] text-left text-sm">
                 <caption className={cx(LABEL, "mb-2 text-left")}>By where visitors started</caption>
                 <thead>
-                  <tr className="border-b-2 border-[#1A1A1A] dark:border-[#4B5563]">
+                  <tr className="border-b-2 border-[#121212] dark:border-[#4A4A52]">
                     <th scope="col" className="py-1.5 pr-3">Source</th>
                     <th scope="col" className="py-1.5 pr-3">Quotes</th>
                     <th scope="col" className="py-1.5 pr-3">Intents</th>
@@ -141,7 +141,7 @@ function StatsView({ link, apiKey }: { readonly link: LinkOwnerView; readonly ap
                 </thead>
                 <tbody>
                   {data.bySource.map((row) => (
-                    <tr key={row.source} className="border-b border-dashed border-[#1A1A1A]/20 dark:border-white/10">
+                    <tr key={row.source} className="border-b border-dashed border-[#121212]/20 dark:border-white/10">
                       <th scope="row" className="py-1.5 pr-3 font-code text-[12px]">{row.source}</th>
                       <td className="py-1.5 pr-3 font-code">{row.quote ?? 0}</td>
                       <td className="py-1.5 pr-3 font-code">{row.intent ?? 0}</td>

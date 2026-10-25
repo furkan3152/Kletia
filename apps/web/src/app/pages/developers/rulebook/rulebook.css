@@ -8,10 +8,10 @@
   align-items: baseline;
   gap: 6px;
   padding: 4px 8px;
-  background: #ffd60a;
-  color: #1a1a1a;
-  border: 3px solid #1a1a1a;
-  box-shadow: 3px 3px 0 var(--kla-shadow, #1a1a1a);
+  background: #c6ff3a;
+  color: #121212;
+  border: 3px solid #121212;
+  box-shadow: 3px 3px 0 var(--kla-shadow, #121212);
   font: 800 10px/1 var(--kla-font-mono, ui-monospace, monospace);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -28,9 +28,9 @@
   background:
     var(--kla-stock-grain, none),
     #fffcf2;
-  color: #1a1a1a;
-  border: 3px solid #1a1a1a;
-  box-shadow: 6px 6px 0 var(--kla-shadow, #1a1a1a);
+  color: #121212;
+  border: 3px solid #121212;
+  box-shadow: 6px 6px 0 var(--kla-shadow, #121212);
 }
 .dark .kl-rb-cover {
   background:
@@ -48,7 +48,7 @@
 
 /* The branch line: a trunk with stations and thinner branches. */
 .kl-rb-tree {
-  --trunk: #1a1a1a;
+  --trunk: #121212;
 }
 .dark .kl-rb-tree {
   --trunk: #e2e8f0;
@@ -142,8 +142,8 @@
   box-shadow: 0 0 6px #ff5a5f;
 }
 .kl-rb-lamp[data-aspect="dry-run"] i:nth-child(2) {
-  background: #ffd60a;
-  box-shadow: 0 0 6px #ffd60a;
+  background: #c6ff3a;
+  box-shadow: 0 0 6px #c6ff3a;
 }
 .kl-rb-lamp[data-aspect="live"] i:nth-child(3) {
   background: #4ade80;
@@ -154,7 +154,7 @@
 .kl-rb-gauge {
   position: relative;
   height: 16px;
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
   background: repeating-linear-gradient(90deg, transparent 0 9px, rgb(26 26 26 / 0.18) 9px 10px), #fffcf2;
   overflow: hidden;
 }
@@ -165,10 +165,10 @@
 .kl-rb-gauge > span {
   position: absolute;
   inset: 0 auto 0 0;
-  background: #0052ff;
+  background: #2f5bff;
 }
 .kl-rb-gauge[data-level="warn"] > span {
-  background: #ffd60a;
+  background: #c6ff3a;
 }
 .kl-rb-gauge[data-level="full"] > span {
   background: #c8102e;
@@ -192,15 +192,15 @@
   background: #131e32;
 }
 .kl-rb-grid__cell[aria-checked="true"] {
-  background: #0052ff;
-  border-color: #1a1a1a;
+  background: #2f5bff;
+  border-color: #121212;
 }
 .dark .kl-rb-grid__cell[aria-checked="true"] {
   background: #7ea6ff;
   border-color: #e2e8f0;
 }
 .kl-rb-grid__cell:focus-visible {
-  outline: 3px solid #ffd60a;
+  outline: 3px solid #c6ff3a;
   outline-offset: 1px;
   position: relative;
   z-index: 1;
@@ -221,7 +221,7 @@
 .kl-rb-mark--pass {
   border-radius: 999px;
   background: var(--kla-table, #f4f1ea);
-  border: 2px solid #1a1a1a;
+  border: 2px solid #121212;
   box-shadow: inset 2px 2px 0 rgb(0 0 0 / 0.25);
 }
 .kl-rb-mark--trigger {
@@ -292,7 +292,7 @@
 }
 .kl-rb-flap[data-tone="held"],
 .kl-rb-flap[data-tone="observed"] {
-  color: #ffd60a;
+  color: #c6ff3a;
 }
 .kl-rb-flap[data-tone="refused"],
 .kl-rb-flap[data-tone="rejected"] {

@@ -63,7 +63,7 @@ export function DataTable<Row>({
       <table className="hidden w-full border-collapse text-left text-body-s sm:table">
         <caption className={showCaption ? cx(LABEL, "px-4 py-3 text-left", TEXT_MUTED) : "sr-only"}>{caption}</caption>
         <thead className="bg-surface-2">
-          <tr className="border-b-2 border-[#1A1A1A]/10 dark:border-white/10">
+          <tr className="border-b-2 border-[#121212]/10 dark:border-white/10">
             {columns.map((column) => (
               <th
                 key={column.key}
@@ -80,7 +80,7 @@ export function DataTable<Row>({
             ) : null}
           </tr>
         </thead>
-        <tbody className="divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10">
+        <tbody className="divide-y-2 divide-[#121212]/10 dark:divide-white/10">
           {rows.map((row) => {
             const href = rowHref?.(row) ?? null;
             return (
@@ -110,7 +110,7 @@ export function DataTable<Row>({
       </table>
 
       {/* Phones: the same rows as two-line items; the table above is not rendered at this width. */}
-      <ul className="divide-y-2 divide-[#1A1A1A]/10 sm:hidden dark:divide-white/10" aria-label={caption}>
+      <ul className="divide-y-2 divide-[#121212]/10 sm:hidden dark:divide-white/10" aria-label={caption}>
         {rows.map((row) => {
           const href = rowHref?.(row) ?? null;
           return (

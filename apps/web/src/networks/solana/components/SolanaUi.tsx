@@ -15,7 +15,7 @@ import { ui } from "../styles";
 
 export function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b-2 border-dashed border-[#1A1A1A]/30 py-2 last:border-b-0 dark:border-slate-600">
+    <div className="flex items-start justify-between gap-4 border-b-2 border-dashed border-[#121212]/30 py-2 last:border-b-0 dark:border-slate-600">
       <dt className={ui.label}>{label}</dt>
       <dd className="min-w-0 text-right text-sm font-black break-words">{children}</dd>
     </div>
@@ -109,7 +109,7 @@ export function ExecutionPanel<TDetails>({
       ) : null}
 
       {logs.length > 0 ? (
-        <details className="border-[3px] border-[#1A1A1A] bg-[#1A1A1A] p-3 font-mono text-xs text-[#14F195] dark:border-[#4B5563]">
+        <details className="border-[3px] border-[#121212] bg-[#121212] p-3 font-mono text-xs text-[#14F195] dark:border-[#4A4A52]">
           <summary className="cursor-pointer font-black uppercase tracking-wider text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#14F195]">
             Execution log ({logs.length})
           </summary>

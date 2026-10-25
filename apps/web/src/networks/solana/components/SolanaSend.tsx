@@ -57,7 +57,7 @@ function TransferReview({ details }: { details: TransferDetails }) {
         <DetailRow label="Valid until block">{prepared.prepared.lastValidBlockHeight}</DetailRow>
       </dl>
       {simulation.ok ? (
-        <p className="flex items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#DCFCE7] p-3 text-sm font-black text-[#14532D] dark:border-[#4B5563] dark:bg-[#0F2A1D] dark:text-[#BBF7D0]">
+        <p className="flex items-center gap-2 border-[3px] border-[#121212] bg-[#DCFCE7] p-3 text-sm font-black text-[#14532D] dark:border-[#4A4A52] dark:bg-[#0F2A1D] dark:text-[#BBF7D0]">
           <CircleCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
           Simulation passed
           {simulation.unitsConsumed !== null ? ` · ${simulation.unitsConsumed.toLocaleString("en-US")} compute units` : ""}

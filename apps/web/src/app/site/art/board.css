@@ -5,7 +5,7 @@
   container-type: inline-size;
   color: #f4f1ea;
   background: #121418;
-  border: 3px solid #1a1a1a;
+  border: 3px solid #121212;
   box-shadow: 6px 6px 0 var(--kla-shadow);
 }
 .dark .kla-board {
@@ -30,7 +30,7 @@
   gap: 4px 12px;
   font: 700 22px/1 var(--kla-font-display);
   letter-spacing: -0.01em;
-  color: #ffd60a;
+  color: #c6ff3a;
 }
 .kla-board__sub {
   font: 600 10.5px/1 var(--kla-font-mono);
@@ -45,7 +45,7 @@
   border: 2px solid #050608;
   font: 700 15px/1 var(--kla-font-mono);
   letter-spacing: 0.08em;
-  color: #ffd60a;
+  color: #c6ff3a;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -102,7 +102,7 @@
     0 0 10px rgba(74, 222, 128, 0.45);
 }
 .kla-board__lamp[data-status="delayed"] {
-  background: #ffd60a;
+  background: #c6ff3a;
 }
 .kla-board__lamp[data-status="suspended"] {
   background: #ff5a5f;
@@ -143,7 +143,7 @@
   color: #8b95a7;
 }
 .kla-flaps[data-tone="delayed"] .kla-flap {
-  color: #ffd60a;
+  color: #c6ff3a;
 }
 .kla-flaps[data-tone="suspended"] .kla-flap {
   color: #ff8a8d;
@@ -161,7 +161,7 @@
   font: 800 10px/1 var(--kla-font-mono);
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #ffd60a;
+  color: #c6ff3a;
   background: repeating-linear-gradient(-45deg, #1b1e25 0 8px, #15171c 8px 16px);
   border-top: 3px solid #050608;
 }

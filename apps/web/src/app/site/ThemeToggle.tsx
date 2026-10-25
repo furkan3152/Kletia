@@ -27,7 +27,7 @@ export function ThemeToggle({ theme, onToggle, className }: ThemeToggleProps) {
       aria-label="Dark theme"
       title={dark ? "Switch to light theme" : "Switch to dark theme"}
       className={cx(
-        "relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden bg-white text-[#1A1A1A] transition-[transform,box-shadow] duration-90 ease-kl-snap hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none dark:bg-[#1A2841] dark:text-[#FFD60A] motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        "relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden bg-[#FBFAF6] text-[#121212] transition-[transform,box-shadow] duration-90 ease-kl-snap hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none dark:bg-[#232327] dark:text-[#C6FF3A] motion-reduce:transition-none motion-reduce:hover:translate-y-0",
         CONTROL_BORDER,
         HARD_SHADOW_SM,
         FOCUS_RING,

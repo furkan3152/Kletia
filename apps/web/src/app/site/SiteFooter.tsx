@@ -62,35 +62,35 @@ const COLUMNS: readonly { title: string; links: readonly FooterLink[] }[] = [
 ];
 
 const LINK =
-  "group/flink inline-flex min-h-9 items-center gap-1 text-sm text-white/75 transition-colors duration-150 hover:text-[#FFD60A] motion-reduce:transition-none";
+  "group/flink inline-flex min-h-9 items-center gap-1 text-sm text-white/75 transition-colors duration-150 hover:text-[#C6FF3A] motion-reduce:transition-none";
 /** The footer is always dark: a yellow focus ring in both themes. */
 const FOCUS_ON_INK =
-  "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]";
+  "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#C6FF3A]";
 const PROTOCOL_COUNT = protocolCountLabel(PROTOCOLS);
 
 /** Site footer: product, developer and company links plus the custody statement. */
 export function SiteFooter() {
   return (
-    <footer className="relative overflow-hidden border-t-[3px] border-[#1A1A1A] bg-[#111318] text-white dark:border-[#4B5563] dark:bg-[#060A14]">
+    <footer className="relative overflow-hidden border-t-[3px] border-[#121212] bg-[#111318] text-white dark:border-[#4A4A52] dark:bg-[#060A14]">
       <div className={cx(CONTAINER, "relative z-10 pb-10 pt-16")}>
         <div className="grid grid-cols-2 gap-x-6 gap-y-12 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div className="col-span-2 max-w-sm lg:col-span-1">
             <Link to="/" className={cx("group inline-flex items-center gap-3", FOCUS_ON_INK)} aria-label="Kletia home">
-              <KletiaMark className="!bg-[#0B1220] !shadow-[3px_3px_0_#FFD60A] [&>img]:invert-0" />
+              <KletiaMark className="!bg-[#0B1220] !shadow-[3px_3px_0_#C6FF3A] [&>img]:invert-0" />
               <span className="font-display text-2xl font-bold uppercase tracking-[-0.02em]">Kletia</span>
             </Link>
             <p className="mt-5 text-sm leading-relaxed text-white/75">
               Intent routing across {NETWORK_COUNT} networks, from one sentence: a console for people, and an API,
               SDK and widget for teams who want routes inside their own product.
             </p>
-            <p className="mt-6 inline-flex items-center gap-2.5 text-balance border-2 border-[#FFD60A] px-3 py-2 font-code text-xs font-bold uppercase tracking-[0.12em] text-[#FFD60A] [--kla-plate:#0052FF]">
+            <p className="mt-6 inline-flex items-center gap-2.5 text-balance border-2 border-[#C6FF3A] px-3 py-2 font-code text-xs font-bold uppercase tracking-[0.12em] text-[#C6FF3A] [--kla-plate:#0052FF]">
               <Icon name="key" size={18} />
               The API never signs
             </p>
           </div>
           {COLUMNS.map((column) => (
             <nav key={column.title} aria-label={`${column.title} links`}>
-              <h2 className={cx(LABEL, "mb-4 text-[#FFD60A]")}>{column.title}</h2>
+              <h2 className={cx(LABEL, "mb-4 text-[#C6FF3A]")}>{column.title}</h2>
               <ul className="space-y-1">
                 {column.links.map((link) => (
                   <li key={link.label}>

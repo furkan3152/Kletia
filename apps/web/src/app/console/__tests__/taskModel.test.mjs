@@ -9,6 +9,8 @@ import {
   fallbackSourceCandidates,
   fundSentence,
   missingWallets,
+  mountActionOf,
+  questionExpiredBy,
   namespacesOf,
   parseSourceDetails,
   routePlanFailure,
@@ -136,4 +138,30 @@ test("serials, stamps and statuses", () => {
   assert.equal(clockOf(Date.UTC(2026, 9, 14, 12, 44)), "12:44 UTC");
   assert.equal(clockOf("2026-10-14T07:05:00.000Z"), "07:05 UTC");
   assert.equal(clockOf("not a date"), "");
+});
+
+test("a card mounted again never plans a task that was already planned or signed (leaving the desk and coming back)", () => {
+  const task = (status, intentId = null, extra = {}) => ({ sentence: "supply 100 USDC to aave on base", status, intentId, ...extra });
+  // First mount: plan once.
+  assert.equal(mountActionOf(task("planning"), false), "plan");
+  // Back on the desk: a settled, signing or reviewed intent is read again, never planned again.
+  for (const status of ["completed", "executing", "paused", "review", "failed", "cancelled"]) {
+    assert.equal(mountActionOf(task(status, "int_1"), true), "load", status);
+  }
+  // A dry preview or an open question stays as it was; a plan whose answer was lost is asked again.
+  assert.equal(mountActionOf(task("preview"), true), "show");
+  assert.equal(mountActionOf(task("question"), true), "show");
+  assert.equal(mountActionOf(task("handoff"), true), "show");
+  assert.equal(mountActionOf(task("planning"), true), "plan");
+  // A failure that never stored an intent keeps its card memory.
+  assert.equal(mountActionOf(task("failed"), true), "show");
+  // Restored after a reload: the pick-up flow decides, nothing on mount.
+  assert.equal(mountActionOf(task("paused", "int_1", { restored: true }), false), "show");
+  assert.equal(mountActionOf({ sentence: "", status: "completed", intentId: "int_1" }, false), "show");
+});
+
+test("a refused answer expires the question when Kletia no longer takes answers for it", () => {
+  for (const code of ["QUESTION_NOT_OPEN", "THREAD_CLOSED", "THREAD_INVALID", "RPC_TIMEOUT"]) assert.equal(questionExpiredBy(code), true, code);
+  // An answer that does not fit, or a confirm that needs the wallet, leaves the question open.
+  for (const code of ["ANSWER_INVALID", "CONFIRM_AUTHORITY_REQUIRED", "UNREACHABLE"]) assert.equal(questionExpiredBy(code), false, code);
 });

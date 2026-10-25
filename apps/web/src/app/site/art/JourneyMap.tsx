@@ -191,6 +191,12 @@ function Leg({
             <span className="kla-sr"> (opens in a new tab)</span>
           </a>
         ) : null}
+        {leg.moreTransactions.map((link) => (
+          <a key={link.url} className="kla-link kla-jm__link" href={link.url} target="_blank" rel="noopener noreferrer">
+            {link.label}
+            <span className="kla-sr"> (opens in a new tab)</span>
+          </a>
+        ))}
       </div>
     </li>
   );

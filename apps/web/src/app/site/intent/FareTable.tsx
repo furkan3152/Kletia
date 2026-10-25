@@ -131,8 +131,9 @@ export function FareTable({ preview, intent, previous, changes, isDemoAccount, c
   const fare = fareModel(preview, intent);
   const demoRow = (row: FareRow) => Boolean(isDemoAccount?.(row.account));
   const demo = [...fare.youPay, ...fare.youGet].some(demoRow);
-  // A fee that rounds to nothing still costs something: never "cost $0.00" next to a network fee.
-  const cost = fare.totals.cost === "$0.00" && fare.fees.length > 0 ? "<$0.01" : fare.totals.cost;
+  // The review's "Total fees" is the same total (`totalFeesUsd`). A fee that rounds to nothing still
+  // costs something: never "fees $0.00" next to a network fee.
+  const fees = fare.totals.fees === "$0.00" && fare.fees.length > 0 ? "<$0.01" : fare.totals.fees;
   const before = previous ? fareModel(previous, intent) : null;
   const changeLines = fareChangeLines(changes);
   const id = useId().replace(/:/gu, "");
@@ -149,7 +150,7 @@ export function FareTable({ preview, intent, previous, changes, isDemoAccount, c
         <span>
           {fare.legs} leg{fare.legs === 1 ? "" : "s"}
           {fare.networkChanges > 0 ? ` · ${fare.networkChanges} network change${fare.networkChanges === 1 ? "" : "s"}` : ""}
-          {cost ? ` · cost ${cost}` : ""}
+          {fees ? ` · fees ${fees}` : ""}
         </span>
       </div>
       <div className="klf__body">

@@ -18,8 +18,10 @@ export interface OrderFormState {
   readonly sell: string;
   readonly buy: string;
   readonly amount: string;
-  /** Limit: units of the other asset per one unit of the amount's asset. */
+  /** Limit: the price as the person typed it, in the orientation `priceOrientation` names. */
   readonly price: string;
+  /** Limit: the price is entered the other way round from the natural orientation (the flip toggle). */
+  readonly priceFlipped: boolean;
   /** Limit: days until the order stops filling; empty for the protocol default. */
   readonly expiryDays: string;
   readonly period: OrderPeriodName;
@@ -34,6 +36,7 @@ export const EMPTY_ORDER_FORM: OrderFormState = Object.freeze({
   buy: "USDC",
   amount: "",
   price: "",
+  priceFlipped: false,
   expiryDays: "",
   period: "day",
   count: "10",
@@ -110,6 +113,43 @@ function positive(value: string): boolean {
   return DECIMAL.test(value.trim()) && /[1-9]/u.test(value);
 }
 
+const USD_STABLES: ReadonlySet<string> = new Set(["USDC", "USDT", "USDT0", "DAI", "USDBC", "USDC.E", "PYUSD", "USDS"]);
+
+function isUsdStable(symbol: string): boolean {
+  return USD_STABLES.has(symbol.trim().toUpperCase());
+}
+
+/**
+ * How the limit price is entered: `counted` per 1 `per`. Naturally the price
+ * of the asset you sell in the asset you get ("150 USDC per 1 SOL"), except
+ * that a dollar stablecoin is never priced in a volatile asset: selling USDC
+ * for WETH reads "2222 USDC per 1 WETH", not "0.00045 WETH per 1 USDC". The
+ * flip toggle turns it round. `api`: the orientation of the API's `price`
+ * (units of the other asset per one unit of the amount's asset).
+ */
+export function priceOrientation(form: Pick<OrderFormState, "side" | "sell" | "buy" | "priceFlipped">): { readonly counted: string; readonly per: string; readonly api: boolean } {
+  const sell = form.sell.trim();
+  const buy = form.buy.trim();
+  const natural = isUsdStable(sell) && !isUsdStable(buy) ? { counted: sell, per: buy } : { counted: buy, per: sell };
+  const shown = form.priceFlipped ? { counted: natural.per, per: natural.counted } : natural;
+  const apiCounted = form.side === "sell" ? buy : sell;
+  return { ...shown, api: shown.counted === apiCounted };
+}
+
+/** 1 / `value` for a positive decimal string, to 30 significant digits, rounded `up` or `down`. */
+export function invertPrice(value: string, round: "up" | "down"): string {
+  const [whole = "0", fraction = ""] = value.trim().split(".");
+  const numerator = BigInt(`${whole}${fraction}`);
+  if (numerator === 0n) return "0";
+  const decimals = 30 + numerator.toString().length;
+  const scaled = 10n ** BigInt(fraction.length + decimals);
+  let quotient = scaled / numerator;
+  if (round === "up" && quotient * numerator !== scaled) quotient += 1n;
+  const digits = quotient.toString().padStart(decimals + 1, "0");
+  const text = `${digits.slice(0, -decimals)}.${digits.slice(-decimals)}`.replace(/\.?0+$/u, "");
+  return text.replace(/^0+(?=\d)/u, "");
+}
+
 /**
  * The request body for POST /v1/orders/quote and /prepare, or the first
  * problem in the form (shown next to the button; nothing is sent).
@@ -131,7 +171,8 @@ export function orderRequestBody(form: OrderFormState, owner: string | null, now
         ...base,
         kind: "limit",
         amountIn: form.side,
-        price: form.price.trim(),
+        // In the API's orientation, rounded in the person's favour: a seller gets at least, a buyer pays at most, the price typed.
+        price: priceOrientation(form).api ? form.price.trim() : invertPrice(form.price.trim(), form.side === "sell" ? "up" : "down"),
         ...(days ? { expiresAt: Math.floor(now / 1000) + Number(days) * 86_400 } : {}),
       },
     };
@@ -139,6 +180,15 @@ export function orderRequestBody(form: OrderFormState, owner: string | null, now
   const count = Number(form.count);
   if (!Number.isInteger(count) || count < 2 || count > 1000) return { problem: "Split the DCA into 2-1000 parts." };
   return { body: { ...base, kind: "dca", period: form.period, count } };
+}
+
+/**
+ * The API's own words for an order refusal or a relay that failed ("The order
+ * was not placed on CoW Protocol: it could not be reached. Nothing was
+ * sold."), or null for other errors (shown generically).
+ */
+export function orderErrorMessage(error: { readonly code: string; readonly message: string; readonly unreachable: boolean }): string | null {
+  return !error.unreachable && error.code.startsWith("ORDER_") && error.message ? error.message : null;
 }
 
 /** "every day for 10 days": the schedule of a DCA form. */

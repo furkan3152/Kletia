@@ -5,7 +5,7 @@
  * nothing here quotes, prepares or signs. node --test loads it.
  */
 import type { IntentHandoff, PerpsHandoffInput, PredictionsHandoffInput, ValidatedAutomationDraft } from "@kletia/core";
-import { ORDER_NETWORK_KEYS, ORDER_PERIODS, type OrderFormState, type OrderNetworkKey, type OrderPeriodName } from "../orders/ordersModel.ts";
+import { ORDER_NETWORK_KEYS, ORDER_PERIODS, priceOrientation, type OrderFormState, type OrderNetworkKey, type OrderPeriodName } from "../orders/ordersModel.ts";
 import { DEFAULT_TICKET, type PerpsTicket } from "../perps/perpsModel.ts";
 import type { PredictTicket } from "../predict/predictModel.ts";
 
@@ -91,7 +91,9 @@ export function orderPrefill(
       sell: order.sell,
       buy: order.buy,
       amount: order.amount,
+      // The hand-off's price is in the API's orientation: shown that way round (flipped when it is not the natural one).
       price: order.price ?? "",
+      priceFlipped: !priceOrientation({ side: order.amountIn === "buy" ? "buy" : "sell", sell: order.sell, buy: order.buy, priceFlipped: false }).api,
       expiryDays: order.expiresAt ? String(Math.max(1, Math.round((Date.parse(order.expiresAt) - now) / 86_400_000))) : "",
       ...(order.kind === "dca" ? { period: order.period as OrderPeriodName, count: String(order.count ?? "") } : {}),
     },

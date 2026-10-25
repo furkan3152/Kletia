@@ -24,7 +24,7 @@ surface `service` (`GET /v1/protocols`); it is not an intent-engine adapter.
 
 | Route | What it does |
 | --- | --- |
-| `GET /v1/predictions/markets` | Open markets that take orders: `?q=` (search), `?category=` (politics, sports, crypto, economy, finance, tech, geopolitics), `?sort=volume` (busiest today) or `ending`. Cached 15 s. Lists the venues too, with Limitless's `disabledReason`. |
+| `GET /v1/predictions/markets` | Open markets that take orders (a market whose end date passed is left out while it waits for its result): `?q=` (search), `?category=` (politics, sports, crypto, economy, finance, tech, geopolitics), `?sort=volume` (busiest today) or `ending`. Cached 15 s. Lists the venues too, with Limitless's `disabledReason`. |
 | `GET /v1/predictions/markets/{id}` | One market (Gamma id, or the condition id positions carry): each outcome's order book (best first) and a week of prices, plus Polymarket's location note and terms link. |
 | `GET /v1/predictions/wallets?account=` | The account's Polymarket wallets ([below](#your-polymarket-wallet)): derived, checked on Polygon, with pUSD and USDC.e balances, whether Kletia trades each, and the moves it builds. |
 | `GET /v1/predictions/positions?account=` | Positions of a Polygon account (`eip155:137:0x…`); `&wallet=0x…` for its Polymarket wallet (verified as the account's), or `?holder=0x…` for any address (read only). `tradable` says whether Kletia can trade and redeem for it. |

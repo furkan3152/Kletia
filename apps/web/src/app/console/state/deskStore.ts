@@ -100,6 +100,8 @@ export interface DeskQuestion {
   readonly allowsText: boolean;
   /** clarify: up to two independent questions shown in one card; the first mirrors the fields above. */
   readonly questions?: readonly ClarifyQuestion[];
+  /** Kletia refused an answer because the question is no longer open (it timed out, or its thread moved on): shown, not answerable. */
+  readonly expired?: boolean;
 }
 
 /** A structured answer to one of the open clarify questions (the id is the question's). */
@@ -120,6 +122,8 @@ export type TaskTurn =
   | { readonly kind: "assumption"; readonly at: number; readonly id: string; readonly option: string; readonly label: string }
   /** What Kletia answered: the question it asked, or the sentence it planned. */
   | { readonly kind: "kletia"; readonly at: number; readonly label: string }
+  /** "Ask again" on an expired question: the task is read again from its sentence (a new thread). */
+  | { readonly kind: "ask-again"; readonly at: number }
   | { readonly kind: "note"; readonly at: number; readonly text: string };
 
 export interface TaskRecord {
@@ -368,7 +372,7 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
       const leavesExecution =
         state.signingTaskId === id &&
         ((current.status === "executing" && next.status !== "executing") || isFinishedStatus(next.status));
-      const answeringClosed = state.answering === id && (next.question === null || isFinishedStatus(next.status));
+      const answeringClosed = state.answering === id && (next.question === null || next.question.expired === true || isFinishedStatus(next.status));
       // A task that started signing (or finished) can no longer be edited.
       const editingClosed = state.editing === id && !isEditable(next);
       set({
@@ -436,7 +440,7 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
         return;
       }
       const task = get().tasks.find((entry) => entry.id === id);
-      if (!task || task.question === null || isFinishedStatus(task.status)) return;
+      if (!task || task.question === null || task.question.expired || isFinishedStatus(task.status)) return;
       set({ answering: id, editing: null, focusedTaskId: id });
     },
 

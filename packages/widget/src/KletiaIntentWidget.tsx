@@ -21,6 +21,7 @@ import {
   type SourceNetwork,
   type StepPreview,
   type StepStatus,
+  totalFeesUsd,
 } from "@kletia/core";
 import {
   KletiaApiError,
@@ -941,6 +942,8 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
   const card = questionOpen && turn ? clarifyView(turn).card : null;
   const laneLabel = signers ? `${accounts.length} account${accounts.length === 1 ? "" : "s"}` : "Preview";
   const header = resolvedAppearance.header;
+  // The same fee total as the fare and the desk's review (`totalFeesUsd`).
+  const feesUsd = intent ? totalFeesUsd({ summary: intent.summary, preview: fare && fare.intentId === intent.id ? fare : null }) : null;
 
   // After an answer, focus moves to the next prompt (the clarify card focuses itself) or to Execute.
   useEffect(() => {
@@ -1226,9 +1229,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
               <div className="kw-meta">
                 <span>Status: {intent.status.replace(/_/gu, " ")}</span>
                 <span>{intent.summary.signaturesRequired} signature(s)</span>
-                {intent.summary.totalFeesUsd !== undefined ? (
-                  <span>Fees ≈ ${intent.summary.totalFeesUsd.toFixed(2)}</span>
-                ) : null}
+                {feesUsd !== null ? <span>Fees ≈ ${feesUsd.toFixed(2)}</span> : null}
                 {intent.summary.estimatedSeconds !== undefined ? (
                   <span>ETA ≈ {Math.max(1, Math.round(intent.summary.estimatedSeconds))}s</span>
                 ) : null}

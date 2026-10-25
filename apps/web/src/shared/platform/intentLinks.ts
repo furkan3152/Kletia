@@ -41,34 +41,40 @@ export function sourceEvidence(step: IntentStep): StepEvidence | undefined {
 }
 
 /**
- * Explorer links for a step: on-chain evidence first, then the references
- * the wallet submitted. Empty until a transaction exists.
+ * Explorer links for a step: every transaction the wallet submitted, the
+ * main one first (the last sent: approvals go before the swap, deposit or
+ * bridge they allow), then on-chain evidence not linked yet (a settlement on
+ * the destination network). Empty until a transaction exists.
  */
 export function stepExplorerLinks(step: IntentStep): StepLink[] {
   const links: StepLink[] = [];
   const seen = new Set<string>();
-  const push = (network: NetworkKey, url: string | undefined, label?: string) => {
+  const push = (network: NetworkKey, url: string | undefined, label?: string, reference?: string) => {
     const safe = httpsUrl(url);
-    if (!safe || seen.has(safe)) return;
+    if (!safe || seen.has(safe) || (reference && seen.has(reference.toLowerCase()))) return;
     seen.add(safe);
+    if (reference) seen.add(reference.toLowerCase());
     links.push({ network, url: safe, label: label ?? `View on ${CHAINS[network]?.explorer.name ?? "explorer"}` });
   };
-  for (const evidence of step.evidence) {
+  const references = (step.references ?? []).filter(isStepReference);
+  const explorer = CHAINS[step.network]?.explorer.name ?? "explorer";
+  for (let index = references.length - 1; index >= 0; index -= 1) {
+    const reference = references[index] as string;
+    const main = index === references.length - 1;
+    push(step.network, explorerTxUrl(step.network, reference), main ? undefined : `Transaction ${index + 1} of ${references.length} on ${explorer}`, reference);
+  }
+  for (const evidence of [...step.evidence].reverse()) {
     if (!CHAINS[evidence.network] || !ON_CHAIN_EVIDENCE.has(evidence.kind)) continue;
-    const url =
-      evidence.url ??
-      (isStepReference(evidence.reference) ? explorerTxUrl(evidence.network, evidence.reference) : undefined);
+    const reference = isStepReference(evidence.reference) ? evidence.reference : undefined;
+    const url = evidence.url ?? (reference ? explorerTxUrl(evidence.network, reference) : undefined);
     push(
       evidence.network,
       url,
       evidence.network !== step.network
         ? `Settlement on ${CHAINS[evidence.network].explorer.name}`
         : undefined,
+      reference,
     );
-  }
-  for (const reference of step.references ?? []) {
-    if (isStepReference(reference)) push(step.network, explorerTxUrl(step.network, reference));
   }
   return links;
 }
-

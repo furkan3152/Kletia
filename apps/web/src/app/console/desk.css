@@ -154,6 +154,11 @@
   }
 }
 
+/* Form views (FORM_VIEWS): at the end of the column, never over the form's buttons. */
+.kd-composer[data-undocked] {
+  position: relative;
+}
+
 .kd-composer__box {
   position: relative;
   border: 3px solid var(--kl-control);

@@ -98,6 +98,8 @@ import {
   type BindingProblem,
 } from "./intentBinding";
 import { describePlatformError, getKletiaClient, toPlatformError, type PlatformError } from "./kletiaClient";
+import { signingRefusal } from "./signingGuard";
+import { readableRevert } from "../wallet/revertReason";
 import { useIntentSigners, type ConnectedIntentSigners } from "./useIntentSigners";
 
 export type IntentExecutionStatus =
@@ -266,6 +268,12 @@ export interface IntentExecution extends ConnectedIntentSigners {
   start: (input: IntentRequestInput | IntentGraph) => Promise<IntentGraph | null>;
   /** Refresh a stored or given intent and continue it. Never re-signs a submitted step. */
   resume: (intentId?: string, options?: ResumeOptions) => Promise<IntentGraph | null>;
+  /**
+   * Show a stored intent again without continuing it (a host view that was
+   * left and opened again): a fresh read, its journey, and its terminal
+   * status, or paused until the user resumes. Nothing is prepared or signed.
+   */
+  load: (intentId: string) => Promise<IntentGraph | null>;
   /** Stop executing. Cancels the intent server-side when nothing was submitted yet. */
   cancel: () => Promise<void>;
   /** Forget the current intent (a stored resumable record is kept while steps are in flight). */
@@ -350,7 +358,7 @@ function walletMessage(message: string): string {
   if (/blockhash not found|block height exceeded|expired/iu.test(message)) {
     return "The prepared transaction expired before it was signed. Retry to prepare it again.";
   }
-  return message;
+  return readableRevert(message);
 }
 
 /** References the SDK reports as broadcast but not yet recorded by Kletia (newer SDKs only). */
@@ -935,6 +943,17 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     [commitIntent, sessionKey],
   );
 
+  /** References this tab holds for a step that the API has not accepted (memory first, then the session record). */
+  const recordedReferences = useCallback(
+    (intentId: string, stepId: string): readonly string[] => {
+      const fromMemory = referencesRef.current.get(`${intentId}:${stepId}`) ?? [];
+      if (fromMemory.length > 0) return fromMemory;
+      const stored = sessionKey ? readIntentSession(sessionKey) : null;
+      return stored?.intentId === intentId ? stored.references[stepId] ?? [] : [];
+    },
+    [sessionKey],
+  );
+
   /**
    * `confirmedFare`: the user just confirmed the review of this exact plan,
    * so the fare on screen counts as approved. Otherwise (resume, a plan made
@@ -1013,6 +1032,10 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             throw new DOMException("Execution was stopped before signing.", "AbortError");
           }
           if (!runStep) throw new Error("Kletia refused to sign: no step is being executed.");
+          // The newest version of the step decides: a step whose transaction was already sent is never signed again.
+          const latest = intentRef.current?.id === intentId ? intentRef.current.steps.find((step) => step.id === runStep?.id) : undefined;
+          const refusal = signingRefusal(latest ?? runStep);
+          if (refusal) throw new Error(refusal);
           const problem = transactionBindingProblem(runStep, request);
           if (problem) throw new Error(problem);
         },
@@ -1158,12 +1181,25 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
               setPolicyHold({ code: policyError.code, message: policyError.message, policy: policyError.policy });
               stoppedFor = "Held for approval: the owner's rule book asks a person to approve this intent before Kletia prepares anything to sign.";
             },
-            beforeStep: (step, latest) => {
+            beforeStep: async (step, latest) => {
               if (controller.signal.aborted || !isCurrent()) return false;
               const blocked = ambiguousSteps(latest).filter((candidate) => candidate.id === step.id);
               if (blocked.length > 0) {
                 pausedFor = blocked;
                 return false;
+              }
+              // A transaction this tab recorded for the step: read the step again (the API checks the chain) before any new prompt.
+              const recorded = recordedReferences(intentId, step.id);
+              if (recorded.length > 0) {
+                const fresh = await client.intents.refresh(intentId);
+                if (!isCurrent()) return false;
+                commitIntent(fresh);
+                const again = fresh.steps.find((candidate) => candidate.id === step.id) ?? step;
+                const refusal = signingRefusal(again, recordedReferences(intentId, step.id));
+                if (refusal) {
+                  stoppedFor = refusal;
+                  return false;
+                }
               }
               runStep = step;
               setActiveStepId(step.id);
@@ -1219,6 +1255,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       commitIntent,
       getClient,
       pollIntervalMs,
+      recordedReferences,
       resolveGate,
       sessionKey,
       setJourney,
@@ -1289,6 +1326,34 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       return execute(refreshed, approved !== null);
     },
     [commitIntent, execute, getClient, sessionKey, setJourney, setPreview],
+  );
+
+  const load = useCallback(
+    async (intentId: string): Promise<IntentGraph | null> => {
+      const client = getClient();
+      if (!client) return null;
+      let refreshed: IntentGraph;
+      try {
+        refreshed = await client.intents.refresh(intentId);
+      } catch (caught) {
+        setError(toExecutionError(caught));
+        return null;
+      }
+      commitIntent(refreshed);
+      if (journeyRef.current?.intentId !== intentId) setJourney(await client.intents.journey(intentId).catch(() => null), intentId);
+      const finished = terminalStatus(refreshed);
+      setError(null);
+      setStatus(finished ?? "paused");
+      setPauseReason(
+        finished
+          ? null
+          : refreshed.steps.some(stepWasSubmitted)
+            ? "Kletia stopped following this intent while you were away. Steps already sent keep settling on-chain and are never signed again; resume to keep tracking them."
+            : "Kletia stopped following this intent while you were away. Nothing was signed for it; resume to see its fare again before signing.",
+      );
+      return refreshed;
+    },
+    [commitIntent, getClient, setJourney],
   );
 
   const cancel = useCallback(async () => {
@@ -1471,6 +1536,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     plan,
     start,
     resume,
+    load,
     cancel,
     reset,
     forgetResumable,

@@ -111,8 +111,8 @@ export function accountFlows(server: () => TestServer): void {
     const wallet = evmWallet();
     const { message } = await nonceFor(server(), wallet);
     assert.match(message, /^localhost:5174 wants you to sign in with your Ethereum account:\n/u);
-    assert.match(message, /Sign in to the Kletia developer portal to manage your projects\./u);
-    assert.match(message, /\nURI: http:\/\/localhost:5174\/developers\/keys\n/u);
+    assert.match(message, /Sign in to Kletia with this wallet \(developer projects and keys, and wallet tracking on the desk\)\./u);
+    assert.match(message, /\nURI: http:\/\/localhost:5174\/\n/u);
     assert.match(message, /\nChain ID: 8453\n/u);
     const signature = await wallet.sign(message);
     const first = await call<{ token: string; session: { address: string; walletKind: string } }>(server(), "POST", "/accounts/session", { headers: { origin: PORTAL_ORIGIN }, body: { message, signature } });

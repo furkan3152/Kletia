@@ -17,12 +17,12 @@ import { clearAccountSession, getAccountSession, setAccountSession, subscribeAcc
 const NOW = Date.parse("2026-10-22T12:00:00Z");
 const EVM = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 
-function evmMessage({ host = "kletiaai.xyz", uri = "https://kletiaai.xyz/developers/keys", address = EVM, chainId = 8453, requestId = "dev_login", expires = "2026-10-22T12:05:00.000Z" } = {}) {
+function evmMessage({ host = "kletiaai.xyz", uri = "https://kletiaai.xyz/", address = EVM, chainId = 8453, requestId = "dev_login", expires = "2026-10-22T12:05:00.000Z" } = {}) {
   return [
     `${host} wants you to sign in with your Ethereum account:`,
     address,
     "",
-    "Sign in to the Kletia developer portal to manage your projects. This signature does not move funds or approve a transaction.",
+    "Sign in to Kletia with this wallet (developer projects and keys, and wallet tracking on the desk). This signature does not move funds or approve a transaction.",
     "",
     `URI: ${uri}`,
     "Version: 1",

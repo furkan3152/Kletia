@@ -74,10 +74,10 @@ import { PlanningSkeleton } from "./PlanningSkeleton";
 import { PreviewTaskBody } from "./PreviewTaskBody";
 import { answerTarget, deskQuestionFrom, responseLabel, turnRequest, type TurnContext, type TurnInput } from "./questionModel";
 import { handoffLine, handoffViewName } from "../handoff/handoffModel";
-import type { DeskQuestion } from "./slots";
+import { isDeskQuestion, type DeskQuestion } from "./slots";
 import { SourceChips } from "./SourceChips";
 import { TaskTicket } from "./TaskTicket";
-import { missingWallets, routePlanFailure, signatureStateOf, taskStatusOf, venueChangeNote } from "./taskModel";
+import { missingWallets, mountActionOf, questionExpiredBy, routePlanFailure, signatureStateOf, taskStatusOf, venueChangeNote } from "./taskModel";
 
 const copy = DESK_COPY.tasks;
 
@@ -86,6 +86,19 @@ interface DryPlan {
   readonly preview: IntentPreview | null;
   readonly journey: Journey | null;
   readonly assumptions: readonly ClarifyAssumption[];
+}
+
+/**
+ * What a card remembers once its task was planned, past the card itself: the
+ * desk unmounts when the person opens another page (Menu, Developers) and
+ * mounts the card again on the way back. Memory only, like the sentence.
+ */
+const cardMemory = new Map<string, { readonly dry: DryPlan | null; readonly failure: DeskPlanFailure | null }>();
+
+function rememberCard(taskId: string, memory: { readonly dry: DryPlan | null; readonly failure: DeskPlanFailure | null }): void {
+  const tasks = getDeskStore().getState().tasks;
+  for (const id of cardMemory.keys()) if (!tasks.some((task) => task.id === id)) cardMemory.delete(id);
+  cardMemory.set(taskId, memory);
 }
 
 /** How the next plan is asked for: the departure (a source chip may change it), or a defaultNetwork-only retry. */
@@ -146,9 +159,11 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     onFollowUp: (text) => actions.fill(text),
   });
   const [options, setOptions] = useState<PlanOptions>({ departure: task.departure, defaultOnly: null });
-  const [dry, setDry] = useState<DryPlan | null>(null);
+  const [dry, setDry] = useState<DryPlan | null>(() => cardMemory.get(task.id)?.dry ?? null);
   const [venueNote, setVenueNote] = useState<string | null>(null);
-  const [failure, setFailure] = useState<DeskPlanFailure | null>(null);
+  const [failure, setFailure] = useState<DeskPlanFailure | null>(() => cardMemory.get(task.id)?.failure ?? null);
+  /** Reading the task's stored intent again after the card mounted again ("failed": that read failed). */
+  const [reading, setReading] = useState<"idle" | "reading" | "failed">(() => (mountActionOf(task, cardMemory.has(task.id)) === "load" ? "reading" : "idle"));
   const [turnError, setTurnError] = useState<DeskPlanFailure | null>(null);
   const [turning, setTurning] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -161,7 +176,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   /** This task's own clarify thread (memory only; mirrored on the task record). */
   const threadRef = useRef<ClarifyThread | null>(task.thread ?? null);
   /** The open question a typed answer (composer Answering chip) is for. */
-  const questionRef = useRef<DeskQuestion | null>(null);
+  const questionRef = useRef<DeskQuestion | null>(isDeskQuestion(task.question) ? task.question : null);
   const handledTurnsRef = useRef(task.turns.length);
   /** Model-assisted reading consent for this task's text: sent only after the person chose it. */
   const readingRef = useRef<string | null>(null);
@@ -409,7 +424,10 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         setTurnError(outcome.failure);
         patch({
           turn: { kind: "note", at: Date.now(), text: outcome.failure.message },
-          ...(restoreQuestion ? { question: restoreQuestion, status: "question" as const } : {}),
+          // A question Kletia no longer takes answers for stays visible, disabled, with "Ask again".
+          ...(restoreQuestion
+            ? { question: questionExpiredBy(outcome.failure.code) ? { ...restoreQuestion, expired: true } : restoreQuestion, status: "question" as const }
+            : {}),
         });
       });
     },
@@ -456,13 +474,32 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     });
   }, [apply, enqueue, patch, sendTurn]);
 
-  // A new task plans once (StrictMode remounts keep the started flag).
+  /** Reads the task's stored intent again and shows it as it is (never continues it on its own). */
+  const readStoredIntent = useCallback(
+    (intentId: string) => {
+      void execution.load(intentId).then((loaded) => {
+        if (aliveRef.current) setReading(loaded ? "idle" : "failed");
+      });
+    },
+    [execution],
+  );
+
+  // A new task plans once (StrictMode remounts keep the started flag); a card mounted again
+  // after the person left the desk shows its task as it was, and a stored intent is read again.
   useEffect(() => {
-    if (startedRef.current || task.restored || !task.sentence) return;
+    if (startedRef.current) return;
     startedRef.current = true;
-    run(options);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per task
+    const action = mountActionOf(task, cardMemory.has(task.id));
+    if (action === "show") return;
+    if (!cardMemory.has(task.id)) rememberCard(task.id, { dry: null, failure: null });
+    if (action === "plan") run(options);
+    else if (task.intentId) readStoredIntent(task.intentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
   }, []);
+
+  useEffect(() => {
+    if (cardMemory.has(task.id)) rememberCard(task.id, { dry, failure });
+  }, [dry, failure, task.id]);
 
   // Answers, assumption chips and edits arrive as the task's turns (the card, the composer's chips).
   useEffect(() => {
@@ -478,10 +515,12 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         followUp({ kind: "text", text: turn.text }, null);
       } else if (turn.kind === "assumption") {
         followUp({ kind: "assumption", id: turn.id, option: turn.option }, null);
+      } else if (turn.kind === "ask-again") {
+        run(optionsRef.current);
       }
     }
     handledTurnsRef.current = turns.length;
-  }, [followUp, task.turns]);
+  }, [followUp, run, task.turns]);
 
   // The stored plan failed before it existed (the commit was refused by the hook): route it.
   useEffect(() => {
@@ -670,12 +709,34 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
       />
       </>
     );
+  } else if (reading !== "idle" && !execution.intent) {
+    body =
+      reading === "reading" ? (
+        <PlanningSkeleton label={copy.readingAgain} />
+      ) : (
+        <div className="flex flex-col items-start gap-3 border-2 border-dashed border-control bg-surface-2 p-4">
+          <p role="alert" className="text-sm font-semibold">
+            {copy.readFailed}
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              if (!task.intentId) return;
+              setReading("reading");
+              readStoredIntent(task.intentId);
+            }}
+          >
+            {copy.readAgain}
+          </Button>
+        </div>
+      );
   } else if (execution.intent) {
     body = (
       <>
         {changing ? sourceChips(null) : null}
         {turnErrorPanel}
-        {venueNote && execution.status === "review" ? (
+        {venueNote && !terminal ? (
           <p role="status" className="border-l-4 border-[var(--kl-warning)] bg-[var(--kl-warning-bg)] px-3 py-2 text-sm font-bold text-fg">
             {venueNote}
           </p>

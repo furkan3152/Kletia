@@ -44,6 +44,17 @@ on-chain action in the browser.
 
 ### Fixed
 
+- Desk (safety): leaving the desk (Menu, Developers) and coming back no longer plans the tab's tasks again. A settled intent showed "Preview" and a signed Aave deposit asked for "leg 1" again; a task with a stored intent is now read again from the API and shown as it is (settled, or paused until you resume), and the signing layer refuses any wallet prompt for a step whose transaction was already sent or recorded in the tab, after re-reading the step.
+- Desk: an answer refused because its question timed out or is no longer open disables the question's options and offers "Ask again" (the composer cannot answer it either).
+- Fees are one computation everywhere (`totalFeesUsd`): network fees, venue fees and costs on top, never the amount swapped. The review's "Total fees", the fare's head and the widget agree; the fare marks a native debit that also pays gas "includes the network fee" instead of calling the input a fee.
+- A leg's explorer link is its main transaction (the swap, not its approval); every transaction of the leg is linked, main first (`JourneyLeg.transactions`, step links in the execution panel).
+- Orders: the CoW/Jupiter limit price reads naturally ("2222 USDC per 1 WETH", never a dollar stablecoin priced in a volatile asset) with a flip toggle; a relay that fails says the order was not placed and why (`ORDER_RELAY_FAILED` with the provider's reason) instead of a bare 502.
+- Predict: "Trade Yes" says next to the button when Polymarket's location check turns buying off; markets whose end date passed are left out of the lists.
+- Polygon holdings list USDC.e (Polymarket's collateral) next to native USDC.
+- The wallet sign-in message names both uses (developer projects and keys, and wallet tracking on the desk) and its URI is the site root, not the portal's keys page.
+- Bridge and swap reviews keep the "now uses Relay instead of Across" note in view until signing ends.
+- At 1280x800 the composer no longer docks over the Trade, Automate and Tools forms ("Get quote", "Place order", "New automation"); it sits at the end of those views.
+- Reverts read as words: known custom errors are named (GMX InsufficientExecutionFee, ERC-20 balance and allowance, Permit2, Universal Router slippage), reason strings and panics are quoted plainly, and raw revert data is never shown.
 - Desk: Perps and Predict could never start signing ("Another task is signing") because the signing lock accepted only task ids; the two Trade views now hold it under their own ids.
 - The hosted site build had been failing since Round 6 (the web workspace did not depend on `@kletia/embed`), so an old site stayed live; the desk now runs the current engine.
 - A lending venue over 99% borrowed or at its cap no longer wins the rate pick.

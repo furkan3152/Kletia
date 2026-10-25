@@ -177,6 +177,7 @@ export function TaskCard({ task, newest }: TaskCardProps) {
                 .getState()
                 .patchTask(task.id, { turn: { kind: "answer", at: Date.now(), label: answerLabel(question, answer), answer: structured } });
             }}
+            onAskAgain={() => getDeskStore().getState().patchTask(task.id, { question: null, turn: { kind: "ask-again", at: Date.now() } })}
             onDismiss={() => {
               // "Not now": the question stays on the task (its "1 question" stamp); the composer stops answering it.
               const store = getDeskStore().getState();

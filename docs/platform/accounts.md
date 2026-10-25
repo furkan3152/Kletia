@@ -24,9 +24,11 @@ manage keys from their servers with `/v1/keys`.
    - Solana wallets: the same fields in the Sign In With Solana text layout,
      signed with the wallet's `signMessage`.
 
-   The message names the portal's host, the address, a single-use nonce and
-   an expiry 5 minutes away, with the statement "Sign in to the Kletia
-   developer portal to manage your projects. This signature does not move
+   The message names the site's host (`URI` is the site's root: the portal
+   and the desk's wallet tracking sign in with the same session), the
+   address, a single-use nonce and an expiry 5 minutes away, with the
+   statement "Sign in to Kletia with this wallet (developer projects and
+   keys, and wallet tracking on the desk). This signature does not move
    funds or approve a transaction."
 2. `POST /v1/accounts/session` `{ "message", "signature" }` checks it: the
    nonce is used up by the first attempt (valid or not), the message must be

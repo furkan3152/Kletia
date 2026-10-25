@@ -45,6 +45,8 @@ export const PREDICT_COPY = {
     rules: "Resolution rules",
     week: "Last 7 days",
     choose: (outcome: string) => `Trade ${outcome}`,
+    buyOff: (outcome: string) =>
+      `You can't buy ${outcome} from here: Polymarket reports this location as restricted for new orders, and Kletia does not work around that. Selling shares you already hold may still work.`,
     onPolymarket: "View on Polymarket",
   },
   ticket: {

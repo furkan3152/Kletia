@@ -161,6 +161,7 @@ export function journeySchemas(): JsonObject {
         refund: ref("JourneyRefund"),
         gasTopup: obj({ asset: assetRef, amount: ref("AmountView"), usd: nullableNumber() }, ["asset", "amount", "usd"]),
         tracking: obj({ url: str({ format: "uri" }), label: str() }, ["url", "label"]),
+        transactions: { type: "array", description: "Explorer links of every transaction the leg sent, the main one first (more than one only).", items: obj({ url: str({ format: "uri" }), label: str() }, ["url", "label"]) },
       },
       ["id", "index", "from", "to", "kind", "title", "network", "destinationNetwork", "venue", "signer", "signatures", "seconds", "status"],
     ),

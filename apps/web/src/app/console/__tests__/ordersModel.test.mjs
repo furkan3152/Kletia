@@ -15,7 +15,10 @@ import {
   filledPercent,
   formatPeriod,
   groupOrders,
+  invertPrice,
+  orderErrorMessage,
   orderRequestBody,
+  priceOrientation,
   orderSummary,
   ownerFor,
   stepAction,
@@ -126,4 +129,28 @@ test("the Orders view has its path, its desk command and its protocol badge", ()
   assert.deepEqual(deskLocationOf("/app/orders"), { view: "orders", toolId: null });
   assert.deepEqual(composerVerdict("show my orders"), { kind: "command", view: "orders" });
   assert.equal(protocolBadge({ category: "intent-network", surface: "orders", executable: false, capabilities: ["execute"] }).kind, "orders");
+});
+
+test("order failures say what happened in the API's words; other errors stay generic", () => {
+  const relay = { code: "ORDER_RELAY_FAILED", status: 502, unreachable: false, message: "The order was not placed on CoW Protocol: it could not be reached. Nothing was sold. Try again shortly." };
+  assert.equal(orderErrorMessage(relay), relay.message);
+  assert.equal(orderErrorMessage({ code: "INTERNAL_ERROR", status: 500, unreachable: false, message: "Unexpected platform error." }), null);
+  assert.equal(orderErrorMessage({ code: "ORDER_RELAY_FAILED", status: 0, unreachable: true, message: "x" }), null);
+});
+
+test("the limit price reads naturally (no stablecoin priced in a volatile asset), flips, and reaches the API in its orientation", () => {
+  const usdcToWeth = { ...EMPTY_ORDER_FORM, network: "base", sell: "USDC", buy: "WETH", amount: "20", price: "2222" };
+  assert.deepEqual(priceOrientation(usdcToWeth), { counted: "USDC", per: "WETH", api: false });
+  // The API prices the amount's asset (USDC) in WETH: 1/2222, rounded so the seller gets at least the price typed.
+  const body = orderRequestBody(usdcToWeth, EVM).body;
+  assert.equal(body.price, invertPrice("2222", "up"));
+  assert.match(body.price, /^0\.000450045004500450045004500450045/u);
+  assert.ok(Number(body.price) * 2222 >= 1);
+  // Selling SOL for USDC: the price of SOL in USDC, as the API takes it.
+  assert.deepEqual(priceOrientation({ ...EMPTY_ORDER_FORM, price: "150" }), { counted: "USDC", per: "SOL", api: true });
+  // The flip toggle turns it round, and the API still gets its own orientation.
+  const flipped = { ...usdcToWeth, priceFlipped: true, price: "0.00045" };
+  assert.deepEqual(priceOrientation(flipped), { counted: "WETH", per: "USDC", api: true });
+  assert.equal(orderRequestBody(flipped, EVM).body.price, "0.00045");
+  assert.equal(invertPrice("0.8", "down"), "1.25");
 });

@@ -20,7 +20,7 @@ import { CHAINS, classifyMessage } from "@kletia/core";
 
 import { DESK_COPY } from "../content/copy";
 import type { NetworkActions } from "../content/starters";
-import { COMPOSER_LIMIT, composerVerdict, laneOf, type Departure, type DeskView, type LegacyNetwork } from "../state/deskModel";
+import { COMPOSER_LIMIT, composerVerdict, FORM_VIEWS, laneOf, type Departure, type DeskView, type LegacyNetwork } from "../state/deskModel";
 import { getDeskStore, useDeskStore } from "../state/deskStore";
 import { composerChoice, editsTask, turnAnswer } from "../tasks/questionModel";
 import { isDeskQuestion } from "../tasks/slots";
@@ -103,6 +103,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   // The task a follow-up would edit: the armed one, else the focused one.
   const armedId = useDeskStore((state) => state.editing);
+  const view = useDeskStore((state) => state.view);
   const editTarget = useDeskStore((state) => state.tasks.find((task) => task.id === (state.editing ?? state.focusedTaskId)) ?? null);
   const editing =
     editTarget !== null &&
@@ -227,7 +228,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const pinName = enginePin ? CHAINS[enginePin].shortName : null;
 
   return (
-    <div className="kd-composer" id="desk-composer">
+    <div className="kd-composer" id="desk-composer" data-undocked={FORM_VIEWS.has(view) ? "" : undefined}>
       <div className="relative">
         {picker}
         <form

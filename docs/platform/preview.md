@@ -52,7 +52,12 @@ Aggregated rows keep the **weakest** label of what they add up.
 - `totals`: you pay, you get (expected and at least), paid to others, network,
   venue and extra fees, cost and the residual price difference. A total is
   `null` when an asset it needs has no price; the asset is listed in
-  `totals.unpriced` (never shown as $0).
+  `totals.unpriced` (never shown as $0). "Fees" everywhere (the review's
+  total, the fare's head, the widget) is one computation, `totalFeesUsd` in
+  `@kletia/core`: network + venue + extra from the fare, or the plan's
+  per-step estimates (`summary.totalFeesUsd`) without one. The amount a step
+  spends is never a fee; a native debit that also pays gas reads "includes
+  the network fee".
 - `needs`: what your wallets must hold: the input balance, gas on arrival
   (a network where you hold no native asset), rent. Gas the intent itself
   delivers on that network before the step (a gas top-up with a bridge fill,

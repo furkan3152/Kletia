@@ -18,6 +18,7 @@ import { marketsOfEvents, parseClobBook, parseGammaMarket, parseHistory, parsePo
 import {
   cancelPredictionOrder,
   DEFAULT_PREDICTIONS_POLICY,
+  endedBy,
   findPredictionMarkets,
   getPredictionMarket,
   listPredictionMarkets,
@@ -132,6 +133,19 @@ describe("predictions: parsing recorded Polymarket answers", () => {
     assert.match(view.outcomes[1]!.unavailable ?? "", /no order book/u);
     assert.match(view.restrictionNote, /restricts trading in some places/u);
     await refusal(getPredictionMarket("999", io), "PREDICTION_MARKET_NOT_FOUND");
+  });
+
+  it("leaves markets whose end date passed out of the list (Top never shows an ended market)", async () => {
+    resetPredictionsCache();
+    const now = await listPredictionMarkets({ category: "politics" }, predictionFixtureIo());
+    const dated = now.markets.filter((market) => market.endDate !== null).sort((a, b) => Date.parse(a.endDate!) - Date.parse(b.endDate!));
+    assert.ok(dated.length > 0, "the recording has dated markets");
+    const first = dated[0]!;
+    resetPredictionsCache();
+    const later = await listPredictionMarkets({ category: "politics" }, predictionFixtureIo({ now: Date.parse(first.endDate!) + 1 }));
+    assert.ok(!later.markets.some((market) => market.id === first.id), "the ended market is gone");
+    assert.ok(later.markets.every((market) => market.endDate === null || Date.parse(market.endDate) > Date.parse(first.endDate!)));
+    assert.equal(endedBy({ endDate: null }, Date.now()), false);
   });
 
   it("finds markets for sentence words: one exact match, several to pick from, never a guess", async () => {

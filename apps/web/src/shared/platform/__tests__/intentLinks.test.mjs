@@ -33,3 +33,21 @@ test("transactions, receipts, settlements and submitted references are linked", 
   const submittedOnly = step([], [HASH.slice(2)]);
   assert.equal(stepExplorerLinks(submittedOnly).length, 1);
 });
+
+test("a leg that sent an approval and a swap links both, the swap (main transaction) first", () => {
+  const APPROVAL = `0x${"aa".repeat(32)}`;
+  const SWAP = `0x${"bb".repeat(32)}`;
+  const swapped = step(
+    [
+      { kind: "transaction", network: "base", observedAt: at, reference: APPROVAL },
+      { kind: "transaction", network: "base", observedAt: at, reference: SWAP },
+    ],
+    [APPROVAL, SWAP],
+  );
+  const links = stepExplorerLinks(swapped);
+  assert.equal(links.length, 2, "no duplicate links for the same transaction");
+  assert.match(links[0].url, new RegExp(`${SWAP}$`, "u"));
+  assert.match(links[0].label, /^View on /u);
+  assert.match(links[1].url, new RegExp(`${APPROVAL}$`, "u"));
+  assert.match(links[1].label, /^Transaction 1 of 2 on /u);
+});

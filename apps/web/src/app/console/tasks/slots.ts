@@ -70,6 +70,8 @@ export interface QuestionSlotProps {
   readonly onAnswer: (answer: QuestionAnswer) => void;
   /** Dismissing leaves the task as it was. */
   readonly onDismiss: () => void;
+  /** An expired question: plan the task again from its sentence. */
+  readonly onAskAgain?: () => void;
 }
 
 export interface DeskSlots {

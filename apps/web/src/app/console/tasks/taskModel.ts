@@ -196,6 +196,36 @@ export function taskStatusOf(status: ExecutionStatus): TaskStatus | null {
   return status === "idle" ? null : status;
 }
 
+/** Answer refusals after which the question cannot be answered any more (it timed out, or its thread moved on). */
+const QUESTION_EXPIRED_CODES: ReadonlySet<string> = new Set(["QUESTION_NOT_OPEN", "THREAD_CLOSED", "THREAD_INVALID", "THREAD_CONFLICT", "THREAD_EXPIRED"]);
+
+/** True when a refused answer leaves the question expired: its options are disabled and the card offers "Ask again". */
+export function questionExpiredBy(code: string): boolean {
+  return QUESTION_EXPIRED_CODES.has(code) || /_TIMEOUT$/u.test(code);
+}
+
+/** Task states whose stored intent is read again when the card mounts after the person left the desk. */
+const STORED_INTENT_STATES: ReadonlySet<TaskStatus> = new Set<TaskStatus>(["review", "executing", "paused", "completed", "failed", "cancelled"]);
+
+/**
+ * What a platform task's card does when it mounts. A task is planned once
+ * (`started`: its first turn was sent in this page). Coming back to the desk
+ * (Menu, Developers, back) mounts the card again: a task with a stored intent
+ * reads it again ("load": shown as it is, never signed on its own), a plan
+ * whose answer was lost while away is asked again ("plan"), and anything else
+ * is shown as the task record has it ("show"). Restored tasks (after a reload)
+ * keep their own pick-up flow.
+ */
+export function mountActionOf(
+  task: { readonly restored?: boolean; readonly sentence: string; readonly status: TaskStatus; readonly intentId: string | null },
+  started: boolean,
+): "plan" | "load" | "show" {
+  if (task.restored || !task.sentence) return "show";
+  if (!started) return "plan";
+  if (task.intentId !== null && STORED_INTENT_STATES.has(task.status)) return "load";
+  return task.status === "planning" ? "plan" : "show";
+}
+
 // --- Plan failures ------------------------------------------------------------
 
 /**

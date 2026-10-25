@@ -38,6 +38,7 @@ import {
   RECEIPT_PROFILES,
   RECEIPT_SHARE_ID_PATTERN,
   toChecksumAddress,
+  totalFeesUsd,
   type Certainty,
   type ClarifyAssumption,
   type ClarifyOption,
@@ -285,6 +286,8 @@ export interface FareModel {
     readonly youGetExpected: string | null;
     readonly youGetAtLeast: string | null;
     readonly cost: string | null;
+    /** Network fees, venue fees and costs on top (`totalFeesUsd`): the same total the review shows. */
+    readonly fees: string | null;
   };
   readonly allowances: readonly FareAllowance[];
   readonly bring: readonly FareNeed[];
@@ -337,6 +340,8 @@ const CODED_WARNING = /^([A-Z][A-Z0-9_]{2,63}):\s*/u;
  */
 export function fareModel(preview: IntentPreview, intent?: Pick<IntentGraph, "steps"> | null): FareModel {
   const order = new Map((intent?.steps ?? []).map((step) => [step.id, step.index]));
+  /** What each step spends (its input asset): a debit of it is the amount moved, not a fee. */
+  const inputAssets = new Map((intent?.steps ?? []).flatMap((step) => (step.input ? [[step.id, step.input.asset.toLowerCase()] as const] : [])));
   const index = (stepId: string) => order.get(stepId);
   const used = new Set<Certainty>();
   const note = (certainty: Certainty) => {
@@ -345,11 +350,16 @@ export function fareModel(preview: IntentPreview, intent?: Pick<IntentGraph, "st
   };
 
   const networkFeeSteps = new Map<string, Set<string>>();
+  /** Base units of network fees per network and fee asset (to tell a fee-only debit from an input that also pays the fee). */
+  const networkFeeUnits = new Map<string, bigint | null>();
   for (const fee of preview.fees ?? []) {
     if (fee.kind !== "network" && fee.kind !== "l1-data") continue;
     const set = networkFeeSteps.get(fee.network) ?? new Set<string>();
     set.add(fee.stepId);
     networkFeeSteps.set(fee.network, set);
+    const unitsKey = `${fee.network}|${(fee.asset?.asset ?? "").toLowerCase()}`;
+    const known = networkFeeUnits.has(unitsKey) ? networkFeeUnits.get(unitsKey)! : 0n;
+    networkFeeUnits.set(unitsKey, known === null || !fee.amount || !/^\d+$/u.test(fee.amount) ? null : known + BigInt(fee.amount));
   }
 
   const youPay: FareRow[] = [];
@@ -388,10 +398,14 @@ export function fareModel(preview: IntentPreview, intent?: Pick<IntentGraph, "st
     const debit = expected < 0n || (expected === 0n && worst < 0n);
     const differs = row.worst.amount !== row.expected.amount && worst !== 0n;
     const feeSteps = networkFeeSteps.get(row.network);
-    const feeNote =
-      debit && isNative(row.asset) && feeSteps && row.steps.some((step) => feeSteps.has(step))
-        ? ["network fee", legsText(row.steps, index)].filter(Boolean).join(", ")
-        : null;
+    // The amount swapped, bridged or deposited is never a fee: a debit that is more than the network
+    // fee it pays (0.1 SOL swapped plus its fee) says it includes the fee; only a fee-only debit is "network fee".
+    const paysFee = debit && isNative(row.asset) && feeSteps !== undefined && row.steps.some((step) => feeSteps.has(step));
+    const feeUnits = networkFeeUnits.get(`${row.network}|${row.asset.toLowerCase()}`);
+    const debited = expected < 0n ? -expected : -worst;
+    const spentByStep = row.steps.some((stepId) => inputAssets.get(stepId) === row.asset.toLowerCase());
+    const feeOnly = paysFee && (typeof feeUnits === "bigint" ? debited <= feeUnits : !spentByStep);
+    const feeNote = paysFee ? [feeOnly ? "network fee" : "includes the network fee", legsText(row.steps, index)].filter(Boolean).join(", ") : null;
     const entry: FareRow = {
       key,
       network: row.network,
@@ -566,6 +580,7 @@ export function fareModel(preview: IntentPreview, intent?: Pick<IntentGraph, "st
       youGetExpected: formatUsdAbs(totals?.youGetUsd?.expected),
       youGetAtLeast: formatUsdAbs(totals?.youGetUsd?.worst),
       cost: formatUsdAbs(totals?.costUsd?.expected),
+      fees: totals ? formatUsdAbs(totalFeesUsd({ preview })) : null,
     },
     allowances,
     bring,
@@ -1278,6 +1293,8 @@ export interface JourneyLegView {
   readonly refund: string | null;
   readonly gasTopup: string | null;
   readonly tracking: { readonly url: string; readonly label: string } | null;
+  /** The leg's other transactions (approvals), after `tracking` (its main transaction). */
+  readonly moreTransactions: readonly { readonly url: string; readonly label: string }[];
 }
 
 export interface JourneyNoticeOptionView {
@@ -1485,6 +1502,10 @@ function legView(leg: JourneyLeg, number: number): JourneyLegView {
     refund: leg.refund ? cleanText(leg.refund.label, 240) || null : null,
     gasTopup: topup ? `Gas delivered with the fill: ${topup}${formatUsdAbs(leg.gasTopup?.usd) ? ` (${formatUsdAbs(leg.gasTopup?.usd)})` : ""}` : null,
     tracking: tracking ? { url: tracking.href, label: cleanText(leg.tracking?.label, 60) || "Track" } : null,
+    moreTransactions: (leg.transactions ?? []).slice(1, 8).flatMap((link) => {
+      const url = httpsUrl(link.url);
+      return url ? [{ url: url.href, label: cleanText(link.label, 80) || "Transaction" }] : [];
+    }),
   };
 }
 

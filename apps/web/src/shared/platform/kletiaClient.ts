@@ -9,6 +9,7 @@
 import { KletiaApiError, KletiaClient, KletiaPolicyError, type ApiIssue, type PolicyErrorDetails } from "@kletia/sdk";
 
 import { BACKEND_URL } from "../config/runtime";
+import { readableRevert } from "../wallet/revertReason";
 
 let client: KletiaClient | null = null;
 let clientError: Error | null = null;
@@ -68,8 +69,9 @@ export function toPlatformError(error: unknown): PlatformError {
       ...(error instanceof KletiaPolicyError ? { policy: error.policy } : {}),
     };
   }
+  // A wallet's or node's revert reads as words, never as raw revert data.
   const message =
-    error instanceof Error && error.message ? error.message : "Unexpected error.";
+    error instanceof Error && error.message ? readableRevert(error.message) : "Unexpected error.";
   return {
     code: "CLIENT_ERROR",
     message,

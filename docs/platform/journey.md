@@ -59,6 +59,9 @@ consequence that says so.
   (LI.FI and Across after the fill deadline), `after-cancel` (deBridge, sent
   from the destination authority, with what it `needs`), `none` (CCTP V2: a
   failed forward is indeterminate with the message hash).
+- **Tracking**: a leg's `tracking` link is its main transaction (the last
+  one its wallet sent; approvals come first), never the approval; a leg that
+  sent several transactions lists every one in `transactions`, main first.
 - **Now** (`now`): the stops the money is at, the leg it waits on, and what
   it waits for (`signature`, `settlement`, `decision`, `nothing`).
 - **Stage**: `plan` while nothing was submitted, `live` while it runs,

@@ -489,3 +489,31 @@ test("R2, R4 and R5: no gas left after a merged leg, cross-asset exposure, a ful
   assert.equal(consequence(fine, "venue-capacity:out:s2"), undefined);
   assert.match(consequence(fine, "exit-path:out:s2").detail, /18,?126,?363|18126363/u);
 });
+
+test("a leg's explorer link is its main transaction, not the approval; every transaction is linked, main first", () => {
+  const { graph, preview } = fixture("p2-empty");
+  const APPROVAL = `0x${"aa".repeat(32)}`;
+  const DEPOSIT = `0x${"bb".repeat(32)}`;
+  const done = {
+    ...graph,
+    status: "completed",
+    steps: graph.steps.map((step) =>
+      step.id === "s1"
+        ? { ...step, status: "settled", references: ["5".repeat(88)] }
+        : {
+            ...step,
+            status: "settled",
+            references: [APPROVAL, DEPOSIT],
+            prepared: { quoteBinding: "b", preparedAt: AT, expiresAt: 0, transactions: [{ vm: "evm", network: "base", description: "Approve USDC" }, { vm: "evm", network: "base", description: "Supply USDC to Aave V3" }] },
+          },
+    ),
+  };
+  const journey = buildJourney(done, preview, p2Facts(), AT);
+  const leg = journey.legs.find((entry) => entry.id === "s2");
+  assert.match(leg.tracking.url, new RegExp(`${DEPOSIT}$`, "u"));
+  assert.match(leg.tracking.label, /^View on /u);
+  assert.deepEqual(leg.transactions.map((link) => link.url.slice(-8)), [DEPOSIT.slice(-8), APPROVAL.slice(-8)]);
+  assert.match(leg.transactions[1].label, /^Approve USDC on /u);
+  // One transaction: no separate list.
+  assert.equal(journey.legs.find((entry) => entry.id === "s1").transactions, undefined);
+});

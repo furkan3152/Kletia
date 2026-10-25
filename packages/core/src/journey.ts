@@ -269,8 +269,10 @@ export interface JourneyLeg {
   readonly failure?: { readonly code: string; readonly message: string };
   readonly refund?: JourneyRefund;
   readonly gasTopup?: { readonly asset: AssetRef; readonly amount: AmountView; readonly usd: number | null };
-  /** Provider status page (https, known hosts only) or explorer. */
+  /** Provider status page (https, known hosts only) or explorer: the leg's main transaction, never its approval. */
   readonly tracking?: { readonly url: string; readonly label: string };
+  /** Explorer links of every transaction the leg sent, the main one first (present when it sent more than one). */
+  readonly transactions?: readonly { readonly url: string; readonly label: string }[];
 }
 
 export type JourneyOptionAction =
@@ -968,6 +970,30 @@ function explorerLink(network: NetworkKey, reference: string | undefined): { url
   return { url: explorer.tx.replace("{hash}", reference), label: `View on ${explorer.name}` };
 }
 
+/**
+ * The step's main transaction: the last one its wallet sent (approvals are
+ * prepared before the swap, deposit or bridge they allow).
+ */
+function mainReference(step: IntentStep): string | undefined {
+  const references = step.references ?? [];
+  return references[references.length - 1];
+}
+
+/** Explorer links of every transaction a step sent, the main one first; earlier ones named by their prepared description. */
+function transactionLinks(step: IntentStep): { url: string; label: string }[] {
+  const references = step.references ?? [];
+  const described = step.prepared?.transactions.length === references.length ? step.prepared.transactions : null;
+  const links: { url: string; label: string }[] = [];
+  for (let index = references.length - 1; index >= 0; index -= 1) {
+    const link = explorerLink(step.network, references[index]);
+    if (!link) continue;
+    const main = index === references.length - 1;
+    const what = described?.[index]?.description.trim().slice(0, 60) || `Transaction ${index + 1} of ${references.length}`;
+    links.push(main ? link : { url: link.url, label: `${what} on ${CHAINS[step.network].explorer.name}` });
+  }
+  return links;
+}
+
 /** Transactions a planned step asks for (prepared count when known; else the usual approve + action). */
 function signaturesOf(step: IntentStep, preview: IntentPreview | null): number {
   if (step.mode !== "wallet") return 0;
@@ -1055,7 +1081,7 @@ function walkGraph(graph: IntentGraph, preview: IntentPreview | null, facts: Jou
       const input = step.input;
       const deposited = flow ? flow.spends : input ? { expected: BigInt(input.amount), worst: BigInt(input.amount) } : null;
       const certainty: JourneyCertainty = flow ? (parentCredit?.certainty ?? "quoted") : started(step) ? "observed" : "quoted";
-      const reference = step.references?.[0];
+      const reference = mainReference(step);
       const link = explorerLink(step.network, reference);
       add({
         id: `transit:${step.id}`, kind: "transit", network: step.network, stepId: step.id, role: "transit",
@@ -1208,7 +1234,8 @@ function legsOf(walk: Walk): JourneyLeg[] {
   return walk.order.map((step, index) => {
     const venue = stepVenue(step);
     const refund = refundPath(walk.graph, step);
-    const tracking = explorerLink(step.network, step.references?.[0]);
+    const transactions = transactionLinks(step);
+    const tracking = transactions[0] ?? null;
     return {
       id: step.id,
       index,
@@ -1228,6 +1255,7 @@ function legsOf(walk: Walk): JourneyLeg[] {
       ...(refund ? { refund } : {}),
       ...(step.gasTopup ? { gasTopup: { asset: refOf(step.gasTopup), amount: view(BigInt(step.gasTopup.amount), step.gasTopup.decimals), usd: step.gasTopup.usd ?? null } } : {}),
       ...(tracking ? { tracking } : {}),
+      ...(transactions.length > 1 ? { transactions } : {}),
     };
   });
 }
@@ -1892,7 +1920,7 @@ function ruleTimeWindow(walk: Walk, drafts: Draft[], now: number, stage: Journey
     if (seconds === null || !Number.isFinite(since)) continue;
     const elapsed = (now - since) / 1000;
     if (elapsed <= seconds * 2 + 60) continue;
-    const tracking = explorerLink(step.network, step.references?.[0]);
+    const tracking = explorerLink(step.network, mainReference(step));
     const left = Math.max(0, MANUAL_REVIEW_SECONDS - elapsed);
     drafts.push({
       id: `time-window:transit:${step.id}`, kind: "time-window", severity: "warn", stopId: isCross(step) ? `transit:${step.id}` : `out:${step.id}`, legIds: [step.id],

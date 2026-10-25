@@ -186,6 +186,12 @@ export function readMarketsQuery(input: MarketsQuery): { readonly q: string | nu
   return { q, category: category as PredictionCategory | null, sort };
 }
 
+/** True once the market's end date is in the past (an unreadable date is not "ended"). */
+export function endedBy(market: Pick<PredictionMarket, "endDate">, nowMs: number): boolean {
+  const end = market.endDate ? Date.parse(market.endDate) : Number.NaN;
+  return Number.isFinite(end) && end <= nowMs;
+}
+
 /** Open markets: a search, a category, or the busiest (sort volume) / soonest-ending (sort ending). */
 export async function listPredictionMarkets(input: MarketsQuery, io: PredictionsIo = predictionsIo()): Promise<PredictionMarketsView> {
   const { q, category, sort } = readMarketsQuery(input);
@@ -193,7 +199,9 @@ export async function listPredictionMarkets(input: MarketsQuery, io: Predictions
   const cached = listCache.get(key);
   if (cached && cached.io === io && io.now() - cached.at < LIST_CACHE_MS) return cached.value;
   const read = q ? await searchGamma(io, q) : await listGammaEvents(io, { ...(category ? { category } : {}), sort, limit: 10 });
-  const markets = sortMarkets(read.filter(tradable).filter((market) => !category || !q || market.category?.toLowerCase() === category), sort).slice(0, LIST_LIMIT);
+  // A market whose end date has passed is waiting for its result, not open: it is left out even while Polymarket still lists it.
+  const open = read.filter((market) => tradable(market) && !endedBy(market, io.now()));
+  const markets = sortMarkets(open.filter((market) => !category || !q || market.category?.toLowerCase() === category), sort).slice(0, LIST_LIMIT);
   const value: PredictionMarketsView = { venues: PREDICTION_VENUES, markets, query: q, category, sort, categories: PREDICTION_CATEGORIES };
   if (listCache.size > 200) listCache.clear();
   listCache.set(key, { at: io.now(), io, value });

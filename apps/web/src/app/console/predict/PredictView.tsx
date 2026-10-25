@@ -411,6 +411,8 @@ export function PredictView() {
                   </li>
                 ))}
               </ul>
+              {/* Right where the person chose an outcome: buying is off here, and why (the banner at the top says it too). */}
+              {buyingOff && ticket.outcome ? <ViewNote tone="warning" role="status">{copy.market.buyOff(ticket.outcome)}</ViewNote> : null}
               <section aria-labelledby="predict-book">
                 <h4 id="predict-book" className={cx(LABEL, "mb-1")}>{copy.market.book}{selectedOutcome ? ` · ${selectedOutcome.label}` : ""}{depth ? ` · ${copy.market.spread(depth.spread)}` : ""}</h4>
                 {depth ? (

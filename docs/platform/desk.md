@@ -37,6 +37,28 @@ request the sentences it computed: "Plan it" starts a normal task for each,
 which you review and confirm before anything is signed. The exact desk
 commands above still open their views; instructions still go to the planner.
 
+## Leaving the desk and coming back
+
+The tab's tasks live in a store that outlives the desk view, so opening the
+developer portal (Menu, Developers) and coming back keeps every task as it
+was. A task card mounted again never plans its task a second time: a task
+with a stored intent reads that intent again from the API (read only) and
+shows it as it is, settled, or paused with "Resume" when it was still
+running; a dry preview, a failure or an open question is shown from memory.
+Nothing is signed on the way back. Before any wallet prompt the signing layer
+re-checks the step: a step the API reports as sent, or one whose transaction
+hash this tab already recorded, is never offered for a signature again
+(`shared/platform/signingGuard.ts`).
+
+An answer Kletia refuses because the question timed out or is no longer open
+(`QUESTION_NOT_OPEN`, `THREAD_*`, `*_TIMEOUT`) leaves the question visible
+with its options disabled and an "Ask again" button that reads the task again
+from its sentence.
+
+In the form views (Trade, Automate, Tools) the composer sits at the end of the
+column instead of docking over the form, so its buttons are never covered on
+a short screen.
+
 ## View conventions
 
 The views share `shell/ViewParts.tsx` and `shell/viewStyles.ts`: one heading

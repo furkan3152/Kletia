@@ -214,6 +214,11 @@ export function JourneyRoute(props: JourneyRouteProps) {
                     {item.leg.tracking.label}
                   </a>
                 ) : null}
+                {item.leg.moreTransactions.map((link) => (
+                  <a key={link.url} className="kw-link" href={link.url} target="_blank" rel="noreferrer noopener">
+                    {link.label}
+                  </a>
+                ))}
               </div>
             </li>
           ),

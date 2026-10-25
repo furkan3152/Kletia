@@ -265,6 +265,30 @@ function normalizedAddress(address: string): string {
 }
 
 /** Signed display text: at most 6 significant digits, truncated toward zero, "+" for credits. */
+/**
+ * The intent's fees in USD: one computation for the plan, the review, the
+ * fare and the receipt view. Fees are network fees (gas and L1 data),
+ * venue fees deducted from an output and costs paid on top; the amount the
+ * user swaps, bridges or deposits is never a fee, and neither is the price
+ * difference between what is paid and what arrives. With a fare (preview)
+ * of the same intent its fee lines count (they are simulated or quoted
+ * right now); without one, the plan's per-step estimates
+ * (`summary.totalFeesUsd`). Null when unknown.
+ */
+export function totalFeesUsd(input: {
+  readonly summary?: { readonly totalFeesUsd?: number } | null;
+  readonly preview?: { readonly totals: Pick<PreviewTotals, "networkFeesUsd" | "venueFeesUsd" | "extraCostsUsd"> } | null;
+}): number | null {
+  const totals = input.preview?.totals;
+  const parts = totals ? [totals.networkFeesUsd, totals.venueFeesUsd, totals.extraCostsUsd] : [];
+  if (parts.some((part) => typeof part === "number" && Number.isFinite(part))) {
+    const sum = parts.reduce<number>((total, part) => total + (typeof part === "number" && Number.isFinite(part) ? Math.max(0, part) : 0), 0);
+    return Math.round(sum * 100) / 100;
+  }
+  const planned = input.summary?.totalFeesUsd;
+  return typeof planned === "number" && Number.isFinite(planned) ? planned : null;
+}
+
 export function formatPreviewAmount(units: bigint | string, decimals: number): string {
   const value = typeof units === "bigint" ? units : BigInt(units);
   if (value === 0n) return "0";

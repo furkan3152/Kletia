@@ -19,15 +19,19 @@ export const ACCOUNT_SESSION_HEADER = "Kletia-Account-Session";
 /** Account session tokens: `kl_acs_` + 43 base64url characters (32 random bytes). */
 export const ACCOUNT_SESSION_TOKEN_PATTERN = /^kl_acs_[A-Za-z0-9_-]{43}$/u;
 
-/** The statement of the sign-in message (both wallet families). */
+/**
+ * The statement of the sign-in message (both wallet families). One session
+ * serves the developer portal and the desk's wallet tracking, so the text
+ * names both.
+ */
 export const ACCOUNT_SIGN_IN_STATEMENT =
-  "Sign in to the Kletia developer portal to manage your projects. This signature does not move funds or approve a transaction.";
+  "Sign in to Kletia with this wallet (developer projects and keys, and wallet tracking on the desk). This signature does not move funds or approve a transaction.";
 
 /** `Request ID` of the sign-in message: tells it apart from an admin sign-in. */
 export const ACCOUNT_SIGN_IN_REQUEST_ID = "dev_login";
 
-/** Path of the sign-in message's `URI` under the signing origin. */
-export const ACCOUNT_SIGN_IN_PATH = "/developers/keys";
+/** Path of the sign-in message's `URI` under the signing origin (the site itself: the portal and the desk sign in alike). */
+export const ACCOUNT_SIGN_IN_PATH = "/";
 
 /**
  * EVM networks a sign-in message may name. Plain wallet (EOA) signatures are

@@ -188,8 +188,38 @@ export async function submitNativeOrder(body: unknown): Promise<{ order: Submitt
     return { order: view(result), replayed: false };
   } catch (error) {
     entry.state = "ready";
-    throw error;
+    throw relayFailure(draft.protocol, draft.action, error);
   }
+}
+
+const RELAY_PROTOCOL_NAMES: Readonly<Record<NativeOrder["protocol"], string>> = {
+  "jupiter-trigger": "Jupiter",
+  "jupiter-recurring": "Jupiter",
+  "cow-protocol": "CoW Protocol",
+};
+
+/**
+ * A relay that failed says so in words: the order was not placed (or the
+ * cancellation not sent) and why, never a bare 502. Provider messages are
+ * already free of URLs and keys (`fetchProviderJson`); other upstream
+ * failures keep their generic text.
+ */
+export function relayFailure(protocol: NativeOrder["protocol"], action: "create" | "cancel", error: unknown): PlatformError {
+  const mapped = toPlatformError(error);
+  // Kletia's own refusals and relay failures already say what happened (a mismatch may follow a relay that went through).
+  if ((mapped.status < 500 && !mapped.code.endsWith("_REJECTED")) || mapped.code === "ORDER_RELAY_FAILED") return mapped;
+  const name = RELAY_PROTOCOL_NAMES[protocol] ?? "the protocol";
+  const outcome = action === "cancel" ? `The cancellation was not sent to ${name}` : `The order was not placed on ${name}`;
+  const raw = error instanceof Error ? error.message : "";
+  const reason = mapped.code.endsWith("_REJECTED")
+    ? `it refused it (${raw.replace(/^.*? rejected the request: /u, "").replace(/\.$/u, "").slice(0, 200)})`
+    : /is unreachable/u.test(raw)
+      ? "it could not be reached"
+      : mapped.code === "PROVIDER_RATE_LIMITED"
+        ? "it is limiting requests right now"
+        : "it is unavailable right now";
+  const after = action === "cancel" ? "The order stays as it was" : "Nothing was sold";
+  return new PlatformError("ORDER_RELAY_FAILED", `${outcome}: ${reason}. ${after}. Try again shortly.`, 502);
 }
 
 export async function orderStatus(id: string, owner: unknown): Promise<NativeOrder> {

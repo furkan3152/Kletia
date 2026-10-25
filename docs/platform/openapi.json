@@ -31595,7 +31595,7 @@
         "properties": {
           "message": {
             "type": "string",
-            "description": "The exact text to sign: EIP-4361 for EVM wallets, the Sign In With Solana text for Solana wallets. Statement: \"Sign in to the Kletia developer portal to manage your projects. This signature does not move funds or approve a transaction.\""
+            "description": "The exact text to sign: EIP-4361 for EVM wallets, the Sign In With Solana text for Solana wallets. Statement: \"Sign in to Kletia with this wallet (developer projects and keys, and wallet tracking on the desk). This signature does not move funds or approve a transaction.\""
           },
           "nonce": {
             "type": "string"
@@ -38093,6 +38093,26 @@
               "url",
               "label"
             ]
+          },
+          "transactions": {
+            "type": "array",
+            "description": "Explorer links of every transaction the leg sent, the main one first (more than one only).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "label"
+              ]
+            }
           }
         },
         "required": [

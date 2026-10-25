@@ -9,7 +9,7 @@ import { parseSignInMessage, signInProblems } from "../../admin/model/signIn.ts"
 
 /** `Request ID` and URI path of a developer portal sign-in (packages/core accounts.ts). */
 export const ACCOUNT_SIGN_IN_REQUEST_ID = "dev_login";
-export const ACCOUNT_SIGN_IN_PATH = "/developers/keys";
+export const ACCOUNT_SIGN_IN_PATH = "/";
 /** Base: the chain an EVM sign-in names when the wallet sits on a chain the API does not list. */
 export const DEFAULT_ACCOUNT_CHAIN_ID = 8453;
 /** Chains an EVM sign-in may name: Ethereum, Optimism, Polygon, Base, Arbitrum One. */

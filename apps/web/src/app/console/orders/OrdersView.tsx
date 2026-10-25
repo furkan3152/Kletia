@@ -23,9 +23,11 @@ import {
   groupOrders,
   ORDER_NETWORK_KEYS,
   ORDER_PERIODS,
+  orderErrorMessage,
   orderRequestBody,
   orderSummary,
   ownerFor,
+  priceOrientation,
   protocolName,
   stepAction,
   type NativeOrderView,
@@ -52,7 +54,8 @@ function networkName(key: string): string {
 }
 
 function errorText(error: unknown): string {
-  return describePlatformError(toPlatformError(error));
+  const platform = toPlatformError(error);
+  return orderErrorMessage(platform) ?? describePlatformError(platform);
 }
 
 function Field({ label, children }: { readonly label: string; readonly children: ReactNode }) {
@@ -237,8 +240,7 @@ export function OrdersView() {
     });
 
   const grouped = groupOrders(orders);
-  const counter = form.side === "sell" || form.mode === "dca" ? form.buy : form.sell;
-  const unit = form.side === "sell" || form.mode === "dca" ? form.sell : form.buy;
+  const orientation = priceOrientation(form);
 
   return (
     <section aria-labelledby="desk-orders-heading" className="flex flex-col gap-6 pb-8">
@@ -285,9 +287,14 @@ export function OrdersView() {
           </Field>
           {form.mode === "limit" ? (
             <>
-              <Field label={`${copy.price} (${copy.priceHint(counter || "?", unit || "?")})`}>
-                <input className={FIELD} value={form.price} onChange={(event) => update({ price: event.target.value })} inputMode="decimal" autoComplete="off" />
-              </Field>
+              <div className="flex flex-col gap-1">
+                <Field label={`${copy.price} (${copy.priceHint(orientation.counted || "?", orientation.per || "?")})`}>
+                  <input className={FIELD} value={form.price} onChange={(event) => update({ price: event.target.value })} inputMode="decimal" autoComplete="off" />
+                </Field>
+                <button type="button" className="self-start text-sm font-bold underline underline-offset-2" onClick={() => update({ priceFlipped: !form.priceFlipped, price: "" })}>
+                  {copy.flipPrice(orientation.per || "?", orientation.counted || "?")}
+                </button>
+              </div>
               <Field label={copy.expiry}>
                 <input className={FIELD} value={form.expiryDays} onChange={(event) => update({ expiryDays: event.target.value })} inputMode="numeric" autoComplete="off" />
               </Field>

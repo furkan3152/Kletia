@@ -26,6 +26,7 @@ import {
   fromBaseUnits,
   nativeAssetId,
   parseAccountId,
+  POLYMARKET_POLYGON,
   type AccountId,
   type AssetId,
   type JourneyValueSource,
@@ -111,7 +112,7 @@ function erc20Holding(network: NetworkKey, asset: ReturnType<typeof assetsForNet
 }
 
 /** ERC-20 balances: one Multicall3 read where it is deployed, per-token reads otherwise (a failed token is skipped). */
-async function readErc20Balances(network: NetworkKey, account: `0x${string}`, tokens: readonly ReturnType<typeof assetsForNetwork>[number][]): Promise<(bigint | null)[]> {
+async function readErc20Balances(network: NetworkKey, account: `0x${string}`, tokens: readonly { readonly address: string | null }[]): Promise<(bigint | null)[]> {
   if (!isEvmNetwork(network) || tokens.length === 0) return [];
   const client = evmClient(network);
   const contracts = tokens.map((asset) => ({ address: getAddress(asset.address as string), abi: erc20Abi, functionName: "balanceOf" as const, args: [account] as const }));
@@ -127,13 +128,45 @@ async function readErc20Balances(network: NetworkKey, account: `0x${string}`, to
   return settled.map((result) => (result.status === "fulfilled" && typeof result.value === "bigint" ? result.value : null));
 }
 
-async function readEvmHoldings(network: NetworkKey, owner: string): Promise<RawHolding[]> {
+/**
+ * Tokens shown in holdings but not in Kletia's asset list (nothing plans with
+ * them): Polygon's bridged USDC.e, the collateral Polymarket's CollateralOnramp
+ * wraps 1:1 into pUSD (address from `POLYMARKET_POLYGON`, docs.polymarket.com).
+ * Valued at par for that 1:1 wrap.
+ */
+const HELD_ONLY_TOKENS: Partial<Record<NetworkKey, readonly { readonly address: string; readonly symbol: string; readonly name: string; readonly decimals: number }[]>> = Object.freeze({
+  polygon: [{ address: POLYMARKET_POLYGON.usdce, symbol: "USDC.e", name: "Bridged USDC (PoS), Polymarket collateral", decimals: 6 }],
+});
+
+function heldOnlyHolding(network: NetworkKey, token: NonNullable<(typeof HELD_ONLY_TOKENS)[NetworkKey]>[number], balance: bigint): RawHolding {
+  const formatted = fromBaseUnits(balance, token.decimals);
+  return {
+    asset: formatAssetId(network, "erc20", token.address),
+    symbol: token.symbol,
+    name: token.name,
+    decimals: token.decimals,
+    amount: balance.toString(),
+    formatted,
+    usd: Number(formatted),
+    priceSource: "usd-par",
+    verified: true,
+    isNative: false,
+  };
+}
+
+/** Exported for tests (the stubbed Polygon client). */
+export async function readEvmHoldings(network: NetworkKey, owner: string): Promise<RawHolding[]> {
   if (!isEvmNetwork(network)) throw new PlatformError("NETWORK_UNSUPPORTED", "Not an EVM network.", 422);
   const client = evmClient(network);
   const account = getAddress(owner);
   const chain = CHAINS[network];
   const tokens = assetsForNetwork(network).filter((asset) => asset.address !== null);
-  const [native, balances] = await Promise.all([client.getBalance({ address: account }), readErc20Balances(network, account, tokens)]);
+  const heldOnly = HELD_ONLY_TOKENS[network] ?? [];
+  const [native, balances, heldBalances] = await Promise.all([
+    client.getBalance({ address: account }),
+    readErc20Balances(network, account, tokens),
+    readErc20Balances(network, account, heldOnly),
+  ]);
   const holdings: RawHolding[] = [];
   // Arc's gas asset is USDC exposed through its ERC-20 interface, so it is listed once (as the token).
   if (assetsForNetwork(network).some((asset) => asset.address === null)) {
@@ -153,6 +186,11 @@ async function readEvmHoldings(network: NetworkKey, owner: string): Promise<RawH
     const balance = balances[index];
     if (balance === null || balance === undefined || balance === 0n) return;
     holdings.push(erc20Holding(network, asset, balance));
+  });
+  heldOnly.forEach((token, index) => {
+    const balance = heldBalances[index];
+    if (balance === null || balance === undefined || balance === 0n) return;
+    holdings.push(heldOnlyHolding(network, token, balance));
   });
   return holdings;
 }

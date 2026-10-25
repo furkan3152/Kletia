@@ -101,6 +101,20 @@ its fee payer and only signer, that it calls the order program and nothing
 but ComputeBudget, System, SPL Token and Associated Token, and that its
 compute budget is capped.
 
+When the relay itself fails (the protocol cannot be reached, limits
+requests, or refuses the order) the answer is `502 ORDER_RELAY_FAILED` whose
+message says the order was not placed (or the cancellation not sent) and why,
+for example "The order was not placed on CoW Protocol: it could not be
+reached. Nothing was sold. Try again shortly." The desk shows that message
+as it is.
+
+In the desk's Orders view the limit price reads naturally: the price of the
+asset you sell in the asset you get ("150 USDC per 1 SOL"), except that a
+dollar stablecoin is never priced in a volatile asset (selling USDC for WETH
+reads "2222 USDC per 1 WETH"). "Enter it as … per 1 …" flips it. The form
+converts it to the API's `price` (units of the other asset per one unit of
+the amount's asset), rounded in the person's favour.
+
 ## TWAP needs a Safe
 
 CoW TWAP orders are ComposableCoW conditional orders. Only a Safe whose

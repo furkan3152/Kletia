@@ -270,3 +270,29 @@ test("the departure is stored per browser and only valid values are accepted; to
   store.getState().setView("desk");
   assert.equal(store.getState().toolId, null);
 });
+
+test("an expired question stays on the task but the composer can no longer answer it", () => {
+  const store = createDeskStore({ storage: memoryStorage(), newId: ids(), now: () => NOW, departureStorage: { read: () => null, write: () => undefined } });
+  const asking = store.getState().addTask({ sentence: "put 100 USDC to work on base", departure: "auto" });
+  const question = { id: "q", kind: "clarify", prompt: "Which venue?", options: [{ id: "aave", label: "Aave V3" }], allowsText: true };
+  store.getState().patchTask(asking.id, { status: "question", question });
+  store.getState().answer(asking.id);
+  assert.equal(store.getState().answering, asking.id);
+  // Kletia refused the answer (QUESTION_NOT_OPEN, a timeout): the question is marked expired.
+  store.getState().patchTask(asking.id, { question: { ...question, expired: true } });
+  assert.equal(store.getState().answering, null, "the Answering chip closes on an expired question");
+  store.getState().answer(asking.id);
+  assert.equal(store.getState().answering, null, "and cannot be armed again");
+});
+
+test("leaving the desk and coming back keeps every task's status (the store outlives the desk view)", () => {
+  const storage = memoryStorage();
+  const store = createDeskStore({ storage, newId: ids(), now: () => NOW, departureStorage: { read: () => null, write: () => undefined } });
+  const settled = store.getState().addTask({ sentence: "supply 100 USDC to aave on base", departure: "auto" });
+  store.getState().patchTask(settled.id, { status: "completed", intentId: "int_settled", signature: "signed" });
+  // The view changes (Menu, Developers) and back: nothing in the store resets a settled task.
+  store.getState().setView("desk");
+  const after = store.getState().tasks.find((entry) => entry.id === settled.id);
+  assert.equal(after.status, "completed");
+  assert.equal(after.intentId, "int_settled");
+});

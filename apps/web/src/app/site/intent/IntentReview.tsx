@@ -1,4 +1,4 @@
-import type { AccountId, IntentGraph, IntentPreview, IntentStep } from "@kletia/core";
+import { totalFeesUsd, type AccountId, type IntentGraph, type IntentPreview, type IntentStep } from "@kletia/core";
 import { contractReviewModel, fareModel, isContractStep } from "@kletia/widget/review";
 import { CircleAlert, PenLine, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import React, { useEffect, useId, useRef, useState } from "react";
@@ -190,7 +190,8 @@ export function IntentReview({
         : null);
   const steps = [...intent.steps].sort((a, b) => a.index - b.index);
   const { summary } = intent;
-  const fees = formatUsd(summary.totalFeesUsd);
+  // One fee total everywhere: the fare's fee lines when there is a fare, the plan's estimates otherwise.
+  const fees = formatUsd(totalFeesUsd({ summary, preview: fare }));
   const eta = formatSeconds(summary.estimatedSeconds);
   const expires = formatTime(intent.expiresAt);
   const minimums = steps

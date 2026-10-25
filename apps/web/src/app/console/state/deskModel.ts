@@ -410,6 +410,13 @@ export const COMPOSER_LIMIT = 500;
 
 export type DeskView = "desk" | "tasks" | "holdings" | "tools" | "perps" | "orders" | "activity" | "dashboard" | "history" | "automations" | "predictions";
 
+/**
+ * Views built around a form with its own buttons (Trade, Automate, Tools):
+ * there the composer sits at the end of the column instead of docking over
+ * the view, so it never covers "Get quote" or "Place order" on a short screen.
+ */
+export const FORM_VIEWS: ReadonlySet<DeskView> = new Set<DeskView>(["tools", "perps", "orders", "automations", "predictions"]);
+
 export type ComposerVerdict =
   | { readonly kind: "empty" }
   | { readonly kind: "too-long"; readonly limit: number }

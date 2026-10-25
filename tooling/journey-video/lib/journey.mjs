@@ -341,7 +341,8 @@ async function limitOrder(d) {
   await d.type(form.getByRole("textbox", { name: "Sell" }), "USDC", { clear: true });
   await d.type(form.getByRole("textbox", { name: "Buy" }), "WETH", { clear: true });
   await d.type(form.getByRole("textbox", { name: "Amount" }), "20");
-  await d.type(form.getByRole("textbox", { name: /^Limit price/u }), "0.00045");
+  // The price reads naturally: USDC per 1 WETH (not WETH per 1 USDC).
+  await d.type(form.getByRole("textbox", { name: /^Limit price \(USDC per 1 WETH\)/u }), "2222");
   await d.type(form.getByRole("textbox", { name: /^Expires after/u }), "7");
   await d.click(form.getByRole("button", { name: "Get quote" }));
   await d.expectVisible(d.page.getByRole("heading", { name: /Quote · CoW Protocol/u }), "The CoW quote shows the minimum received and expiry");
@@ -361,7 +362,7 @@ async function limitOrder(d) {
   const status = form.getByRole("status");
   await d.pause(3000);
   const text = (await status.innerText().catch(() => "")).trim();
-  if (text) await d.note({ title: `After the blocked post the form says: "${text}"`, detail: "A generic API error is shown; the user is not told the order was not placed or why.", severity: "rough edge" });
+  await d.check(/The order was not placed on CoW Protocol/u.test(text), `After the blocked post the form says the order was not placed, and why ("${text}")`);
 }
 
 async function predict(d) {
@@ -377,11 +378,11 @@ async function predict(d) {
   await d.expectVisible(d.page.getByRole("region", { name: /^Order book/u }), "The market opens with outcomes and the order book");
   await d.caption("Market", "Outcomes, 7-day move and the live order book, read from Polymarket.", { hold: 3200 });
   await d.click(d.page.getByRole("button", { name: /^Trade Yes/u }).first());
-  const restricted = d.page.getByText(/restricted for new orders/u);
+  const restricted = d.page.getByText(/restricted for new orders/u).first();
   if (await restricted.isVisible().catch(() => false)) {
-    await d.scrollTo(restricted);
-    await d.check(true, "Polymarket's location check is shown and respected (buying off)");
-    await d.note({ title: "Predict: buying is off at this machine's location (Polymarket geoblock); Trade Yes gives no feedback next to the button", detail: "The restriction banner is at the top of the view; pressing Trade Yes only toggles the button.", severity: "rough edge" });
+    const here = d.page.getByText(/buy Yes from here: Polymarket reports this location as restricted/u).first();
+    await d.expectVisible(here, "Trade Yes says right there that buying is off at this location (Polymarket geoblock)");
+    await d.scrollTo(here);
     await d.caption("Geoblock", "Polymarket reports this machine's location as restricted. Kletia respects it, so the run stops before a quote or signature.", { ...FORK, hold: 4500 });
     return;
   }

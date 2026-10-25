@@ -210,6 +210,29 @@ export function automationRow(view: AutomationView, now: number): AutomationRow 
   };
 }
 
+/* ------------------------------------------------------------- dial */
+
+const UNIT_MS: Readonly<Record<string, number>> = { hour: 3_600_000, day: 86_400_000, week: 7 * 86_400_000, month: 30 * 86_400_000 };
+
+/**
+ * How far the current period of a schedule has run (0..1), for the rule card's dial: from the
+ * next run time and the period. Null for a trigger that waits on a price, a balance or an event,
+ * for a paused or ended automation, and when the next run is unknown.
+ */
+export function scheduleFraction(view: Pick<AutomationView, "trigger" | "status" | "nextRunAt">, now: number): number | null {
+  if (view.trigger.kind !== "schedule" || view.status !== "active" || !view.nextRunAt) return null;
+  const period = (UNIT_MS[view.trigger.every.unit] ?? 0) * view.trigger.every.count;
+  const left = Date.parse(view.nextRunAt) - now;
+  if (!(period > 0) || !Number.isFinite(left)) return null;
+  return Math.min(1, Math.max(0, 1 - left / period));
+}
+
+/** The dial's caption: the period ("1 week", "2 days") or the kind of wait ("price", "balance"). */
+export function dialCaption(trigger: AutomationTrigger): string {
+  if (trigger.kind === "schedule") return `${trigger.every.count} ${trigger.every.unit}${trigger.every.count === 1 ? "" : "s"}`;
+  return trigger.kind === "apy" ? "rate" : trigger.kind;
+}
+
 /* ------------------------------------------------------------------- inbox */
 
 export interface InboxRun extends AutomationRunView {

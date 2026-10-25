@@ -1,0 +1,129 @@
+/*
+ * The developer portal's shell in the Card machine language: the portal
+ * bar under the site header (breadcrumb, the search screen, status, key), the sidebar as an
+ * engraved index with a lime lamp on the current page, the tablet rail of keys. Loaded with the
+ * portal's shell chunk. Dense pages under it get the machine finish (site/finish.css).
+ */
+.kp-bar {
+  border-bottom: 1px solid var(--k-line-2);
+  background: color-mix(in srgb, var(--k-chassis) 94%, transparent);
+  backdrop-filter: blur(6px);
+}
+.kp-search {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 10px;
+  background: var(--k-panel);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.07);
+  color: var(--k-ink-2);
+  font: 500 14px var(--k-f-ui);
+}
+.kp-search:hover {
+  border-color: var(--k-ink-3);
+}
+.kp-kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 5px;
+  background: var(--k-key);
+  box-shadow: 0 1.5px 0 var(--k-key-edge);
+  color: var(--k-ink-3);
+  font: 500 12px var(--k-f-mono);
+}
+.kp-sections svg {
+  width: 16px;
+  height: 16px;
+}
+.kp-group {
+  margin: 0;
+  padding: 0 16px;
+  font: 650 12.5px/1.2 var(--k-f-ui);
+  color: var(--k-ink-3);
+  text-shadow: var(--k-engrave, none);
+}
+.kp-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 8px;
+  padding: 0 10px 0 22px;
+  border-radius: 10px;
+  color: var(--k-ink-2);
+  font: 560 14.5px var(--k-f-ui);
+  text-decoration: none;
+  transition: background-color 120ms, color 120ms;
+}
+.kp-link::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: transparent;
+}
+.kp-link:hover {
+  background: var(--k-panel-2);
+  color: var(--k-ink);
+}
+.kp-link[aria-current="page"] {
+  background: var(--k-raised);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 2px 0 var(--k-key-edge);
+  color: var(--k-ink);
+  font-weight: 650;
+}
+.kp-link[aria-current="page"]::before {
+  background: var(--k-lime);
+  box-shadow: 0 0 0 1.5px var(--k-ink);
+}
+.kp-foot-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 16px;
+  padding: 16px 0 0;
+  border-top: 1px dashed var(--k-line-2);
+  list-style: none;
+}
+.kp-railkey {
+  position: relative;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--k-ink);
+}
+.kp-railkey:hover {
+  border-color: var(--k-line-2);
+  background: var(--k-panel-2);
+}
+.kp-railkey[aria-current="true"] {
+  border-color: var(--k-lime-edge);
+  background: var(--k-lime);
+  box-shadow: 0 2px 0 var(--k-lime-edge);
+  color: #121212;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kp-link {
+    transition: none;
+  }
+}
+@media (min-width: 1280px) {
+  .k-key.kp-sections {
+    display: none;
+  }
+}

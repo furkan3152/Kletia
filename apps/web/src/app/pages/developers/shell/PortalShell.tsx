@@ -1,3 +1,5 @@
+import "./portal.css";
+
 import { RefreshCw } from "lucide-react";
 import React, { Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 

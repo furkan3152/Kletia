@@ -1,19 +1,18 @@
 /**
- * The Tools view: every network's extras in one card language, filtered by
- * network and kind. Prompt tools put their sentences in the composer with
- * their network engine pinned (the only path to the Base engine's Intent
- * Router V2); link tools open their destination; panels, forms and
- * read-only tools open here, each loaded as its own chunk (ToolPanel),
- * with the composer still docked below.
+ * The Tools view: every network's extras in one card language, filtered by network and kind. Prompt
+ * tools put their sentences in the composer with their network engine pinned (the only path to the
+ * Base engine's Intent Router V2); link tools open their destination; panels, forms and read-only
+ * tools open here, each loaded as its own chunk (ToolPanel), with the composer still docked below.
+ * The filters are keys in a well, every tool is a cartridge in a rack (tools.css).
  */
+import "./tools.css";
+
 import { useMemo, useState } from "react";
 import { ArrowLeft, Search } from "lucide-react";
 import { CHAINS, NETWORK_KEYS, type NetworkKey } from "@kletia/core";
 
 import { ACTIVE_WALLET_ADDRESS } from "../../../shared/config/intentExamples";
-import { LineBullet } from "../../site/art/LineBullet";
-import { LINES } from "../../site/art/tokens";
-import { cx, INK_BORDER, LABEL, SURFACE } from "../../site/ui/styles";
+import { Icon, networkIcon } from "../../kit";
 import { navigate } from "../../routes/useRoute";
 import { DESK_COPY } from "../content/copy";
 import { useDeskActions } from "../shell/deskContext";
@@ -25,46 +24,38 @@ import { filterTools, networkToolNote } from "./toolsFilter";
 const copy = DESK_COPY.tools;
 const KINDS: readonly ToolKind[] = ["panel", "form", "read-only", "prompt", "link"];
 
-const FILTER =
-  "inline-flex min-h-11 items-center gap-1.5 border-2 border-control px-2.5 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] aria-[pressed=true]:bg-[#121212] aria-[pressed=true]:text-white dark:aria-[pressed=true]:bg-[#F2F0EA] dark:aria-[pressed=true]:text-[#0E0E10]";
+/** A filter key (tools.css): a small keycap that latches lime when pressed. */
+const FILTER = "kto-key";
 
 function OpenTool({ tool, onBack }: { readonly tool: DeskTool; readonly onBack: () => void }) {
   const actions = useDeskActions();
   const network = tool.networks[0];
   const address = actions.accounts.evm?.address ?? "<address>";
   return (
-    <section aria-labelledby="desk-tool-heading" className="flex flex-col gap-4 pb-8">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex min-h-11 items-center gap-2 self-start text-xs font-black uppercase tracking-wider text-fg underline underline-offset-4 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+    <section aria-labelledby="desk-tool-heading" className="kto">
+      <button type="button" onClick={onBack} className="kv-link kto-back">
+        <ArrowLeft width={16} height={16} aria-hidden="true" />
         {copy.back}
       </button>
-      <div className="flex flex-wrap items-center gap-2">
-        {tool.networks.map((key) => (
-          <LineBullet key={key} line={LINES[key]} decorative />
-        ))}
-        <h2 id="desk-tool-heading" className="font-display text-2xl font-bold">
+      <div className="kto-open-h">
+        <span className="kto-icons" aria-hidden="true">
+          {tool.networks.map((key) => (
+            <Icon key={key} name={networkIcon(key)} />
+          ))}
+        </span>
+        <h2 id="desk-tool-heading" className="kv-h2">
           {tool.title}
         </h2>
       </div>
-      {network && tool.needs !== "none" ? (
-        <p className="text-sm font-semibold text-muted">{copy.needsOn(copy.needs[tool.needs], CHAINS[network].name)}</p>
-      ) : null}
-      <p className="text-sm">{tool.summary}</p>
+      {network && tool.needs !== "none" ? <p className="kv-muted kto-needs">{copy.needsOn(copy.needs[tool.needs], CHAINS[network].name)}</p> : null}
+      <p className="kv-intro">{tool.summary}</p>
       {tool.prompts ? (
-        <ul className="flex flex-col gap-2">
+        <ul className="kto-prompts">
           {tool.prompts.map((prompt) => (
             <li key={prompt.id}>
-              <button
-                type="button"
-                onClick={() => actions.fill(prompt.sentence.split(ACTIVE_WALLET_ADDRESS).join(address), { engine: tool.engine })}
-                className={cx("flex min-h-11 w-full flex-col gap-1 p-3 text-left focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]", INK_BORDER, SURFACE)}
-              >
-                <span className="text-sm font-bold">{prompt.label}</span>
-                <span className="break-words font-code text-xs text-muted">{prompt.sentence.split(ACTIVE_WALLET_ADDRESS).join(address)}</span>
+              <button type="button" className="k-opt kto-prompt" onClick={() => actions.fill(prompt.sentence.split(ACTIVE_WALLET_ADDRESS).join(address), { engine: tool.engine })}>
+                <b>{prompt.label}</b>
+                <span className="kv-num">{prompt.sentence.split(ACTIVE_WALLET_ADDRESS).join(address)}</span>
               </button>
             </li>
           ))}
@@ -106,34 +97,29 @@ export function ToolsView({ toolId }: ToolsViewProps) {
   const yard = NETWORK_KEYS.filter((key) => CHAINS[key].lane === "testnet");
 
   return (
-    <section aria-labelledby="desk-tools-heading" className="flex flex-col gap-4 pb-8">
-      <h2 id="desk-tools-heading" className="font-display text-2xl font-bold">
+    <section aria-labelledby="desk-tools-heading" className="kto">
+      <h2 id="desk-tools-heading" className="kv-h2">
         {copy.title}
       </h2>
-      <label className="flex min-h-11 items-center gap-2 border-2 border-control bg-surface px-3 focus-within:outline focus-within:outline-4 focus-within:outline-offset-2 focus-within:outline-[var(--kl-focus)]">
-        <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <label className="kto-search">
+        <Search width={18} height={18} aria-hidden="true" />
         <span className="sr-only">{copy.search}</span>
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={copy.search}
-          className="min-h-10 w-full bg-transparent text-base text-fg placeholder:text-[var(--kl-placeholder)] focus:outline-none"
-        />
+        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} />
       </label>
-      <div role="group" aria-label={copy.networkFilter} className="flex flex-wrap items-center gap-2">
-        <span className={cx(LABEL, "!text-xs")}>{copy.networkFilter}</span>
+      <div role="group" aria-label={copy.networkFilter} className="kto-filters">
+        <span className="kv-label">{copy.networkFilter}</span>
         <button type="button" className={FILTER} aria-pressed={network === "all"} onClick={() => setNetwork("all")}>
           {copy.all}
         </button>
         {[...production, ...yard].map((key) => (
-          <button key={key} type="button" className={FILTER} aria-pressed={network === key} onClick={() => setNetwork(key)} aria-label={CHAINS[key].name}>
-            <LineBullet line={LINES[key]} decorative />
+          <button key={key} type="button" className={FILTER} aria-pressed={network === key} onClick={() => setNetwork(key)} aria-label={CHAINS[key].name} title={CHAINS[key].name}>
+            <Icon name={networkIcon(key)} />
+            <span className="kto-key-stripe" style={{ background: CHAINS[key].color }} aria-hidden="true" />
           </button>
         ))}
       </div>
-      <div role="group" aria-label={copy.kindFilter} className="flex flex-wrap items-center gap-2">
-        <span className={cx(LABEL, "!text-xs")}>{copy.kindFilter}</span>
+      <div role="group" aria-label={copy.kindFilter} className="kto-filters">
+        <span className="kv-label">{copy.kindFilter}</span>
         <button type="button" className={FILTER} aria-pressed={kind === "all"} onClick={() => setKind("all")}>
           {copy.all}
         </button>
@@ -145,14 +131,14 @@ export function ToolsView({ toolId }: ToolsViewProps) {
       </div>
       {note && network !== "all" ? (
         // Honest note: the network works from the composer even when no tool is built for it.
-        <p role="status" className="text-sm font-semibold">
+        <p role="status" className="kv-note">
           {note === "general" ? copy.networkGeneralOnly(CHAINS[network].name) : copy.networkNone(CHAINS[network].name)}
         </p>
       ) : null}
       {visible.length === 0 ? (
-        note ? null : <p className="text-sm font-semibold">{copy.noMatch}</p>
+        note ? null : <p className="kv-empty">{copy.noMatch}</p>
       ) : (
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="kto-rack">
           {visible.map((tool) => (
             <ToolSign key={tool.id} tool={tool} onOpen={() => openTool(tool)} />
           ))}

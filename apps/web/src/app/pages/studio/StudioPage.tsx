@@ -6,9 +6,9 @@ import { readIntentSession, STUDIO_INTENT_SESSION_KEY } from "../../../shared/pl
 import { deskHandoffHref, DESK_ENTRY } from "../../console/tools/deskHandoff";
 import { Link } from "../../routes/Link";
 import { useRoute } from "../../routes/useRoute";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { buttonClasses, CONTAINER, cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, TEXT_MUTED } from "../../site/ui/styles";
 import { StudioWorkspace } from "./StudioWorkspace";
+import { Eyebrow } from "../../site/ui/Eyebrow";
 
 function readPromptParam(search: string): string {
   try {
@@ -63,7 +63,7 @@ export default function StudioPage() {
       <header className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "flex flex-col gap-6 py-8 sm:py-12 lg:py-10")}>
           <div className="max-w-3xl lg:max-w-none">
-            <PlatformNumber code="STU">Intent Studio</PlatformNumber>
+            <Eyebrow>Intent Studio</Eyebrow>
             <h1 className="mt-5 text-balance font-display text-[clamp(2.3rem,6.2vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em] lg:text-[3.25rem]">
               Write a route and see its legs.
             </h1>

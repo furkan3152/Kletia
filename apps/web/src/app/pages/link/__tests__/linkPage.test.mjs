@@ -170,7 +170,8 @@ test("the hazard strip, the ticket plate and the hero plate: an unverified publi
   assert.match(page, /Nobody has confirmed this link comes from \$\{view\.publisher\.domain\}\./u);
   assert.ok(!page.includes("Unverified publisher: nobody confirmed"), "the highlighter sentence is gone");
   assert.ok(!/bg-\[#FFD60A\] px-1/u.test(page), "no highlighter on the publisher line");
-  assert.match(page, /<PlatformNumber code="GO">Intent link<\/PlatformNumber>/u);
+  // Card machine: the hero names the page with an engraved eyebrow instead of the transit platform plate.
+  assert.match(page, /<Eyebrow>Intent link<\/Eyebrow>/u);
   assert.match(page, /<JourneyPanel journey=\{itinerary\} phase="indicative"/u, "the indicative itinerary sits with the fare");
   assert.match(ticket, />Unverified<\/p>\s*<span className="kla-linkt__hazard" aria-hidden="true" \/>/u, "the hazard strip keeps aria-hidden and gains its word");
 });

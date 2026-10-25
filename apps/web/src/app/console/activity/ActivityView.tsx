@@ -6,13 +6,15 @@ import { ActivityFeed } from "../../../shared/sync/ActivityFeed";
 import { DESK_COPY } from "../content/copy";
 import { ViewHeader } from "../shell/ViewParts";
 
-const copy = DESK_COPY.activity;
+const copy = { ...DESK_COPY.activity, intro: "Every transaction this browser sent, on every network: pending, confirmed or failed, newest first. It lives in this browser only." } as const;
 
 export function ActivityView() {
   return (
-    <section aria-labelledby="desk-activity-heading" className="flex flex-col gap-4 pb-8">
-      <ViewHeader id="desk-activity-heading" title={copy.title} />
-      <ActivityFeed compact limit={50} title={copy.title} emptyHint={copy.empty} />
+    <section aria-labelledby="desk-activity-heading" className="flex flex-col gap-6 pb-8">
+      <ViewHeader id="desk-activity-heading" title={copy.title} intro={copy.intro} />
+      <div className="kv-panel">
+        <ActivityFeed compact limit={50} title={copy.title} emptyHint={copy.empty} />
+      </div>
     </section>
   );
 }

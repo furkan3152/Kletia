@@ -17,12 +17,14 @@ import type { IntentHandoff, PredictionMarket, PredictionStep } from "@kletia/co
 
 import { toPlatformError, type PlatformError } from "../../../shared/platform/kletiaClient";
 import { useWallets } from "../../../shared/wallet/useWallets";
+import { Cartridges, Key, Segmented } from "../../kit";
 import { ApiErrorPanel } from "../../site/ui/ApiErrorPanel";
 import { Button } from "../../site/ui/Button";
-import { cx, LABEL, TEXT_MUTED } from "../../site/ui/styles";
 import { useDeskActions } from "../shell/deskContext";
-import { ViewEmpty, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
-import { PANEL_TITLE, VIEW_FIELD, VIEW_PANEL } from "../shell/viewStyles";
+import { ViewEmpty, ViewFacts, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
+import { VIEW_FIELD, VIEW_LABEL } from "../shell/viewStyles";
+import { InstrumentHead, PriceTape, SideSwitch, SigningStrip, Ticket, TradeLayout, type StripState } from "../trade/TradeParts";
+import "./predict.css";
 import { HandoffNote } from "../handoff/HandoffNote";
 import { predictPrefill } from "../handoff/handoffModel";
 import { useHandoff } from "../handoff/useHandoff";
@@ -65,39 +67,24 @@ const SLIPPAGE_OPTIONS = [100, 200, 500] as const;
 /** Markets listed before "Show all" (a phone column stays short). */
 const FIRST_ROWS = 12;
 
-function Row({ label, value, tone }: { readonly label: string; readonly value: string; readonly tone?: "warn" | undefined }) {
-  return (
-    <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 border-b-2 border-dashed border-[var(--kl-line)] py-1.5 text-sm last:border-b-0">
-      <dt className={TEXT_MUTED}>{label}</dt>
-      <dd className={cx("font-code font-bold", tone === "warn" && "text-danger")}>{value}</dd>
-    </div>
-  );
-}
-
-/** A week of prices as a line; the numbers are in the text beside it (decorative). */
-function Sparkline({ points }: { readonly points: readonly { readonly t: number; readonly p: number }[] }) {
-  if (points.length < 2) return null;
-  const first = points[0]!.t;
-  const span = Math.max(1, points[points.length - 1]!.t - first);
-  const path = points.map((point) => `${(((point.t - first) / span) * 100).toFixed(2)},${(40 - point.p * 40).toFixed(2)}`).join(" ");
-  return (
-    <svg aria-hidden="true" viewBox="0 0 100 40" preserveAspectRatio="none" className="h-12 w-full">
-      <polyline points={path} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
+function stripState(state: string | undefined): StripState {
+  if (state === "done") return "done";
+  if (state === "failed") return "failed";
+  if (state === "signing" || state === "confirming" || state === "relaying") return "active";
+  return "waiting";
 }
 
 function DepthList({ title, rows, tone }: { readonly title: string; readonly rows: ReturnType<typeof bookDepth>["bids"]; readonly tone: "bid" | "ask" }) {
   return (
-    <div className="min-w-0 flex-1">
-      <p className={cx(LABEL, "mb-1 text-xs")}>{title}</p>
-      {rows.length === 0 ? <p className={cx("text-sm", TEXT_MUTED)}>-</p> : null}
-      <ul className="flex flex-col gap-0.5 text-sm">
+    <div className="kp-depth">
+      <p className={VIEW_LABEL}>{title}</p>
+      {rows.length === 0 ? <p className="kv-muted">-</p> : null}
+      <ul>
         {rows.map((row) => (
-          <li key={`${row.price}:${row.shares}`} className="relative flex justify-between gap-2 px-1 py-0.5 font-code">
-            <span aria-hidden="true" className={cx("absolute inset-y-0 left-0 opacity-25", tone === "bid" ? "bg-success" : "bg-danger")} style={{ width: `${Math.round(row.depth * 100)}%` }} />
-            <span className="relative">{row.price}</span>
-            <span className="relative">{row.shares}</span>
+          <li key={`${row.price}:${row.shares}`} data-tone={tone}>
+            <span aria-hidden="true" className="kp-depth-bar" style={{ width: `${Math.round(row.depth * 100)}%` }} />
+            <span>{row.price}</span>
+            <span>{row.shares}</span>
           </li>
         ))}
       </ul>
@@ -302,24 +289,241 @@ export function PredictView() {
     }
   };
 
-  return (
-    <section aria-labelledby="predict-heading" className="flex min-w-0 flex-col gap-4 pb-8">
-      <ViewHeader id="predict-heading" title={copy.heading} intro={copy.intro} />
-      <HandoffNote text={handoffNote} />
+  const outcomeHistory = selectedOutcome?.history ?? [];
+  const nowPrice = selectedOutcome ? (selectedOutcome.book?.asks[0]?.price ?? selectedOutcome.price) : null;
 
-      <aside aria-labelledby="predict-risk" className="flex flex-col gap-2">
-        <ViewNote tone="warning">
-          <h3 id="predict-risk" className={cx(LABEL, "mb-2")}>{copy.risk.heading}</h3>
-          <ul className="list-disc space-y-1 pl-5">
-            {copy.risk.lines.map((line) => <li key={line}>{line}</li>)}
+  const searchPane = (
+    <section aria-labelledby="predict-markets" className="kv-sec">
+      <div className="kv-sec-h">
+        <h3 id="predict-markets">{copy.search.heading}</h3>
+      </div>
+      <form role="search" onSubmit={submitSearch} className="kp-search">
+        <label className="kv-field">
+          <span className="sr-only">{copy.search.label}</span>
+          <input className={VIEW_FIELD} type="search" value={query} maxLength={120} placeholder={copy.search.placeholder} onChange={(event) => setQuery(event.target.value)} />
+        </label>
+        <Button type="submit" variant="secondary">{copy.search.submit}</Button>
+      </form>
+      <div role="group" aria-label={copy.search.categories} className="kp-cats">
+        {PREDICT_CATEGORIES.map((category) => (
+          <button
+            key={category.id || "top"}
+            type="button"
+            className="k-chip"
+            aria-pressed={search.category === category.id && !search.q}
+            onClick={() => { setQuery(""); setSearch((current) => ({ ...current, q: "", category: category.id })); }}
+          >
+            {category.label}
+          </button>
+        ))}
+      </div>
+      <div className="kp-sort">
+        <span className={VIEW_LABEL} id="predict-sort">{copy.search.sort}</span>
+        <Segmented
+          ariaLabel={copy.search.sort}
+          value={search.sort}
+          onChange={(sort) => setSearch((current) => ({ ...current, sort }))}
+          options={[
+            { id: "volume", label: copy.search.sortVolume },
+            { id: "ending", label: copy.search.sortEnding },
+          ]}
+        />
+      </div>
+      {listError ? <ApiErrorPanel error={listError} onRetry={() => setSearch((current) => ({ ...current }))} /> : null}
+      {!list && !listError ? <ViewLoading>{copy.search.loading}</ViewLoading> : null}
+      {list && rows.length === 0 ? <ViewEmpty>{copy.search.empty}</ViewEmpty> : null}
+      <ul className="kp-markets">
+        {(showAll ? rows : rows.slice(0, FIRST_ROWS)).map((row) => (
+          <li key={row.id}>
+            <button type="button" className="kp-market" aria-current={row.id === marketId || undefined} aria-label={copy.search.open(row.title)} onClick={() => openMarket(row.id)}>
+              <span className="kp-market-t">
+                <b>{row.title}</b>
+                <small>{row.ends} · {copy.search.volume} {row.volume}</small>
+              </span>
+              {row.leading ? (
+                <span className="kp-market-p">
+                  <span className="kv-num">{row.leading.probability}</span>
+                  <small>{row.leading.label}</small>
+                </span>
+              ) : null}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {!showAll && rows.length > FIRST_ROWS ? (
+        <Button variant="ghost" size="sm" onClick={() => setShowAllFor(search)}>{copy.search.showAll(rows.length)}</Button>
+      ) : null}
+      {(list?.venues ?? []).filter((venue) => !venue.enabled).map((venue) => (
+        <ViewNote key={venue.id}>{copy.search.notAdded(venue.name)} {venue.disabledReason}</ViewNote>
+      ))}
+    </section>
+  );
+
+  const marketPane = marketId ? (
+    <section aria-labelledby="predict-market" className="kt-main" style={{ gap: 20 }}>
+      <InstrumentHead
+        title={<h3 id="predict-market" className="kv-h2 kp-q">{market?.question ?? copy.market.loading}</h3>}
+        sub={market ? `${market.eventTitle && market.eventTitle !== market.question ? `${market.eventTitle} · ` : ""}${formatEnds(market.endDate, detailFresh?.at ?? 0)} · ${copy.search.volume} ${formatVolume(market.volume24hUsd)}` : null}
+        value={selectedOutcome && nowPrice !== null ? formatProbability(nowPrice) : undefined}
+        change={selectedOutcome ? selectedOutcome.label : undefined}
+      />
+      <div>
+        <Button variant="ghost" size="sm" onClick={() => { setMarketId(null); setTicket(DEFAULT_TICKET); setQuote(null); }}>{copy.market.back}</Button>
+      </div>
+      {detailError ? <ApiErrorPanel error={detailError} /> : null}
+      {!detail && !detailError ? <ViewLoading>{copy.market.loading}</ViewLoading> : null}
+      {market ? (
+        <>
+          <PriceTape
+            points={outcomeHistory}
+            levels={nowPrice !== null && selectedOutcome ? [{ id: "now", label: `${selectedOutcome.label} ${formatProbability(nowPrice)}`, price: nowPrice, tone: "mark" }] : []}
+            label={selectedOutcome ? `${selectedOutcome.label}: ${copy.market.week}` : copy.market.week}
+            empty={copy.market.noBook}
+            caption={outcomeHistory.length > 1 ? `${copy.market.week}: ${formatProbability(outcomeHistory[0]!.p)} to ${formatProbability(outcomeHistory[outcomeHistory.length - 1]!.p)}` : null}
+          />
+          <ul className="kp-outcomes" aria-label={copy.market.outcomes}>
+            {detail?.outcomes.map((outcome) => {
+              const price = outcome.book?.asks[0]?.price ?? outcome.price;
+              return (
+                <li key={outcome.tokenId}>
+                  <button type="button" className="kp-outcome" aria-pressed={ticket.outcome === outcome.label} onClick={() => update({ outcome: outcome.label })}>
+                    <span className="kp-outcome-l">{copy.market.choose(outcome.label)}</span>
+                    <span className="kv-num kp-outcome-p" aria-label={`${copy.market.probability} ${formatProbability(price)}`}>{formatProbability(price)}</span>
+                    <span className="kp-outcome-bar" aria-hidden="true"><i style={{ width: `${Math.round(Math.min(1, Math.max(0, price ?? 0)) * 100)}%` }} /></span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
-        </ViewNote>
-        <ViewNote tone={location?.tone ?? "neutral"} role="status">
-          {location ? location.text : copy.location.checking}{" "}
-          <a className="font-bold underline" href={list?.venues.find((venue) => venue.id === "polymarket")?.termsUrl ?? "https://polymarket.com/tos"} target="_blank" rel="noreferrer">{copy.location.terms}</a>
-        </ViewNote>
-      </aside>
+          {buyingOff && ticket.outcome ? <ViewNote tone="warning" role="status">{copy.market.buyOff(ticket.outcome)}</ViewNote> : null}
+          <section aria-labelledby="predict-book" className="kv-sec">
+            <h4 id="predict-book" className="kv-eng">{copy.market.book}{selectedOutcome ? ` · ${selectedOutcome.label}` : ""}{depth ? ` · ${copy.market.spread(depth.spread)}` : ""}</h4>
+            {depth ? (
+              <div className="kp-book">
+                <DepthList title={copy.market.bids} rows={depth.bids} tone="bid" />
+                <DepthList title={copy.market.asks} rows={depth.asks} tone="ask" />
+              </div>
+            ) : <p className="kv-muted">{selectedOutcome?.unavailable ?? copy.market.noBook}</p>}
+          </section>
+          {market.description ? (
+            <details className="kt-more">
+              <summary>{copy.market.rules}</summary>
+              <p className="kv-intro" style={{ whiteSpace: "pre-line" }}>{market.description}</p>
+            </details>
+          ) : null}
+          <a className="kv-link" href={market.url} target="_blank" rel="noreferrer">{copy.market.onPolymarket}</a>
+        </>
+      ) : null}
+    </section>
+  ) : null;
 
+  const ticketPane = (
+    <>
+      <Ticket id="predict-ticket" title={copy.ticket.heading}>
+        {!market ? (
+          <p className="kt-risk">{marketId ? copy.market.loading : copy.ticket.pick}</p>
+        ) : (
+          <>
+            <SideSwitch
+              label={copy.ticket.sideLabel}
+              value={ticket.side}
+              onChange={(side) => update({ side })}
+              options={[
+                { id: "buy", label: copy.ticket.buy, tone: "go" },
+                { id: "sell", label: copy.ticket.sell, tone: "stop" },
+              ]}
+            />
+            <Cartridges
+              label={copy.ticket.outcomeLabel}
+              value={ticket.outcome ?? ""}
+              onChange={(outcome) => update({ outcome: outcome || null })}
+              options={market.outcomes.map((outcome) => {
+                const price = detail?.outcomes.find((entry) => entry.label === outcome.label);
+                return { id: outcome.label, label: outcome.label, ...(price ? { detail: formatProbability(price.book?.asks[0]?.price ?? price.price) } : {}) };
+              })}
+            />
+            <div className="k-field">
+              <p className="k-field-label">{copy.ticket.orderTypeLabel}</p>
+              <Segmented
+                fill
+                ariaLabel={copy.ticket.orderTypeLabel}
+                value={ticket.orderType}
+                onChange={(orderType) => update({ orderType })}
+                options={[
+                  { id: "market", label: copy.ticket.market },
+                  { id: "limit", label: copy.ticket.limit },
+                ]}
+              />
+            </div>
+            <label className="kv-field">
+              <span className={VIEW_LABEL}>{ticket.side === "buy" ? copy.ticket.amountBuy : copy.ticket.amountSell}</span>
+              <input className={VIEW_FIELD} inputMode="decimal" autoComplete="off" placeholder={ticket.side === "buy" ? "20" : "50"} value={ticket.amount} onChange={(event) => update({ amount: event.target.value })} />
+            </label>
+            {ticket.orderType === "limit" ? (
+              <label className="kv-field">
+                <span className={VIEW_LABEL}>{copy.ticket.limitLabel}</span>
+                <input className={VIEW_FIELD} inputMode="decimal" autoComplete="off" placeholder="42" value={ticket.limitCents} onChange={(event) => update({ limitCents: event.target.value })} />
+              </label>
+            ) : (
+              <div className="k-field">
+                <p className="k-field-label">{copy.ticket.slippageLabel}</p>
+                <Segmented
+                  fill
+                  ariaLabel={copy.ticket.slippageLabel}
+                  value={String(ticket.slippageBps)}
+                  onChange={(value) => update({ slippageBps: Number(value) })}
+                  options={SLIPPAGE_OPTIONS.map((bps) => ({ id: String(bps), label: `${(bps / 100).toFixed(0)}% past the book` }))}
+                />
+              </div>
+            )}
+            {problems.length > 0 ? <ul className="kt-problems">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul> : null}
+            <Button variant="secondary" loading={pending === "quote"} disabled={problems.length > 0 || pending !== null} onClick={() => void getQuote()}>{copy.ticket.quote}</Button>
+            {quote ? <ViewFacts live rows={quoteRows(quote.quote).map((row) => ({ label: row.label, value: row.value, tone: row.tone }))} /> : null}
+            {quote?.quote.warnings.map((warning) => <ViewNote key={warning} tone="warning">{warning}</ViewNote>)}
+            {quote && !account ? (
+              <div className="kv-field">
+                <p className="kt-risk">{copy.ticket.walletNeeded}</p>
+                <Button variant="secondary" onClick={() => actions.openWallet("eip155")}>{copy.ticket.connect}</Button>
+              </div>
+            ) : null}
+            {quote && tradesFrom ? <p className="kt-risk" style={{ overflowWrap: "anywhere" }}><b>{copy.ticket.tradesFrom}:</b> {tradesFrom}</p> : null}
+            {quote && account && !canTrade ? <ViewNote tone="warning">{copy.ticket.smartWallet}</ViewNote> : null}
+            {quote && buyingOff ? <ViewNote tone="warning">{copy.ticket.buyOff}</ViewNote> : null}
+            {quote && account && !run.run && !buyingOff && canTrade ? (
+              <Key tone="lime" disabled={pending !== null} aria-busy={pending === "prepare" || undefined} onClick={() => void prepare()}>{copy.ticket.review}</Key>
+            ) : null}
+            {requestError ? <ApiErrorPanel error={requestError} /> : null}
+          </>
+        )}
+        {run.run ? (
+          <SigningStrip
+            id="predict-steps"
+            title={copy.steps.heading}
+            steps={run.run.steps.map((entry, index) => {
+              const state = run.run!.states[index];
+              return {
+                id: entry.id,
+                title: entry.title,
+                state: stripState(state),
+                word: state === "signing" ? copy.steps.signing : state === "confirming" ? copy.steps.confirming : state === "relaying" ? copy.steps.relaying : state === "done" ? copy.steps.done : state === "failed" ? copy.steps.failed : "",
+                extra:
+                  entry.kind === "transaction" && entry.disclosure ? (
+                    <details className="kt-more">
+                      <summary>{copy.steps.disclosure}</summary>
+                      <p>{entry.disclosure}</p>
+                    </details>
+                  ) : undefined,
+              };
+            })}
+          >
+            {run.prepared?.warnings.map((warning) => <ViewNote key={warning} tone="warning">{warning}</ViewNote>)}
+            {run.run.error ? <ViewNote role="alert" tone="danger">{run.run.error}</ViewNote> : null}
+            {run.run.result ? <ViewNote role="status" tone="info">{run.run.result}</ViewNote> : null}
+            {step >= 0 ? <Button loading={run.busy} onClick={() => void run.advance()}>{step === 0 && run.run.states[0] === "waiting" ? copy.steps.start : copy.steps.continue}</Button> : null}
+            <Button variant="ghost" size="sm" disabled={run.busy} onClick={run.reset}>{copy.steps.cancel}</Button>
+          </SigningStrip>
+        ) : null}
+      </Ticket>
       <PredictWallet
         account={account}
         view={walletsView}
@@ -332,229 +536,41 @@ export function PredictView() {
         onMove={(move) => void moveFunds(move)}
       />
       {requestError && !market ? <ApiErrorPanel error={requestError} /> : null}
+    </>
+  );
 
-      <section aria-labelledby="predict-markets" className={VIEW_PANEL}>
-        <h3 id="predict-markets" className={PANEL_TITLE}>{copy.search.heading}</h3>
-        <form role="search" onSubmit={submitSearch} className="flex flex-col gap-2 sm:flex-row">
-          <label className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="sr-only">{copy.search.label}</span>
-            <input className={VIEW_FIELD} type="search" value={query} maxLength={120} placeholder={copy.search.placeholder} onChange={(event) => setQuery(event.target.value)} />
-          </label>
-          <Button type="submit" variant="secondary">{copy.search.submit}</Button>
-        </form>
-        <div role="group" aria-label={copy.search.categories} className="flex flex-wrap gap-2">
-          {PREDICT_CATEGORIES.map((category) => (
-            <Button key={category.id || "top"} size="sm" variant={search.category === category.id && !search.q ? "primary" : "secondary"} aria-pressed={search.category === category.id && !search.q}
-              onClick={() => { setQuery(""); setSearch((current) => ({ ...current, q: "", category: category.id })); }}>
-              {category.label}
-            </Button>
-          ))}
-        </div>
-        <label className="flex flex-col gap-1 sm:max-w-xs">
-          <span className={LABEL}>{copy.search.sort}</span>
-          <select className={VIEW_FIELD} value={search.sort} onChange={(event) => setSearch((current) => ({ ...current, sort: event.target.value === "ending" ? "ending" : "volume" }))}>
-            <option value="volume">{copy.search.sortVolume}</option>
-            <option value="ending">{copy.search.sortEnding}</option>
-          </select>
-        </label>
-        {listError ? <ApiErrorPanel error={listError} onRetry={() => setSearch((current) => ({ ...current }))} /> : null}
-        {!list && !listError ? <ViewLoading>{copy.search.loading}</ViewLoading> : null}
-        {list && rows.length === 0 ? <ViewEmpty>{copy.search.empty}</ViewEmpty> : null}
-        <ul className="flex flex-col">
-          {(showAll ? rows : rows.slice(0, FIRST_ROWS)).map((row) => (
-            <li key={row.id} className="border-b-2 border-[var(--kl-line)] last:border-b-0">
-              <button type="button" className="flex min-h-11 w-full min-w-0 flex-col gap-1 py-2 text-left focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 sm:flex-row sm:items-center sm:justify-between" aria-label={copy.search.open(row.title)} onClick={() => openMarket(row.id)}>
-                <span className="min-w-0">
-                  <span className="block break-words font-bold">{row.title}</span>
-                  <span className={cx("block text-xs", TEXT_MUTED)}>{row.ends} · {copy.search.volume} {row.volume}</span>
-                </span>
-                {row.leading ? <span className="shrink-0 font-code text-sm font-bold">{row.leading.label} {row.leading.probability}</span> : null}
-              </button>
-            </li>
-          ))}
-        </ul>
-        {!showAll && rows.length > FIRST_ROWS ? (
-          <Button variant="ghost" size="sm" onClick={() => setShowAllFor(search)}>{copy.search.showAll(rows.length)}</Button>
-        ) : null}
-        {(list?.venues ?? []).filter((venue) => !venue.enabled).map((venue) => (
-          <ViewNote key={venue.id}>{copy.search.notAdded(venue.name)} {venue.disabledReason}</ViewNote>
-        ))}
-      </section>
-
-      {marketId ? (
-        <section aria-labelledby="predict-market" className={VIEW_PANEL}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 id="predict-market" className={cx(PANEL_TITLE, "min-w-0 break-words")}>{market?.question ?? copy.market.loading}</h3>
-            <Button variant="ghost" size="sm" onClick={() => { setMarketId(null); setTicket(DEFAULT_TICKET); setQuote(null); }}>{copy.market.back}</Button>
-          </div>
-          {detailError ? <ApiErrorPanel error={detailError} /> : null}
-          {!detail && !detailError ? <ViewLoading>{copy.market.loading}</ViewLoading> : null}
-          {market ? (
-            <>
-              <p className={cx("text-sm", TEXT_MUTED)}>
-                {market.eventTitle && market.eventTitle !== market.question ? `${market.eventTitle} · ` : ""}{formatEnds(market.endDate, detailFresh?.at ?? 0)} · {copy.search.volume} {formatVolume(market.volume24hUsd)}
-              </p>
-              <ul className="grid gap-2 sm:grid-cols-2" aria-label={copy.market.outcomes}>
-                {detail?.outcomes.map((outcome) => (
-                  <li key={outcome.tokenId} className="flex min-w-0 flex-col gap-2 border-2 border-[var(--kl-line)] p-3">
-                    <p className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-bold">{outcome.label}</span>
-                      <span className="font-code text-2xl font-bold" aria-label={`${copy.market.probability} ${formatProbability(outcome.book?.asks[0]?.price ?? outcome.price)}`}>
-                        {formatProbability(outcome.book?.asks[0]?.price ?? outcome.price)}
-                      </span>
-                    </p>
-                    <Sparkline points={outcome.history} />
-                    {outcome.history.length > 1 ? <p className={cx("text-xs", TEXT_MUTED)}>{copy.market.week}: {formatProbability(outcome.history[0]!.p)} → {formatProbability(outcome.history[outcome.history.length - 1]!.p)}</p> : null}
-                    <Button size="sm" variant={ticket.outcome === outcome.label ? "primary" : "secondary"} aria-pressed={ticket.outcome === outcome.label} onClick={() => update({ outcome: outcome.label })}>
-                      {copy.market.choose(outcome.label)}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-              {/* Right where the person chose an outcome: buying is off here, and why (the banner at the top says it too). */}
-              {buyingOff && ticket.outcome ? <ViewNote tone="warning" role="status">{copy.market.buyOff(ticket.outcome)}</ViewNote> : null}
-              <section aria-labelledby="predict-book">
-                <h4 id="predict-book" className={cx(LABEL, "mb-1")}>{copy.market.book}{selectedOutcome ? ` · ${selectedOutcome.label}` : ""}{depth ? ` · ${copy.market.spread(depth.spread)}` : ""}</h4>
-                {depth ? (
-                  <div className="flex gap-3">
-                    <DepthList title={copy.market.bids} rows={depth.bids} tone="bid" />
-                    <DepthList title={copy.market.asks} rows={depth.asks} tone="ask" />
-                  </div>
-                ) : <p className={cx("text-sm", TEXT_MUTED)}>{selectedOutcome?.unavailable ?? copy.market.noBook}</p>}
-              </section>
-              {market.description ? (
-                <details className="text-sm">
-                  <summary className="min-h-11 cursor-pointer py-2 font-bold">{copy.market.rules}</summary>
-                  <p className="whitespace-pre-line break-words">{market.description}</p>
-                </details>
-              ) : null}
-              <a className="text-sm font-bold underline" href={market.url} target="_blank" rel="noreferrer">{copy.market.onPolymarket}</a>
-            </>
-          ) : null}
-        </section>
-      ) : null}
-
-      {market ? (
-        <section aria-labelledby="predict-ticket" className={VIEW_PANEL}>
-          <h3 id="predict-ticket" className={PANEL_TITLE}>{copy.ticket.heading}</h3>
-          <fieldset className="flex gap-2">
-            <legend className={cx(LABEL, "mb-1")}>{copy.ticket.sideLabel}</legend>
-            {(["buy", "sell"] as const).map((side) => (
-              <Button key={side} className="flex-1" variant={ticket.side === side ? "primary" : "secondary"} aria-pressed={ticket.side === side} onClick={() => update({ side })}>
-                {side === "buy" ? copy.ticket.buy : copy.ticket.sell}
-              </Button>
-            ))}
-          </fieldset>
-          <label className="flex flex-col gap-1">
-            <span className={LABEL}>{copy.ticket.outcomeLabel}</span>
-            <select className={VIEW_FIELD} value={ticket.outcome ?? ""} onChange={(event) => update({ outcome: event.target.value || null })}>
-              <option value="">-</option>
-              {market.outcomes.map((outcome) => <option key={outcome.tokenId} value={outcome.label}>{outcome.label}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={LABEL}>{copy.ticket.orderTypeLabel}</span>
-            <select className={VIEW_FIELD} value={ticket.orderType} onChange={(event) => update({ orderType: event.target.value === "limit" ? "limit" : "market" })}>
-              <option value="market">{copy.ticket.market}</option>
-              <option value="limit">{copy.ticket.limit}</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={LABEL}>{ticket.side === "buy" ? copy.ticket.amountBuy : copy.ticket.amountSell}</span>
-            <input className={VIEW_FIELD} inputMode="decimal" autoComplete="off" placeholder={ticket.side === "buy" ? "20" : "50"} value={ticket.amount} onChange={(event) => update({ amount: event.target.value })} />
-          </label>
-          {ticket.orderType === "limit" ? (
-            <label className="flex flex-col gap-1">
-              <span className={LABEL}>{copy.ticket.limitLabel}</span>
-              <input className={VIEW_FIELD} inputMode="decimal" autoComplete="off" placeholder="42" value={ticket.limitCents} onChange={(event) => update({ limitCents: event.target.value })} />
-            </label>
-          ) : (
-            <label className="flex flex-col gap-1">
-              <span className={LABEL}>{copy.ticket.slippageLabel}</span>
-              <select className={VIEW_FIELD} value={ticket.slippageBps} onChange={(event) => update({ slippageBps: Number(event.target.value) })}>
-                {SLIPPAGE_OPTIONS.map((bps) => <option key={bps} value={bps}>{`${(bps / 100).toFixed(0)}% past the book`}</option>)}
-              </select>
-            </label>
-          )}
-          {problems.length > 0 ? <ul className="list-disc pl-5 text-sm">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul> : null}
-          <Button variant="secondary" loading={pending === "quote"} disabled={problems.length > 0 || pending !== null} onClick={() => void getQuote()}>{copy.ticket.quote}</Button>
-          {quote ? (
-            <dl aria-live="polite">
-              {quoteRows(quote.quote).map((row) => <Row key={row.label} label={row.label} value={row.value} tone={row.tone} />)}
-            </dl>
-          ) : null}
-          {quote?.quote.warnings.map((warning) => <ViewNote key={warning} tone="warning">{warning}</ViewNote>)}
-          {quote && !account ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm">{copy.ticket.walletNeeded}</p>
-              <Button variant="secondary" onClick={() => actions.openWallet("eip155")}>{copy.ticket.connect}</Button>
-            </div>
-          ) : null}
-          {quote && tradesFrom ? <p className="break-words text-sm"><span className="font-bold">{copy.ticket.tradesFrom}:</span> {tradesFrom}</p> : null}
-          {quote && account && !canTrade ? <ViewNote tone="warning">{copy.ticket.smartWallet}</ViewNote> : null}
-          {quote && buyingOff ? <ViewNote tone="warning">{copy.ticket.buyOff}</ViewNote> : null}
-          {quote && account && !run.run && !buyingOff && canTrade ? (
-            <Button loading={pending === "prepare"} disabled={pending !== null} onClick={() => void prepare()}>{copy.ticket.review}</Button>
-          ) : null}
-          {requestError ? <ApiErrorPanel error={requestError} /> : null}
-        </section>
-      ) : null}
-
-      {run.run ? (
-        <section aria-labelledby="predict-steps" className={VIEW_PANEL}>
-          <h3 id="predict-steps" className={PANEL_TITLE}>{copy.steps.heading}</h3>
-          {run.prepared?.warnings.map((warning) => <ViewNote key={warning} tone="warning">{warning}</ViewNote>)}
-          <ol className="flex flex-col gap-2 text-sm">
-            {run.run.steps.map((entry, index) => {
-              const state = run.run!.states[index];
-              return (
-                <li key={entry.id} className="flex flex-col gap-1">
-                  <span className="flex flex-wrap justify-between gap-2">
-                    <span>{index + 1}. {entry.title}</span>
-                    <span className="font-bold" role="status">
-                      {state === "signing" ? copy.steps.signing : state === "confirming" ? copy.steps.confirming : state === "relaying" ? copy.steps.relaying : state === "done" ? copy.steps.done : state === "failed" ? copy.steps.failed : ""}
-                    </span>
-                  </span>
-                  {entry.kind === "transaction" && entry.disclosure ? (
-                    <details>
-                      <summary className="min-h-11 cursor-pointer py-2 font-bold">{copy.steps.disclosure}</summary>
-                      <p>{entry.disclosure}</p>
-                    </details>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ol>
-          {run.run.error ? <ViewNote role="alert" tone="danger">{run.run.error}</ViewNote> : null}
-          {run.run.result ? <ViewNote role="status" tone="info">{run.run.result}</ViewNote> : null}
-          {step >= 0 ? <Button loading={run.busy} onClick={() => void run.advance()}>{step === 0 && run.run.states[0] === "waiting" ? copy.steps.start : copy.steps.continue}</Button> : null}
-          <Button variant="ghost" size="sm" disabled={run.busy} onClick={run.reset}>{copy.steps.cancel}</Button>
-        </section>
-      ) : null}
-
+  const restPane = (
+    <>
+      {marketId ? searchPane : null}
       {account && canTrade && (walletsView || walletsError) ? <PredictOrders account={account} wallet={holder} signIn={run.signIn} /> : null}
-
-      <section aria-labelledby="predict-positions" className={VIEW_PANEL}>
-        <h3 id="predict-positions" className={PANEL_TITLE}>{wallet ? copy.positions.headingOf(walletLine(wallet)) : copy.positions.heading}</h3>
+      <section aria-labelledby="predict-positions" className="kv-sec">
+        <div className="kv-sec-h">
+          <h3 id="predict-positions">{wallet ? copy.positions.headingOf(walletLine(wallet)) : copy.positions.heading}</h3>
+        </div>
         {!account ? <ViewEmpty action={<Button variant="secondary" size="sm" onClick={() => actions.openWallet("eip155")}>{copy.ticket.connect}</Button>}>{copy.positions.connect}</ViewEmpty> : null}
         {positionFilter ? (
-          <p className="flex flex-wrap items-center gap-2 text-sm">
+          <p className="kp-filter">
             {copy.positions.filtered(positionFilter)}
             <Button size="sm" variant="ghost" onClick={() => setPositionFilter(null)}>{copy.positions.showAll}</Button>
           </p>
         ) : null}
         {account && positions && held.length === 0 ? <ViewEmpty>{copy.positions.none}</ViewEmpty> : null}
-        <ul className="flex flex-col gap-3">
+        <ul className="kt-list">
           {held.map((row) => (
-            <li key={row.key} className="border-2 border-[var(--kl-line)] p-3">
-              <p className="break-words font-bold">{row.title} <span className={cx("font-normal", TEXT_MUTED)}>{row.outcome}{row.redeemable ? ` · ${copy.positions.resolved}` : ""}</span></p>
-              <dl className="mt-1">
-                <Row label={copy.positions.shares} value={row.shares} />
-                <Row label={copy.positions.price} value={row.price} />
-                <Row label={copy.positions.value} value={row.value} />
-                <Row label={copy.positions.pnl} value={row.pnl} tone={row.pnlTone === "loss" ? "warn" : undefined} />
-              </dl>
-              <div className="mt-2 flex flex-wrap gap-2">
+            <li key={row.key} className="kt-pos">
+              <p className="kt-pos-h">
+                <b>{row.title}</b>
+                <span className="kv-muted">{row.outcome}{row.redeemable ? ` · ${copy.positions.resolved}` : ""}</span>
+              </p>
+              <ViewFacts
+                rows={[
+                  { label: copy.positions.shares, value: row.shares },
+                  { label: copy.positions.price, value: row.price },
+                  { label: copy.positions.value, value: row.value },
+                  { label: copy.positions.pnl, value: row.pnl, tone: row.pnlTone === "loss" ? "warn" : undefined },
+                ]}
+              />
+              <div className="kt-pos-act">
                 {row.redeemable ? (
                   <Button size="sm" variant="secondary" loading={pending === "redeem"} disabled={pending !== null || run.busy || !canTrade} onClick={() => void redeem(row.conditionId)}>{copy.positions.redeem}</Button>
                 ) : (
@@ -564,8 +580,28 @@ export function PredictView() {
             </li>
           ))}
         </ul>
-        {positions?.truncated ? <p className={cx("text-xs", TEXT_MUTED)}>{copy.positions.truncated}</p> : null}
+        {positions?.truncated ? <p className="kv-muted">{copy.positions.truncated}</p> : null}
       </section>
+      <aside aria-labelledby="predict-risk" className="kv-field" style={{ gap: 10 }}>
+        <ViewNote tone="warning">
+          <h3 id="predict-risk">{copy.risk.heading}</h3>
+          <ul>
+            {copy.risk.lines.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        </ViewNote>
+      </aside>
+    </>
+  );
+
+  return (
+    <section aria-labelledby="predict-heading" className="flex min-w-0 flex-col gap-6 pb-8">
+      <ViewHeader id="predict-heading" title={copy.heading} intro={copy.intro} />
+      <HandoffNote text={handoffNote} />
+      <ViewNote tone={location?.tone ?? "neutral"} role="status">
+        {location ? location.text : copy.location.checking}{" "}
+        <a href={list?.venues.find((venue) => venue.id === "polymarket")?.termsUrl ?? "https://polymarket.com/tos"} target="_blank" rel="noreferrer">{copy.location.terms}</a>
+      </ViewNote>
+      <TradeLayout main={marketPane ?? searchPane} ticket={ticketPane} rest={restPane} />
     </section>
   );
 }

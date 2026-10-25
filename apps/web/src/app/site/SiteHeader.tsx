@@ -1,9 +1,9 @@
 import { ArrowUpRight, GitFork, Menu, X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { MiniPlate } from "../kit";
 import { Link } from "../routes/Link";
 import { useRoute } from "../routes/useRoute";
-import { KletiaMark } from "./KletiaMark";
 import { DURATION, EASE } from "./motion/tokens";
 import { observeIntersection } from "./motion/useInView";
 import { prefersReducedMotion } from "./motion/useReducedMotion";
@@ -11,21 +11,17 @@ import { PRIMARY_NAV } from "./siteLinks";
 import type { SiteTheme } from "./theme";
 import { ThemeToggle } from "./ThemeToggle";
 import { ButtonLink } from "./ui/Button";
-import { CONTAINER, cx, FOCUS_RING, HARD_SHADOW_SM, INK_BORDER } from "./ui/styles";
+import { CONTAINER, cx } from "./ui/styles";
 
 export interface SiteHeaderProps {
   readonly theme: SiteTheme;
   readonly onToggleTheme: (origin?: { x: number; y: number }) => void;
 }
 
-// The underline grows from the left on hover and stays for the current page (aria-current).
-const NAV_LINK = cx(
-  "relative inline-flex min-h-11 items-center gap-1 px-3 text-[12px] font-black uppercase tracking-[0.14em] text-[#121212] transition-colors duration-150 hover:text-[#2F5BFF] dark:text-[#D6D2C8] dark:hover:text-[#C6FF3A]",
-  "after:absolute after:inset-x-3 after:bottom-1.5 after:h-[3px] after:origin-left after:scale-x-0 after:bg-[#2F5BFF] after:transition-transform after:duration-150 after:ease-kl-standard hover:after:scale-x-100 aria-[current=page]:after:scale-x-100 dark:after:bg-[#C6FF3A] motion-reduce:after:transition-none",
-);
-
-const MOBILE_LINK =
-  "flex min-h-14 items-center justify-between font-display text-2xl font-bold uppercase tracking-tight text-[#121212] dark:text-white";
+// Card machine chrome: sentence-case links in Funnel Sans; the current page carries a
+// lime bar under ink (chrome.css). The classes live in chrome.css, loaded with the site layout.
+const NAV_LINK = "ks-nav-link";
+const MOBILE_LINK = "ks-mlink";
 
 /** Sticky site header with primary navigation, theme toggle and a mobile menu. */
 export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
@@ -86,38 +82,23 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
   return (
     <>
       <span ref={sentinelRef} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-px w-px" />
-      <header
-        data-scrolled={scrolled ? "" : undefined}
-        data-kl-vt-stable=""
-        className="kl-site-header sticky top-0 z-50 border-b-[3px] border-[#121212] bg-[#D6D2C8]/95 backdrop-blur-sm transition-[box-shadow,background-color] duration-150 data-[scrolled]:bg-[#D6D2C8]/[0.985] data-[scrolled]:shadow-[0_3px_0_var(--kl-shadow-ink)] dark:border-[#4A4A52] dark:bg-[#0E0E10]/95 dark:data-[scrolled]:bg-[#0E0E10]/[0.985] motion-reduce:transition-none"
-      >
-        <div className={cx(CONTAINER, "flex h-[72px] items-center justify-between gap-3")}>
-          <Link to="/" className={cx("group flex min-h-11 items-center gap-3", FOCUS_RING)} aria-label="Kletia home">
-            <KletiaMark />
-            <span className="font-display text-xl font-bold uppercase tracking-[-0.02em] text-[#121212] dark:text-white sm:text-2xl">
-              Kletia
-            </span>
-          </Link>
+      <header data-scrolled={scrolled ? "" : undefined} data-kl-vt-stable="" className="kl-site-header ks-header">
+        <div className={cx(CONTAINER, "ks-bar")}>
+          <MiniPlate className="ks-plate" />
 
-          <nav aria-label="Primary" className="hidden lg:block">
-            <ul className="flex items-center gap-0.5 xl:gap-1">
+          <nav aria-label="Primary" className="ks-nav">
+            <ul>
               {PRIMARY_NAV.map((item) => (
                 <li key={item.label}>
                   {item.external ? (
-                    <a
-                      href={item.to}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={item.compact ? item.label : undefined}
-                      className={cx(NAV_LINK, FOCUS_RING)}
-                    >
-                      {item.compact ? <GitFork className="hidden h-4 w-4 lg:block xl:hidden" aria-hidden="true" /> : null}
-                      <span className={item.compact ? "lg:max-xl:sr-only" : undefined}>{item.label}</span>
-                      <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    <a href={item.to} target="_blank" rel="noopener noreferrer" title={item.compact ? item.label : undefined} className={NAV_LINK}>
+                      {item.compact ? <GitFork className="ks-compact-ic" aria-hidden="true" /> : null}
+                      <span className={item.compact ? "ks-compact-l" : undefined}>{item.label}</span>
+                      <ArrowUpRight className="ks-ext" aria-hidden="true" />
                       <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   ) : (
-                    <Link to={item.to} className={cx(NAV_LINK, FOCUS_RING)}>
+                    <Link to={item.to} className={NAV_LINK}>
                       {item.label}
                     </Link>
                   )}
@@ -126,9 +107,9 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
             </ul>
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-            <ButtonLink to="/app" size="md" className="hidden sm:inline-flex">
+          <div className="ks-right">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} className="ks-theme" />
+            <ButtonLink to="/app" size="md" className="ks-cta">
               Open the console
             </ButtonLink>
             <button
@@ -141,41 +122,26 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
                 setOpen(!menuOpen);
                 setOpenedAt(location.key);
               }}
-              className={cx(
-                "inline-flex h-11 w-11 items-center justify-center bg-[#C6FF3A] text-[#121212] transition-[transform,box-shadow] duration-90 ease-kl-snap active:translate-x-[3px] active:translate-y-[3px] active:shadow-none motion-reduce:transition-none lg:hidden",
-                INK_BORDER,
-                HARD_SHADOW_SM,
-                FOCUS_RING,
-              )}
+              className="k-key k-key--sq ks-menu"
             >
-              {menuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+              {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
             </button>
           </div>
         </div>
 
-        <div
-          ref={panelRef}
-          id={menuId}
-          hidden={!menuOpen}
-          className="border-t-[3px] border-[#121212] bg-[#D6D2C8] dark:border-[#4A4A52] dark:bg-[#0E0E10] lg:hidden"
-        >
-          <nav aria-label="Mobile" className={cx(CONTAINER, "py-4")}>
-            <ul className="flex flex-col">
+        <div ref={panelRef} id={menuId} hidden={!menuOpen} className="ks-mpanel">
+          <nav aria-label="Mobile" className={CONTAINER}>
+            <ul>
               {PRIMARY_NAV.map((item) => (
-                <li key={item.label} data-menu-item className="border-b-2 border-dashed border-[#121212]/20 dark:border-white/10">
+                <li key={item.label} data-menu-item>
                   {item.external ? (
-                    <a href={item.to} target="_blank" rel="noopener noreferrer" className={cx(MOBILE_LINK, FOCUS_RING)}>
+                    <a href={item.to} target="_blank" rel="noopener noreferrer" className={MOBILE_LINK}>
                       {item.label}
-                      <ArrowUpRight className="h-6 w-6" aria-hidden="true" />
+                      <ArrowUpRight aria-hidden="true" />
                       <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   ) : (
-                    <Link
-                      to={item.to}
-                      onClick={() => setOpen(false)}
-                      className={cx(MOBILE_LINK, FOCUS_RING)}
-                      activeClassName="text-[#1A36B0] dark:text-[#C6FF3A]"
-                    >
+                    <Link to={item.to} onClick={() => setOpen(false)} className={MOBILE_LINK} activeClassName="ks-mlink--on">
                       {item.label}
                       <span aria-hidden="true">→</span>
                     </Link>
@@ -184,7 +150,7 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
               ))}
             </ul>
             <div data-menu-item>
-              <ButtonLink to="/app" size="lg" className="mt-5 w-full" onClick={() => setOpen(false)}>
+              <ButtonLink to="/app" size="lg" className="ks-mcta" onClick={() => setOpen(false)}>
                 Open the console
               </ButtonLink>
             </div>

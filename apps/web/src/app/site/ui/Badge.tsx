@@ -1,3 +1,5 @@
+import "./ui.css";
+
 import React from "react";
 
 import { cx } from "./styles";
@@ -40,14 +42,14 @@ function titleWhenTruncated(event: React.SyntheticEvent<HTMLSpanElement>) {
   else badge.removeAttribute("title");
 }
 
-/** Small uppercase label chip: 12 px, 0.08em (the type floor). */
+/** Small label chip in sentence case (Card machine): 12.5 px, rounded 7 px, a hairline in the ink. */
 export function Badge({ tone = "neutral", dot, className, title, children }: BadgeProps) {
   return (
     <span
       title={title}
       onMouseEnter={title === undefined ? titleWhenTruncated : undefined}
       className={cx(
-        "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap border-2 border-[#121212] px-2 py-0.5 text-label uppercase leading-5 dark:border-[#4A4A52]",
+        "ku-badge",
         TONES[tone],
         className,
       )}
@@ -55,7 +57,7 @@ export function Badge({ tone = "neutral", dot, className, title, children }: Bad
       {dot ? (
         <span
           aria-hidden="true"
-          className="h-2.5 w-2.5 shrink-0 border-[1.5px] border-[#121212] dark:border-[#0E0E10]"
+          className="ku-badge-dot"
           style={{ backgroundColor: dot }}
         />
       ) : null}

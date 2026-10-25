@@ -2,10 +2,8 @@ import { PROTOCOLS } from "@kletia/core";
 import { ArrowUpRight } from "lucide-react";
 
 import { BACKEND_URL } from "../../shared/config/runtime";
+import { Icon, Nameplate, Vents } from "../kit";
 import { Link } from "../routes/Link";
-import { Icon } from "./art/Icon";
-import { LineRule } from "./art/Ornaments";
-import { KletiaMark } from "./KletiaMark";
 import { MotionToggle } from "./MotionToggle";
 import { NETWORK_COUNT, PRODUCTION_NETWORK_COUNT, TEST_NETWORK_COUNT } from "./networkCount";
 import { protocolCountLabel } from "./protocolCount";
@@ -15,7 +13,7 @@ import {
   LICENSE_URL,
   SECURITY_POLICY_URL,
 } from "./siteLinks";
-import { CONTAINER, cx, LABEL } from "./ui/styles";
+import { CONTAINER, cx } from "./ui/styles";
 
 interface FooterLink {
   readonly label: string;
@@ -61,50 +59,43 @@ const COLUMNS: readonly { title: string; links: readonly FooterLink[] }[] = [
   },
 ];
 
-const LINK =
-  "group/flink inline-flex min-h-9 items-center gap-1 text-sm text-white/75 transition-colors duration-150 hover:text-[#C6FF3A] motion-reduce:transition-none";
-/** The footer is always dark: a yellow focus ring in both themes. */
-const FOCUS_ON_INK =
-  "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#C6FF3A]";
+/** The footer is the machine's base plate, always night (chrome.css): links, lime focus ring. */
+const LINK = "ks-flink";
+const FOCUS_ON_INK = "";
 const PROTOCOL_COUNT = protocolCountLabel(PROTOCOLS);
 
 /** Site footer: product, developer and company links plus the custody statement. */
 export function SiteFooter() {
   return (
-    <footer className="relative overflow-hidden border-t-[3px] border-[#121212] bg-[#111318] text-white dark:border-[#4A4A52] dark:bg-[#060A14]">
-      <div className={cx(CONTAINER, "relative z-10 pb-10 pt-16")}>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-12 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
-          <div className="col-span-2 max-w-sm lg:col-span-1">
-            <Link to="/" className={cx("group inline-flex items-center gap-3", FOCUS_ON_INK)} aria-label="Kletia home">
-              <KletiaMark className="!bg-[#0B1220] !shadow-[3px_3px_0_#C6FF3A] [&>img]:invert-0" />
-              <span className="font-display text-2xl font-bold uppercase tracking-[-0.02em]">Kletia</span>
-            </Link>
-            <p className="mt-5 text-sm leading-relaxed text-white/75">
+    <footer className="ks-footer">
+      <div className={cx(CONTAINER, "ks-foot-in")}>
+        <div className="ks-foot-grid">
+          <div className="ks-foot-brand">
+            <Nameplate className="ks-foot-plate" model="K-01 intent machine" serial="MIT" />
+            <p className="ks-foot-lede">
               Intent routing across {NETWORK_COUNT} networks, from one sentence: a console for people, and an API,
               SDK and widget for teams who want routes inside their own product.
             </p>
-            <p className="mt-6 inline-flex items-center gap-2.5 text-balance border-2 border-[#C6FF3A] px-3 py-2 font-code text-xs font-bold uppercase tracking-[0.12em] text-[#C6FF3A] [--kla-plate:#0052FF]">
-              <Icon name="key" size={18} />
+            <p className="ks-foot-seal">
+              <Icon name="lock" />
               The API never signs
             </p>
           </div>
           {COLUMNS.map((column) => (
             <nav key={column.title} aria-label={`${column.title} links`}>
-              <h2 className={cx(LABEL, "mb-4 text-[#C6FF3A]")}>{column.title}</h2>
-              <ul className="space-y-1">
+              <h2 className="ks-foot-h">{column.title}</h2>
+              <ul className="ks-foot-list">
                 {column.links.map((link) => (
                   <li key={link.label}>
                     {link.external ? (
                       <a href={link.to} target="_blank" rel="noopener noreferrer" className={cx(LINK, FOCUS_ON_INK)}>
                         {link.label}
-                        <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        <ArrowUpRight aria-hidden="true" />
                         <span className="sr-only"> (opens in a new tab)</span>
                       </a>
                     ) : (
                       <Link to={link.to} className={cx(LINK, FOCUS_ON_INK)}>
-                        <span className="transition-transform duration-150 ease-kl-standard group-hover/flink:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/flink:translate-x-0">
-                          {link.label}
-                        </span>
+                        <span>{link.label}</span>
                       </Link>
                     )}
                   </li>
@@ -114,25 +105,22 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-16 flex flex-col gap-3 border-t-2 border-dashed border-white/15 pt-6 text-xs text-white/70 sm:flex-row sm:items-center sm:justify-between">
+        <div className="ks-foot-base">
+          <Vents className="ks-foot-vents" />
           <p>
             Open source under the{" "}
-            <a href={LICENSE_URL} target="_blank" rel="noopener noreferrer" className={cx("underline decoration-2 underline-offset-2 hover:text-white", FOCUS_ON_INK)}>
+            <a href={LICENSE_URL} target="_blank" rel="noopener noreferrer" className="ks-flink ks-flink--inline">
               MIT License
               <span className="sr-only"> (opens in a new tab)</span>
             </a>
             . Kletia is in development and has not been audited.
           </p>
-          <p className="font-code">
+          <p className="ks-foot-counts">
             {PRODUCTION_NETWORK_COUNT} production networks · {TEST_NETWORK_COUNT} test networks · {PROTOCOL_COUNT} in @kletia/core
           </p>
-          {/* The footer is always ink: the switch reads night control tokens and a yellow focus ring here. */}
-          <MotionToggle className="shrink-0 text-white [--kl-control:#94A3B8] [--kl-focus:#FFD60A] [--kl-muted:#CBD5E1] [--kl-surface:#0B1220]" />
+          {/* The footer is always night: the switch reads night control tokens and a lime focus ring here. */}
+          <MotionToggle className="shrink-0 text-white [--kl-control:#94A3B8] [--kl-focus:#C6FF3A] [--kl-muted:#CBD5E1] [--kl-surface:#19191C]" />
         </div>
-      </div>
-      {/* The Kletia line runs out under the page: a signage-yellow rule with station ticks. */}
-      <div aria-hidden="true" className="relative z-10 pb-6 [--kla-ink:#000000] [--kla-shadow:#000000]">
-        <LineRule className="opacity-95" />
       </div>
     </footer>
   );

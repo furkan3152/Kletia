@@ -1,20 +1,22 @@
 /**
- * Orders (/app/orders): native protocol orders that fill without the user
- * online. A form for limit and DCA orders (quote, then place: the wallet
- * signs, Kletia relays the checked signature), Safe steps shown for a Safe
- * to execute, and the connected wallets' orders on Solana and the CoW
- * networks with cancel. Nothing here is simulated: every order and status
- * comes from the protocol through /v1/orders.
+ * Orders (/app/orders), in the Card machine language: native protocol orders that fill without the
+ * user online. The ticket on the right (Limit or DCA, the network as cartridges, the pair, amount
+ * and price; quote, then place: the wallet signs, Kletia relays the checked signature); on the left
+ * the quote as facts, Safe steps for a Safe to execute, and the connected wallets' orders on Solana
+ * and the CoW networks with cancel. Nothing here is simulated: every order and status comes from
+ * the protocol through /v1/orders.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CHAINS, type IntentHandoff } from "@kletia/core";
 
 import { getKletiaClient, describePlatformError, toPlatformError } from "../../../shared/platform/kletiaClient";
 import { useWallets } from "../../../shared/wallet/useWallets";
-import { buttonClasses, cx, FOCUS_RING, LABEL } from "../../site/ui/styles";
+import { Cartridges, CardTray, Key, Segmented, Sleeve, networkIcon } from "../../kit";
+import { buttonClasses } from "../../site/ui/styles";
 import { DESK_COPY } from "../content/copy";
-import { ViewEmpty, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
-import { PANEL_TITLE, VIEW_FIELD, VIEW_PANEL } from "../shell/viewStyles";
+import { ViewEmpty, ViewFacts, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
+import { PANEL_TITLE, VIEW_FIELD, VIEW_LABEL, VIEW_PANEL } from "../shell/viewStyles";
+import { InstrumentHead, SideSwitch, Ticket, TradeLayout } from "../trade/TradeParts";
 import { cancelOrder, listOrders, prepareOrder, quoteOrder, type OrderQuoteView } from "./ordersApi";
 import {
   EMPTY_ORDER_FORM,
@@ -42,11 +44,9 @@ import { HandoffNote } from "../handoff/HandoffNote";
 import { useHandoff } from "../handoff/useHandoff";
 
 const copy = DESK_COPY.orders;
+/** The tray before a quote: what will print there (nothing is guessed before the protocol answers). */
+const QUOTE_EMPTY = "The least you receive, the market price and the fees print here when you get a quote.";
 const FIELD = VIEW_FIELD;
-const TOGGLE = cx(
-  "min-h-11 border-[3px] border-control bg-surface px-4 text-xs font-black uppercase tracking-[0.12em] text-fg hover:bg-neutral-bg aria-pressed:bg-[#121212] aria-pressed:text-white dark:aria-pressed:bg-white dark:aria-pressed:text-[#0E0E10]",
-  FOCUS_RING,
-);
 
 /** The registry's name of a network key; an unknown key is printed as it came. */
 function networkName(key: string): string {
@@ -60,8 +60,8 @@ function errorText(error: unknown): string {
 
 function Field({ label, children }: { readonly label: string; readonly children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className={LABEL}>{label}</span>
+    <label className="kv-field">
+      <span className={VIEW_LABEL}>{label}</span>
       {children}
     </label>
   );
@@ -83,14 +83,7 @@ function QuotePanel({ quote }: { readonly quote: OrderQuoteView }) {
       <h3 className={PANEL_TITLE}>
         {copy.quoteHeading} · {protocolName(quote.protocol)}
       </h3>
-      <dl className="grid gap-1 text-sm sm:grid-cols-[max-content_1fr] sm:gap-x-4">
-        {rows.map(([term, value], index) => (
-          <div key={`${term}-${index}`} className="contents">
-            <dt className="font-bold">{term}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
+      <ViewFacts live rows={rows.map(([term, value]) => ({ label: term, value }))} />
       {quote.warnings.map((warning) => (
         <ViewNote key={warning} tone="warning">
           {warning}
@@ -104,18 +97,18 @@ function SafeSteps({ steps }: { readonly steps: readonly OrderStepView[] }) {
   return (
     <section aria-label={copy.safeHeading} className={VIEW_PANEL}>
       <h3 className={PANEL_TITLE}>{copy.safeHeading}</h3>
-      <p className="text-sm">{copy.safeHint}</p>
-      <ol className="flex list-decimal flex-col gap-3 pl-5">
+      <p className="kv-intro">{copy.safeHint}</p>
+      <ol className="kt-list" style={{ listStyle: "decimal", paddingLeft: 20 }}>
         {steps.map((step, index) =>
           step.kind === "safe-transaction" ? (
-            <li key={index} className="text-sm">
-              <p className="font-bold">{step.description}</p>
-              <p className="break-all font-code">
+            <li key={index} className="kv-field">
+              <b>{step.description}</b>
+              <span className="kv-num" style={{ overflowWrap: "anywhere", fontSize: 13 }}>
                 {copy.safeTo}: {step.to}
-              </p>
-              <p className="break-all font-code">
+              </span>
+              <span className="kv-num" style={{ overflowWrap: "anywhere", fontSize: 13 }}>
                 {copy.safeData}: {step.data}
-              </p>
+              </span>
             </li>
           ) : null,
         )}
@@ -127,21 +120,30 @@ function SafeSteps({ steps }: { readonly steps: readonly OrderStepView[] }) {
 function OrderRow({ order, canCancel, busy, onCancel }: { readonly order: NativeOrderView; readonly canCancel: boolean; readonly busy: boolean; readonly onCancel: () => void }) {
   const pct = filledPercent(order);
   return (
-    <li className={cx(VIEW_PANEL, "gap-1 p-3 sm:flex-row sm:items-center sm:justify-between")}>
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <p className="text-xs font-black uppercase tracking-wider">
+    <li className="kt-pos">
+      <p className="kt-pos-h">
+        <b>{orderSummary(order)}</b>
+        <span className="kv-muted">
           {protocolName(order.protocol)} · {networkName(order.network)}
-        </p>
-        <p className="text-sm">{orderSummary(order)}</p>
-        <p className="text-xs text-muted">
+        </span>
+      </p>
+      {pct !== null || order.expiresAt ? (
+        <p className="kv-muted" style={{ margin: 0, fontSize: 13 }}>
           {pct !== null ? copy.filled(String(pct)) : null}
-          {order.expiresAt ? ` · ${copy.expiresAt(new Date(order.expiresAt).toLocaleString())}` : null}
+          {order.expiresAt ? `${pct !== null ? " · " : ""}${copy.expiresAt(new Date(order.expiresAt).toLocaleString())}` : null}
         </p>
-      </div>
+      ) : null}
+      {pct !== null ? (
+        <span className="ko-fill" aria-hidden="true">
+          <i style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+        </span>
+      ) : null}
       {canCancel ? (
-        <button type="button" className={buttonClasses("secondary", "sm")} disabled={busy} onClick={onCancel}>
-          {copy.cancel}
-        </button>
+        <div className="kt-pos-act">
+          <button type="button" className={buttonClasses("secondary", "sm")} disabled={busy} onClick={onCancel}>
+            {copy.cancel}
+          </button>
+        </div>
       ) : null}
     </li>
   );
@@ -242,134 +244,149 @@ export function OrdersView() {
   const grouped = groupOrders(orders);
   const orientation = priceOrientation(form);
 
-  return (
-    <section aria-labelledby="desk-orders-heading" className="flex flex-col gap-6 pb-8">
-      <ViewHeader id="desk-orders-heading" title={copy.title} intro={copy.intro} />
-      <HandoffNote text={handoffNote} />
-
-      <form className={cx(VIEW_PANEL, "gap-4")} onSubmit={(event) => event.preventDefault()} aria-labelledby="desk-orders-create">
-        <h3 id="desk-orders-create" className={PANEL_TITLE}>
-          {copy.createHeading}
-        </h3>
-        <div role="group" aria-label={copy.modeLabel} className="flex gap-2">
-          {(["limit", "dca"] as const).map((mode) => (
-            <button key={mode} type="button" className={TOGGLE} aria-pressed={form.mode === mode} onClick={() => update({ mode })}>
-              {copy.modes[mode]}
-            </button>
-          ))}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={copy.network}>
-            <select className={FIELD} value={form.network} onChange={(event) => update({ network: event.target.value as OrderFormState["network"] })}>
-              {ORDER_NETWORK_KEYS.map((key) => (
-                <option key={key} value={key}>
-                  {networkName(key)}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {form.mode === "limit" ? (
-            <Field label={copy.side}>
-              <select className={FIELD} value={form.side} onChange={(event) => update({ side: event.target.value as OrderFormState["side"] })}>
-                <option value="sell">{copy.sides.sell}</option>
-                <option value="buy">{copy.sides.buy}</option>
-              </select>
-            </Field>
-          ) : null}
+  const ticket = (
+    <Ticket id="desk-orders-create" title={copy.createHeading}>
+      <form className="kt-ticket-form" onSubmit={(event) => event.preventDefault()} aria-labelledby="desk-orders-create">
+        <Segmented
+          fill
+          tall
+          ariaLabel={copy.modeLabel}
+          value={form.mode}
+          onChange={(mode) => update({ mode })}
+          options={(["limit", "dca"] as const).map((mode) => ({ id: mode, label: copy.modes[mode] }))}
+        />
+        <Cartridges
+          label={copy.network}
+          value={form.network}
+          onChange={(network) => update({ network })}
+          options={ORDER_NETWORK_KEYS.map((key) => ({ id: key, label: networkName(key), icon: networkIcon(key), stripe: CHAINS[key].color, detail: key === "solana" ? "Jupiter" : "CoW Protocol" }))}
+        />
+        {form.mode === "limit" ? (
+          <SideSwitch
+            label={copy.side}
+            value={form.side}
+            onChange={(side) => update({ side })}
+            options={[
+              { id: "sell", label: copy.sides.sell, tone: "go" },
+              { id: "buy", label: copy.sides.buy, tone: "go" },
+            ]}
+          />
+        ) : null}
+        <div className="kt-row2">
           <Field label={copy.sell}>
             <input className={FIELD} value={form.sell} onChange={(event) => update({ sell: event.target.value })} autoComplete="off" spellCheck={false} />
           </Field>
           <Field label={copy.buy}>
             <input className={FIELD} value={form.buy} onChange={(event) => update({ buy: event.target.value })} autoComplete="off" spellCheck={false} />
           </Field>
-          <Field label={form.mode === "dca" ? copy.amountDca : copy.amount}>
-            <input className={FIELD} value={form.amount} onChange={(event) => update({ amount: event.target.value })} inputMode="decimal" autoComplete="off" />
-          </Field>
-          {form.mode === "limit" ? (
-            <>
-              <div className="flex flex-col gap-1">
-                <Field label={`${copy.price} (${copy.priceHint(orientation.counted || "?", orientation.per || "?")})`}>
-                  <input className={FIELD} value={form.price} onChange={(event) => update({ price: event.target.value })} inputMode="decimal" autoComplete="off" />
-                </Field>
-                <button type="button" className="self-start text-sm font-bold underline underline-offset-2" onClick={() => update({ priceFlipped: !form.priceFlipped, price: "" })}>
-                  {copy.flipPrice(orientation.per || "?", orientation.counted || "?")}
-                </button>
-              </div>
-              <Field label={copy.expiry}>
-                <input className={FIELD} value={form.expiryDays} onChange={(event) => update({ expiryDays: event.target.value })} inputMode="numeric" autoComplete="off" />
-              </Field>
-            </>
-          ) : (
-            <>
-              <Field label={copy.period}>
-                <select className={FIELD} value={form.period} onChange={(event) => update({ period: event.target.value as OrderFormState["period"] })}>
-                  {ORDER_PERIODS.map((period) => (
-                    <option key={period} value={period}>
-                      {copy.periods[period]}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={copy.count}>
-                <input className={FIELD} value={form.count} onChange={(event) => update({ count: event.target.value })} inputMode="numeric" autoComplete="off" />
-              </Field>
-            </>
-          )}
         </div>
+        <Field label={form.mode === "dca" ? copy.amountDca : copy.amount}>
+          <input className={FIELD} value={form.amount} onChange={(event) => update({ amount: event.target.value })} inputMode="decimal" autoComplete="off" />
+        </Field>
+        {form.mode === "limit" ? (
+          <>
+            <div className="kv-field">
+              <Field label={`${copy.price} (${copy.priceHint(orientation.counted || "?", orientation.per || "?")})`}>
+                <input className={FIELD} value={form.price} onChange={(event) => update({ price: event.target.value })} inputMode="decimal" autoComplete="off" />
+              </Field>
+              <button type="button" className="kv-link" style={{ alignSelf: "flex-start" }} onClick={() => update({ priceFlipped: !form.priceFlipped, price: "" })}>
+                {copy.flipPrice(orientation.per || "?", orientation.counted || "?")}
+              </button>
+            </div>
+            <Field label={copy.expiry}>
+              <input className={FIELD} value={form.expiryDays} onChange={(event) => update({ expiryDays: event.target.value })} inputMode="numeric" autoComplete="off" />
+            </Field>
+          </>
+        ) : (
+          <div className="kt-row2">
+            <Field label={copy.period}>
+              <select className={FIELD} value={form.period} onChange={(event) => update({ period: event.target.value as OrderFormState["period"] })}>
+                {ORDER_PERIODS.map((period) => (
+                  <option key={period} value={period}>
+                    {copy.periods[period]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label={copy.count}>
+              <input className={FIELD} value={form.count} onChange={(event) => update({ count: event.target.value })} inputMode="numeric" autoComplete="off" />
+            </Field>
+          </div>
+        )}
         {"problem" in request ? <ViewNote>{request.problem}</ViewNote> : null}
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={buttonClasses("secondary", "md")} disabled={busy || !("body" in request)} onClick={() => void onQuote()}>
-            {copy.quote}
-          </button>
-          <button type="button" className={buttonClasses("primary", "md")} disabled={busy || !("body" in request)} onClick={() => void onPlace()}>
-            {copy.place}
-          </button>
-        </div>
-        <p role="status" aria-live="polite" className="min-h-5 text-sm">
+        <button type="button" className={buttonClasses("secondary", "md")} disabled={busy || !("body" in request)} onClick={() => void onQuote()}>
+          {copy.quote}
+        </button>
+        <Key tone="lime" disabled={busy || !("body" in request)} onClick={() => void onPlace()}>
+          {copy.place}
+        </Key>
+        <p role="status" aria-live="polite" className="kt-risk" style={{ minHeight: 20 }}>
           {status}
         </p>
       </form>
+    </Ticket>
+  );
 
-      {quote ? <QuotePanel quote={quote} /> : null}
+  const main = (
+    <>
+      <InstrumentHead
+        title={
+          <p className="kv-h2" style={{ fontSize: 26 }}>
+            {(form.sell.trim() || "?") + " / " + (form.buy.trim() || "?")}
+          </p>
+        }
+        sub={`${copy.modes[form.mode]} · ${networkName(form.network)} · ${form.network === "solana" ? "Jupiter" : "CoW Protocol"}`}
+      />
+      <CardTray label={copy.quoteHeading} status={quote ? protocolName(quote.protocol) : null}>
+        {quote ? <QuotePanel quote={quote} /> : <Sleeve title={copy.quoteHeading}><p className="kv-muted" style={{ margin: "4px 0 0", fontSize: 13.5 }}>{QUOTE_EMPTY}</p></Sleeve>}
+      </CardTray>
       {safeSteps ? <SafeSteps steps={safeSteps} /> : null}
+    </>
+  );
 
-      <section aria-labelledby="desk-orders-list" className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 id="desk-orders-list" className={PANEL_TITLE}>
-            {copy.listHeading}
-          </h3>
-          {owners.length > 0 ? (
-            <button type="button" className={buttonClasses("ghost", "sm")} disabled={loading} onClick={refresh}>
-              {copy.refresh}
-            </button>
-          ) : null}
-        </div>
-        {owners.length === 0 ? <ViewEmpty>{copy.connect}</ViewEmpty> : null}
-        {loading ? <ViewLoading>{copy.loading}</ViewLoading> : null}
-        {failures.length > 0 ? (
-          <ViewNote tone="danger">
-            <p>{copy.readFailed}</p>
-            <ul className="list-disc pl-5 font-normal">
-              {failures.map((failure, index) => (
-                <li key={index}>{failureLine(failure)}</li>
+  const list = (
+    <section aria-labelledby="desk-orders-list" className="kv-sec">
+      <div className="kv-sec-h">
+        <h3 id="desk-orders-list">{copy.listHeading}</h3>
+        {owners.length > 0 ? (
+          <button type="button" className={buttonClasses("ghost", "sm")} disabled={loading} onClick={refresh}>
+            {copy.refresh}
+          </button>
+        ) : null}
+      </div>
+      {owners.length === 0 ? <ViewEmpty>{copy.connect}</ViewEmpty> : null}
+      {loading ? <ViewLoading>{copy.loading}</ViewLoading> : null}
+      {failures.length > 0 ? (
+        <ViewNote tone="danger">
+          <p style={{ margin: 0 }}>{copy.readFailed}</p>
+          <ul>
+            {failures.map((failure, index) => (
+              <li key={index}>{failureLine(failure)}</li>
+            ))}
+          </ul>
+        </ViewNote>
+      ) : null}
+      {owners.length > 0 && !loading && orders.length === 0 && failures.length === 0 ? <ViewEmpty>{copy.empty}</ViewEmpty> : null}
+      {(["open", "filled", "closed", "unknown"] as const).map((group) =>
+        grouped[group].length > 0 ? (
+          <div key={group} className="kv-field">
+            <h4 className="kv-eng">{copy.groups[group]}</h4>
+            <ul className="kt-list">
+              {grouped[group].map((order) => (
+                <OrderRow key={order.id} order={order} busy={busy} canCancel={order.cancellable && owners.some((entry) => entry.toLowerCase() === order.owner.toLowerCase())} onCancel={() => void onCancel(order)} />
               ))}
             </ul>
-          </ViewNote>
-        ) : null}
-        {owners.length > 0 && !loading && orders.length === 0 && failures.length === 0 ? <ViewEmpty>{copy.empty}</ViewEmpty> : null}
-        {(["open", "filled", "closed", "unknown"] as const).map((group) =>
-          grouped[group].length > 0 ? (
-            <div key={group} className="flex flex-col gap-2">
-              <h4 className={cx(LABEL, "text-muted")}>{copy.groups[group]}</h4>
-              <ul className="flex flex-col gap-2">
-                {grouped[group].map((order) => (
-                  <OrderRow key={order.id} order={order} busy={busy} canCancel={order.cancellable && owners.some((entry) => entry.toLowerCase() === order.owner.toLowerCase())} onCancel={() => void onCancel(order)} />
-                ))}
-              </ul>
-            </div>
-          ) : null,
-        )}
-      </section>
+          </div>
+        ) : null,
+      )}
+    </section>
+  );
+
+  return (
+    <section aria-labelledby="desk-orders-heading" className="flex flex-col gap-6 pb-8">
+      <ViewHeader id="desk-orders-heading" title={copy.title} intro={copy.intro} />
+      <HandoffNote text={handoffNote} />
+      <TradeLayout main={main} ticket={ticket} rest={list} />
     </section>
   );
 }

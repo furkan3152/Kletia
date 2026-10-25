@@ -1,0 +1,130 @@
+/*
+ * Holdings (Portfolio) in the Card machine language: every network of the
+ * lane as a cartridge in a rack: colour stripe, the network drawing, the priced total on the
+ * right, the holdings in mono, Start here and Fund. Loaded with the console chunk.
+ */
+.khd {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+.khd-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.khd-total {
+  margin: 0;
+  font: 650 18px/1.3 var(--k-f-display);
+  letter-spacing: -0.01em;
+  color: var(--k-ink);
+}
+.khd-small {
+  margin: 0;
+  font-size: 12.5px;
+}
+.khd-rack {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.khd-cart {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 16px 12px 18px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 10px 10px 14px 14px;
+  background: var(--k-raised);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 2px 0 var(--k-key-edge);
+  color: var(--k-ink);
+}
+.khd-cart::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 40px;
+  height: 4px;
+  transform: translateX(-50%);
+  background: repeating-linear-gradient(90deg, var(--k-line-2) 0 2px, transparent 2px 5px);
+}
+.khd-cart::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 0 2px 2px 0;
+  background: var(--khd-stripe, var(--k-line-2));
+}
+.khd-cart[data-empty] {
+  background: var(--k-panel-2);
+}
+.khd-ic svg {
+  width: 26px;
+  height: 26px;
+}
+.khd-body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.khd-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.khd-name {
+  font: 650 15px var(--k-f-ui);
+}
+.khd-usd {
+  font-size: 15px;
+  font-weight: 600;
+}
+.khd-labels {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--k-ink-2);
+  overflow-wrap: anywhere;
+}
+.khd-stale {
+  color: var(--k-down);
+  font-weight: 600;
+}
+.khd-act {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+.khd-scans {
+  display: grid;
+  gap: 8px;
+}
+.khd-scans .khd-act {
+  gap: 8px;
+}
+.kdb-spin {
+  animation: khd-spin 1s linear infinite;
+}
+@keyframes khd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kdb-spin {
+    animation: none;
+  }
+}

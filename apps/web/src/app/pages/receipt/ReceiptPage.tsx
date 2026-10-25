@@ -7,8 +7,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 
 import { useRoute } from "../../routes/useRoute";
 import { formatBoardClock } from "../../site/art/boardFormat";
-import { EndOfLine } from "../../site/art/EndOfLine";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { ApiErrorPanel } from "../../site/ui/ApiErrorPanel";
 import { Button, ButtonLink } from "../../site/ui/Button";
 import { CopyButton } from "../../site/ui/CopyButton";
@@ -19,6 +17,7 @@ import { parseReceiptFragment, receiptIdFromPath, REVERIFY_COMMAND, reverifyComm
 import { formatDay, offlineVerdict, receiptModel, stampDay } from "./receiptModel";
 import { ReceiptTicket } from "./ReceiptTicket";
 import { useReceipt, type LoadedReceipt } from "./useReceipt";
+import { Eyebrow, NoServiceScene } from "../../site/ui/Eyebrow";
 
 type Recheck =
   | { readonly phase: "idle" }
@@ -54,7 +53,7 @@ function Missing() {
     <div className={PAPER}>
       <div className={cx(CONTAINER, "grid min-h-[60vh] items-center gap-10 py-16 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]")}>
         <div className="min-w-0">
-          <PlatformNumber code="RCP">Receipt · no service</PlatformNumber>
+          <Eyebrow>Receipt · no service</Eyebrow>
           <h1 className="mt-5 text-balance font-display text-[clamp(2.2rem,5.6vw,3.8rem)] font-bold leading-[1.02] tracking-[-0.04em]">
             This receipt is not shared any more.
           </h1>
@@ -72,7 +71,7 @@ function Missing() {
           </nav>
         </div>
         <div className="min-w-0">
-          <EndOfLine platform="R" />
+          <NoServiceScene code="R" />
         </div>
       </div>
     </div>
@@ -146,7 +145,7 @@ function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
     <>
       <div className={PAPER}>
         <div className={cx(CONTAINER, "py-10 sm:py-14")}>
-          <PlatformNumber code="RCP">Verifiable receipt</PlatformNumber>
+          <Eyebrow>Verifiable receipt</Eyebrow>
           <h1 className="mt-5 max-w-4xl text-balance font-display text-[clamp(2rem,4.6vw,3.4rem)] font-bold leading-[1.04] tracking-[-0.035em]">
             {verdict.kind === "verified" ? "Kletia signed this receipt." : "This receipt does not check out."}
           </h1>

@@ -4,7 +4,6 @@ import { useCallback, useState } from "react";
 
 import { PLATFORM_ORIGIN } from "../../../../shared/platform/kletiaClient";
 import { Icon } from "../../../site/art/Icon";
-import { PlatformNumber } from "../../../site/art/Ornaments";
 import { SpecSheet } from "../../../site/art/SpecSheet";
 import { API_DOC_URL } from "../../../site/siteLinks";
 import { ButtonLink } from "../../../site/ui/Button";
@@ -52,7 +51,7 @@ export default function OverviewPage() {
   return (
     <>
       <PortalPageHeader
-        eyebrow={<PlatformNumber n={1}>Developers · Platform API v1</PlatformNumber>}
+        eyebrow={<p className="ku-eyebrow">Developers · Platform API v1</p>}
         title={
           <>
             Put <span className="whitespace-nowrap">cross-network</span> routes inside your own product.

@@ -1,3 +1,5 @@
+import "./ui.css";
+
 import React, { useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useChangeKey } from "../motion/useChangeKey";
@@ -6,7 +8,7 @@ import { prefersReducedMotion, useReducedMotion } from "../motion/useReducedMoti
 import { Badge } from "./Badge";
 import { CopyButton } from "./CopyButton";
 import { highlightCode, type CodeLanguage } from "./highlight";
-import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER } from "./styles";
+import { cx, FOCUS_RING } from "./styles";
 import { nextTabIndex } from "./tabKeys";
 
 export interface CodeTab {
@@ -52,7 +54,7 @@ function InlineCode({ code, language, label, className }: { code: string; langua
     <div
       role="group"
       aria-label={label}
-      className={cx("flex min-w-0 items-center gap-3 bg-[#0D1117] py-2 pl-4 pr-2 text-[#E6EDF3]", INK_BORDER, className)}
+      className={cx("ku-term ku-term--inline gap-3 py-2 pl-4 pr-2", className)}
     >
       <code className="min-w-0 flex-1 break-words font-code text-[13px] leading-6 [overflow-wrap:anywhere]">
         {highlightCode(code, language)}
@@ -214,8 +216,13 @@ function CodeWindow({
   }, [reveal]);
 
   return (
-    <div className={cx("flex min-w-0 flex-col bg-[#0D1117] text-[#E6EDF3]", INK_BORDER, HARD_SHADOW, className)}>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b-[3px] border-[#121212] bg-[#161B22] px-3 py-2 dark:border-[#4A4A52] sm:flex-nowrap">
+    <div className={cx("ku-term", className)}>
+      <div className="ku-term-bar sm:flex-nowrap">
+        <span className="ku-lamps" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
         {list ? (
           // File tabs wrap onto a second row below 480 px instead of becoming another sideways scroller.
           <div

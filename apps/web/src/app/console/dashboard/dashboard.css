@@ -1,323 +1,497 @@
 /*
- * The desk's Dashboard view. Colours come from the site's semantic tokens
- * (--kl-*), so light and dark follow the site theme. One series per chart:
- * the bars wear the accent; identity is always the text label beside it.
- * Loaded with the view's lazy chunk, never with the entry stylesheet.
+ * The desk's Dashboard view (Portfolio) in the Card machine language: net worth on an odometer, the
+ * allocation bar, the value chart with a dot-matrix fill and a crosshair, the binder of settled
+ * cards beside the recent log, then positions, rates and export. Colours come from the --k-*
+ * tokens, so light and dark follow the theme. Loaded with the view's lazy chunk, never with the
+ * entry stylesheet.
  */
 
 .kdb {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  gap: 32px;
+  padding-bottom: 32px;
 }
-
-.kdb-subtitle {
-  font-size: 0.75rem;
-  font-weight: 900;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--kl-muted);
-}
-
-.kdb-card {
-  border: 2px solid var(--kl-control);
-  background: var(--kl-surface);
-  padding: 12px;
-}
-
-/* --- KPI row --------------------------------------------------------------- */
-
-.kdb-kpis {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+.kdb-h3 {
   margin: 0;
+  font: 680 18px/1.2 var(--k-f-display);
+  letter-spacing: -0.02em;
+  color: var(--k-ink);
 }
-
-@media (min-width: 768px) {
-  .kdb-kpis {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+.kdb-h3 .kv-muted {
+  font-weight: 500;
+}
+.kdb-foot {
+  margin: 0;
+  font: 400 12.5px/1.5 var(--k-f-ui);
+  color: var(--k-ink-3);
+}
+.kdb-reason {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--k-ink-3);
+}
+.kdb-spin {
+  animation: kdb-spin 1s linear infinite;
+}
+@keyframes kdb-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.kdb-kpi {
+/* ---------- net worth ---------- */
+.kdb-nw {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 32px;
+}
+.kdb-nw-l {
+  display: grid;
   gap: 4px;
   min-width: 0;
-  border: 2px solid var(--kl-control);
-  background: var(--kl-surface);
-  padding: 10px;
 }
-
-.kdb-kpi dd {
-  margin: 0;
+.kdb-nw-v {
+  margin: 4px 0;
+  font: 750 64px/1 var(--k-f-display);
+  letter-spacing: -0.04em;
+  color: var(--k-ink);
   overflow-wrap: anywhere;
 }
-
-.kdb-kpi-value {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--kl-text);
+.kdb-nw-v .k-odo {
+  font-family: var(--k-f-display);
+  letter-spacing: -0.04em;
 }
-
-.kdb-kpi[data-tone="up"] .kdb-kpi-value {
-  color: var(--kl-success);
-}
-
-.kdb-kpi[data-tone="down"] .kdb-kpi-value {
-  color: var(--kl-danger);
-}
-
-.kdb-kpi[data-tone="warning"] {
-  border-color: var(--kl-warning);
-  background: var(--kl-warning-bg);
-}
-
-/* --- Allocation bars ------------------------------------------------------- */
-
-.kdb-charts {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-}
-
-@media (min-width: 1280px) {
-  .kdb-charts {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.kdb-chart {
+.kdb-nw-d {
   margin: 0;
-  min-width: 0;
-  border: 2px solid var(--kl-control);
-  background: var(--kl-surface);
-  padding: 10px;
+  font-size: 14px;
 }
-
-.kdb-chart-title {
-  margin-bottom: 8px;
-  font-size: 0.875rem;
-  font-weight: 700;
+.kdb-nw-d[data-tone="up"] .kv-num {
+  color: var(--k-up);
 }
-
-.kdb-bars {
+.kdb-nw-d[data-tone="down"] .kv-num {
+  color: var(--k-down);
+}
+.kdb-readouts {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+}
+.kdb-readouts > div {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 140px;
+  padding: 10px 14px;
+  border: 1px solid var(--k-line);
+  border-radius: 12px;
+  background: var(--k-raised);
+  box-shadow: var(--k-obj);
+}
+.kdb-readouts dt {
+  font: 500 12.5px var(--k-f-ui);
+  color: var(--k-ink-3);
+}
+.kdb-readouts dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--k-ink);
+}
+.kdb-readouts .kdb-readout-note {
+  max-width: 24ch;
+  font: 400 12px/1.4 var(--k-f-ui);
+  color: var(--k-ink-3);
+}
+.kdb-readouts > div[data-tone="warning"] {
+  border-color: var(--k-magenta, #ff3d9a);
+}
+.kdb-readouts > div[data-tone="up"] dd {
+  color: var(--k-up);
+}
+.kdb-readouts > div[data-tone="down"] dd {
+  color: var(--k-down);
+}
+
+/* ---------- allocation bar ---------- */
+.kdb-abar {
+  display: flex;
+  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+.kdb-abar li {
+  flex-basis: 0;
+  min-width: 0;
+}
+.kdb-abar-seg {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--k-ink);
+}
+.kdb-abar li[data-at="1"] .kdb-abar-seg {
+  background: color-mix(in srgb, var(--k-ink) 72%, var(--k-chassis));
+}
+.kdb-abar li[data-at="2"] .kdb-abar-seg {
+  background: color-mix(in srgb, var(--k-ink) 52%, var(--k-chassis));
+}
+.kdb-abar li[data-at="3"] .kdb-abar-seg {
+  background: color-mix(in srgb, var(--k-ink) 36%, var(--k-chassis));
+}
+.kdb-abar li:nth-child(n + 5) .kdb-abar-seg {
+  background: color-mix(in srgb, var(--k-ink) 22%, var(--k-chassis));
+}
+.kdb-abar small {
+  display: block;
+  margin-top: 8px;
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--k-ink-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kdb-abar small b {
+  font-weight: 600;
+  color: var(--k-ink);
+}
 
+/* ---------- value chart ---------- */
+.kdb-value-wrap {
+  display: grid;
+  gap: 12px;
+}
+.kdb-ranges {
+  display: flex;
+  justify-content: flex-end;
+}
+.kdb-value {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+.kdb-value-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.kdb-value-now {
+  font-size: 22px;
+  font-weight: 600;
+}
+.kdb-value-head [data-tone="up"] {
+  color: var(--k-up);
+}
+.kdb-value-head [data-tone="down"] {
+  color: var(--k-down);
+}
+.kdb-value-plot {
+  position: relative;
+  height: 240px;
+  border-bottom: 1px solid var(--k-line);
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+.kdb-value-plot:focus-visible {
+  outline: 3px solid var(--kl-focus, #2f5bff);
+  outline-offset: 4px;
+}
+.kdb-value-plot svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.kdb-value-dot {
+  fill: var(--k-ink);
+  opacity: 0.32;
+}
+.kdb-value-line {
+  fill: none;
+  stroke: var(--k-ink);
+  stroke-width: 2.25;
+  stroke-linejoin: round;
+}
+.kdb-value-head-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border: 2px solid var(--k-ink);
+  border-radius: 50%;
+  background: var(--k-lime);
+}
+.kdb-xh {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1.5px dashed var(--k-ink-3);
+  pointer-events: none;
+}
+.kdb-xh i {
+  position: absolute;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border: 2px solid var(--k-ink);
+  border-radius: 50%;
+  background: var(--k-lime);
+}
+.kdb-xh-tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--k-ink);
+  color: var(--k-chassis);
+  font: 500 12px var(--k-f-mono);
+  white-space: nowrap;
+}
+.kdb-xh-tag[data-flip] {
+  left: auto;
+  right: 8px;
+}
+.kdb-value-axis {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font: 500 12px var(--k-f-mono);
+  color: var(--k-ink-3);
+}
+
+/* ---------- binder + recent ---------- */
+.kdb-grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+@media (min-width: 1180px) {
+  .kdb-grid2 {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+.kdb-binder-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+}
+.kdb-bgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kdb-cardkey {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 8px;
+  background: var(--k-key);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 2px 0 var(--k-key-edge);
+  color: var(--k-ink);
+  font: 600 12.5px var(--k-f-ui);
+  cursor: pointer;
+}
+.kdb-cardkey:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 1px 0 var(--k-hi);
+}
+.kdb-cardkey:disabled {
+  opacity: 0.55;
+}
+.kdb-cardkey:focus-visible {
+  outline: 3px solid var(--kl-focus, #2f5bff);
+  outline-offset: 2px;
+}
+.kdb-cardkey svg {
+  width: 14px;
+  height: 14px;
+}
+.kdb-sleeve {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--k-grain), var(--k-panel-2);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.1);
+}
+.kdb-sleeve p {
+  margin: 0;
+  max-width: 46ch;
+  font: 400 14px/1.55 var(--k-f-ui);
+  color: var(--k-ink-2);
+}
+.kdb-sleeve-card {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 92px;
+  height: 120px;
+  border: 1.5px dashed var(--k-line-2);
+  border-radius: 12px;
+  color: var(--k-ink-3);
+}
+.kdb-sleeve-card svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* ---------- allocation charts, health, export ---------- */
+.kdb-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.kdb-chart {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--k-line);
+  border-radius: 16px;
+  background: var(--k-raised);
+  box-shadow: var(--k-obj);
+  min-width: 0;
+}
+.kdb-bars {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .kdb-bar {
   display: grid;
-  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8125rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  font-size: 13.5px;
 }
-
 .kdb-bar-label {
+  min-width: 0;
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
-
-.kdb-bar-track {
-  display: block;
-  width: 100%;
-  height: 8px;
-}
-
-.kdb-bar-fill {
-  fill: var(--kl-accent);
-}
-
 .kdb-bar-value {
-  font-family: var(--font-code, ui-monospace, monospace);
-  white-space: nowrap;
-}
-
-/* --- Tables ---------------------------------------------------------------- */
-
-.kdb-table-wrap {
-  max-width: 100%;
-  overflow-x: auto;
-  border: 2px solid var(--kl-control);
-  background: var(--kl-surface);
-}
-
-.kdb-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8125rem;
-}
-
-.kdb-table th,
-.kdb-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--kl-line);
-  text-align: left;
-  vertical-align: top;
-}
-
-.kdb-table thead th {
-  font-size: 0.75rem;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--kl-muted);
-}
-
-.kdb-table tbody th {
-  font-weight: 700;
-}
-
-.kdb-table .kdb-num {
+  font: 500 13px var(--k-f-mono);
   text-align: right;
-  white-space: nowrap;
+}
+.kdb-bar-track {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--k-well, var(--k-panel-2));
+  overflow: hidden;
+}
+.kdb-bar-track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--k-ink);
+}
+.kdb-health-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+.kdb-health {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.kdb-health-lamp {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--k-lime);
+  box-shadow: 0 0 0 1.5px var(--k-ink);
+}
+.kdb-health[data-status="warning"] .kdb-health-lamp {
+  background: #ffb020;
+}
+.kdb-health[data-status="critical"] .kdb-health-lamp {
+  background: var(--k-magenta, #ff3d9a);
+}
+.kdb-health[data-status="unknown"] .kdb-health-lamp,
+.kdb-health[data-status="no-debt"] .kdb-health-lamp {
+  background: var(--k-led-off, #b9b4a8);
+  box-shadow: none;
+}
+.kdb-status {
+  color: var(--k-ink-3);
+}
+.kv-table tr[data-debt] td,
+.kv-table tr[data-debt] th {
+  color: var(--k-down);
+}
+.kdb-export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.kdb-table tr[data-debt] .kdb-num {
-  color: var(--kl-danger);
-}
-
-/* Phones: each row becomes a card, so nothing scrolls sideways at 390 px. */
-@media (max-width: 639.98px) {
-  .kdb-table-wrap {
-    overflow-x: visible;
-    border: 0;
-    background: transparent;
+@media (max-width: 760px) {
+  .kdb {
+    gap: 24px;
   }
-
-  .kdb-table thead {
+  .kdb-nw-v {
+    font-size: 42px;
+  }
+  .kdb-value-plot {
+    height: 180px;
+  }
+  .kdb-abar small {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
   }
-
-  .kdb-table tr {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 8px;
-    margin-bottom: 8px;
-    border: 2px solid var(--kl-control);
-    background: var(--kl-surface);
-    padding: 8px;
+  .kdb-bgrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
-
-  .kdb-table th,
-  .kdb-table td {
-    padding: 0;
-    border: 0;
-  }
-
-  .kdb-table tbody th {
-    grid-column: 1 / -1;
+  .kdb-sleeve {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
-
-/* --- Value over time ------------------------------------------------------- */
-
-.kdb-ranges {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.kdb-range {
-  min-height: 44px;
-  min-width: 44px;
-  border: 2px solid var(--kl-control);
-  background: var(--kl-surface);
-  padding: 0 12px;
-  font-size: 0.8125rem;
-  font-weight: 800;
-  color: var(--kl-text);
-}
-
-.kdb-range[aria-pressed="true"] {
-  border-color: var(--kl-accent);
-  background: var(--kl-accent);
-  /* White on the accent blue (#2f5bff) reads in both themes. */
-  color: #ffffff;
-}
-
-.kdb-range:focus-visible {
-  outline: 4px solid var(--kl-focus);
-  outline-offset: 2px;
-}
-
-.kdb-value-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 12px;
-  margin-bottom: 8px;
-}
-
-.kdb-value-head [data-tone="up"] {
-  color: var(--kl-success);
-}
-
-.kdb-value-head [data-tone="down"] {
-  color: var(--kl-danger);
-}
-
-.kdb-value-svg {
-  display: block;
-  width: 100%;
-  height: 160px;
-}
-
-.kdb-value-line {
-  fill: none;
-  stroke: var(--kl-accent);
-  stroke-width: 2px;
-}
-
-.kdb-value-area {
-  fill: var(--kl-accent);
-  opacity: 0.12;
-}
-
-.kdb-value-axis {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 8px;
-  margin-top: 6px;
-}
-
-.kdb-table tr[data-tone="up"] td:last-child {
-  color: var(--kl-success);
-}
-
-.kdb-table tr[data-tone="down"] td:last-child {
-  color: var(--kl-danger);
-}
-
-/* --- Health ---------------------------------------------------------------- */
-
-.kdb-health {
-  border-left: 4px solid var(--kl-line);
-  padding-left: 8px;
-}
-
-.kdb-health[data-status="warning"] {
-  border-left-color: var(--kl-warning);
-}
-
-.kdb-health[data-status="critical"] {
-  border-left-color: var(--kl-danger);
-}
-
-.kdb-status {
-  font-size: 0.75rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+@media (prefers-reduced-motion: reduce) {
+  .kdb-spin {
+    animation: none;
+  }
 }

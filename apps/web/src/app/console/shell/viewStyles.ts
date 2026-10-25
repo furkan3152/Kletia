@@ -1,8 +1,9 @@
-/** Class recipes shared by the desk's views (round 9); the components are in ViewParts.tsx. */
-import { cx, CONTROL_BORDER, FOCUS_RING, INK_BORDER, SURFACE } from "../../site/ui/styles";
+/** Class recipes shared by the desk's views (Card machine); the styles are in views.css, the components in ViewParts.tsx. */
 
-/** A bordered panel inside a view (a form, a list, a ticket). */
-export const VIEW_PANEL = cx("flex min-w-0 flex-col gap-3 p-4", INK_BORDER, SURFACE);
-export const PANEL_TITLE = "font-display text-lg font-bold";
-/** Inputs and selects: the control border (3:1 in both themes) and the site focus ring. */
-export const VIEW_FIELD = cx("min-h-11 w-full min-w-0 bg-surface px-3 text-base text-fg", CONTROL_BORDER, FOCUS_RING);
+/** An engraved module inside a view (a form, a list). */
+export const VIEW_PANEL = "kv-panel";
+export const PANEL_TITLE = "kv-title";
+/** Inputs and selects: a recessed screen with the lime focus halo (3:1 border in both themes). */
+export const VIEW_FIELD = "kv-input";
+/** Field labels in sentence case (the machine's labels are never shouted). */
+export const VIEW_LABEL = "kv-label";

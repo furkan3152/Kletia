@@ -9,9 +9,7 @@ import { useEffect, useState } from "react";
 import { toPlatformError, type PlatformError } from "../../../shared/platform/kletiaClient";
 import { ApiErrorPanel } from "../../site/ui/ApiErrorPanel";
 import { Button } from "../../site/ui/Button";
-import { cx, TEXT_MUTED } from "../../site/ui/styles";
 import { ViewEmpty, ViewNote } from "../shell/ViewParts";
-import { PANEL_TITLE, VIEW_PANEL } from "../shell/viewStyles";
 import { predictApi, type PredictionOpenOrder } from "./predictApi";
 import { PREDICT_COPY } from "./predictCopy";
 import { openOrderRows } from "./predictModel";
@@ -97,11 +95,13 @@ export function PredictOrders({ account, wallet, signIn }: PredictOrdersProps) {
 
   const rows = orders?.key === key ? openOrderRows(orders.list) : null;
   return (
-    <section aria-labelledby="predict-orders" className={VIEW_PANEL}>
-      <h3 id="predict-orders" className={PANEL_TITLE}>{copy.heading}</h3>
+    <section aria-labelledby="predict-orders" className="kv-sec">
+      <div className="kv-sec-h">
+        <h3 id="predict-orders">{copy.heading}</h3>
+      </div>
       {!current ? (
-        <div className="flex flex-col items-start gap-2">
-          <p className={cx("text-sm", TEXT_MUTED)}>{copy.signInNote}</p>
+        <div className="kv-empty">
+          <p>{copy.signInNote}</p>
           <Button variant="secondary" size="sm" loading={pending === "sign-in"} disabled={pending !== null} onClick={() => void start()}>{pending === "sign-in" ? copy.signing : copy.signIn}</Button>
         </div>
       ) : null}
@@ -109,14 +109,16 @@ export function PredictOrders({ account, wallet, signIn }: PredictOrdersProps) {
       {note ? <ViewNote role="status" tone="info">{note}</ViewNote> : null}
       {rows && rows.length === 0 ? <ViewEmpty>{copy.none}</ViewEmpty> : null}
       {rows && rows.length > 0 ? (
-        <ul className="flex flex-col gap-2">
+        <ul className="kt-list">
           {rows.map((row) => (
-            <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 border-2 border-[var(--kl-line)] p-2 text-sm">
-              <span className="min-w-0">
-                <span className="block font-bold">{row.side} {row.outcome} · {row.price}</span>
-                <span className={cx("block", TEXT_MUTED)}>{copy.filled} {row.filled} · {row.status}</span>
-              </span>
-              <Button size="sm" variant="ghost" loading={pending === row.id} disabled={pending !== null} onClick={() => void cancel(row.id)}>{copy.cancel}</Button>
+            <li key={row.id} className="kt-pos">
+              <p className="kt-pos-h">
+                <b>{row.side} {row.outcome} · {row.price}</b>
+                <span className="kv-muted">{copy.filled} {row.filled} · {row.status}</span>
+              </p>
+              <div className="kt-pos-act">
+                <Button size="sm" variant="ghost" loading={pending === row.id} disabled={pending !== null} onClick={() => void cancel(row.id)}>{copy.cancel}</Button>
+              </div>
             </li>
           ))}
         </ul>

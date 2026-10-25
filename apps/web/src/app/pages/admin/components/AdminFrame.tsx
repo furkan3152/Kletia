@@ -1,3 +1,4 @@
+import "../../../site/finish.css";
 import "../admin.css";
 
 import React, { useLayoutEffect } from "react";
@@ -22,7 +23,7 @@ export function AdminFrame({ barEnd, children, wide = false }: { readonly barEnd
   }, []);
   const { theme, toggle } = useSiteTheme();
   return (
-    <div className="kl-admin relative flex min-h-[100dvh] flex-col overflow-x-clip font-body text-fg antialiased selection:bg-[#C6FF3A] selection:text-[#121212]">
+    <div className="kl-admin ks-finish relative flex min-h-[100dvh] flex-col overflow-x-clip font-body text-fg antialiased selection:bg-[#C6FF3A] selection:text-[#121212]">
       <a
         href="#main-content"
         onClick={(event) => {

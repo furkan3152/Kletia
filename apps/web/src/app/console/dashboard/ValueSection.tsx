@@ -5,7 +5,7 @@
  * and the change as text, and FIFO PnL per asset. Behind the tracking
  * opt-in; fewer than two readings say so instead of drawing a flat line.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { DATA_SNAPSHOT_RANGES, type DataLane, type DataPnl, type DataSnapshotRange, type DataSnapshotSeries } from "@kletia/core";
 
 import { DESK_COPY } from "../content/copy";
@@ -13,6 +13,7 @@ import { pnlRows, signedUsd, usd, valueChart } from "../history/historyModel";
 import { historyApi } from "../history/historyClient";
 import { TrackingGate } from "../history/TrackingGate";
 import { errorText } from "../history/useTracking";
+import { Segmented } from "../../kit";
 import { ViewLoading, ViewNote } from "../shell/ViewParts";
 
 const copy = DESK_COPY.dashboard;
@@ -24,31 +25,81 @@ function shortTime(at: string, range: DataSnapshotRange): string {
     : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+/**
+ * The value line with a dot-matrix fill and a crosshair: pointer or arrow keys move it across the
+ * readings and its tag reads the value and time there. First and last value, the range and the
+ * change stay as text, so the figure is decorative for screen readers beyond its label.
+ */
 function ValueChart({ series }: { readonly series: DataSnapshotSeries }) {
   const chart = valueChart(series.points);
-  if (!chart) return <p className="text-sm text-muted">{series.reason ?? copy.chartEmpty}</p>;
+  const [at, setAt] = useState<number | null>(null);
+  const plot = useRef<HTMLDivElement>(null);
+  if (!chart) return <p className="kv-muted">{series.reason ?? copy.chartEmpty}</p>;
+  const points = series.points;
   const tone = series.change === null ? "flat" : series.change.usd > 0 ? "up" : series.change.usd < 0 ? "down" : "flat";
   const label = copy.chartLabel(shortTime(chart.first.at, series.range), shortTime(chart.last.at, series.range));
+  const start = Date.parse(points[0]!.at);
+  const span = Date.parse(points[points.length - 1]!.at) - start || 1;
+  const xOf = (index: number) => ((Date.parse(points[index]!.at) - start) / span) * 100;
+  const yOf = (index: number) => ((38 - ((points[index]!.usd - chart.min) / (chart.max - chart.min || 1)) * 36) / 40) * 100;
+  const nearest = (event: PointerEvent<HTMLDivElement>) => {
+    const box = plot.current?.getBoundingClientRect();
+    if (!box || box.width === 0) return;
+    const x = ((event.clientX - box.left) / box.width) * 100;
+    let best = 0;
+    for (let index = 1; index < points.length; index += 1) if (Math.abs(xOf(index) - x) < Math.abs(xOf(best) - x)) best = index;
+    setAt(best);
+  };
   return (
-    <figure className="kdb-chart kdb-value">
+    <figure className="kdb-value">
       <figcaption className="kdb-value-head">
-        <span className="kdb-kpi-value font-code">{usd(chart.last.usd)}</span>
-        <span className="font-code text-sm" data-tone={tone}>
+        <span className="kdb-value-now kv-num">{usd(chart.last.usd)}</span>
+        <span className="kv-num" data-tone={tone}>
           {copy.change}: {series.change ? `${signedUsd(series.change.usd)}${series.change.pct === null ? "" : ` (${(series.change.pct * 100).toFixed(2)}%)`}` : copy.unknown}
         </span>
       </figcaption>
-      <svg className="kdb-value-svg" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label={`${label}: ${usd(chart.first.usd)} to ${usd(chart.last.usd)}`}>
-        <path className="kdb-value-area" d={chart.area} />
-        <path className="kdb-value-line" d={chart.path} vectorEffect="non-scaling-stroke" />
-      </svg>
-      <div className="kdb-value-axis text-xs text-muted">
+      <div
+        ref={plot}
+        className="kdb-value-plot"
+        tabIndex={0}
+        role="img"
+        aria-label={`${label}: ${usd(chart.first.usd)} to ${usd(chart.last.usd)}`}
+        onPointerMove={nearest}
+        onPointerLeave={() => setAt(null)}
+        onBlur={() => setAt(null)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          setAt((current) => Math.min(points.length - 1, Math.max(0, (current ?? points.length - 1) + (event.key === "ArrowRight" ? 1 : -1))));
+        }}
+      >
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <defs>
+            <pattern id="kdb-dots" width="1.2" height="1.6" patternUnits="userSpaceOnUse">
+              <circle cx="0.6" cy="0.8" r="0.2" className="kdb-value-dot" />
+            </pattern>
+          </defs>
+          <path d={chart.area} fill="url(#kdb-dots)" />
+          <path className="kdb-value-line" d={chart.path} vectorEffect="non-scaling-stroke" />
+        </svg>
+        <span className="kdb-value-head-dot" style={{ left: `${xOf(points.length - 1)}%`, top: `${yOf(points.length - 1)}%` }} aria-hidden="true" />
+        {at !== null ? (
+          <span className="kdb-xh" style={{ left: `${xOf(at)}%` }} aria-hidden="true">
+            <i style={{ top: `${yOf(at)}%` }} />
+            <span className="kdb-xh-tag" data-flip={xOf(at) > 70 ? "" : undefined}>
+              {usd(points[at]!.usd)} · {shortTime(points[at]!.at, series.range)}
+            </span>
+          </span>
+        ) : null}
+      </div>
+      <div className="kdb-value-axis">
         <span>{shortTime(chart.first.at, series.range)}</span>
         <span>
           {usd(chart.min)} – {usd(chart.max)}
         </span>
         <span>{shortTime(chart.last.at, series.range)}</span>
       </div>
-      {chart.incomplete > 0 ? <p className="mt-2 text-xs text-muted">{copy.chartIncomplete(chart.incomplete)}</p> : null}
+      {chart.incomplete > 0 ? <p className="kdb-foot">{copy.chartIncomplete(chart.incomplete)}</p> : null}
     </figure>
   );
 }
@@ -57,29 +108,29 @@ function PnlTable({ pnl }: { readonly pnl: DataPnl }) {
   const rows = pnlRows(pnl);
   return (
     <div className="flex flex-col gap-2">
-      <dl className="kdb-kpis">
-        <div className="kdb-kpi" data-tone={pnl.totals.realizedUsd > 0 ? "up" : pnl.totals.realizedUsd < 0 ? "down" : undefined}>
-          <dt className="text-xs font-black uppercase tracking-[0.14em] text-muted">{copy.realizedTotal}</dt>
-          <dd className="kdb-kpi-value font-code">{signedUsd(pnl.totals.realizedUsd)}</dd>
+      <dl className="kdb-readouts">
+        <div data-tone={pnl.totals.realizedUsd > 0 ? "up" : pnl.totals.realizedUsd < 0 ? "down" : undefined}>
+          <dt>{copy.realizedTotal}</dt>
+          <dd className="kv-num">{signedUsd(pnl.totals.realizedUsd)}</dd>
         </div>
-        <div className="kdb-kpi" data-tone={pnl.totals.unrealizedUsd > 0 ? "up" : pnl.totals.unrealizedUsd < 0 ? "down" : undefined}>
-          <dt className="text-xs font-black uppercase tracking-[0.14em] text-muted">{copy.unrealizedTotal}</dt>
-          <dd className="kdb-kpi-value font-code">{signedUsd(pnl.totals.unrealizedUsd)}</dd>
+        <div data-tone={pnl.totals.unrealizedUsd > 0 ? "up" : pnl.totals.unrealizedUsd < 0 ? "down" : undefined}>
+          <dt>{copy.unrealizedTotal}</dt>
+          <dd className="kv-num">{signedUsd(pnl.totals.unrealizedUsd)}</dd>
         </div>
       </dl>
-      {pnl.totals.complete ? null : <p className="text-xs text-muted">{copy.pnlIncomplete}</p>}
+      {pnl.totals.complete ? null : <p className="kdb-foot">{copy.pnlIncomplete}</p>}
       {rows.length === 0 ? (
-        <p className="text-sm text-muted">{copy.pnlEmpty}</p>
+        <p className="kv-muted">{copy.pnlEmpty}</p>
       ) : (
-        <div className="kdb-table-wrap">
-          <table className="kdb-table">
+        <div className="kv-table-wrap">
+          <table className="kv-table">
             <thead>
               <tr>
                 <th scope="col">{copy.pnlColumns.asset}</th>
-                <th scope="col" className="kdb-num">{copy.pnlColumns.open}</th>
-                <th scope="col" className="kdb-num">{copy.pnlColumns.cost}</th>
-                <th scope="col" className="kdb-num">{copy.pnlColumns.realized}</th>
-                <th scope="col" className="kdb-num">{copy.pnlColumns.unrealized}</th>
+                <th scope="col" className="kv-r">{copy.pnlColumns.open}</th>
+                <th scope="col" className="kv-r">{copy.pnlColumns.cost}</th>
+                <th scope="col" className="kv-r">{copy.pnlColumns.realized}</th>
+                <th scope="col" className="kv-r">{copy.pnlColumns.unrealized}</th>
               </tr>
             </thead>
             <tbody>
@@ -87,12 +138,12 @@ function PnlTable({ pnl }: { readonly pnl: DataPnl }) {
                 <tr key={row.key} data-tone={row.tone}>
                   <th scope="row">
                     {row.symbol}
-                    {row.note ? <span className="block text-xs font-normal text-muted">{row.note}</span> : null}
+                    {row.note ? <span className="kdb-reason">{row.note}</span> : null}
                   </th>
-                  <td className="kdb-num font-code">{row.open}</td>
-                  <td className="kdb-num font-code">{row.cost}</td>
-                  <td className="kdb-num font-code">{row.realized}</td>
-                  <td className="kdb-num font-code">{row.unrealized}</td>
+                  <td className="kv-r kv-num">{row.open}</td>
+                  <td className="kv-r kv-num">{row.cost}</td>
+                  <td className="kv-r kv-num">{row.realized}</td>
+                  <td className="kv-r kv-num">{row.unrealized}</td>
                 </tr>
               ))}
             </tbody>
@@ -127,20 +178,18 @@ function TrackedValue({ token }: { readonly token: string }) {
 
   return (
     <>
-      <div className="flex flex-col gap-2">
-        <div role="group" aria-label={copy.rangeLabel} className="kdb-ranges">
-          {DATA_SNAPSHOT_RANGES.map((option) => (
-            <button key={option} type="button" className="kdb-range" aria-pressed={option === range} onClick={() => setRange(option)}>
-              {copy.ranges[option]}
-            </button>
-          ))}
+      <div className="kdb-value-wrap">
+        <div className="kdb-ranges">
+          <Segmented ariaLabel={copy.rangeLabel} value={range} onChange={setRange} options={DATA_SNAPSHOT_RANGES.map((option) => ({ id: option, label: copy.ranges[option] }))} />
         </div>
         {series && series.range === range ? <ValueChart series={series} /> : <ViewLoading>{copy.loading}</ViewLoading>}
       </div>
       {error ? <ViewNote role="alert" tone="danger">{error}</ViewNote> : null}
-      <section aria-labelledby="kdb-pnl" className="flex flex-col gap-2">
-        <h3 id="kdb-pnl" className="kdb-subtitle">{copy.pnl}</h3>
-        <p className="text-xs text-muted">{copy.pnlNote}</p>
+      <section aria-labelledby="kdb-pnl" className="kv-sec">
+        <div className="kv-sec-h">
+          <h3 id="kdb-pnl" className="kdb-h3">{copy.pnl}</h3>
+        </div>
+        <p className="kdb-foot">{copy.pnlNote}</p>
         {pnl ? <PnlTable pnl={pnl} /> : <ViewLoading>{copy.loading}</ViewLoading>}
       </section>
     </>
@@ -149,8 +198,10 @@ function TrackedValue({ token }: { readonly token: string }) {
 
 export function ValueSection({ lane }: { readonly lane: DataLane }) {
   return (
-    <section aria-labelledby="kdb-value" className="flex flex-col gap-3">
-      <h3 id="kdb-value" className="kdb-subtitle">{copy.value}</h3>
+    <section aria-labelledby="kdb-value" className="kv-sec">
+      <div className="kv-sec-h">
+        <h3 id="kdb-value" className="kdb-h3">{copy.value}</h3>
+      </div>
       <TrackingGate lane={lane} compact>{({ token }) => <TrackedValue token={token} />}</TrackingGate>
     </section>
   );

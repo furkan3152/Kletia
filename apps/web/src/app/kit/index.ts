@@ -33,6 +33,10 @@
  *     CardActions · CardTray({status}) · Sleeve · Thumb   (holo card shell; the desk's PlanCard drives its choreography)
  *   MachineWindow({state: idle|working|jam, caption}) · EmptyState({title, action}) · PaperJam({children, actionLabel, onAction}) · ToastPlate
  *   Icon({name, label?}) · ICON_PATHS · networkIcon(key) · KletiaGlyph
+ *   Instruments (Instruments.tsx + instruments.css): Fader({label, value, min, max, detents, format}) the
+ *     leverage fader over a native range input · Cartridges({label, options, value}) a radiogroup of seated
+ *     cartridges (venues, networks, wallets) · MiniCard({kind, serial, title, sub, route, date, tag, foil}) a
+ *     settled card in the binder · ScheduleDial({fraction, label}) · Terminal({title, actions}) code as a terminal
  *
  * MOTION (motion.ts, WAAPI, no library; GSAP eases reproduced as CSS linear())
  *   DUR, D(ms), reducedMotion(), EASE.{mech, slam, out, back(s), elastic(a,p), in(n), outPow(n), inOut(n)},
@@ -53,6 +57,7 @@ export { Dial, Segmented, OptionKey, OptionKeys, Chip, Field, type DialOption, t
 export { PrintedCard, CardArt, CardBody, Facts, CardActions, CardTray, Sleeve, Thumb } from "./Card";
 export { MachineWindow, EmptyState, PaperJam, ToastPlate, type MachineState } from "./Machine";
 export { Icon, KletiaGlyph } from "./icons";
+export { Fader, Cartridges, MiniCard, ScheduleDial, Terminal, type CartridgeOption, type CardFoil, type MiniCardProps } from "./Instruments";
 export { ICON_PATHS, networkIcon, type IconName } from "./iconPaths";
 export * as motion from "./motion";
 export { playSound, playSoundAt, useSoundEnabled, setSoundEnabled, isSoundEnabled, unlockSound, type SoundName } from "./sound";

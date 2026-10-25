@@ -60,7 +60,7 @@ test("the category survives the URL, and old links with a registry category stil
 });
 
 test("every example sentence on a sign is one of the API's GRAMMAR_EXAMPLES", () => {
-  const grammar = readFileSync(new URL("../../../../../../api/src/platform/engine/grammar.ts", import.meta.url), "utf8");
+  const grammar = readFileSync(new URL("../../../../../../api/src/platform/engine/grammar/examples.ts", import.meta.url), "utf8");
   const block = grammar.slice(grammar.indexOf("export const GRAMMAR_EXAMPLES"), grammar.indexOf("]);", grammar.indexOf("export const GRAMMAR_EXAMPLES")));
   const examples = new Set([...block.matchAll(/^\s*"((?:[^"\\]|\\.)*)",?$/gmu)].map((match) => match[1]));
   assert.ok(examples.size >= 20, `parsed ${examples.size} grammar examples`);

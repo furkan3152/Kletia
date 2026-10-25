@@ -39,31 +39,29 @@
  * ends, so two wallet prompts can never race. A refused lock pauses with
  * nothing prepared. Each host instance resumes only its own `sessionKey`.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  KletiaApiError,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
   KletiaExecutionError,
   KletiaPreviewChangedError,
   executeIntent,
   type KletiaClient,
-  type PolicyErrorDetails,
-  type PrepareStepOptions,
   type PreviewGateContext,
 } from "@kletia/sdk";
 import {
   openBlockers,
   type AccountId,
-  type AnyKletiaEvent,
-  type ContractReview,
   type IntentGraph,
   type IntentPreview,
-  type IntentRequest,
   type IntentStep,
   type Journey,
-  type JourneyConsequence,
-  type PreviewIssue,
   type StepPreview,
-  type StepStatus,
 } from "@kletia/core";
 import {
   blockingIssuesFor,
@@ -74,9 +72,6 @@ import {
   validJourneyAnswers,
   type JourneyAnswerMemory,
 } from "@kletia/widget/review";
-
-import { readSessionStorage, writeSessionStorage } from "../state/safeStorage";
-
 import { syncIntentActivity } from "./intentActivity";
 import {
   appendStepReference,
@@ -95,486 +90,44 @@ import {
   observeSigners,
   sameOwner,
   transactionBindingProblem,
-  type BindingProblem,
 } from "./intentBinding";
-import { describePlatformError, getKletiaClient, toPlatformError, type PlatformError } from "./kletiaClient";
+import { getKletiaClient } from "./kletiaClient";
 import { signingRefusal } from "./signingGuard";
-import { readableRevert } from "../wallet/revertReason";
-import { useIntentSigners, type ConnectedIntentSigners } from "./useIntentSigners";
+import { useIntentSigners } from "./useIntentSigners";
+import type {
+  ExecutionGate,
+  IntentExecution,
+  IntentExecutionError,
+  IntentExecutionStatus,
+  IntentRequestInput,
+  LocalStepPhase,
+  PolicyHold,
+  ResumeOptions,
+  UseIntentExecutionOptions,
+} from "./useIntentExecution/types";
+import {
+  applyEvent,
+  isAbort,
+  isIntentGraph,
+  loadPreview,
+  localError,
+  LocalPlanError,
+  MAX_STREAM_RECONNECTS,
+  observeClient,
+  readJourneyMemory,
+  requestFromGraph,
+  STABLE_STREAM_MS,
+  stepTitle,
+  stepWasSubmitted,
+  TERMINAL_INTENT,
+  terminalStatus,
+  toExecutionError,
+  wait,
+  writeJourneyMemory,
+} from "./useIntentExecution/helpers";
 
-export type IntentExecutionStatus =
-  /** Nothing planned yet. */
-  | "idle"
-  /** Creating the persisted intent with the connected accounts. */
-  | "planning"
-  /** Persisted plan ready; waiting for the user to confirm. */
-  | "review"
-  /** Preparing, signing, submitting or waiting for settlement. */
-  | "executing"
-  /** Stopped without a terminal status (needs the user before continuing). */
-  | "paused"
-  | "completed"
-  | "failed"
-  | "cancelled";
-
-/** What the browser is doing for a step before the API reports it. */
-export type LocalStepPhase = "preparing" | "signing" | "confirming";
-
-export interface IntentExecutionError {
-  readonly code: string;
-  readonly message: string;
-  readonly stepId: string | null;
-  readonly retryable: boolean;
-  /** Present when the API returned the error. */
-  readonly platform: PlatformError | null;
-  /** The API's guidance, e.g. supported example phrases on INTENT_UNSUPPORTED. */
-  readonly hints?: readonly string[];
-  /**
-   * The API's structured context (`error.details`), e.g. the candidate
-   * networks of SOURCE_REQUIRED; null or absent when the API (or the SDK in
-   * use) did not provide one.
-   */
-  readonly details?: Readonly<Record<string, unknown>> | null;
-}
-
-/** An intent request whose accounts default to the connected wallets. */
-export type IntentRequestInput = Omit<IntentRequest, "accounts"> & {
-  readonly accounts?: readonly AccountId[];
-};
-
-export interface UseIntentExecutionOptions {
-  /** sessionStorage key used to resume after a reload; `null` disables it. */
-  readonly sessionKey?: string | null;
-  /** Merged into every created intent's metadata (e.g. `{ surface: "studio" }`). */
-  readonly metadata?: Readonly<Record<string, string>>;
-  /** Settlement poll interval passed to `executeIntent` (default 4000 ms). */
-  readonly pollIntervalMs?: number;
-  /**
-   * A signing lock shared with other executions on the page. Called before a
-   * run prepares anything; `false` refuses the run (it pauses with
-   * `signingLockedReason`). Absent: no lock.
-   */
-  readonly acquireSigning?: () => boolean;
-  /** Gives the lock back when the run that took it ends (finished, paused, failed, cancelled or unmounted). */
-  readonly releaseSigning?: () => void;
-  /** Why a refused run paused (default: another execution is signing). */
-  readonly signingLockedReason?: string;
-  /**
-   * A journey option suggested a separate new intent as a sentence
-   * (`plan-new`, e.g. "bring it back to solana"): the host puts it where the
-   * user can review it. Nothing is planned or signed on its own.
-   */
-  readonly onFollowUp?: (text: string) => void;
-}
-
-/** A pause before a wallet prompt that needs the user's decision. */
-export type ExecutionGate =
-  | {
-      readonly kind: "fare";
-      readonly stepId: string;
-      readonly stepTitle: string;
-      /** The fare to approve now. */
-      readonly preview: IntentPreview;
-      /** The fare the user approved before (printed struck through when it got worse). */
-      readonly previous: IntentPreview | null;
-      /** What got worse (`PREVIEW_CHANGED` changes). */
-      readonly changes: readonly PreviewIssue[];
-      readonly reason: PreviewGateContext["reason"];
-    }
-  | {
-      readonly kind: "review";
-      readonly stepId: string;
-      readonly stepTitle: string;
-      readonly stepIndex: number;
-      /** The review of exactly the prepared transactions. */
-      readonly review: ContractReview;
-      /** The plan-time review, when the step had one. */
-      readonly planned: ContractReview | null;
-    };
-
-/** One key per decision: a new fare or another step's review is a new gate (and remounts its panel). */
-export function gateKey(gate: ExecutionGate): string {
-  return gate.kind === "fare" ? `fare:${gate.stepId}:${gate.preview.digest}` : `review:${gate.stepId}`;
-}
-
-/** The owner's Rule Book holds the intent until an approver approves it. */
-export interface PolicyHold {
-  readonly code: string;
-  readonly message: string;
-  readonly policy: PolicyErrorDetails;
-}
-
-export interface ResumeOptions {
-  /**
-   * The user confirmed that a step whose signature was requested before a
-   * reload may be signed again (they checked their wallet activity).
-   */
-  readonly confirmResign?: boolean;
-  /**
-   * The fare the user just approved for this intent in a review this hook
-   * did not render (an intent made elsewhere, e.g. by an intent link or an
-   * integrator). It counts as approved, so it is not asked for again before
-   * the first signature; its digest still goes to prepare, and a fare that
-   * changed is shown again before anything is signed. Ignored when it
-   * belongs to another intent.
-   */
-  readonly approvedPreview?: IntentPreview | null;
-}
-
-export interface IntentExecution extends ConnectedIntentSigners {
-  readonly intent: IntentGraph | null;
-  readonly status: IntentExecutionStatus;
-  readonly error: IntentExecutionError | null;
-  /** Step the executor is working on (preparing, signing or confirming). */
-  readonly activeStepId: string | null;
-  readonly stepPhases: Readonly<Record<string, LocalStepPhase>>;
-  /** Why execution is paused, when `status === "paused"`. */
-  readonly pauseReason: string | null;
-  /** Steps that need an explicit "sign again" confirmation to continue. */
-  readonly reconfirmStepIds: readonly string[];
-  /**
-   * Steps of the current intent whose signature request went to the wallet
-   * without a known outcome (still open, or it failed in a way that does not
-   * prove nothing was sent). A view never claims these were not signed.
-   */
-  readonly signatureUnknownStepIds: readonly string[];
-  /** True while the live event stream is connected. */
-  readonly streaming: boolean;
-  /** Intent stored by a previous page load of this tab, if not yet resumed. */
-  readonly resumableIntentId: string | null;
-  /**
-   * The fare (asset-change preview) of the current intent: the plan's, then
-   * the newest one the user approved. Null when the API returned none.
-   */
-  readonly preview: IntentPreview | null;
-  /** A decision the user must take before the next wallet prompt (a changed fare, a contract review). */
-  readonly gate: ExecutionGate | null;
-  /** Approve (`true`) or stop (`false`) at the open gate. Only an explicit approval continues. */
-  readonly resolveGate: (approved: boolean) => void;
-  /** Set while the owner's Rule Book holds the intent for an approval. */
-  readonly policyHold: PolicyHold | null;
-  /**
-   * Why the current (non-terminal) intent cannot be signed with the wallets
-   * connected right now: a preview account, or a step account that is not
-   * connected. Execution refuses to start while this is set.
-   */
-  readonly bindingProblem: BindingProblem | null;
-  /** Persist a plan with the connected accounts for review. No wallet prompt. */
-  plan: (request: IntentRequestInput) => Promise<IntentGraph | null>;
-  /**
-   * Execute an intent. A request (or a graph this hook did not create, such as
-   * a dry-run preview) is planned again with the connected accounts first.
-   */
-  start: (input: IntentRequestInput | IntentGraph) => Promise<IntentGraph | null>;
-  /** Refresh a stored or given intent and continue it. Never re-signs a submitted step. */
-  resume: (intentId?: string, options?: ResumeOptions) => Promise<IntentGraph | null>;
-  /**
-   * Show a stored intent again without continuing it (a host view that was
-   * left and opened again): a fresh read, its journey, and its terminal
-   * status, or paused until the user resumes. Nothing is prepared or signed.
-   */
-  load: (intentId: string) => Promise<IntentGraph | null>;
-  /** Stop executing. Cancels the intent server-side when nothing was submitted yet. */
-  cancel: () => Promise<void>;
-  /** Forget the current intent (a stored resumable record is kept while steps are in flight). */
-  reset: () => void;
-  /** Drop the stored resumable record. */
-  forgetResumable: () => void;
-  /** Where the money is after every step; null until the API returned one for this intent. */
-  readonly journey: Journey | null;
-  /** Remembered answers that still fit the journey (consequence id → option id). */
-  readonly journeyAnswers: Readonly<Record<string, string>>;
-  /** Blocking consequences without a valid answer: the next signature waits for each. */
-  readonly journeyBlockers: readonly JourneyConsequence[];
-  /** The journey option being carried out (a stop or a re-plan in flight). */
-  readonly journeyPending: string | null;
-  /** Answer a journey prompt and do what the option says. */
-  answerJourney: (consequenceId: string, optionId: string) => void;
-  /** End the intent at its current stop (`POST /v1/intents/{id}/stop`). Never moves money. */
-  stop: () => Promise<IntentGraph | null>;
-  /**
-   * Take over an intent planned with the connected accounts elsewhere on the
-   * page (the desk's clarify commit turn), with its fare and journey, for
-   * review. Preview accounts and accounts of wallets that are not connected
-   * are refused exactly as in `plan`.
-   */
-  adopt: (intent: IntentGraph, preview: IntentPreview | null, journey: Journey | null) => IntentGraph | null;
-}
-
-const TERMINAL_INTENT = new Set<IntentGraph["status"]>([
-  "completed",
-  "partially_completed",
-  "failed",
-  "expired",
-  "cancelled",
-]);
-
-const STEP_RANK: Readonly<Record<StepStatus, number>> = {
-  pending: 0,
-  ready: 1,
-  awaiting_signature: 2,
-  submitted: 3,
-  confirmed: 4,
-  settling: 5,
-  indeterminate: 5,
-  settled: 6,
-  failed: 6,
-  skipped: 6,
-};
-
-const MAX_STREAM_RECONNECTS = 3;
-/** A stream that stayed open this long is considered healthy when it ends. */
-const STABLE_STREAM_MS = 60_000;
-
-function isIntentGraph(value: unknown): value is IntentGraph {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as IntentGraph).id === "string" &&
-    Array.isArray((value as IntentGraph).steps)
-  );
-}
-
-function terminalStatus(intent: IntentGraph): IntentExecutionStatus | null {
-  if (intent.status === "completed") return "completed";
-  if (intent.status === "cancelled") return "cancelled";
-  if (TERMINAL_INTENT.has(intent.status)) return "failed";
-  return null;
-}
-
-/** True once the API has accepted a reference for the step (or it moved past signing). */
-function stepWasSubmitted(step: IntentStep): boolean {
-  return STEP_RANK[step.status] >= STEP_RANK.submitted || (step.references?.length ?? 0) > 0;
-}
-
-function isAbort(error: unknown, signal: AbortSignal): boolean {
-  return signal.aborted || (error instanceof Error && error.name === "AbortError");
-}
-
-function walletMessage(message: string): string {
-  if (/user rejected|rejected the request|declined|denied|cancel/iu.test(message)) {
-    return "The signature request was declined in your wallet. Nothing was sent for this step.";
-  }
-  if (/blockhash not found|block height exceeded|expired/iu.test(message)) {
-    return "The prepared transaction expired before it was signed. Retry to prepare it again.";
-  }
-  return readableRevert(message);
-}
-
-/** References the SDK reports as broadcast but not yet recorded by Kletia (newer SDKs only). */
-function unreportedReferences(error: KletiaExecutionError): readonly string[] {
-  const references = (error as { references?: unknown }).references;
-  return Array.isArray(references) ? references.filter((item): item is string => typeof item === "string") : [];
-}
-
-function toExecutionError(error: unknown): IntentExecutionError {
-  if (error instanceof KletiaExecutionError) {
-    const cause = error.cause;
-    const unreported = unreportedReferences(error).length;
-    if (cause instanceof KletiaApiError) {
-      const platform = toPlatformError(cause);
-      if (unreported > 0) {
-        const what = unreported === 1 ? "this step's transaction" : `${unreported} transactions for this step`;
-        const it = unreported === 1 ? "it" : "them";
-        const reason = describePlatformError(platform).replace(/\.$/u, "");
-        return {
-          code: platform.code,
-          message: platform.retryable
-            ? `Your wallet already sent ${what}, but Kletia could not record ${it} yet (${reason}). Retrying reports ${it} without signing again.`
-            : `Your wallet already sent ${what}, but Kletia did not accept ${it}: ${describePlatformError(platform)} This step will not be signed again; check your wallet's activity.`,
-          stepId: error.stepId,
-          // Only a retryable API failure can still record the references.
-          retryable: platform.retryable,
-          platform,
-        };
-      }
-      return {
-        code: platform.code,
-        message: describePlatformError(platform),
-        stepId: error.stepId,
-        retryable: true,
-        platform,
-      };
-    }
-    return {
-      code: "EXECUTION_FAILED",
-      message: walletMessage(error.message),
-      stepId: error.stepId,
-      retryable: true,
-      platform: null,
-    };
-  }
-  if (error instanceof KletiaApiError) {
-    const platform = toPlatformError(error);
-    return {
-      code: platform.code,
-      message: describePlatformError(platform),
-      stepId: null,
-      retryable: platform.retryable || platform.status === 409,
-      platform,
-      hints: error.hints,
-      details: apiErrorDetails(error),
-    };
-  }
-  const message = error instanceof Error && error.message ? error.message : "Execution failed.";
-  return { code: "CLIENT_ERROR", message: walletMessage(message), stepId: null, retryable: true, platform: null };
-}
-
-/** `error.details` of an API error, when the SDK in use keeps it (newer SDKs do). */
-function apiErrorDetails(error: KletiaApiError): Readonly<Record<string, unknown>> | null {
-  const details = (error as { details?: unknown }).details;
-  return typeof details === "object" && details !== null && !Array.isArray(details)
-    ? (details as Readonly<Record<string, unknown>>)
-    : null;
-}
-
-function localError(code: string, message: string, stepId: string | null = null): IntentExecutionError {
-  return { code, message, stepId, retryable: true, platform: null };
-}
-
-class LocalPlanError extends Error {
-  readonly detail: IntentExecutionError;
-  constructor(detail: IntentExecutionError) {
-    super(detail.message);
-    this.detail = detail;
-  }
-}
-
-function requestFromGraph(graph: IntentGraph): IntentRequestInput {
-  const { request } = graph;
-  return {
-    ...(request.text ? { text: request.text } : {}),
-    ...(request.actions ? { actions: request.actions } : {}),
-    ...(request.defaultNetwork ? { defaultNetwork: request.defaultNetwork } : {}),
-    ...(request.sourceNetwork ? { sourceNetwork: request.sourceNetwork } : {}),
-    ...(request.constraints ? { constraints: request.constraints } : {}),
-    ...(request.metadata ? { metadata: request.metadata } : {}),
-  };
-}
-
-/** Apply one stream event to the local graph. Step status only moves forward. */
-function applyEvent(intent: IntentGraph, event: AnyKletiaEvent): IntentGraph | null {
-  if (event.type === "intent.step_updated") {
-    const { data } = event;
-    if (data.intentId !== intent.id) return null;
-    let changed = false;
-    const steps = intent.steps.map((step) => {
-      if (step.id !== data.stepId) return step;
-      const nextStatus = STEP_RANK[data.status] > STEP_RANK[step.status] ? data.status : step.status;
-      const evidence = data.evidence;
-      const hasEvidence =
-        !evidence ||
-        step.evidence.some(
-          (item) =>
-            item.kind === evidence.kind &&
-            item.network === evidence.network &&
-            item.reference === evidence.reference &&
-            item.url === evidence.url,
-        );
-      if (nextStatus === step.status && hasEvidence) return step;
-      changed = true;
-      return {
-        ...step,
-        status: nextStatus,
-        evidence: hasEvidence || !evidence ? step.evidence : [...step.evidence, evidence],
-      };
-    });
-    return changed ? { ...intent, steps } : null;
-  }
-  if (event.type === "intent.status_changed") {
-    const { data } = event;
-    if (data.intentId !== intent.id || data.status === intent.status || TERMINAL_INTENT.has(intent.status)) {
-      return null;
-    }
-    return { ...intent, status: data.status };
-  }
-  return null;
-}
-
-/**
- * The same client, but the intent returned by `prepareStep` (step now
- * awaiting a signature) is committed too; `executeIntent` only reports the
- * versions returned by submit and refresh.
- */
-function observeClient(client: KletiaClient, onIntent: (intent: IntentGraph) => void): KletiaClient {
-  const observed = Object.create(client) as KletiaClient;
-  Object.defineProperty(observed, "intents", {
-    value: {
-      ...client.intents,
-      // Options (acknowledgedPreview, signal) must reach the API untouched.
-      prepareStep: async (id: string, stepId: string, options?: PrepareStepOptions) => {
-        const prepared = await client.intents.prepareStep(id, stepId, options);
-        if (prepared?.intent && prepared.intent.id === id) onIntent(prepared.intent);
-        return prepared;
-      },
-    },
-  });
-  return observed;
-}
-
-/**
- * A fresh fare for a stored intent (resuming after a reload): recomputed now,
- * else the last one Kletia kept; null when neither is available.
- */
-async function loadPreview(client: KletiaClient, intentId: string, signal: AbortSignal): Promise<IntentPreview | null> {
-  try {
-    return await client.intents.preview(intentId, { signal, maxRetries: 0 });
-  } catch {
-    // Rate limited or unavailable: the kept fare still has to be approved before signing.
-  }
-  try {
-    return await client.intents.getPreview(intentId, { signal });
-  } catch {
-    return null;
-  }
-}
-
-function stepTitle(step: IntentStep): string {
-  return `Step ${step.index + 1}: ${step.title}`;
-}
-
-const wait = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const timer = window.setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
-        window.clearTimeout(timer);
-        resolve();
-      },
-      { once: true },
-    );
-  });
-
-/** sessionStorage key of one intent's journey answers. */
-export function journeyAnswersKey(intentId: string): string {
-  return `kletia-journey-answers:${intentId}`;
-}
-
-const ANSWER_ID = /^[\w:.@-]{1,160}$/u;
-
-/** The answers kept for an intent in this tab; anything malformed is dropped. */
-function readJourneyMemory(intentId: string): Record<string, JourneyAnswerMemory> {
-  const raw = readSessionStorage(journeyAnswersKey(intentId));
-  if (!raw) return {};
-  try {
-    const value: unknown = JSON.parse(raw);
-    if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
-    const out: Record<string, JourneyAnswerMemory> = {};
-    for (const [id, entry] of Object.entries(value as Record<string, unknown>).slice(0, 32)) {
-      const memory = entry as Partial<JourneyAnswerMemory> | null;
-      if (!ANSWER_ID.test(id) || typeof memory?.option !== "string" || !ANSWER_ID.test(memory.option) || typeof memory.facts !== "string" || memory.facts.length > 2_000) continue;
-      out[id] = { option: memory.option, facts: memory.facts };
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-function writeJourneyMemory(intentId: string, memory: Readonly<Record<string, JourneyAnswerMemory>>): void {
-  writeSessionStorage(journeyAnswersKey(intentId), JSON.stringify(memory));
-}
+export * from "./useIntentExecution/types";
+export { journeyAnswersKey } from "./useIntentExecution/helpers";
 
 /**
  * Execute Kletia intents with the wallets connected in `WalletProviders`.

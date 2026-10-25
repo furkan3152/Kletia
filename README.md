@@ -257,8 +257,9 @@ venues (GMX v2, Hyperliquid and Drift v2 through `/v1/perps`) and the
 
 Production and testnet capital never share one intent. Every venue contract,
 program, vault and market is pinned in the registry
-([`packages/core/src/protocols.ts`](packages/core/src/protocols.ts): `PROTOCOLS`,
-`YIELD_VENUES`, `VENUE_CONTRACTS`), re-checked on-chain before a payload is
+([`protocols/registry.ts`](packages/core/src/protocols/registry.ts): `PROTOCOLS`;
+[`yieldVenues.ts`](packages/core/src/protocols/yieldVenues.ts): `YIELD_VENUES`;
+[`venueContracts.ts`](packages/core/src/protocols/venueContracts.ts): `VENUE_CONTRACTS`), re-checked on-chain before a payload is
 built, and served at `GET /v1/protocols`. Network guides:
 [Ethereum](docs/networks/ethereum.md), [OP Mainnet](docs/networks/optimism.md),
 [Polygon](docs/networks/polygon.md), [Solana](docs/networks/solana.md),

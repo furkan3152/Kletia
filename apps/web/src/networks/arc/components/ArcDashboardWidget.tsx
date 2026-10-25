@@ -8,7 +8,6 @@ import {
   ARC_SWAP_ABI,
   ARC_LENDING_ABI,
 } from "../config";
-import { NETWORKS } from "../../../shared/config/networks";
 import {
   ACTIVE_WALLET_ADDRESS,
   materializeIntentExample,
@@ -16,132 +15,17 @@ import {
 } from "../../../shared/config/intentExamples";
 import { WidgetId } from "../../../shared/types";
 import { ArcUnifiedBalanceCard } from "./ArcUnifiedBalanceCard";
-
-const ARC_CHAIN_ID = NETWORKS.arc.chainId;
-
-const WIDGETS: Array<{
-  id: Exclude<WidgetId, null>;
-  icon: string;
-  name: string;
-  desc: string;
-  color: string;
-}> = [
-  {
-    id: "swap" as const,
-    icon: "🔄",
-    name: "Swap",
-    desc: "USDC / KLET Swap",
-    color: "bg-[#3B82F6]",
-  },
-  {
-    id: "vault" as const,
-    icon: "🔒",
-    name: "Vault",
-    desc: "Time-Locked Vault",
-    color: "bg-[#8B5CF6]",
-  },
-  {
-    id: "lending" as const,
-    icon: "🏦",
-    name: "Lending",
-    desc: "Lend & Borrow",
-    color: "bg-[#EF4444]",
-  },
-  {
-    id: "staking" as const,
-    icon: "💎",
-    name: "Staking",
-    desc: "Stake Native USDC",
-    color: "bg-[#06B6D4]",
-  },
-  {
-    id: "liquidity" as const,
-    icon: "💧",
-    name: "Liquidity",
-    desc: "Provide LP",
-    color: "bg-[#10B981]",
-  },
-  {
-    id: "batch" as const,
-    icon: "📦",
-    name: "Batch Pay",
-    desc: "Batch Transfer",
-    color: "bg-[#F59E0B]",
-  },
-  {
-    id: "memo" as const,
-    icon: "📝",
-    name: "Memo",
-    desc: "Memo Transfer",
-    color: "bg-[#EC4899]",
-  },
-];
-
-const InputLabel = ({ children }: { children: React.ReactNode }) => (
-  <label className="block text-xs font-black uppercase tracking-wider text-[#121212] dark:text-white mb-2">
-    {children}
-  </label>
-);
-
-const InputField = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-  <input
-    {...props}
-    className={`w-full p-3 bg-[#FBFAF6] dark:bg-[#121212] border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[3px_3px_0_#121212] dark:shadow-[3px_3px_0_#2A2A30] focus:outline-none focus:-translate-y-0.5 focus:shadow-[5px_5px_0_#121212] dark:focus:shadow-[5px_5px_0_#8B5CF6] transition-all font-bold text-[#121212] dark:text-white disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ""}`}
-  />
-);
-
-const ActionButton = ({
-  onClick,
-  disabled,
-  children,
-  colorClass,
-  className = "",
-}: {
-  onClick: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-  colorClass?: string;
-  className?: string;
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={`w-full py-3 px-4 font-black uppercase tracking-widest text-white transition-all duration-200 border-[3px] border-[#121212] dark:border-[#4A4A52] shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30] ${disabled ? "bg-gray-400 dark:bg-slate-600 opacity-80 cursor-not-allowed shadow-[1px_1px_0_#121212] translate-y-0.5" : `${colorClass || "bg-[#2F5BFF]"} hover:-translate-y-1 hover:shadow-[6px_6px_0_#121212] dark:hover:shadow-[6px_6px_0_#2A2A30] active:translate-y-0 active:shadow-[1px_1px_0_#121212]`} ${className}`}
-  >
-    {children}
-  </button>
-);
-
-function parsePositiveAmount(
-  value: string,
-  label: string,
-  userDecimals = 6,
-): string {
-  const normalized = value.trim();
-  if (!normalized || !/^\d+(\.\d+)?$/.test(normalized)) {
-    throw new Error(`Enter a valid amount for ${label}.`);
-  }
-  const fraction = normalized.split(".")[1] || "";
-  if (fraction.length > userDecimals) {
-    throw new Error(
-      `${label} user input can have up to ${userDecimals} decimal places.`,
-    );
-  }
-  const parsed = parseEther(normalized);
-  if (parsed <= 0n) throw new Error(`${label} must be greater than zero.`);
-  return normalized;
-}
-
-/** LP token units (18 decimals) of an amount typed in the LP exit field; null when empty or malformed. */
-function lpTokenUnits(value: string): bigint | null {
-  const trimmed = value.trim();
-  if (!/^\d+(\.\d{1,18})?$/.test(trimmed)) return null;
-  try {
-    return parseEther(trimmed);
-  } catch {
-    return null;
-  }
-}
+import {
+  ARC_CHAIN_ID,
+  lpTokenUnits,
+  parsePositiveAmount,
+  WIDGETS,
+} from "./ArcDashboardWidget/catalog";
+import {
+  ActionButton,
+  InputField,
+  InputLabel,
+} from "./ArcDashboardWidget/controls";
 
 export const ArcDashboardWidget: React.FC<{
   onWidgetClick: (prompt: string) => void;

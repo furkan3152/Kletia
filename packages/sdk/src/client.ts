@@ -3,9 +3,6 @@ import {
   dataHoldingsCsv,
   dataPositionsCsv,
   dataTransactionsCsv,
-  isContractId,
-  isLinkId,
-  isSessionId,
   isThreadId,
   PREVIEW_DIGEST_PATTERN,
   PUBLISHABLE_KEY_PATTERN,
@@ -40,7 +37,6 @@ import {
   type IntentRequest,
   type IntentTurnRequest,
   type Journey,
-  type LinkDefinition,
   type LinkOwnerView,
   type LinkStats,
   type LinkView,
@@ -55,17 +51,19 @@ import {
   type SessionCreateRequest,
   type SessionView,
 } from "@kletia/core";
-import { KletiaApiError, KletiaPolicyError, KletiaPreviewChangedError, type ApiIssue, type PolicyErrorDetails } from "./errors.js";
+import { KletiaApiError } from "./errors.js";
 import {
   DEFAULT_MAX_RETRIES,
   DEFAULT_RETRY_BASE_DELAY_MS,
   newIdempotencyKey,
-  retryClass,
   retryDelayMs,
   sleep,
-  type RetryClass,
 } from "./retry.js";
-import { decideWithWallet, type ApprovalWalletSigner, type WalletDecisionOptions } from "./approvals.js";
+import {
+  decideWithWallet,
+  type ApprovalWalletSigner,
+  type WalletDecisionOptions,
+} from "./approvals.js";
 import { readServerSentEvents } from "./sse.js";
 import type {
   ApiKeyRecord,
@@ -139,485 +137,64 @@ import type {
   WebhookDelivery,
   WebhookRecord,
 } from "./types.js";
-import { watchIntent, type WatchIntentOptions } from "./watch.js";
+import { watchIntent } from "./watch.js";
+import type {
+  CallBehaviour,
+  CreateIntent,
+  EventStreamOptions,
+  FetchLike,
+  GetReceiptOptions,
+  KletiaClientOptions,
+  LowLevelRequestOptions,
+  StreamOptions,
+  WaitForIntentOptions,
+} from "./client/options.js";
+import {
+  abortedError,
+  approvalSegment,
+  contractSegment,
+  encodeSegment,
+  errorFromResponse,
+  ifMatchHeader,
+  linkSegment,
+  mayHaveRun,
+  normalizeBaseUrl,
+  ownSecretEnded,
+  RawBody,
+  receiptSegment,
+  retryAfterSeconds,
+  sessionSegment,
+  shareSegment,
+  threadSegment,
+  transportError,
+} from "./client/http.js";
+import {
+  fetchPng,
+  pageOrigin,
+  publishableRefusal,
+  RECEIPT_WAIT_CODES,
+  requestRetryClass,
+  retriesOption,
+  turnRetryClass,
+  walletQuery,
+} from "./client/routes.js";
+
+export type {
+  CreateIntent,
+  EventStreamOptions,
+  GetReceiptOptions,
+  KletiaClientOptions,
+  LowLevelRequestOptions,
+  ReceiptPendingInfo,
+  StreamOptions,
+  WaitForIntentOptions,
+} from "./client/options.js";
+export { turnRetryClass } from "./client/routes.js";
 
 export const DEFAULT_BASE_URL = "https://api.kletiaai.xyz";
 /** Origin of the Kletia web app (link pages, receipt pages, approval pages). */
 export const DEFAULT_WEB_ORIGIN = "https://kletiaai.xyz";
 export const SDK_VERSION = "0.1.0";
-
-type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
-
-export interface KletiaClientOptions {
-  /** API origin, without the `/v1` suffix. Defaults to the hosted Kletia API. */
-  readonly baseUrl?: string;
-  /**
-   * Developer or operator key (`kl_dev_…`). Optional for public endpoints.
-   * Server-side only: never ship it in browser bundles; from the browser use
-   * the public tier or a `baseUrl` that proxies through your server.
-   */
-  readonly apiKey?: string;
-  /**
-   * Publishable key (`kl_pub_…`): safe in browsers, sent as
-   * `Authorization: Bearer kl_pub_…`. It plans intents, starts sessions
-   * from the project's stored flows and reads the project profile; every
-   * server-only method is refused locally with PUBLISHABLE_KEY_FORBIDDEN
-   * before anything is sent. Never combined with `apiKey`.
-   */
-  readonly publishableKey?: string;
-  /** Per-attempt timeout in milliseconds (default 20000). */
-  readonly timeoutMs?: number;
-  /**
-   * Retries for requests that are safe to repeat (default 2): GET, DELETE,
-   * quotes, dry runs and refresh, and state-changing POSTs that carry an
-   * Idempotency-Key. Prepare is never retried. 0 disables retries.
-   */
-  readonly maxRetries?: number;
-  /** First backoff delay in milliseconds (default 500, doubling per attempt, with jitter). */
-  readonly retryBaseDelayMs?: number;
-  /** Custom fetch implementation (tests, edge runtimes, proxies). */
-  readonly fetch?: FetchLike;
-  /** Extra headers sent with every request. */
-  readonly headers?: Readonly<Record<string, string>>;
-  /** Web origin used by `links.pageUrl` / `links.cardUrl` (default https://kletiaai.xyz). */
-  readonly webOrigin?: string;
-}
-
-export interface StreamOptions {
-  readonly signal?: AbortSignal;
-  /** Resume after this event id (sent as Last-Event-ID). */
-  readonly lastEventId?: string;
-  /** Called once the stream is open, before the first event. */
-  readonly onOpen?: () => void;
-}
-
-/** Options for the low-level `request` helper. */
-export interface LowLevelRequestOptions extends RequestOptions {
-  readonly query?: Readonly<Record<string, string | undefined>>;
-  /** Extra headers for this request (e.g. `If-Match`). `authorization` and `idempotency-key` cannot be set here. */
-  readonly headers?: Readonly<Record<string, string>>;
-}
-
-export interface WaitForIntentOptions extends Omit<WatchIntentOptions, "signal"> {
-  readonly signal?: AbortSignal;
-  /** Give up after this many milliseconds (default 20 minutes) with `WAIT_TIMEOUT`. */
-  readonly timeoutMs?: number;
-}
-
-/** Options of `events.stream` (`GET /v1/events`, key required). */
-export interface EventStreamOptions extends StreamOptions {
-  /** `self` (default): the key's own events; `subtree`: also its agent and publishable keys' (and, for project keys, project-wide rule book events). */
-  readonly scope?: "self" | "subtree";
-  /** Only these event types (webhook event type names). */
-  readonly types?: readonly string[];
-}
-
-/** `intents.create`: the intent, `{ intent, preview }` with `preview: true`, or `{ intent, preview, journey }` with `journey: true`. */
-export interface CreateIntent {
-  (request: IntentRequest, options: CreateIntentOptions & RequestOptions & { readonly journey: true }): Promise<IntentWithJourney>;
-  (request: IntentRequest, options: CreateIntentOptions & RequestOptions & { readonly preview: true; readonly journey?: false }): Promise<IntentWithPreview>;
-  (request: IntentRequest, options?: CreateIntentOptions & RequestOptions & { readonly preview?: false; readonly journey?: false }): Promise<IntentGraph>;
-  (request: IntentRequest, options?: CreateIntentOptions & RequestOptions): Promise<IntentGraph | IntentWithPreview | IntentWithJourney>;
-}
-
-/** Options of `receipts.get`. */
-export interface GetReceiptOptions extends RequestOptions {
-  /** An earlier sequence instead of the latest receipt. */
-  readonly sequence?: number;
-  /**
-   * Wait for the receipt: polls while it is pending (202, honouring
-   * `retryAfterSeconds`) and while the intent is still running
-   * (RECEIPT_NOT_READY). `true` waits up to 45 minutes; rejects with
-   * `WAIT_TIMEOUT` after `timeoutMs`.
-   */
-  readonly wait?: boolean | { readonly timeoutMs?: number; readonly onPending?: (pending: ReceiptPendingInfo) => void };
-}
-
-/** What `receipts.get` waits for, as `onPending` sees it. */
-export interface ReceiptPendingInfo {
-  readonly reason: string;
-  readonly expectedBy: string | null;
-  readonly retryAfterSeconds: number;
-}
-
-/** Internal per-call behaviour that is not part of the public request options. */
-interface CallBehaviour {
-  /** A 404 after a retry means an earlier attempt already removed the resource. */
-  readonly goneAfterRetryIsDone?: boolean;
-  /**
-   * The call can end the secret that authenticates it (a key rotating or
-   * revoking itself). When an attempt whose outcome is unknown is followed by
-   * a 401 or KEY_SECRET_ROTATED, that attempt may have run, and its response
-   * cannot be replayed to this secret: report OUTCOME_UNKNOWN, not the 401.
-   */
-  readonly mayEndOwnSecret?: "rotate" | "revoke";
-  /** Retryable codes the caller handles itself (e.g. receipts.get waiting on RECEIPT_NOT_READY): never retried here. */
-  readonly noRetryCodes?: ReadonlySet<string>;
-  /** The retry class when it depends on the body (clarify turns), instead of the route's. */
-  readonly retryClass?: RetryClass;
-}
-
-/** A request body sent as raw bytes (`projects.setLogo`) instead of JSON. */
-class RawBody {
-  constructor(
-    readonly bytes: Uint8Array,
-    readonly contentType: string,
-  ) {}
-}
-
-/** An attempt that failed this way may still have run on the server. */
-function mayHaveRun(error: KletiaApiError): boolean {
-  return error.status === 0 || error.status >= 500 || error.code === "IDEMPOTENCY_REQUEST_IN_PROGRESS";
-}
-
-function ownSecretEnded(action: "rotate" | "revoke", error: KletiaApiError): KletiaApiError {
-  const happened =
-    action === "rotate"
-      ? "The rotation may have gone through: an earlier attempt got no answer, and the retry was refused because this client's secret no longer authenticates"
-      : "The revoke may have gone through: an earlier attempt got no answer, and the retry was refused because this client's secret no longer authenticates";
-  const consequence =
-    action === "rotate"
-      ? "If the key rotated itself, its new secret was only in the lost response and cannot be recovered."
-      : "If the key revoked itself, it is revoked.";
-  return new KletiaApiError({
-    code: "OUTCOME_UNKNOWN",
-    message: `${happened} (${error.code}). ${consequence}`,
-    status: error.status,
-    hints:
-      action === "rotate"
-        ? ["Check rotatedAt and last4 in the key list with another key of the project, and rotate from that key."]
-        : ["Check revokedAt in the key list with another key of the project."],
-    requestId: error.requestId,
-    cause: error,
-  });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizeBaseUrl(value: string): string {
-  const url = new URL(value);
-  if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
-    throw new Error("Kletia baseUrl must use HTTPS (HTTP is allowed only for localhost).");
-  }
-  return url.origin + url.pathname.replace(/\/+$/u, "").replace(/\/v1$/u, "");
-}
-
-/** `Retry-After` as seconds (delta-seconds or an HTTP date), or null when absent. */
-function retryAfterSeconds(response: Response): number | null {
-  const value = response.headers.get("retry-after")?.trim();
-  if (!value) return null;
-  if (/^\d+$/u.test(value)) return Number(value);
-  const date = Date.parse(value);
-  return Number.isNaN(date) ? null : Math.max(0, Math.ceil((date - Date.now()) / 1000));
-}
-
-/** Builds the error for a non-2xx response from the API's JSON error envelope. */
-/** `error.policy` of a Rule Book refusal, when it has the documented shape. */
-function policyDetails(value: unknown): PolicyErrorDetails | null {
-  if (!isRecord(value) || !Array.isArray(value.violations)) return null;
-  const stage = value.stage;
-  const approval = isRecord(value.approval) && typeof value.approval.id === "string" && typeof value.approval.url === "string" ? value.approval : null;
-  return {
-    decisionId: typeof value.decisionId === "string" ? value.decisionId : null,
-    stage: stage === "plan" || stage === "prepare" || stage === "evaluate" || stage === "sign" ? stage : "plan",
-    outcome: "deny",
-    keyId: typeof value.keyId === "string" ? value.keyId : null,
-    violations: value.violations.filter((entry): entry is PolicyErrorDetails["violations"][number] => isRecord(entry) && typeof entry.rule === "string" && typeof entry.message === "string"),
-    retryAt: typeof value.retryAt === "string" ? value.retryAt : null,
-    ...(approval
-      ? {
-          approval: {
-            id: approval.id as string,
-            url: approval.url as string,
-            expiresAt: typeof approval.expiresAt === "string" ? approval.expiresAt : "",
-            ...(typeof approval.ceilingUsd === "string" ? { ceilingUsd: approval.ceilingUsd } : {}),
-            ...(approval.status === "pending" || approval.status === "approved" || approval.status === "rejected" || approval.status === "expired" ? { status: approval.status } : {}),
-          },
-        }
-      : {}),
-  };
-}
-
-/** Builds the error for a non-2xx response from the API's JSON error envelope. */
-function errorFromResponse(response: Response, parsed: unknown, fallbackMessage: string): KletiaApiError {
-  const error = isRecord(parsed) && isRecord(parsed.error) ? parsed.error : {};
-  const input = {
-    code: typeof error.code === "string" ? error.code : `HTTP_${response.status}`,
-    message: typeof error.message === "string" ? error.message : fallbackMessage,
-    status: response.status,
-    issues: Array.isArray(error.issues) ? (error.issues as ApiIssue[]) : [],
-    hints: Array.isArray(error.hints)
-      ? error.hints.filter((hint): hint is string => typeof hint === "string")
-      : [],
-    requestId: response.headers.get("x-request-id"),
-    retryAfterSeconds: retryAfterSeconds(response),
-    docs: typeof error.docs === "string" ? error.docs : null,
-    details: isRecord(error.details) ? error.details : null,
-  };
-  const policy = policyDetails(error.policy);
-  if (policy) return new KletiaPolicyError({ ...input, policy });
-  if (input.code === "PREVIEW_CHANGED" && isRecord(error.preview) && typeof error.preview.digest === "string") {
-    const changes = Array.isArray(error.changes) ? error.changes.filter((entry) => isRecord(entry) && typeof entry.code === "string") : [];
-    return new KletiaPreviewChangedError({ ...input, preview: error.preview as unknown as IntentPreview, changes: changes as unknown as KletiaPreviewChangedError["changes"] });
-  }
-  return new KletiaApiError(input);
-}
-
-function abortedError(signal: AbortSignal | undefined): KletiaApiError {
-  return new KletiaApiError({
-    code: "REQUEST_ABORTED",
-    message: "The request was aborted.",
-    status: 0,
-    cause: signal?.reason,
-  });
-}
-
-/** Maps a fetch failure (or a failed stream read) to a KletiaApiError. */
-function transportError(error: unknown, signal: AbortSignal | undefined, timeout?: AbortSignal): KletiaApiError {
-  if (signal?.aborted) return abortedError(signal);
-  const timedOut = (error as Error)?.name === "TimeoutError" || timeout?.aborted === true;
-  return new KletiaApiError({
-    code: timedOut ? "REQUEST_TIMEOUT" : "NETWORK_ERROR",
-    message: timedOut ? "The Kletia API did not respond in time." : "The Kletia API is unreachable.",
-    status: 0,
-    cause: error,
-  });
-}
-
-function encodeSegment(value: string, name: string): string {
-  if (!value || value.length > 200) throw new Error(`${name} is required.`);
-  return encodeURIComponent(value);
-}
-
-/** A registration id path segment; anything else is refused before a request is made. */
-function contractSegment(id: string): string {
-  if (!isContractId(id)) throw new TypeError("Contract ids look like ct_ followed by 24 lower-case hex characters.");
-  return id;
-}
-
-/** A session id path segment; anything else is refused before a request is made. */
-function sessionSegment(id: string): string {
-  if (!isSessionId(id)) throw new TypeError("Session ids look like cs_ followed by 32 lower-case hex characters.");
-  return id;
-}
-
-/** A link id path segment; anything else is refused before a request is made. */
-function linkSegment(id: string): string {
-  if (!isLinkId(id)) throw new TypeError("Link ids look like lk_ followed by 24 lower-case hex characters.");
-  return id;
-}
-
-/** A thread id (`th_…`) path segment. */
-function threadSegment(id: string): string {
-  if (!isThreadId(id)) throw new TypeError("Thread ids look like th_ followed by 24 base32 characters.");
-  return id;
-}
-
-/** A receipt id (`rcpt_…`) path segment. */
-function receiptSegment(id: string): string {
-  if (!/^rcpt_[0-9a-f]{32}$/u.test(id)) throw new TypeError("Receipt ids look like rcpt_ followed by 32 lower-case hex characters.");
-  return id;
-}
-
-/** A receipt share id (`rsh_…`) path segment. */
-function shareSegment(id: string): string {
-  if (!/^rsh_[0-9a-f]{24}$/u.test(id)) throw new TypeError("Share ids look like rsh_ followed by 24 lower-case hex characters.");
-  return id;
-}
-
-/** An approval id (`apr_…`) path segment. */
-function approvalSegment(id: string): string {
-  if (!/^apr_[0-9a-f]{32}$/u.test(id)) throw new TypeError("Approval ids look like apr_ followed by 32 lower-case hex characters.");
-  return id;
-}
-
-/** `If-Match` value for a rule book write: the active hash (`sha256:…`) or `none`. */
-function ifMatchHeader(value: string | undefined): Record<string, string> {
-  if (value === undefined) return {};
-  if (value !== "none" && !/^sha256:[0-9a-f]{64}$/u.test(value)) throw new TypeError('ifMatch must be the rule book hash ("sha256:…") or "none".');
-  return { "if-match": `"${value}"` };
-}
-
-/**
- * Retry classes of routes added after `retryClass`, layered over it:
- * registering, updating and re-verifying a contract, creating a session, a
- * child key, a receipt share, a link, and writing a rule book are replayed by
- * the API for the same Idempotency-Key; a contract test, a preview
- * recomputation, a policy validation and a link quote change nothing; an
- * approval decision replays the recorded decision. Turning a session or a
- * link into an intent stays unretried (public, no Idempotency-Key), and so do
- * the simulator (each call is logged and rate limited) and rule book removals
- * (a lost response could otherwise remove twice).
- */
-const ROUTE_CLASSES: readonly { readonly method: string; readonly pattern: RegExp; readonly kind: RetryClass }[] = [
-  { method: "POST", pattern: /^\/contracts$/iu, kind: "idempotent" },
-  { method: "PATCH", pattern: /^\/contracts\/[^/]+$/iu, kind: "idempotent" },
-  { method: "POST", pattern: /^\/contracts\/[^/]+\/reverify$/iu, kind: "idempotent" },
-  { method: "POST", pattern: /^\/contracts\/[^/]+\/test$/iu, kind: "safe" },
-  { method: "POST", pattern: /^\/sessions$/iu, kind: "idempotent" },
-  { method: "POST", pattern: /^\/intents\/[^/]+\/preview$/iu, kind: "safe" },
-  { method: "POST", pattern: /^\/intents\/[^/]+\/receipt\/shares$/iu, kind: "idempotent" },
-  { method: "POST", pattern: /^\/keys\/[^/]+\/children$/iu, kind: "idempotent" },
-  { method: "PATCH", pattern: /^\/keys\/[^/]+$/iu, kind: "safe" },
-  { method: "PUT", pattern: /^\/keys\/[^/]+\/policy$/iu, kind: "idempotent" },
-  { method: "PUT", pattern: /^\/projects\/current\/policy$/iu, kind: "idempotent" },
-  { method: "DELETE", pattern: /^\/keys\/[^/]+\/policy(?:\/pending)?$/iu, kind: "unsafe" },
-  { method: "DELETE", pattern: /^\/projects\/current\/policy(?:\/pending)?$/iu, kind: "unsafe" },
-  { method: "POST", pattern: /^\/policy\/validate$/iu, kind: "safe" },
-  { method: "POST", pattern: /^\/policy\/approvals\/[^/]+\/(?:approve|reject)$/iu, kind: "safe" },
-  { method: "POST", pattern: /^\/links$/iu, kind: "idempotent" },
-  { method: "PATCH", pattern: /^\/links\/[^/]+$/iu, kind: "idempotent" },
-  { method: "POST", pattern: /^\/links\/[^/]+\/quote$/iu, kind: "safe" },
-  // Stopping replays its first answer for the same Idempotency-Key.
-  { method: "POST", pattern: /^\/intents\/[^/]+\/stop$/iu, kind: "idempotent" },
-  // Projects: a stale If-Match after a lost response would answer
-  // PROJECT_CONFLICT, so settings writes are not repeated automatically.
-  { method: "PATCH", pattern: /^\/projects\/current$/iu, kind: "unsafe" },
-  { method: "POST", pattern: /^\/projects\/current\/domain\/verify$/iu, kind: "safe" },
-  { method: "POST", pattern: /^\/projects\/current\/publishable-keys$/iu, kind: "idempotent" },
-  { method: "PUT", pattern: /^\/projects\/current\/logo$/iu, kind: "safe" },
-];
-
-/**
- * Retry class of a clarify turn: a turn that changes a Kletia-held thread
- * (`threadId`, or `remember` on the first turn) is repeated only with an
- * Idempotency-Key, dry run or not (the API replays the first answer for the
- * key); a dry-run turn on a client-held thread changes nothing and is safe
- * to repeat; a turn that stores an intent is repeated only with an
- * Idempotency-Key, like `intents.create`.
- */
-export function turnRetryClass(request: IntentTurnRequest, options: { readonly dryRun?: boolean } = {}): RetryClass {
-  if (request.threadId !== undefined || request.remember === true) return "idempotent";
-  return options.dryRun ? "safe" : "idempotent";
-}
-
-/**
- * What a publishable key may call: the public tier, stored or dry-run
- * intents, sessions from stored flows and the project profile. Anything
- * else is refused before it is sent.
- */
-const PUBLISHABLE_ROUTES: readonly { readonly method: string; readonly pattern: RegExp }[] = [
-  { method: "GET", pattern: /^\/(?:health|networks|protocols|assets|venues|errors|openapi\.json|status\/badge|publishable\/profile)$/iu },
-  { method: "GET", pattern: /^\/portfolio(?:\/[^/]+)?$/iu },
-  { method: "GET", pattern: /^\/data\/(?:portfolio|positions|history|export|transactions(?:\/[^/]+)?|pnl|snapshots|summary|markets\/(?:yields|prices|status))$/iu },
-  { method: "POST", pattern: /^\/(?:quotes|intents|mcp|policy\/validate)$/iu },
-  { method: "GET", pattern: /^\/intents\/[^/]+(?:\/(?:events|journey|preview|receipt|receipts|receipt\/shares))?$/iu },
-  { method: "POST", pattern: /^\/intents\/[^/]+\/(?:refresh|cancel|stop|preview|receipt\/shares)$/iu },
-  { method: "POST", pattern: /^\/intents\/[^/]+\/steps\/[^/]+\/(?:prepare|submit)$/iu },
-  { method: "DELETE", pattern: /^\/intents\/[^/]+\/receipt\/(?:shares\/[^/]+|disclosures)$/iu },
-  { method: "GET", pattern: /^\/receipts\/(?:keys|log|log\/inclusion|log\/[^/]+|[^/]+|[^/]+\/status|[^/]+\/shares\/[^/]+)$/iu },
-  { method: "GET", pattern: /^\/policy\/approvals\/[^/]+$/iu },
-  { method: "POST", pattern: /^\/policy\/approvals\/[^/]+\/(?:approve|reject)$/iu },
-  { method: "GET", pattern: /^\/links\/[^/]+(?:\/(?:card\.png|page))?$/iu },
-  { method: "POST", pattern: /^\/links\/[^/]+\/(?:quote|intents|report)$/iu },
-  { method: "GET", pattern: /^\/blinks\/[^/]+$/iu },
-  { method: "POST", pattern: /^\/blinks\/[^/]+(?:\/next)?$/iu },
-  { method: "GET", pattern: /^\/sessions\/[^/]+$/iu },
-  { method: "POST", pattern: /^\/sessions(?:\/[^/]+\/intents)?$/iu },
-  { method: "GET", pattern: /^\/orders(?:\/[^/]+)?$/iu },
-  { method: "POST", pattern: /^\/orders\/(?:quote|prepare|submit|[^/]+\/cancel)$/iu },
-];
-
-function routePath(path: string): string | null {
-  let pathname = path.split(/[?#]/u, 1)[0] ?? "";
-  try {
-    pathname = decodeURIComponent(pathname);
-  } catch {
-    return null;
-  }
-  return pathname.replace(/\/+$/u, "").replace(/^\/v1(?=\/)/iu, "");
-}
-
-/** Why a publishable key may not make this call, or null when it may. */
-function publishableRefusal(method: string, path: string, body: unknown): string | null {
-  const pathname = routePath(path);
-  const verb = method.toUpperCase();
-  if (pathname === null || !PUBLISHABLE_ROUTES.some((route) => route.method === verb && route.pattern.test(pathname))) {
-    return `${verb} ${pathname ?? path} is a server-only method: call it from your server with a secret key.`;
-  }
-  // Publishable keys start sessions only from the project's stored flows.
-  if (verb === "POST" && /^\/sessions$/iu.test(pathname)) {
-    if (!isRecord(body) || typeof body.flow !== "string" || Object.keys(body).some((key) => key !== "flow" && key !== "hostOrigin")) {
-      return "A publishable key creates sessions only from a stored flow: send { flow, hostOrigin }.";
-    }
-  }
-  return null;
-}
-
-function requestRetryClass(method: string, path: string, query: Readonly<Record<string, string | undefined>> = {}): RetryClass {
-  let pathname = path.split(/[?#]/u, 1)[0] ?? "";
-  try {
-    pathname = decodeURIComponent(pathname);
-  } catch {
-    return retryClass(method, path, query);
-  }
-  pathname = pathname.replace(/\/+$/u, "").replace(/^\/v1(?=\/)/iu, "");
-  const verb = method.toUpperCase();
-  const route = ROUTE_CLASSES.find((candidate) => candidate.method === verb && candidate.pattern.test(pathname));
-  return route ? route.kind : retryClass(method, path, query);
-}
-
-/** Codes `receipts.get` handles itself (never retried by the transport loop). */
-const RECEIPT_WAIT_CODES: ReadonlySet<string> = new Set(["RECEIPT_NOT_READY"]);
-
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-const MAX_PNG_BYTES = 2 * 1024 * 1024;
-
-/** GET of a PNG: API errors keep their envelope; anything that is not a PNG is refused. */
-async function fetchPng(fetchImpl: FetchLike, url: string, headers: Record<string, string>, timeoutMs: number, userSignal?: AbortSignal): Promise<Uint8Array> {
-  if (userSignal?.aborted) throw abortedError(userSignal);
-  const timeout = AbortSignal.timeout(timeoutMs);
-  const signal = userSignal ? AbortSignal.any([userSignal, timeout]) : timeout;
-  let response: Response;
-  let bytes: Uint8Array;
-  try {
-    response = await fetchImpl(url, { method: "GET", headers, signal });
-    bytes = new Uint8Array(await response.arrayBuffer());
-  } catch (error) {
-    throw transportError(error, userSignal, timeout);
-  }
-  if (!response.ok) {
-    let parsed: unknown = null;
-    try {
-      parsed = JSON.parse(new TextDecoder().decode(bytes));
-    } catch {
-      parsed = null;
-    }
-    throw errorFromResponse(response, parsed, `Request failed with status ${response.status}.`);
-  }
-  if (bytes.length > MAX_PNG_BYTES || bytes.length < 8 || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte)) {
-    throw new KletiaApiError({ code: "INVALID_RESPONSE", message: "The Kletia API did not return a PNG image.", status: response.status, requestId: response.headers.get("x-request-id") });
-  }
-  return bytes;
-}
-
-/** The page's origin in a browser (`sessions.createIntent` default), else undefined. */
-function pageOrigin(): string | undefined {
-  const origin = (globalThis as { location?: { origin?: unknown } }).location?.origin;
-  return typeof origin === "string" && origin !== "null" ? origin : undefined;
-}
-
-/** `evm`, `solana` and `lane` query values of a `data.*` read, checked locally (nothing is sent when they are wrong). */
-function walletQuery(wallets: DataWalletQuery, required: boolean): Record<string, string | undefined> {
-  const list = (value: string | readonly string[] | undefined, name: "evm" | "solana"): string | undefined => {
-    const values = value === undefined ? [] : typeof value === "string" ? [value] : [...value];
-    if (values.length > 2) throw new RangeError(`data reads take at most 2 ${name} addresses.`);
-    if (values.some((address) => typeof address !== "string" || !address.trim() || address.includes(","))) throw new TypeError(`${name} must be addresses.`);
-    return values.length > 0 ? values.map((address) => address.trim()).join(",") : undefined;
-  };
-  const evm = list(wallets.evm, "evm");
-  const solana = list(wallets.solana, "solana");
-  if (required && evm === undefined && solana === undefined) throw new TypeError("Name at least one wallet: evm and/or solana.");
-  return { evm, solana, lane: wallets.lane };
-}
-
-function retriesOption(value: number | undefined, fallback: number): number {
-  if (value === undefined) return fallback;
-  if (!Number.isInteger(value) || value < 0 || value > 10) throw new RangeError("maxRetries must be an integer between 0 and 10.");
-  return value;
-}
 
 /**
  * Typed client for Kletia Platform API v1.

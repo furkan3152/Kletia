@@ -681,7 +681,8 @@ function contractSchemas(): JsonObject {
   };
 }
 
-function schemas(): JsonObject {
+/** Primitives, errors, intents, transactions and events. */
+function intentSchemas(): JsonObject {
   return {
     NetworkKey: str({ enum: [...NETWORK_KEYS], description: "Kletia network key." }),
     CaipChainId: str({ enum: NETWORK_KEYS.map((key) => CHAINS[key].id), description: "CAIP-2 chain id." }),
@@ -1094,7 +1095,12 @@ function schemas(): JsonObject {
         },
       },
     },
+  };
+}
 
+/** Chains, networks, protocols, assets, quotes and portfolios. */
+function catalogSchemas(): JsonObject {
+  return {
     Chain: obj(
       {
         key: ref("NetworkKey"),
@@ -1299,6 +1305,12 @@ function schemas(): JsonObject {
       },
       ["portfolios", "failures", "observedAt"],
     ),
+  };
+}
+
+/** Health, webhooks, API keys, usage, badges, MCP JSON-RPC and submissions. */
+function platformSchemas(): JsonObject {
+  return {
     Health: obj(
       {
         status: str({ enum: ["ok", "degraded", "down"] }),
@@ -1633,24 +1645,12 @@ function schemas(): JsonObject {
       },
       ["references"],
     ),
+  };
+}
 
-    ...contractSchemas(),
-    ...previewSchemas(),
-    ...receiptSchemas(),
-    ...policySchemas(),
-    ...linkSchemas(),
-    ...dataSchemas(),
-    ...assistantSchemas(),
-    ...projectSchemas(),
-    ...accountSchemas(),
-    ...automationSchemas(),
-    ...orderSchemas(),
-    ...perpsSchemas(),
-    ...predictionSchemas(),
-    ...agentSchemas(),
-    ...journeySchemas(),
-    ...clarifySchemas(),
-
+/** Response envelopes of the core routes. */
+function responseSchemas(): JsonObject {
+  return {
     IntentResponse: obj({ intent: ref("IntentGraph") }, ["intent"]),
     IntentCreateResponse: obj(
       {
@@ -1714,6 +1714,33 @@ function schemas(): JsonObject {
     ApiKeyResponse: obj({ key: ref("ApiKey") }, ["key"]),
     RotatedApiKeyResponse: obj({ key: ref("RotatedApiKey") }, ["key"]),
     ApiKeyListResponse: obj({ keys: arrayOf(ref("ApiKeyView"), { description: "The project's keys, newest first (at most 50)." }) }, ["keys"]),
+  };
+}
+
+function schemas(): JsonObject {
+  return {
+    ...intentSchemas(),
+    ...catalogSchemas(),
+    ...platformSchemas(),
+
+    ...contractSchemas(),
+    ...previewSchemas(),
+    ...receiptSchemas(),
+    ...policySchemas(),
+    ...linkSchemas(),
+    ...dataSchemas(),
+    ...assistantSchemas(),
+    ...projectSchemas(),
+    ...accountSchemas(),
+    ...automationSchemas(),
+    ...orderSchemas(),
+    ...perpsSchemas(),
+    ...predictionSchemas(),
+    ...agentSchemas(),
+    ...journeySchemas(),
+    ...clarifySchemas(),
+
+    ...responseSchemas(),
   };
 }
 
@@ -1785,7 +1812,8 @@ const REPLAYED_HEADER: JsonObject = { "Idempotent-Replayed": { $ref: "#/componen
 const IDEMPOTENCY_NOTE =
   " Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.";
 
-function paths(): JsonObject {
+/** Health, catalog, quotes, portfolio, intents and events. */
+function intentPaths(): JsonObject {
   return {
     "/v1/health": {
       get: {
@@ -2043,21 +2071,12 @@ function paths(): JsonObject {
         },
       },
     },
-    ...journeyPaths(),
-    ...clarifyPaths(),
-    ...previewPaths(),
-    ...receiptPaths(),
-    ...policyPaths(),
-    ...linkPaths(),
-    ...dataPaths(),
-    ...assistantPaths(),
-    ...projectPaths(),
-    ...accountPaths(),
-    ...automationPaths(),
-    ...orderPaths(),
-    ...perpsPaths(),
-    ...predictionPaths(),
-    ...agentPaths(),
+  };
+}
+
+/** Webhooks, API keys and usage. */
+function webhookKeyPaths(): JsonObject {
+  return {
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2166,6 +2185,12 @@ function paths(): JsonObject {
         responses: { "200": ok("UsageReport", "Usage report."), ...errors() },
       },
     },
+  };
+}
+
+/** Contracts and sessions. */
+function contractSessionPaths(): JsonObject {
+  return {
     "/v1/contracts": {
       post: {
         operationId: "registerContract",
@@ -2312,6 +2337,12 @@ function paths(): JsonObject {
         },
       },
     },
+  };
+}
+
+/** Error catalog, status badge, MCP and the OpenAPI document. */
+function systemPaths(): JsonObject {
+  return {
     "/v1/errors": {
       get: {
         operationId: "listErrors",
@@ -2375,6 +2406,30 @@ function paths(): JsonObject {
         },
       },
     },
+  };
+}
+
+function paths(): JsonObject {
+  return {
+    ...intentPaths(),
+    ...journeyPaths(),
+    ...clarifyPaths(),
+    ...previewPaths(),
+    ...receiptPaths(),
+    ...policyPaths(),
+    ...linkPaths(),
+    ...dataPaths(),
+    ...assistantPaths(),
+    ...projectPaths(),
+    ...accountPaths(),
+    ...automationPaths(),
+    ...orderPaths(),
+    ...perpsPaths(),
+    ...predictionPaths(),
+    ...agentPaths(),
+    ...webhookKeyPaths(),
+    ...contractSessionPaths(),
+    ...systemPaths(),
   };
 }
 

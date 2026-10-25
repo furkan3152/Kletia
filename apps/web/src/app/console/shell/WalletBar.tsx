@@ -9,6 +9,7 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ChevronDown, LoaderCircle } from "lucide-react";
 
+import { keyClass, Led } from "../../kit";
 import { useSolanaWallet } from "../../../shared/wallet/solana/solanaWalletContext";
 import { shortenAddress } from "../../../shared/wallet/types";
 import { useWallets } from "../../../shared/wallet/useWallets";
@@ -17,11 +18,11 @@ import { DESK_MORE_COPY } from "./deskCopy";
 
 const copy = DESK_COPY.wallets;
 
-const PILL =
-  "inline-flex min-h-11 min-w-11 max-w-[14rem] items-center gap-2 border-[3px] border-control bg-surface px-2.5 text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#121212] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] active:translate-y-0.5 active:shadow-none dark:shadow-[2px_2px_0_#2A2A30] motion-reduce:hover:translate-y-0";
+/** Card machine keycaps: the wallet pills of the phone bar and anywhere outside the cartridge. */
+const PILL = keyClass({ size: "sm" }, "min-w-11 max-w-[14rem]");
 
 function Lamp() {
-  return <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 border border-[#121212] bg-[#10B981]" />;
+  return <Led tone="on" />;
 }
 
 function EvmPill() {
@@ -44,7 +45,7 @@ function EvmPill() {
           <button type="button" onClick={openAccountModal} aria-label={copy.evmConnected(evm.walletName, short)} className={PILL} data-wallet="evm">
             <span>{copy.evmLabel}</span>
             <Lamp />
-            <span className="hidden min-w-0 truncate normal-case tracking-normal md:inline">
+            <span className="hidden min-w-0 truncate md:inline">
               {evm.walletName} · <span className="font-code">{short}</span>
             </span>
             <ChevronDown className="hidden h-3.5 w-3.5 shrink-0 md:block" aria-hidden="true" />
@@ -72,7 +73,7 @@ function SolanaPill() {
     <button type="button" onClick={openPicker} aria-haspopup="dialog" aria-label={copy.solanaConnected(solana.walletName, short)} className={PILL} data-wallet="solana">
       <span>{copy.compactSolana}</span>
       <Lamp />
-      <span className="hidden min-w-0 truncate normal-case tracking-normal md:inline">
+      <span className="hidden min-w-0 truncate md:inline">
         {solana.walletName} · <span className="font-code">{short}</span>
       </span>
       <ChevronDown className="hidden h-3.5 w-3.5 shrink-0 md:block" aria-hidden="true" />

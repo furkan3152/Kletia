@@ -19,13 +19,13 @@ export function ActivityView() {
 
 export function ActivityPeek({ onOpenAll }: { readonly onOpenAll: () => void }) {
   return (
-    <section aria-label={copy.peekLabel} className="flex flex-col gap-3">
-      <h2 className="text-xs font-black uppercase tracking-[0.16em] text-muted">{copy.title}</h2>
+    <section aria-label={copy.peekLabel} className="k-mod">
+      <h2 className="k-eng">{copy.title}</h2>
       <ActivityFeed compact limit={5} title={copy.peekLabel} emptyHint={copy.empty} />
       <button
         type="button"
         onClick={onOpenAll}
-        className="inline-flex min-h-11 items-center self-start text-xs font-black uppercase tracking-wider text-[var(--kl-accent-text)] underline underline-offset-4 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]"
+        className="k-linkbtn justify-self-start"
       >
         {copy.all}
       </button>

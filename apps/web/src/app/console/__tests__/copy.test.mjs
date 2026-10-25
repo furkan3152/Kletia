@@ -58,7 +58,7 @@ test("the desk's added strings follow the same rules", () => {
 
 test("the fixed copy is there, word for word", () => {
   assert.equal(DESK_COPY.page.title, "Kletia Console");
-  assert.equal(DESK_COPY.empty.heading, "Where should the money go?");
+  assert.equal(DESK_COPY.empty.heading, "What should your money do?", "the Card machine's empty desk");
   assert.equal(DESK_COPY.composer.errors.secret, "Private keys, seed phrases and API keys never go into Kletia. Nothing was sent or saved.");
   assert.equal(DESK_COPY.tasks.signingLocked, "Another task is signing. Finish or stop it first.");
   assert.equal(DESK_COPY.departure.disabledNoService, "No service: the network's RPC is not answering.");

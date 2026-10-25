@@ -33,6 +33,13 @@ export const PHONE_SECTIONS: readonly DeskSection[] = Object.freeze(["desk", "ta
 /** The header nav from 1024 px: Tasks is the rail (1280 px) or the header's popover instead. */
 export const WIDE_SECTIONS: readonly DeskSection[] = Object.freeze(PHONE_SECTIONS.filter((section) => section !== "tasks"));
 
+/**
+ * The machine rail (from 1024 px): the rotary mode dial's four detents, in the Card
+ * machine's order, and the two keys under it. Together they are every section.
+ */
+export const DIAL_SECTIONS: readonly DeskSection[] = Object.freeze(["desk", "trade", "portfolio", "automate"]);
+export const RAIL_KEY_SECTIONS: readonly DeskSection[] = Object.freeze(["tasks", "more"]);
+
 /** The last view opened in each section, so a section reopens where the user left it. */
 export type SectionMemory = Readonly<Partial<Record<DeskSection, DeskView>>>;
 

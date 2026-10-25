@@ -15,15 +15,13 @@ import { useSolanaWallet } from "../../../../shared/wallet/solana/solanaWalletCo
 import { shortenAddress } from "../../../../shared/wallet/types";
 import { useWallets } from "../../../../shared/wallet/useWallets";
 import { DESK_COPY } from "../../content/copy";
-import type { DeskSection } from "../../state/deskNav";
+import { DIAL_SECTIONS, RAIL_KEY_SECTIONS, type DeskSection } from "../../state/deskNav";
 import { DESK_MORE_COPY } from "../deskCopy";
 import type { BinderCard, LcdRow } from "./machineModel";
 
 const copy = DESK_MORE_COPY.machine;
 const sections = DESK_COPY.header.sections;
 
-const DIAL_SECTIONS = ["desk", "trade", "portfolio", "automate"] as const;
-type DialSection = (typeof DIAL_SECTIONS)[number];
 
 export interface MachineRailProps {
   readonly section: DeskSection;
@@ -41,7 +39,7 @@ export interface MachineRailProps {
 
 export function MachineRail({ section, onSection, taskCount, binder, binderCount, onOpenBinder, lcd, theme, onToggleTheme, booting }: MachineRailProps) {
   const [sound, setSound] = useSoundEnabled();
-  const dialValue: DialSection | null = (DIAL_SECTIONS as readonly string[]).includes(section) ? (section as DialSection) : null;
+  const dialValue = DIAL_SECTIONS.includes(section) ? section : null;
   return (
     <>
       <Nameplate model={copy.model} serial={serialLine()} label={copy.homeLabel} sweep={booting} />
@@ -58,12 +56,11 @@ export function MachineRail({ section, onSection, taskCount, binder, binderCount
           boot={booting}
         />
         <div className="kd-mode-keys">
-          <button type="button" className={keyClass({ tone: "flat", size: "sm" })} aria-current={section === "tasks" ? "page" : undefined} onClick={() => onSection("tasks")}>
-            {copy.tasksKey(taskCount)}
-          </button>
-          <button type="button" className={keyClass({ tone: "flat", size: "sm" })} aria-current={section === "more" ? "page" : undefined} onClick={() => onSection("more")}>
-            {copy.more}
-          </button>
+          {RAIL_KEY_SECTIONS.map((key) => (
+            <button key={key} type="button" className={keyClass({ tone: "flat", size: "sm" })} aria-current={section === key ? "page" : undefined} onClick={() => onSection(key)}>
+              {key === "tasks" ? copy.tasksKey(taskCount) : sections[key]}
+            </button>
+          ))}
         </div>
       </div>
       <BinderStack cards={binder} count={binderCount} onOpen={onOpenBinder} />

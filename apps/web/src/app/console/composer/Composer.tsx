@@ -14,6 +14,7 @@
  * Enter then sends the text to that task as its next turn; a complete
  * sentence is a new task; the chip's × makes it a new task.
  */
+import { keyClass } from "../../kit/keyClass";
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { ArrowUp, X } from "lucide-react";
 import { CHAINS, classifyMessage } from "@kletia/core";
@@ -70,8 +71,7 @@ function placeholderFor(departure: Departure): string {
   return departure === "solana" ? "swap 1 SOL to USDC" : `deposit 100 USDC into aave on ${departure}`;
 }
 
-const REMOVE_CHIP =
-  "inline-flex min-h-11 items-center gap-1.5 border-2 border-control bg-surface-2 px-2.5 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]";
+const REMOVE_CHIP = keyClass({ size: "sm" });
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   {
@@ -314,7 +314,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <button
               type="submit"
               aria-label={answeringTitle ? copy.sendAnswer : editing ? copy.sendEdit : copy.sendLabel}
-              className="inline-flex h-12 min-w-12 shrink-0 items-center justify-center gap-1.5 border-[3px] border-[#121212] bg-[#2F5BFF] px-3 text-xs font-black uppercase tracking-wider text-white shadow-[2px_2px_0_#121212] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] active:translate-y-0.5 active:shadow-none dark:border-[#8F8C84] motion-reduce:hover:translate-y-0"
+              className={keyClass({ tone: "lime" }, "h-11 min-w-[52px] shrink-0 rounded-[12px] px-3")}
             >
               <ArrowUp className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">{answeringTitle ? copy.sendAnswer : editing ? copy.sendEditShort : copy.send}</span>

@@ -8,7 +8,7 @@ import test from "node:test";
 import { DESK_COPY } from "../content/copy.ts";
 import { DESK_VIEW_PATHS, deskLocationOf } from "../hooks/deskUrl.ts";
 import { DESK_COMMANDS } from "../state/deskModel.ts";
-import { DESK_SECTION_VIEWS, PHONE_SECTIONS, rememberView, sectionOf, sectionTarget, siblingViews, WIDE_SECTIONS } from "../state/deskNav.ts";
+import { DESK_SECTION_VIEWS, DIAL_SECTIONS, PHONE_SECTIONS, RAIL_KEY_SECTIONS, rememberView, sectionOf, sectionTarget, siblingViews, WIDE_SECTIONS } from "../state/deskNav.ts";
 
 const ALL_VIEWS = ["desk", ...Object.keys(DESK_VIEW_PATHS)];
 
@@ -77,10 +77,13 @@ test("every section and view has a label, and the phone bar fits six short ones"
   assert.equal(DESK_COPY.header.subNavLabel("Trade"), "Trade views");
 });
 
-test("the header and the phone bar both read the section model, not a view list of their own", () => {
-  const header = readFileSync(new URL("../shell/DeskHeader.tsx", import.meta.url), "utf8");
-  const bar = readFileSync(new URL("../shell/DeskViewNav.tsx", import.meta.url), "utf8");
-  assert.match(header, /WIDE_SECTIONS\.map/u);
+test("the machine rail and the phone mode bar both read the section model, not a view list of their own", () => {
+  // The Card machine: the rail's rotary dial and its two keys, and the phone's segmented mode bar.
+  const rail = readFileSync(new URL("../shell/machine/MachineRail.tsx", import.meta.url), "utf8");
+  const bar = readFileSync(new URL("../shell/machine/MachineTopbar.tsx", import.meta.url), "utf8");
+  assert.match(rail, /DIAL_SECTIONS\.map/u);
+  assert.match(rail, /RAIL_KEY_SECTIONS\.map/u);
   assert.match(bar, /PHONE_SECTIONS\.map/u);
-  for (const source of [header, bar]) assert.doesNotMatch(source, /text-\[1[01]px\]/u);
+  assert.deepEqual([...DIAL_SECTIONS, ...RAIL_KEY_SECTIONS].sort(), [...PHONE_SECTIONS].sort(), "the dial and its keys reach every section");
+  for (const source of [rail, bar]) assert.doesNotMatch(source, /text-\[1[01]px\]/u);
 });

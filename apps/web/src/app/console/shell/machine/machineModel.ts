@@ -110,6 +110,15 @@ export function lcdRows({ tasks, heights, uptimeSeconds, blockNetwork = "base" }
   ];
 }
 
+/** Block heights by network from a health report (unknown keys and missing heights are dropped). */
+export function healthHeights(networks: readonly { readonly network: string; readonly height?: string }[] | null | undefined): Partial<Record<NetworkKey, string>> {
+  const heights: Partial<Record<NetworkKey, string>> = {};
+  for (const entry of networks ?? []) {
+    if (isNetworkKey(entry.network) && typeof entry.height === "string" && /^\d+$/u.test(entry.height)) heights[entry.network] = entry.height;
+  }
+  return heights;
+}
+
 /* ---------- printer window + status ---------- */
 export type PrinterState = "idle" | "working" | "jam";
 

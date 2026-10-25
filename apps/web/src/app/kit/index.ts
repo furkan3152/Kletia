@@ -2,7 +2,9 @@
  * Kletia kit: the Card machine design system for apps/web. Import from "src/app/kit" (or a file
  * inside it).
  *
- * TOKENS (styles.css, light on :root, night on .dark; Tailwind names in tailwind.config.js)
+ * TOKENS (light on :root, night on .dark; Tailwind names in tailwind.config.js). The base palette is in
+ * styles.css (every page); the kit-only ones (--k-well, --k-slot, --k-lime-tint, --k-magenta*, --k-blue,
+ * --k-up/--k-down, --k-led-*, --k-engrave, --k-r-*) load with kit.css, i.e. with any kit import.
  *   --k-chassis #D6D2C8/#0E0E10  page    --k-chassis-2 rail     --k-panel / --k-panel-2 wells
  *   --k-raised  modules          --k-stock / --k-screen card stock, composer screen
  *   --k-ink / -2 / -3 text       --k-line / --k-line-2 hairlines   --k-key / --k-key-edge keycaps
@@ -44,11 +46,13 @@
  *          swap toggle boot pen hop riffle jam error
  *   Silent until the first gesture; the switch is remembered ("kletia-sound"); off by default under reduced motion.
  */
-export { Key, KeyAnchor, LinkButton, keyClass, type KeyProps, type KeyTone, type KeySize } from "./Key";
+export { Key, KeyAnchor, LinkButton, type KeyProps } from "./Key";
+export { keyClass, type KeyStyle, type KeyTone, type KeySize } from "./keyClass";
 export { Led, Eng, Vents, Module, Well, StatusDisplay, Odometer, Toggle, Nameplate, MiniPlate, type LedTone, type StatusRow } from "./Parts";
 export { Dial, Segmented, OptionKey, OptionKeys, Chip, Field, type DialOption, type SegmentedOption } from "./Controls";
 export { PrintedCard, CardArt, CardBody, Facts, CardActions, CardTray, Sleeve, Thumb } from "./Card";
 export { MachineWindow, EmptyState, PaperJam, ToastPlate, type MachineState } from "./Machine";
-export { Icon, ICON_PATHS, networkIcon, KletiaGlyph, type IconName } from "./icons";
+export { Icon, KletiaGlyph } from "./icons";
+export { ICON_PATHS, networkIcon, type IconName } from "./iconPaths";
 export * as motion from "./motion";
 export { playSound, playSoundAt, useSoundEnabled, setSoundEnabled, isSoundEnabled, unlockSound, type SoundName } from "./sound";

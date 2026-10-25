@@ -72,7 +72,7 @@ export function MachinePanel({ printer, legs, balances, balancesLoading, noWalle
                 <Icon name={networkIcon(row.network)} />
                 <span>
                   {row.name}
-                  {row.stale ? <span className="k-muted"> · stale</span> : null}
+                  {row.stale ? <span className="k-muted"> · {copy.stale}</span> : null}
                 </span>
                 <Odometer value={formatUsdFixed(row.usd)} />
                 <i aria-hidden="true">
@@ -91,7 +91,7 @@ export function MachinePanel({ printer, legs, balances, balancesLoading, noWalle
             <li key={row.id}>
               <Icon name={TODAY_ICON[row.id]} />
               <span>{row.label}</span>
-              <b className="k-num">{row.value ?? "—"}</b>
+              <b>{row.value ?? "—"}</b>
             </li>
           ))}
         </ul>

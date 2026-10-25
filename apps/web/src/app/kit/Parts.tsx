@@ -4,7 +4,7 @@
  */
 import "./kit.css";
 
-import { useEffect, useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type HTMLAttributes, type ReactNode } from "react";
 
 import { Link } from "../routes/Link";
 import { KletiaGlyph } from "./icons";
@@ -183,12 +183,12 @@ export interface NameplateProps {
 /** The brushed KLETIA nameplate with engraved word, model/serial line and two screws. */
 export function Nameplate({ model = "K-01 intent machine", serial, to = "/", label = "Kletia home", sweep = false, className }: NameplateProps) {
   const shine = useRef<HTMLSpanElement>(null);
-  const [swept, setSwept] = useState(false);
+  const swept = useRef(false);
   useEffect(() => {
-    if (!sweep || swept) return;
-    setSwept(true);
+    if (!sweep || swept.current) return;
+    swept.current = true;
     animate(shine.current, [{ transform: "translateX(-120%)" }, { transform: "translateX(120%)" }], { duration: 1100, delay: 50, easing: EASE.inOut(2) });
-  }, [sweep, swept]);
+  }, [sweep]);
   return (
     <Link to={to} className={cx("k-plate", className)} aria-label={label}>
       <span className="k-plate-face">

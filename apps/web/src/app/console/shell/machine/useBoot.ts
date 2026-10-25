@@ -5,7 +5,7 @@
  * `boot` sound plays (only after a gesture, like every sound). Once per session, never under
  * reduced motion, and skippable: any key or click, or the topbar's "Skip start-up", ends it.
  */
-import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 import { EASE, reducedMotion, timeline, type Timeline } from "../../../kit/motion";
 import { playSound } from "../../../kit/sound";
@@ -35,7 +35,7 @@ export function useBoot(shell: RefObject<HTMLElement | null>): { readonly bootin
   const [booting, setBooting] = useState(() => typeof window !== "undefined" && !reducedMotion() && !bootedThisSession());
   const tl = useRef<Timeline | null>(null);
 
-  const skip = useCallback(() => {
+  const skip = () => {
     tl.current?.finish();
     tl.current = null;
     for (const animation of shell.current?.getAnimations({ subtree: true }) ?? []) {
@@ -46,11 +46,13 @@ export function useBoot(shell: RefObject<HTMLElement | null>): { readonly bootin
       }
     }
     setBooting(false);
-  }, [shell]);
+  };
 
   useLayoutEffect(() => {
     const root = shell.current;
     if (!booting || !root) return undefined;
+    // Later desk opens in this page load (leaving the desk and coming back) do not boot again.
+    decided = true;
     const rail = [...root.querySelectorAll(".kd-machine-rail [data-boot-part]")];
     const panel = [...root.querySelectorAll(".kd-mpanel [data-boot-part]")];
     const lcd = [...root.querySelectorAll(".k-lcd-row")];

@@ -6,6 +6,37 @@
  * This sheet ships with the kit components (a lazy chunk), never in the entry stylesheet.
  */
 
+/* Kit-only tokens (the base palette is in styles.css): wells, the second inks, LEDs, radii.
+   They load with the kit, so `bg-magenta`, `text-k-up`, `bg-k-well` need a kit import on the page. */
+:root {
+  --k-well: #cfcbc1;
+  --k-slot: #161616;
+  --k-lime-tint: #eefbc8;
+  --k-magenta: #ff3d9a;
+  --k-magenta-edge: #b8186a;
+  --k-magenta-tint: #ffe0ef;
+  --k-blue: #2f5bff;
+  --k-up: #12782a;
+  --k-down: #c4005a;
+  --k-led-off: #b9b4a8;
+  --k-led-on: #8acb00;
+  --k-engrave: 0 1px 0 rgba(255, 255, 255, 0.65);
+  --k-r-key: 10px;
+  --k-r-card: 16px;
+  --k-r-module: 20px;
+}
+.dark {
+  --k-well: #070708;
+  --k-slot: #000;
+  --k-lime-tint: #1c230e;
+  --k-magenta-tint: #2a1020;
+  --k-up: #b6ff3d;
+  --k-down: #ff6cb6;
+  --k-led-off: #34343a;
+  --k-led-on: #c6ff3a;
+  --k-engrave: 0 -1px 0 rgba(0, 0, 0, 0.8);
+}
+
 /* ---------- materials + type ---------- */
 .k-grain {
   background-image: var(--k-grain);

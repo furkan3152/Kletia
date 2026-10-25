@@ -33,10 +33,19 @@ import { useHoldings } from "./hooks/useHoldings";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { DeskActionsContext, type DeskActions } from "./shell/deskContext";
 import { DeskEmptyState } from "./shell/DeskEmptyState";
-import { DeskHeader } from "./shell/DeskHeader";
+import { TasksPopover } from "./shell/DeskHeader";
 import { DeskShell } from "./shell/DeskShell";
-import { DeskSubNav, DeskViewNav } from "./shell/DeskViewNav";
+import { DeskSiteMenu } from "./shell/DeskSiteMenu";
+import { DeskSubNav } from "./shell/DeskViewNav";
+import { DESK_MORE_COPY } from "./shell/deskCopy";
+import { MachinePanel } from "./shell/machine/MachinePanel";
+import { MachineRail } from "./shell/machine/MachineRail";
+import { MachineTopbar } from "./shell/machine/MachineTopbar";
+import { useMachineLegs } from "./shell/machine/machineFeed";
+import { activeTask, balanceSummary, binderStack, lcdRows, printerState, settledTasks, statusTone, todayRows } from "./shell/machine/machineModel";
+import { useBoot } from "./shell/machine/useBoot";
 import { SubagentNotice } from "./shell/SubagentNotice";
+import { WalletBar } from "./shell/WalletBar";
 import {
   departureCaption,
   departureOptions,
@@ -46,14 +55,14 @@ import {
   type DeskView,
   type LegacyNetwork,
 } from "./state/deskModel";
-import { rememberView, sectionTarget, type DeskSection, type SectionMemory } from "./state/deskNav";
+import { rememberView, sectionOf, sectionTarget, type DeskSection, type SectionMemory } from "./state/deskNav";
 import { getDeskStore, useDeskStore } from "./state/deskStore";
 import { formatUsd, mostFunded } from "./state/holdings";
 import { EngineHosts } from "./tasks/EngineHosts";
 import { TaskCard } from "./tasks/TaskCard";
 import { TaskList } from "./tasks/TaskList";
-import { TaskRail } from "./tasks/TaskRail";
 import { TaskThread } from "./tasks/TaskThread";
+import { taskStatusLabel } from "./tasks/taskModel";
 import { ToolsView } from "./tools/ToolsView";
 
 const copy = DESK_COPY;
@@ -98,6 +107,7 @@ export default function DeskApp() {
   const signingTaskId = useDeskStore((state) => state.signingTaskId);
   const enginePin = useDeskStore((state) => state.enginePin);
   const answering = useDeskStore((state) => state.answering);
+  const focusedTaskId = useDeskStore((state) => state.focusedTaskId);
   const lane = laneOf(departure);
 
   const accounts = useDeskAccounts(lane, departure);
@@ -255,30 +265,83 @@ export default function DeskApp() {
 
   const emptyDesk = view === "desk" && tasks.length === 0;
 
+  // The machine shell: what the rail, the topbar and the panel read.
+  const shellRef = useRef<HTMLDivElement>(null);
+  const boot = useBoot(shellRef);
+  const section = sectionOf(view);
+  const active = activeTask(tasks, signingTaskId, focusedTaskId);
+  const legs = useMachineLegs(active?.id ?? null);
+  const binder = useMemo(() => binderStack(tasks), [tasks]);
+  const binderCount = useMemo(() => settledTasks(tasks).length, [tasks]);
+  const lcd = lcdRows({ tasks, heights: status.heights, uptimeSeconds: status.uptimeSeconds, blockNetwork: lane === "testnet" ? "arbitrum-sepolia" : "base" });
+  const balances = useMemo(() => balanceSummary(holdings.snapshot?.byNetwork ?? null), [holdings.snapshot]);
+  const moving = useMemo(() => new Set<string>(active && active.status === "executing" && active.ends ? [active.ends.from, active.ends.to] : []), [active]);
+  const openBinder = useCallback(() => openView("history"), [openView]);
+  const onDesk = view === "desk";
+  const topTitle = onDesk ? (active ? active.title || active.sentence || DESK_MORE_COPY.machine.newTask : DESK_MORE_COPY.machine.newTask) : copy.header.views[view];
+  const topStatus = onDesk && active ? taskStatusLabel(active) : null;
+
   return (
     <DeskActionsContext.Provider value={actions}>
       <DeskShell
-        header={
-          <DeskHeader
-            view={view}
+        ref={shellRef}
+        wide={!onDesk}
+        topbar={
+          <MachineTopbar
+            title={topTitle}
+            status={topStatus}
+            tone={onDesk ? statusTone(active) : "on"}
+            section={section}
             onSection={openSection}
             taskCount={tasks.length}
-            onOpenTask={openTask}
-            onNewTask={newTask}
+            binderCount={binderCount}
+            onOpenBinder={openBinder}
             theme={theme}
             onToggleTheme={toggle}
+            onSkipBoot={boot.booting ? boot.skip : null}
+            phoneMenu={<DeskSiteMenu />}
+            tools={
+              <>
+                <TasksPopover count={tasks.length} onOpenTask={openTask} onNewTask={newTask} />
+                <DeskSiteMenu />
+              </>
+            }
           />
         }
-        viewNav={<DeskViewNav view={view} onSection={openSection} taskCount={tasks.length} />}
-        leftRail={<TaskRail onOpenTask={openTask} onNewTask={newTask} />}
-        rightRail={
-          <>
-            <SubagentNotice evm={accounts.evm?.address ?? null} solana={accounts.solana?.address ?? null} />
-            {holdingsPanel(2)}
-            <ActivityPeek onOpenAll={() => openView("activity")} />
-          </>
+        rail={
+          <MachineRail
+            section={section}
+            onSection={openSection}
+            taskCount={tasks.length}
+            binder={binder}
+            binderCount={binderCount}
+            onOpenBinder={openBinder}
+            lcd={lcd}
+            theme={theme}
+            onToggleTheme={toggle}
+            booting={boot.booting}
+          />
+        }
+        panel={
+          onDesk ? (
+            <MachinePanel
+              printer={printerState(tasks, active)}
+              legs={legs}
+              balances={balances}
+              balancesLoading={holdings.loading}
+              noWallet={!accounts.connected.evm && !accounts.connected.solana}
+              moving={moving}
+              today={todayRows(status.health, status.offered)}
+            >
+              <ActivityPeek onOpenAll={() => openView("activity")} />
+            </MachinePanel>
+          ) : null
         }
       >
+        <div className="kd-phone-wallets">
+          <WalletBar />
+        </div>
+        <SubagentNotice evm={accounts.evm?.address ?? null} solana={accounts.solana?.address ?? null} />
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {announcement}
         </p>

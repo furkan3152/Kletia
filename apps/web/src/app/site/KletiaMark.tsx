@@ -13,7 +13,7 @@ export function KletiaMark({ size = "md", className }: { size?: "sm" | "md" | "l
       <span
         aria-hidden="true"
         className={cx(
-          "absolute bg-[#C6FF3A] [mask:url(/kletia-logo.png)_center/contain_no-repeat] [-webkit-mask:url(/kletia-logo.png)_center/contain_no-repeat] transition-transform duration-240 ease-kl-snap group-hover:rotate-90 group-focus-visible:rotate-90 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-focus-visible:rotate-0",
+          "kl-glyph absolute transition-transform duration-240 ease-kl-snap group-hover:rotate-90 group-focus-visible:rotate-90 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-focus-visible:rotate-0",
           inset,
         )}
       />

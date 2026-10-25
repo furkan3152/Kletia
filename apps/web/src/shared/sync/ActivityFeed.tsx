@@ -67,7 +67,7 @@ function ActivityRow({ entry, compact }: { entry: ActivityEntry; compact: boolea
   const chain = CHAINS[entry.network];
   const StatusIcon = status.Icon;
   return (
-    <li className="border-[3px] border-[#121212] bg-[#FBFAF6] p-3 shadow-[3px_3px_0_#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:shadow-[3px_3px_0_#2A2A30]">
+    <li className="rounded-[12px] border border-[var(--k-line)] bg-[var(--k-raised)] p-3 shadow-obj">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <p
@@ -155,7 +155,7 @@ export function ActivityFeed({
       ) : null}
       <div aria-live="polite" aria-relevant="additions text">
         {visible.length === 0 ? (
-          <p className="border-[3px] border-dashed border-[#121212] bg-white/70 p-4 text-sm font-bold text-gray-700 dark:border-[#4A4A52] dark:bg-[#19191C]/70 dark:text-slate-300">
+          <p className="rounded-[14px] border-[1.5px] border-dashed border-[var(--k-line-2)] p-4 text-sm text-muted">
             {emptyHint}
           </p>
         ) : (

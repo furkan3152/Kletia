@@ -5,6 +5,7 @@
  * test-yard `<address>` becomes the connected wallet's own address, or is
  * left for Kletia to ask); nothing is sent.
  */
+import { keyClass } from "../../kit/keyClass";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { LineBullet } from "../../site/art/LineBullet";
@@ -29,8 +30,7 @@ export interface StarterMenuProps {
   readonly className?: string;
 }
 
-const CHIP =
-  "inline-flex min-h-11 items-center border-2 border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] motion-reduce:hover:translate-y-0";
+const CHIP = keyClass({ size: "sm" });
 
 export function StarterMenu({ departure, actions, onPick, variant = "row", className = "" }: StarterMenuProps) {
   const [open, setOpen] = useState<StarterCapability | "all" | null>(null);

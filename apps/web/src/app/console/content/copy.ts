@@ -84,7 +84,11 @@ const COPY = {
 
   empty: {
     kicker: "Platform 1 · Console",
-    heading: "Where should the money go?",
+    heading: "What should your money do?",
+    /** "Good morning, 0x7a3f" (the connected wallet's first characters), "Good morning" without one. */
+    greeting: (part: string, who: string) => (who ? `Good ${part}, ${who}` : `Good ${part}`),
+    networksLive: (value: string) => `${value} networks answering`,
+    askKletia: "Ask Kletia",
     lead: `One sentence on any of ${countWord(NETWORK_COUNT)} networks. Kletia plans it, shows the fare, and your wallet signs every step.`,
     statusBoard: "Departures",
     statusBoardLabel: "Network status",

@@ -37,6 +37,8 @@ const COPY = {
     binderLast: (title: string) => `Last: ${title}`,
     lcd: "Machine status",
     machine: "Machine",
+    controls: "Machine controls",
+    stale: "stale",
     ready: "Ready",
     working: "Working",
     attention: "Needs you",

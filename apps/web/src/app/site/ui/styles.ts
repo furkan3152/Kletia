@@ -45,13 +45,14 @@ export type ButtonVariant = "primary" | "accent" | "secondary" | "ink" | "ghost"
 export type ButtonSize = "sm" | "md" | "lg";
 
 // Card machine keys (kit/Key.tsx is the React twin): a keycap with a 4 px bottom edge
-// that travels 3 px in 60 ms when pressed. Lime is the one accent and carries ink text.
+// that travels 3 px in 60 ms when pressed (.kl-key in styles.css). Lime is the one accent and
+// carries ink text.
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "[--key-bg:var(--k-lime)] [--key-edge:var(--k-lime-edge)] text-[#121212]",
-  accent: "[--key-bg:var(--k-lime)] [--key-edge:var(--k-lime-edge)] text-[#121212]",
-  secondary: "[--key-bg:var(--k-key)] [--key-edge:var(--k-key-edge)] text-[var(--k-ink)]",
-  ink: "[--key-bg:var(--k-dark-key)] [--key-edge:var(--k-dark-key-edge)] text-[var(--k-chassis)]",
-  ghost: "bg-transparent text-[var(--k-ink)] hover:bg-[var(--k-panel-2)]",
+  primary: "kl-key kl-key--lime",
+  accent: "kl-key kl-key--lime",
+  secondary: "kl-key",
+  ink: "kl-key kl-key--ink",
+  ghost: "rounded-key border border-transparent bg-transparent text-[var(--k-ink)] hover:bg-[var(--k-panel-2)]",
 };
 
 const SIZES: Record<ButtonSize, string> = {
@@ -60,9 +61,6 @@ const SIZES: Record<ButtonSize, string> = {
   lg: "min-h-14 gap-2.5 rounded-[12px] px-6 py-3.5 text-base",
 };
 
-const KEY_FACE =
-  "border border-[color-mix(in_srgb,var(--key-edge)_60%,transparent)] bg-[var(--key-bg)] shadow-[inset_0_1px_0_var(--k-hi),0_4px_0_var(--key-edge),0_5px_10px_-4px_rgba(0,0,0,.25)] hover:-translate-y-px hover:shadow-[inset_0_1px_0_var(--k-hi),0_5px_0_var(--key-edge),0_8px_14px_-6px_rgba(0,0,0,.3)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_var(--k-hi),0_1px_0_var(--key-edge),0_1px_2px_rgba(0,0,0,.2)]";
-
 /** Class list for a button-like element. */
 export function buttonClasses(
   variant: ButtonVariant = "primary",
@@ -70,8 +68,7 @@ export function buttonClasses(
   extra = "",
 ): string {
   return [
-    "inline-flex select-none items-center justify-center whitespace-nowrap font-semibold tracking-[-0.005em] transition-[transform,box-shadow,background-color] duration-60 ease-mech disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
-    variant === "ghost" ? "rounded-key border border-transparent" : KEY_FACE,
+    "inline-flex select-none items-center justify-center whitespace-nowrap font-semibold disabled:pointer-events-none disabled:opacity-50",
     VARIANTS[variant],
     SIZES[size],
     FOCUS_RING,

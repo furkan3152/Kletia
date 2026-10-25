@@ -12,11 +12,12 @@ export interface ToasterProps {
   readonly placement?: "site" | "console";
 }
 
+/** Card machine toast plate: a dark slot with a lime icon tile; magenta for errors, amber for warnings. */
 const TONES: Record<ToastTone, { stripe: string; icon: typeof Info; iconClass: string; label: string }> = {
-  success: { stripe: "#4ADE80", icon: CircleCheck, iconClass: "text-[#0B7A4B] dark:text-[#4ADE80]", label: "Success" },
-  error: { stripe: "#FF5A5F", icon: CircleAlert, iconClass: "text-[#B91C1C] dark:text-[#FCA5A5]", label: "Error" },
-  info: { stripe: "#0052FF", icon: Info, iconClass: "text-[#1A36B0] dark:text-[#8FA6FF]", label: "Info" },
-  warning: { stripe: "#FFD60A", icon: TriangleAlert, iconClass: "text-[#8A6100] dark:text-[#C6FF3A]", label: "Warning" },
+  success: { stripe: "#C6FF3A", icon: CircleCheck, iconClass: "bg-[#C6FF3A] text-[#121212]", label: "Success" },
+  error: { stripe: "#FF3D9A", icon: CircleAlert, iconClass: "bg-[#FF3D9A] text-[#121212]", label: "Error" },
+  info: { stripe: "#C6FF3A", icon: Info, iconClass: "bg-[#C6FF3A] text-[#121212]", label: "Info" },
+  warning: { stripe: "#FBBF24", icon: TriangleAlert, iconClass: "bg-[#FBBF24] text-[#121212]", label: "Warning" },
 };
 
 function announcement(toast: ToastRecord): string {
@@ -63,19 +64,20 @@ function ToastItem({ toast, pageVisible }: ToastItemProps) {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHeld(false);
       }}
       className={cx(
-        "kl-toast pointer-events-auto relative flex overflow-hidden border-[3px] border-[#121212] bg-[#FBFAF6] text-[#121212] shadow-hard dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-[#F2F0EA]",
+        "kl-toast pointer-events-auto relative flex overflow-hidden rounded-[12px] bg-[#161616] text-[#F2F0EA] shadow-[0_4px_0_#000,0_20px_40px_-12px_rgba(0,0,0,.45)] dark:bg-black dark:shadow-[0_4px_0_#2A2A30,0_20px_40px_-12px_rgba(0,0,0,.6)]",
         toast.leaving && "kl-toast--leaving",
       )}
     >
-      <span aria-hidden="true" className="w-1.5 shrink-0" style={{ backgroundColor: tone.stripe }} />
-      <div className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3">
-        <Icon className={cx("mt-0.5 h-5 w-5 shrink-0", tone.iconClass)} aria-hidden="true" />
+      <div className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3.5">
+        <span aria-hidden="true" className={cx("grid h-7 w-7 shrink-0 place-items-center rounded-[8px]", tone.iconClass)}>
+          <Icon className="h-4 w-4" />
+        </span>
         <div className="min-w-0 flex-1">
           {/* Announced through the live regions; hidden here so it is not read twice. */}
           <div aria-hidden={toast.silent ? undefined : true}>
-            <p className="font-display text-sm font-bold leading-snug">{toast.title}</p>
+            <p className="text-sm font-semibold leading-snug">{toast.title}</p>
             {toast.description ? (
-              <p className="mt-0.5 text-[13px] leading-snug text-[#5C5850] dark:text-[#9A968C]">{toast.description}</p>
+              <p className="mt-0.5 text-[12.5px] leading-snug text-[#A9A69D]">{toast.description}</p>
             ) : null}
           </div>
           {toast.action ? (
@@ -86,7 +88,7 @@ function ToastItem({ toast, pageVisible }: ToastItemProps) {
                 toastApi.dismiss(toast.id);
               }}
               className={cx(
-                "mt-2 inline-flex min-h-9 items-center border-2 border-[#121212] bg-[#C6FF3A] px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#121212] shadow-hard-sm transition-[transform,box-shadow] duration-90 ease-kl-snap active:translate-x-[3px] active:translate-y-[3px] active:shadow-none dark:border-[#4A4A52]",
+                "mt-2 inline-flex min-h-9 items-center rounded-[8px] border border-[#88B514] bg-[#C6FF3A] px-3 py-1 text-[13px] font-semibold text-[#121212] shadow-[inset_0_1px_0_rgba(255,255,255,.75),0_3px_0_#88B514] transition-[transform,box-shadow] duration-60 ease-mech active:translate-y-[3px] active:shadow-[0_1px_0_#88B514]",
                 FOCUS_RING,
               )}
             >
@@ -99,7 +101,7 @@ function ToastItem({ toast, pageVisible }: ToastItemProps) {
         type="button"
         onClick={() => toastApi.dismiss(toast.id)}
         className={cx(
-          "inline-flex h-11 w-11 shrink-0 items-center justify-center text-[#121212] hover:bg-[#121212]/5 dark:text-white dark:hover:bg-white/10",
+          "inline-flex h-11 w-11 shrink-0 items-center justify-center text-[#F2F0EA] hover:bg-white/10",
           FOCUS_RING,
           "focus-visible:-outline-offset-4",
         )}

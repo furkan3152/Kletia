@@ -125,19 +125,21 @@ for (const file of trackedFiles) {
 }
 
 const multilingualIntentSources = new Set([
-  "apps/api/src/shared/ai/parser.ts",
   "apps/api/src/shared/privacy/intentPrivacyTrace.ts",
-  "apps/api/src/networks/base/intent/x402.ts",
+  "apps/api/src/networks/base/intent/x402/promptBinding.ts",
   "apps/web/src/shared/privacy/defaultIntentPrivacy.ts",
   "apps/web/src/shared/privacy/intentPrivacy.ts",
 ]);
+/** The intent parser's modules read English and Turkish input. */
+const multilingualIntentFolders = ["apps/api/src/shared/ai/parser/"];
 const turkishApplicationCopy =
   /\b(?:aktif pozisyonlar|ana para|bakiye|bekleyen|bilinmeyen|blok|desteklenmiyor|dilim|durdu|edilen|faiz|girdi|hedef|hesap|incelendi|izin verilmeyen|orta vade|pozisyonu|risk etiketleri|saat|sorgu|tahakkuk|tahmin|tahmini|teminat|tespit edilen|toplam|veya|zaman)\b/iu;
 for (const file of trackedFiles) {
   if (
     !/^(?:apps\/api\/src|apps\/web\/src)\/.+\.(?:ts|tsx)$/u.test(file) ||
     /(?:^|\/)(?:tests?|__tests__)(?:\/|$)|\.test\.(?:ts|tsx)$/u.test(file) ||
-    multilingualIntentSources.has(file)
+    multilingualIntentSources.has(file) ||
+    multilingualIntentFolders.some((folder) => file.startsWith(folder))
   ) {
     continue;
   }

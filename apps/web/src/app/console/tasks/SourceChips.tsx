@@ -7,8 +7,8 @@
  */
 import { CHAINS, type NetworkKey } from "@kletia/core";
 
-import { LineBullet } from "../../site/art/LineBullet";
-import { LINES } from "../../site/art/tokens";
+import { OptionKey, OptionKeys } from "../../kit";
+import { Say } from "./Conversation";
 import { DESK_COPY } from "../content/copy";
 import type { Departure, Lane } from "../state/deskModel";
 import type { HoldingsSnapshot } from "../state/holdings";
@@ -32,33 +32,29 @@ export function SourceChips({ lane, details, holdings, exclude, onChoose }: Sour
   );
   const question = parsed?.amount && parsed.asset ? copy.question(parsed.amount, parsed.asset) : copy.questionGeneric;
   return (
-    <div role="group" aria-label={question} className="flex flex-col gap-3 border-[3px] border-control bg-surface p-4 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]">
-      <p className="font-display text-lg font-bold">{question}</p>
-      {parsed && parsed.candidates.length > 0 && parsed.candidates.every((candidate) => candidate.enough === false) ? (
-        <p className="text-sm font-semibold">{copy.none}</p>
-      ) : null}
-      <ul className="flex flex-wrap gap-2">
+    <div className="kd-qs">
+      <Say>{question}</Say>
+      {parsed && parsed.candidates.length > 0 && parsed.candidates.every((candidate) => candidate.enough === false) ? <p className="kd-say-why">{copy.none}</p> : null}
+      <OptionKeys label={question}>
         {candidates.map((candidate) => {
           const name = CHAINS[candidate.network].shortName;
           const enough = candidate.enough === null ? "" : candidate.enough ? copy.enough : copy.notEnough;
-          const visible = candidate.balance ? copy.candidate(name, `${candidate.balance}${parsed?.asset ? ` ${parsed.asset}` : ""}`) : name;
           return (
-            <li key={candidate.network}>
-              <button
-                type="button"
-                onClick={() => onChoose(candidate.network)}
-                aria-label={candidate.balance ? copy.candidateLabel(name, candidate.balance, enough) : `${name}${enough ? `, ${enough}` : ""}`}
-                className="inline-flex min-h-11 items-center gap-2 border-2 border-control bg-surface-2 px-3 text-sm font-bold text-fg hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] data-[enough=true]:border-[3px] motion-reduce:hover:translate-y-0"
-                data-enough={candidate.enough === true || undefined}
-              >
-                <LineBullet line={LINES[candidate.network]} decorative />
-                <span>{visible}</span>
-                {candidate.enough === false ? <span className="text-xs font-semibold text-muted">{copy.notEnough}</span> : null}
-              </button>
-            </li>
+            <span key={candidate.network} className="contents">
+              <OptionKey
+                title={
+                  <>
+                    <span className="kd-net-dot" style={{ background: CHAINS[candidate.network].color, marginRight: 8 }} aria-hidden="true" />
+                    {name}
+                  </>
+                }
+                detail={[candidate.balance ? `${candidate.balance}${parsed?.asset ? ` ${parsed.asset}` : ""}` : null, enough || null].filter(Boolean).join(" · ") || undefined}
+                onSelect={() => onChoose(candidate.network)}
+              />
+            </span>
           );
         })}
-      </ul>
+      </OptionKeys>
     </div>
   );
 }

@@ -10,5 +10,11 @@ import type { JourneySlotProps } from "./slots";
 export function DeskJourney({ journey, intent }: JourneySlotProps) {
   if (!journey || journey.intentId !== intent.id) return null;
   // Before a wallet is connected the plan uses demo accounts: they are labelled as such, never "Your wallet".
-  return <JourneyPanel journey={labelDemoJourney(journey)} phase="review" />;
+  // The card draws the route; the stop-by-stop itinerary folds under it.
+  return (
+    <details className="kd-memory">
+      <summary>Where the money is after each step</summary>
+      <JourneyPanel journey={labelDemoJourney(journey)} phase="review" />
+    </details>
+  );
 }

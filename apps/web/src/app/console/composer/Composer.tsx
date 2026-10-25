@@ -14,9 +14,15 @@
  * Enter then sends the text to that task as its next turn; a complete
  * sentence is a new task; the chip's × makes it a new task.
  */
+import "./composer.css";
+
 import { keyClass } from "../../kit/keyClass";
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { ArrowUp, X } from "lucide-react";
+import { X } from "lucide-react";
+
+import { Icon } from "../../kit/icons";
+import { animate, squash } from "../../kit/motion";
+import { playSound } from "../../kit/sound";
 import { CHAINS, classifyMessage } from "@kletia/core";
 
 import { DESK_COPY } from "../content/copy";
@@ -64,8 +70,8 @@ export interface ComposerProps {
   readonly picker: React.ReactNode;
 }
 
-function placeholderFor(departure: Departure): string {
-  if (departure === "auto") return copy.placeholderAuto;
+function placeholderFor(departure: Departure, threaded: boolean): string {
+  if (departure === "auto") return threaded ? "Reply or ask a follow-up" : copy.placeholderAuto;
   const chain = CHAINS[departure];
   if (chain.lane === "testnet") return `send 1 USDC to <address> on ${departure === "arbitrum-sepolia" ? "arbitrum sepolia" : departure === "solana-devnet" ? "solana devnet" : departure}`;
   return departure === "solana" ? "swap 1 SOL to USDC" : `deposit 100 USDC into aave on ${departure}`;
@@ -97,6 +103,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   /** The task whose Editing chip the user removed (until the focus moves to another task). */
   const [declined, setDeclined] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const boxRef = useRef<HTMLFormElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
+  /** Keystrokes typed (the slab dips every other key). */
+  const strokes = useRef(0);
+  const threaded = useDeskStore((state) => state.tasks.length > 0);
   const errorId = useId();
   const labelId = useId();
   const hintId = useId();
@@ -182,6 +193,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       case "sentence":
         setText("");
         setError(null);
+        // The send key squashes and thocks; the words leave the screen.
+        squash(sendRef.current);
+        playSound("send");
         // A complete sentence while answering is a new task, never an answer (classifyMessage).
         if (answeringTitle && classifyMessage(verdict.text, { hasOpenQuestion: true, hasTask: true }) === "sentence") {
           getDeskStore().getState().answer(null);
@@ -232,6 +246,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       <div className="relative">
         {picker}
         <form
+          ref={boxRef}
           className="kd-composer__box p-2 sm:p-3"
           data-yard={yard || undefined}
           onSubmit={(event) => {
@@ -286,7 +301,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               rows={1}
               value={text}
               maxLength={COMPOSER_LIMIT * 2}
-              placeholder={placeholderFor(departure)}
+              placeholder={placeholderFor(departure, threaded)}
               aria-labelledby={labelId}
               aria-invalid={error ? true : undefined}
               aria-describedby={[error ? errorId : null, editing || answeringTitle ? hintId : null].filter(Boolean).join(" ") || undefined}
@@ -299,6 +314,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 if (!event.target.value) setDeclined(null);
               }}
               onKeyDown={(event) => {
+                // One tick per character; the module dips 1.5 px every other key.
+                if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing) {
+                  playSound("type", 0.9);
+                  strokes.current += 1;
+                  if (strokes.current % 2 === 0) animate(boxRef.current, [{ transform: "none" }, { transform: "translateY(1.5px)" }, { transform: "none" }], { duration: 70, easing: "ease-out" });
+                }
                 // "1-9 choose" on an open question card works from the empty composer too.
                 if (!text && /^[1-9]$/u.test(event.key) && !event.altKey && !event.ctrlKey && !event.metaKey && chooseByDigit(Number(event.key))) {
                   event.preventDefault();
@@ -312,26 +333,29 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               className="px-1 py-2"
             />
             <button
+              ref={sendRef}
               type="submit"
               aria-label={answeringTitle ? copy.sendAnswer : editing ? copy.sendEdit : copy.sendLabel}
-              className={keyClass({ tone: "lime" }, "h-11 min-w-[52px] shrink-0 rounded-[12px] px-3")}
+              className={keyClass({ tone: "lime" }, "kd-send shrink-0")}
+              data-wide={answeringTitle || editing ? "" : undefined}
             >
-              <ArrowUp className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">{answeringTitle ? copy.sendAnswer : editing ? copy.sendEditShort : copy.send}</span>
+              <Icon name="send" />
+              {answeringTitle || editing ? <span>{answeringTitle ? copy.sendAnswer : copy.sendEditShort}</span> : null}
             </button>
           </div>
           {editing || answeringTitle ? (
-            <p id={hintId} className="mt-2 text-xs font-semibold text-muted">
+            <p id={hintId} className="kd-composer-hint">
               {editing ? copy.editingHint : copy.answeringHint}
             </p>
           ) : null}
           {error ? (
-            <p id={errorId} role="alert" className="mt-2 border-l-4 border-[var(--kl-danger)] bg-[var(--kl-danger-bg)] px-3 py-2 text-sm font-bold text-[var(--kl-danger)]">
+            <p id={errorId} role="alert" className="kd-composer-error">
+              <Icon name="warn" />
               {error}
             </p>
           ) : null}
           {notice ? (
-            <p role="status" className="mt-2 text-sm font-bold text-fg">
+            <p role="status" className="kd-composer-notice">
               {notice}
             </p>
           ) : null}

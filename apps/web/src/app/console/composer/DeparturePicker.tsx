@@ -6,9 +6,11 @@
  * click commits and closes, Esc closes and restores the previous choice;
  * focus returns to the chip either way.
  */
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import "./composer.css";
 
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+
+import { Icon, Key, LinkButton } from "../../kit";
 import { DESK_COPY } from "../content/copy";
 import type { Departure, DepartureBoard } from "../state/deskModel";
 import { clockOf } from "../tasks/taskModel";
@@ -183,22 +185,17 @@ export function DeparturePicker({
       aria-modal={mode === "sheet" ? "true" : "false"}
     >
       <div className="kd-board">
-        {mode === "sheet" ? <span aria-hidden="true" className="mx-auto mt-2 block h-1.5 w-12 bg-[#6B6B6B]" /> : null}
+        {mode === "sheet" ? <span aria-hidden="true" className="kd-board__grab" /> : null}
         <div className="flex items-start justify-between gap-3 px-4 pt-3">
           <div className="min-w-0">
-            <h2 id={titleId} className="text-sm font-black uppercase tracking-[0.18em] text-[#C6FF3A]">
+            <h2 id={titleId} className="kd-board__title">
               {copy.boardTitle}
             </h2>
-            <p className="mt-0.5 font-body text-xs font-semibold text-[#D6D2C8]">{copy.boardSubtitle}</p>
+            <p className="kd-board__subtitle">{copy.boardSubtitle}</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={copy.close}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center border-2 border-[#4A4A4A] text-[#F2F0EA] hover:bg-[#262626] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#C6FF3A]"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
+          <Key size="sm" square onClick={onClose} aria-label={copy.close}>
+            <Icon name="x" />
+          </Key>
         </div>
         <div className="kd-board__scroll mt-2">
           <DepartureBoardRows
@@ -218,23 +215,17 @@ export function DeparturePicker({
             {holdingsAt && onRefreshHoldings ? (
               <>
                 {" · "}
-                <button type="button" onClick={onRefreshHoldings} className="min-h-11 font-bold text-[#C6FF3A] underline underline-offset-2 focus-visible:outline focus-visible:outline-4 focus-visible:outline-[#C6FF3A]">
-                  {copy.refresh}
-                </button>
+                <LinkButton onClick={onRefreshHoldings}>{copy.refresh}</LinkButton>
               </>
             ) : null}
           </span>
           <span className="hidden md:inline">{copy.keyboardHint}</span>
         </div>
         {mode === "sheet" ? (
-          <div className="sticky bottom-0 border-t border-[#3A3A3A] bg-[#121212] p-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-            <button
-              type="button"
-              onClick={() => commit(pending)}
-              className="flex min-h-12 w-full items-center justify-center border-[3px] border-[#C6FF3A] bg-[#C6FF3A] font-body text-sm font-black uppercase tracking-wider text-[#121212] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white"
-            >
+          <div className="kd-board__sheetfoot">
+            <Key tone="lime" className="w-full" onClick={() => commit(pending)}>
               {copy.done}
-            </button>
+            </Key>
           </div>
         ) : null}
       </div>

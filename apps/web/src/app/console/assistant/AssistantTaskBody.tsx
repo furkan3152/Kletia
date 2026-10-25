@@ -16,15 +16,14 @@ import type { AssistantAnswer, AssistantLink } from "@kletia/core";
 import { useAccountSession } from "../../pages/developers/keys/accountSession";
 import { isPlatformError } from "../../pages/developers/keys/accountClient";
 import { formatUtcMinutes } from "../../site/format/utcTime";
-import { Button } from "../../site/ui/Button";
 import { cx, LABEL } from "../../site/ui/styles";
+import { Icon, Key } from "../../kit";
 import { DESK_COPY } from "../content/copy";
 import { useDeskActions } from "../shell/deskContext";
 import { ViewLoading, ViewNote } from "../shell/ViewParts";
-import { PANEL_TITLE, VIEW_PANEL } from "../shell/viewStyles";
+import { PANEL_TITLE } from "../shell/viewStyles";
 import { getDeskStore, type TaskRecord } from "../state/deskStore";
-import { PlanningSkeleton } from "../tasks/PlanningSkeleton";
-import { TaskTicket } from "../tasks/TaskTicket";
+import { KletiaTurn, Say, ThinkingBlock } from "../tasks/Conversation";
 import { requestHistoryFocus } from "../history/historyModel";
 import { assistantApi } from "./assistantClient";
 import { barRows, readConsent, rememberConsent, shortAddress, sourceName } from "./assistantModel";
@@ -32,7 +31,6 @@ import { barRows, readConsent, rememberConsent, shortAddress, sourceName } from 
 const AccountSignIn = React.lazy(() => import("../../pages/developers/keys/AccountSignIn"));
 
 const copy = DESK_COPY.assistant;
-const CHIP = "inline-flex min-h-11 items-center border-2 border-control bg-surface px-3 text-left text-sm font-bold text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]";
 
 type Load =
   | { readonly kind: "loading" }
@@ -43,7 +41,7 @@ function failureText(failure: unknown): string {
   return isPlatformError(failure) && failure.status > 0 && failure.status < 500 ? failure.message : copy.failed;
 }
 
-const LINK_BUTTON = "inline-flex min-h-11 items-center text-xs font-black uppercase tracking-wider text-[var(--kl-accent-text)] underline underline-offset-4 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]";
+const LINK_BUTTON = "k-linkbtn";
 
 /** Where a fact or row leads: its transaction's History row, or a deposit sentence in the composer (the dashboard's "Move here"). */
 function useFollowLink(): (link: AssistantLink) => void {
@@ -75,7 +73,7 @@ function Facts({ answer }: { readonly answer: AssistantAnswer }) {
       <p className={LABEL}>{copy.factsTitle}</p>
       <dl className="m-0 grid gap-2 sm:grid-cols-2">
         {answer.facts.slice(0, 12).map((fact) => (
-          <div key={fact.id} className="min-w-0 border-2 border-control bg-surface-2 px-3 py-2">
+          <div key={fact.id} className="kd-fact">
             <dt className="break-words text-xs font-semibold text-muted">{fact.label}</dt>
             <dd className="m-0 break-words font-code text-base font-bold">{fact.value}</dd>
             <dd className="m-0 text-xs text-muted">{copy.source(sourceName(fact.source), fact.asOf ? (formatUtcMinutes(fact.asOf) ?? "") : "")}</dd>
@@ -157,9 +155,9 @@ function Answer({ answer, onModel, modelNote }: { readonly answer: AssistantAnsw
     store.addTask({ sentence, departure: store.departure });
   };
   return (
-    <section aria-label={copy.heading} className={VIEW_PANEL}>
-      <p className={LABEL}>{copy.heading}</p>
-      <p className="text-base font-semibold" aria-live="polite">
+    <section aria-label={copy.heading} className="kd-answer">
+      <p className="kd-answer-h">{copy.heading}</p>
+      <p className="kd-say" aria-live="polite">
         {answer.text}
       </p>
       {answer.wording === "model" ? <p className="text-xs text-muted">{copy.worded}</p> : null}
@@ -169,9 +167,9 @@ function Answer({ answer, onModel, modelNote }: { readonly answer: AssistantAnsw
         <ViewNote tone="info">
           <p>{modelNote ?? copy.modelOff}</p>
           {modelNote ? null : (
-            <Button size="sm" variant="secondary" className="mt-2" onClick={onModel}>
+            <Key size="sm" className="mt-2" onClick={onModel}>
               {copy.modelOn}
-            </Button>
+            </Key>
           )}
         </ViewNote>
       ) : null}
@@ -183,15 +181,15 @@ function Answer({ answer, onModel, modelNote }: { readonly answer: AssistantAnsw
           <p className="text-sm">{copy.actionLead}</p>
           <ol className="m-0 flex list-none flex-col gap-2 p-0">
             {answer.action.sentences.map((sentence) => (
-              <li key={sentence} className="flex flex-wrap items-center justify-between gap-2 border-2 border-control bg-surface-2 px-3 py-2">
+              <li key={sentence} className="kd-rate">
                 <span className="min-w-0 break-words font-code text-sm">{sentence}</span>
                 <span className="flex flex-wrap gap-2">
-                  <Button size="sm" aria-label={copy.planLabel(sentence)} onClick={() => plan(sentence)}>
+                  <Key size="sm" tone="lime" aria-label={copy.planLabel(sentence)} onClick={() => plan(sentence)}>
                     {copy.plan}
-                  </Button>
-                  <Button size="sm" variant="ghost" aria-label={copy.editLabel(sentence)} onClick={() => actions.fill(sentence)}>
+                  </Key>
+                  <Key size="sm" tone="flat" aria-label={copy.editLabel(sentence)} onClick={() => actions.fill(sentence)}>
                     {copy.edit}
-                  </Button>
+                  </Key>
                 </span>
               </li>
             ))}
@@ -222,9 +220,9 @@ function Answer({ answer, onModel, modelNote }: { readonly answer: AssistantAnsw
           <p className={LABEL}>{copy.followUps}</p>
           <div className="flex flex-wrap gap-2">
             {answer.followUps.map((question) => (
-              <button key={question} type="button" className={CHIP} aria-label={copy.followUpLabel(question)} onClick={() => actions.fill(question)}>
+              <Key key={question} size="sm" aria-label={copy.followUpLabel(question)} onClick={() => actions.fill(question)}>
                 {question}
-              </button>
+              </Key>
             ))}
           </div>
         </div>
@@ -239,6 +237,7 @@ export function AssistantTaskBody({ task }: { readonly task: TaskRecord }) {
   const actions = useDeskActions();
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [modelNote, setModelNote] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState(() => Date.now());
   const aliveRef = useRef(true);
   const token = session?.token ?? null;
 
@@ -260,6 +259,7 @@ export function AssistantTaskBody({ task }: { readonly task: TaskRecord }) {
   };
 
   const run = (consent: string | null) => {
+    setStartedAt(Date.now());
     setLoad({ kind: "loading" });
     getDeskStore().getState().patchTask(task.id, { status: "planning" });
     request(consent);
@@ -288,35 +288,31 @@ export function AssistantTaskBody({ task }: { readonly task: TaskRecord }) {
 
   let body: React.ReactNode;
   if (task.restored || !task.sentence) {
-    body = <p className="text-sm font-semibold text-muted">{copy.sentenceForgotten}</p>;
+    body = <Say muted>{copy.sentenceForgotten}</Say>;
   } else if (!session) {
     body = (
-      <div className={VIEW_PANEL}>
-        <p className="text-sm">{copy.signIn}</p>
+      <div className="kd-answer">
+        <p className="kd-say">{copy.signIn}</p>
         <Suspense fallback={<ViewLoading>{copy.loadingWallets}</ViewLoading>}>
           <AccountSignIn onCancel={() => actions.openView("desk")} />
         </Suspense>
       </div>
     );
   } else if (load.kind === "loading") {
-    body = <PlanningSkeleton label={copy.loading} />;
+    body = <ThinkingBlock key={startedAt} startedAt={startedAt} result={null} steps={["Reading your question", "Reading your wallet's history", "Working out the answer"]} />;
   } else if (load.kind === "failed") {
     body = (
-      <ViewNote role="alert" tone="danger">
-        <p>{load.message}</p>
-        <Button size="sm" variant="secondary" className="mt-2" onClick={() => run(readConsent(session.address))}>
+      <p role="alert" className="kd-alert">
+        <Icon name="warn" />
+        <span>{load.message}</span>
+        <Key size="sm" onClick={() => run(readConsent(session.address))}>
           {copy.retry}
-        </Button>
-      </ViewNote>
+        </Key>
+      </p>
     );
   } else {
     body = <Answer answer={load.answer} onModel={turnOnModel} modelNote={modelNote} />;
   }
 
-  return (
-    <>
-      <TaskTicket task={task} ends={null} departureLine={null} />
-      {body}
-    </>
-  );
+  return <KletiaTurn at={task.createdAt}>{body}</KletiaTurn>;
 }

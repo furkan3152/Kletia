@@ -22,8 +22,8 @@ export function RoutePanel({ intent, assumptions = [], onAlternative }: RoutePan
   const chips = readAsChips(assumptions);
   if (legs.length === 0 && !providers && chips.length === 0 && !intent.interpretation.modelReading) return null;
   return (
-    <details className="text-sm text-fg">
-      <summary className="cursor-pointer font-bold">{READING_COPY.routeTitle}</summary>
+    <details className="kd-memory">
+      <summary>{READING_COPY.routeTitle}</summary>
       {intent.interpretation.modelReading ? <p className="mt-2 text-fg-muted">{READING_COPY.confirmNote}</p> : null}
       {chips.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-2" aria-label="Read as">

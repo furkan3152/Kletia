@@ -13,12 +13,11 @@ import { PLATFORM_ORIGIN } from "../../../shared/platform/kletiaClient";
 import { LineBullet } from "../../site/art/LineBullet";
 import { LINES } from "../../site/art/tokens";
 import { formatUtcMinutes } from "../../site/format/utcTime";
-import { Button } from "../../site/ui/Button";
-import { cx, INK_BORDER, LABEL, SURFACE } from "../../site/ui/styles";
+import { Icon, Key } from "../../kit";
 import { DESK_COPY } from "../content/copy";
 import { useDeskActions } from "../shell/deskContext";
 import { getDeskStore, type TaskRecord } from "../state/deskStore";
-import { PlanningSkeleton } from "./PlanningSkeleton";
+import { KletiaTurn, Say, ThinkingBlock } from "./Conversation";
 import {
   borrowEngineFor,
   depositSentence,
@@ -30,7 +29,6 @@ import {
   venuesPath,
   type VenueRate,
 } from "./ratesModel";
-import { TaskTicket } from "./TaskTicket";
 
 const copy = DESK_COPY.rates;
 const TIMEOUT_MS = 20_000;
@@ -57,6 +55,7 @@ export function RatesTaskBody({ task }: { readonly task: TaskRecord }) {
   const query = rateQueryOf(task.sentence, task.departure);
   const path = venuesPath(query);
   const [load, setLoad] = useState<Load>({ kind: "loading" });
+  const [startedAt, setStartedAt] = useState(() => Date.now());
   const aliveRef = useRef(true);
 
   /** The result of one read, applied to the view and the task (never after unmount). */
@@ -77,35 +76,36 @@ export function RatesTaskBody({ task }: { readonly task: TaskRecord }) {
   }, []);
 
   const retry = () => {
+    setStartedAt(Date.now());
     setLoad({ kind: "loading" });
     getDeskStore().getState().patchTask(task.id, { status: "planning" });
     void readRates(path).then(settle);
   };
 
   const engine = query.borrow ? borrowEngineFor(query) : null;
-  const ends = query.network ? { from: query.network, to: query.network } : null;
 
   let body: React.ReactNode;
   if (task.restored || !task.sentence) {
-    body = <p className="text-sm font-semibold text-muted">{copy.sentenceForgotten}</p>;
+    body = <Say muted>{copy.sentenceForgotten}</Say>;
   } else if (load.kind === "loading") {
-    body = <PlanningSkeleton label={copy.loading} />;
+    body = <ThinkingBlock key={startedAt} startedAt={startedAt} result={null} steps={["Reading your question", "Reading the venue list", "Sorting the rates"]} />;
   } else if (load.kind === "failed") {
     body = (
-      <div role="alert" className="flex flex-col items-start gap-3 border-l-4 border-[var(--kl-danger)] bg-[var(--kl-danger-bg)] px-3 py-2">
-        <p className="text-sm font-bold text-[var(--kl-danger)]">{copy.failed}</p>
-        <Button size="sm" variant="secondary" onClick={retry}>
+      <p role="alert" className="kd-alert">
+        <Icon name="warn" />
+        <span>{copy.failed}</span>
+        <Key size="sm" onClick={retry}>
           {copy.retry}
-        </Button>
-      </div>
+        </Key>
+      </p>
     );
   } else {
     const rows = ratesFor(load.rows, query).slice(0, MAX_ROWS);
     body = (
-      <section aria-label={copy.heading} className={cx("flex flex-col gap-3 p-4", INK_BORDER, SURFACE)}>
+      <section aria-label={copy.heading} className="kd-answer">
         <div>
-          <p className={LABEL}>{copy.heading}</p>
-          <p className="mt-1 text-sm">{copy.lead}</p>
+          <p className="kd-answer-h">{copy.heading}</p>
+          <p className="kd-say-why mt-2">{copy.lead}</p>
         </div>
         {rows.length === 0 ? (
           <p className="text-sm font-semibold">{copy.none}</p>
@@ -114,7 +114,7 @@ export function RatesTaskBody({ task }: { readonly task: TaskRecord }) {
             {rows.map((row) => {
               const sentence = depositSentence(row);
               return (
-                <li key={row.venue} className="grid gap-x-4 gap-y-1 border-2 border-control bg-surface-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <li key={row.venue} className="kd-rate">
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 text-sm font-bold">
                       <LineBullet line={LINES[row.network]} decorative />
@@ -146,14 +146,9 @@ export function RatesTaskBody({ task }: { readonly task: TaskRecord }) {
                       {formatApy(row.supplyApy)}
                     </p>
                     {sentence ? (
-                      <button
-                        type="button"
-                        className="inline-flex min-h-11 items-center border-2 border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]"
-                        aria-label={copy.planDepositLabel(sentence)}
-                        onClick={() => actions.fill(sentence)}
-                      >
+                      <Key size="sm" aria-label={copy.planDepositLabel(sentence)} onClick={() => actions.fill(sentence)}>
                         {copy.planDeposit}
-                      </button>
+                      </Key>
                     ) : null}
                   </div>
                 </li>
@@ -162,14 +157,14 @@ export function RatesTaskBody({ task }: { readonly task: TaskRecord }) {
           </ol>
         )}
         {query.borrow ? (
-          <div className="flex flex-col items-start gap-2 border-l-4 border-[var(--kl-warning)] bg-[var(--kl-warning-bg)] px-3 py-2 text-sm">
+          <div className="kd-alert" data-tone="warn">
             <p className="font-semibold">{copy.borrowNote}</p>
             {engine ? (
               <>
                 <p>{copy.borrowEngine(CHAINS[engine].shortName)}</p>
-                <Button size="sm" variant="secondary" onClick={() => actions.startEngineTask(task.sentence, engine, "offer")}>
+                <Key size="sm" onClick={() => actions.startEngineTask(task.sentence, engine, "offer")}>
                   {copy.askEngine(CHAINS[engine].shortName)}
-                </Button>
+                </Key>
               </>
             ) : null}
           </div>
@@ -180,10 +175,5 @@ export function RatesTaskBody({ task }: { readonly task: TaskRecord }) {
     );
   }
 
-  return (
-    <>
-      <TaskTicket task={task} ends={ends} departureLine={null} />
-      {body}
-    </>
-  );
+  return <KletiaTurn at={task.createdAt}>{body}</KletiaTurn>;
 }

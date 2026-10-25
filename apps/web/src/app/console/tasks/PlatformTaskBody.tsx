@@ -26,9 +26,10 @@
  * cancel its run and refuse any open gate.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Map as MapIcon } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import {
   CHAINS,
+  totalFeesUsd,
   type AccountId,
   type ClarifyAssumption,
   type ClarifyThread,
@@ -46,10 +47,11 @@ import { sameOwner } from "../../../shared/platform/intentBinding";
 import { useIntentExecution, type IntentExecutionError } from "../../../shared/platform/useIntentExecution";
 import { shortenAddress } from "../../../shared/wallet/types";
 import { IntentExecutionFlow } from "../../site/intent/IntentExecutionFlow";
-import { displayDecimal } from "../../site/intent/format";
+import { displayDecimal, formatUsd } from "../../site/intent/format";
 import { IntentGraphView } from "../../site/intent/IntentGraphView";
 import { runPhaseOf } from "../../site/intent/stepPhase";
-import { Button, ButtonLink } from "../../site/ui/Button";
+import { ButtonLink } from "../../site/ui/Button";
+import { Icon, Key, LinkButton } from "../../kit";
 import { DESK_COPY } from "../content/copy";
 import { failureFromBody, type DeskPlanFailure } from "../hooks/planPreview";
 import { useDeskSlots } from "../hooks/useDeskSlots";
@@ -72,14 +74,17 @@ import { ModelReadingCard } from "./ModelReadingCard";
 import { mintReadingConsent, readingAvailable, readingPreference, rememberReadingPreference, walletOfAccount } from "./modelReading";
 import { PlanFailurePanel } from "./PlanFailurePanel";
 import { RoutePanel } from "./RoutePanel";
-import { PlanningSkeleton } from "./PlanningSkeleton";
-import { PreviewTaskBody } from "./PreviewTaskBody";
+import { PreviewKeys, PreviewTaskBody } from "./PreviewTaskBody";
+import { cardPhase, plannedLine, quoteExpired, routeReason, routesCompared } from "./cardModel";
+import { KletiaTurn, Say, SystemNote, ThinkingBlock, type ThinkingResult } from "./Conversation";
+import { DoneReply } from "./DoneReply";
+import { PlanCard, type CardJam } from "./PlanCard";
+import { shortSerial } from "../shell/machine/machineModel";
 import { answerTarget, deskQuestionFrom, responseLabel, turnRequest, type TurnContext, type TurnInput } from "./questionModel";
 import { handoffLine, handoffViewName } from "../handoff/handoffModel";
 import { isDeskQuestion, type DeskQuestion } from "./slots";
 import { SourceChips } from "./SourceChips";
-import { TaskTicket } from "./TaskTicket";
-import { missingWallets, mountActionOf, questionExpiredBy, routePlanFailure, signatureStateOf, taskStatusOf, venueChangeNote } from "./taskModel";
+import { clockOf, missingWallets, mountActionOf, questionExpiredBy, routePlanFailure, signatureStateOf, taskStatusOf, venueChangeNote } from "./taskModel";
 
 const copy = DESK_COPY.tasks;
 
@@ -95,9 +100,41 @@ interface DryPlan {
  * desk unmounts when the person opens another page (Menu, Developers) and
  * mounts the card again on the way back. Memory only, like the sentence.
  */
-const cardMemory = new Map<string, { readonly dry: DryPlan | null; readonly failure: DeskPlanFailure | null }>();
+interface Thinking {
+  readonly startedAt: number;
+  readonly result: ThinkingResult | null;
+}
 
-function rememberCard(taskId: string, memory: { readonly dry: DryPlan | null; readonly failure: DeskPlanFailure | null }): void {
+interface CardMemory {
+  readonly dry: DryPlan | null;
+  readonly failure: DeskPlanFailure | null;
+  readonly thinking?: Thinking | null;
+  readonly printedAt?: string | null;
+}
+
+const cardMemory = new Map<string, CardMemory>();
+
+/** What the thinking block reports when a turn's answer arrives: only what the API returned. */
+function thinkingResult(outcome: TurnOutcome, ms: number): ThinkingResult {
+  if (!outcome.ok) return { ms, outcome: "failed", details: [null, null], summary: `Stopped after ${(Math.max(ms, 100) / 1000).toFixed(1)} s` };
+  const response = outcome.response;
+  if (response.status === "planned") {
+    const compared = routesCompared(response.intent);
+    const preview = response.preview && response.preview.intentId === response.intent.id ? response.preview : null;
+    const fees = formatUsd(totalFeesUsd({ summary: response.intent.summary, preview }));
+    const steps = response.intent.steps.length;
+    return {
+      ms,
+      outcome: "planned",
+      details: [compared && compared > 1 ? `${compared} compared` : `${steps} step${steps === 1 ? "" : "s"}`, fees ? `${fees} fees` : null],
+      summary: plannedLine(ms, compared),
+    };
+  }
+  if (response.status === "needs_input") return { ms, outcome: "question", details: ["one question", null], summary: `${plannedLine(ms, null, "Read")} · one question` };
+  return { ms, outcome: "other", details: [null, null], summary: plannedLine(ms, null, "Read") };
+}
+
+function rememberCard(taskId: string, memory: CardMemory): void {
   const tasks = getDeskStore().getState().tasks;
   for (const id of cardMemory.keys()) if (!tasks.some((task) => task.id === id)) cardMemory.delete(id);
   cardMemory.set(taskId, memory);
@@ -171,6 +208,16 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   const [committing, setCommitting] = useState(false);
   const [changing, setChanging] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  /** The thinking block of the last turn sent (memory only, like the card). */
+  const [thinking, setThinking] = useState<Thinking | null>(() => cardMemory.get(task.id)?.thinking ?? null);
+  /** The thinking block that has folded (the card it planned prints after it). */
+  const [foldedAt, setFoldedAt] = useState<number | null>(() => cardMemory.get(task.id)?.thinking?.startedAt ?? null);
+  /** The card in the tray: a new instance prints; a re-plan of the same card updates it in place. */
+  const [card, setCard] = useState<{ readonly instance: number; readonly print: boolean }>({ instance: 0, print: false });
+  const [printedAt, setPrintedAt] = useState<string | null>(() => cardMemory.get(task.id)?.printedAt ?? null);
+  /** This mount saw the run before it finished (only then is a settled card filed with motion). */
+  const [watched, setWatched] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const aliveRef = useRef(false);
   const startedRef = useRef(false);
   const handledErrorRef = useRef<IntentExecutionError | null>(null);
@@ -309,10 +356,17 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         }
         return;
       }
+      if (!dryRef.current && !executionRef.current.intent) {
+        setCard((current) => ({ instance: current.instance + 1, print: true }));
+        setPrintedAt(clockOf(Date.now()));
+      } else if (dryRef.current && dryRef.current.intent.summary.title !== intent.summary.title) {
+        // The same card, updated in place (its numbers flip): say so in the conversation.
+        patch({ turn: { kind: "note", at: Date.now() + 1, text: `Card #${shortSerial(task.id)} updated · ${intent.summary.title}` } });
+      }
       setDry({ intent, preview, journey, assumptions: response.assumptions ?? [] });
       patch({ status: "preview", question: null, title: intent.summary.title, ends: journeyEnds(intent), thread: threadRef.current, turn });
     },
-    [patch],
+    [patch, task.id],
   );
 
   /** Routes a failed first turn. */
@@ -367,8 +421,11 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         setTurning(true);
         patch({ status: "planning", question: null, thread: null });
         plannedWithoutWallet.current = plannerFor(plan.departure).length === 0;
+        const startedAt = Date.now();
+        setThinking({ startedAt, result: null });
         const outcome = await sendTurn({ kind: "text", text: task.sentence }, plan, "dry");
         if (!aliveRef.current) return;
+        setThinking({ startedAt, result: thinkingResult(outcome, Date.now() - startedAt) });
         setTurning(false);
         if (outcome.ok) apply(outcome.response, "dry");
         else handleFailure(outcome.failure, plan);
@@ -408,6 +465,8 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         }
         setTurning(true);
         setTurnError(null);
+        const startedAt = Date.now();
+        setThinking({ startedAt, result: null });
         let outcome = await sendTurn(input, optionsRef.current, "dry");
         // The person clicked "Yes" on a model reading's confirm: the desk mints the wallet-bound confirm token and sends it once.
         const wallet = walletOfAccount(contextFor(optionsRef.current, "dry").accounts?.[0]);
@@ -417,6 +476,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
           confirmRef.current = null;
         }
         if (!aliveRef.current) return;
+        setThinking({ startedAt, result: thinkingResult(outcome, Date.now() - startedAt) });
         setTurning(false);
         if (outcome.ok) {
           apply(outcome.response, "dry");
@@ -500,8 +560,8 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   }, []);
 
   useEffect(() => {
-    if (cardMemory.has(task.id)) rememberCard(task.id, { dry, failure });
-  }, [dry, failure, task.id]);
+    if (cardMemory.has(task.id)) rememberCard(task.id, { dry, failure, thinking, printedAt });
+  }, [dry, failure, printedAt, task.id, thinking]);
 
   // Answers, assumption chips and edits arrive as the task's turns (the card, the composer's chips).
   useEffect(() => {
@@ -583,16 +643,29 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     return departureLine({ requested: options.departure, intent: shown, holding: holding ? `${displayDecimal(holding.formatted)} ${holding.symbol}` : null });
   }, [actions.holdings, options.departure, shown]);
 
+
+  // A run this mount watches may file its card into the binder once the API settles it.
+  const watchingNow = execution.status === "executing" && Boolean(execution.intent);
+  if (watchingNow && !watched) setWatched(true);
+
+  // Quotes run out: a card that is not signing checks its expiry every 15 s (a paper jam when it passes).
+  const showsCard = Boolean(dry) || execution.status === "review";
+  useEffect(() => {
+    if (!showsCard) return undefined;
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, [showsCard]);
+
   const replannable = !turning && (execution.status === "idle" || execution.status === "review" || execution.status === "failed");
   const lineAction =
     line?.action === "change" && replannable ? (
-      <button type="button" className="underline underline-offset-2" onClick={() => setChanging((current) => !current)} aria-expanded={changing}>
+      <LinkButton onClick={() => setChanging((current) => !current)} aria-expanded={changing}>
         {DESK_COPY.ticket.lines.change}
-      </button>
+      </LinkButton>
     ) : line?.action === "start-from-requested" && options.departure !== "auto" ? (
-      <button type="button" className="underline underline-offset-2" onClick={() => run({ departure: options.departure, defaultOnly: options.departure as NetworkKey })}>
+      <LinkButton onClick={() => run({ departure: options.departure, defaultOnly: options.departure as NetworkKey })}>
         {DESK_COPY.ticket.lines.startFromInstead(CHAINS[options.departure as NetworkKey].shortName)}
-      </button>
+      </LinkButton>
     ) : null;
 
   const describeAccount = useCallback(
@@ -616,12 +689,13 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
 
   const lane = laneOf(options.departure);
   const { Journey } = slots;
-  const ends = shown ? journeyEnds(shown) : task.ends;
   const terminal = execution.status === "completed" || execution.status === "cancelled";
   const signingBlocked = lock.lockedByOther ? copy.signingLocked : null;
   const resumable = task.restored && execution.status === "idle" ? execution.resumableIntentId : null;
   // Refresh quotes, or retry after a failed plan: the same thread plans again (a stored, unsigned plan is dropped first).
-  const replan = () => (threadRef.current ? followUp({ kind: "none" }, null) : run(options));
+  const replan = useCallback(() => (threadRef.current ? followUp({ kind: "none" }, null) : run(optionsRef.current)), [followUp, run]);
+  const serial = shortSerial(task.id);
+  const shake = useCallback(() => document.querySelector(".kd-main"), []);
 
   const sourceChips = (planFailure: DeskPlanFailure | null) => (
     <SourceChips
@@ -633,16 +707,17 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     />
   );
 
+  const ends = shown ? journeyEnds(shown) : task.ends;
   const outcomeFooter = (
-    <div className="flex flex-wrap gap-3">
+    <div className="kd-keys">
       {ends && ends.to !== ends.from ? (
-        <Button size="sm" onClick={() => actions.setDeparture(ends.to)}>
+        <Key size="sm" tone="lime" onClick={() => actions.setDeparture(ends.to)}>
           {DESK_COPY.departure.continueFrom(CHAINS[ends.to].shortName)}
-        </Button>
+        </Key>
       ) : null}
-      <Button size="sm" variant="secondary" onClick={() => actions.fill("")}>
+      <Key size="sm" onClick={() => actions.fill("")}>
         {copy.planAnother}
-      </Button>
+      </Key>
       {task.sentence ? (
         <ButtonLink to={studioHref(task.sentence, options.departure)} size="sm" variant="ghost">
           {copy.openInStudio}
@@ -653,162 +728,279 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   );
 
   const turnErrorPanel = turnError ? (
-    <p role="alert" className="border-l-4 border-[var(--kl-danger)] bg-[var(--kl-danger-bg)] px-3 py-2 text-sm font-bold text-[var(--kl-danger)]">
-      {turnError.message}
+    <p role="alert" className="kd-alert">
+      <Icon name="warn" />
+      <span>{turnError.message}</span>
     </p>
   ) : null;
 
+  // Kletia's live reply: the thinking block of the last turn (ticking, then folded), and words.
+  const thinkingBlock = thinking ? (
+    <ThinkingBlock
+      key={thinking.startedAt}
+      startedAt={thinking.startedAt}
+      result={thinking.result}
+      onFolded={() => setFoldedAt(thinking.startedAt)}
+    />
+  ) : null;
+  // A card that is about to print waits for the thinking block to fold.
+  const cardWaits = card.print && thinking !== null && thinking.result !== null && foldedAt !== thinking.startedAt;
+  const reply = (words: React.ReactNode, extra?: React.ReactNode) => (
+    <KletiaTurn key="reply" fresh={Boolean(thinking && !thinking.result)}>
+      {thinkingBlock}
+      {words}
+      {extra}
+    </KletiaTurn>
+  );
+  const routeWords = (intent: IntentGraph) => {
+    const reason = routeReason(intent);
+    return (
+      <Say>
+        {reason ? `${reason} ` : ""}
+        {execution.intent ? "The plan is stored. Check it below; your wallet signs each step." : "I printed it below. Nothing moves until you sign."}
+      </Say>
+    );
+  };
+
+  const departureNote = line ? (
+    <SystemNote icon={line.tone === "notice" ? "warn" : "arr"} tone={line.tone === "notice" ? "warn" : undefined} action={lineAction}>
+      <span data-departure-line={line.tone}>{line.text}</span>
+    </SystemNote>
+  ) : null;
+
+  /** The paper jam a card shows: a changed fare, quotes that ran out, a run that stopped. */
+  const jamFor = (intent: IntentGraph, stored: boolean): CardJam | null => {
+    if (stored && execution.gate?.kind === "fare" && execution.status === "executing") {
+      return { message: "The fare changed after the card printed, so I stopped before your wallet. Check the new fare below; nothing was signed for it." };
+    }
+    if (turnError && (turnError.code === "PREVIEW_CHANGED" || turnError.code === "INTENT_EXPIRED" || turnError.code === "QUOTE_EXPIRED")) {
+      return { message: `${turnError.message} Nothing was sent.`, onReprint: replan };
+    }
+    const unsigned = !intent.steps.some((step) => (step.references?.length ?? 0) > 0);
+    if (stored && execution.status === "failed" && unsigned) {
+      return { message: `${execution.error?.message ?? "The run stopped."} Nothing was sent.`, onReprint: replan };
+    }
+    if ((!stored || execution.status === "review") && !turning && quoteExpired(intent, now)) {
+      return { message: "The quotes on this card ran out before anything was signed. Nothing was sent.", onReprint: replan };
+    }
+    return null;
+  };
+
   let body: React.ReactNode;
   if (resumable) {
-    body = (
-      <div className="kl-rise flex flex-col gap-3 border-[3px] border-control bg-surface p-4 shadow-[4px_4px_0_#121212] dark:shadow-[4px_4px_0_#2A2A30]">
-        <p className="font-display text-lg font-bold">{copy.pickUp}</p>
-        <p className="text-sm">{task.origin === "automation" ? copy.automationRun : copy.sentenceForgotten}</p>
-        {signingBlocked ? <p className="text-sm font-bold">{signingBlocked}</p> : null}
-        <div className="flex flex-wrap gap-3">
-          <Button size="sm" disabled={Boolean(signingBlocked)} onClick={() => void execution.resume(resumable)}>
+    body = reply(
+      <>
+        <Say>
+          <b>{copy.pickUp}</b> {task.origin === "automation" ? copy.automationRun : copy.sentenceForgotten}
+        </Say>
+        {signingBlocked ? <p className="kd-say-why">{signingBlocked}</p> : null}
+        <div className="kd-keys">
+          <Key size="sm" tone="lime" disabled={Boolean(signingBlocked)} onClick={() => void execution.resume(resumable)}>
             {copy.resume}
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => {
-            execution.forgetResumable();
-            patch({ status: "cancelled" });
-          }}>
+          </Key>
+          <Key
+            size="sm"
+            onClick={() => {
+              execution.forgetResumable();
+              patch({ status: "cancelled" });
+            }}
+          >
             {DESK_MORE_COPY.tasks.dismiss}
-          </Button>
+          </Key>
         </div>
-      </div>
+      </>,
     );
   } else if (task.status === "handoff" && task.handoff) {
     // A perps trade, native order, automation or prediction; its view holds the form the person checks and signs.
     const handoff = task.handoff;
-    body = (
-      <div className="flex flex-col items-start gap-3 border-[3px] border-control bg-surface p-4">
-        <p className="font-display text-lg font-bold">{handoff.summary}</p>
-        <p className="text-sm">{handoffLine(handoff)}</p>
-        <Button size="sm" onClick={() => getDeskStore().getState().openHandoff(handoff)}>
-          Open {handoffViewName(handoff.surface)}
-        </Button>
-      </div>
+    body = reply(
+      <section className="kd-answer" aria-label={handoff.summary}>
+        <p className="kd-answer-h">Handed to {handoffViewName(handoff.surface)}</p>
+        <p className="kd-answer-t">{handoff.summary}</p>
+        <p className="kd-say kd-say--muted">{handoffLine(handoff)}</p>
+        <div className="kd-keys">
+          <Key size="sm" tone="lime" onClick={() => getDeskStore().getState().openHandoff(handoff)}>
+            Open {handoffViewName(handoff.surface)}
+            <Icon name="arr" />
+          </Key>
+        </div>
+      </section>,
     );
   } else if (task.restored && !task.sentence && task.status === "question") {
     // An open question does not survive a reload (its thread lived in memory only).
-    body = (
-      <div className="flex flex-col items-start gap-3 border-2 border-dashed border-control bg-surface-2 p-4">
-        <p className="text-sm font-semibold">{copy.questionCleared}</p>
-        <Button size="sm" variant="secondary" onClick={() => actions.fill("")}>
+    body = reply(
+      <>
+        <Say muted>{copy.questionCleared}</Say>
+        <Key size="sm" onClick={() => actions.fill("")}>
           Type it again
-        </Button>
-      </div>
+        </Key>
+      </>,
     );
   } else if (failure) {
     const offer = readingAvailable(failure) && readingPreference() !== "off";
-    body = (
+    body = reply(
+      null,
       <>
-      {offer ? <ModelReadingCard busy={readingBusy} typed={!task.origin} onRead={readWithModel} onRewrite={() => actions.fill(task.sentence)} /> : null}
-      <PlanFailurePanel
-        failure={failure}
-        route={routePlanFailure(failure, { text: task.sentence, departure: options.departure })}
-        sourceChips={sourceChips(failure)}
-        onRetry={replan}
-        onAskEngine={(network) => patch({ engine: { kind: "network", network, why: "offer" }, status: "engine" })}
-        onHint={(hint) => actions.fill(hint)}
-        connect={anyWallet ? [] : ["eip155", "solana"]}
-        onConnect={actions.openWallet}
-      />
-      </>
+        {offer ? <ModelReadingCard busy={readingBusy} typed={!task.origin} onRead={readWithModel} onRewrite={() => actions.fill(task.sentence)} /> : null}
+        <PlanFailurePanel
+          failure={failure}
+          route={routePlanFailure(failure, { text: task.sentence, departure: options.departure })}
+          sourceChips={sourceChips(failure)}
+          onRetry={replan}
+          onAskEngine={(network) => patch({ engine: { kind: "network", network, why: "offer" }, status: "engine" })}
+          onHint={(hint) => actions.fill(hint)}
+          connect={anyWallet ? [] : ["eip155", "solana"]}
+          onConnect={actions.openWallet}
+        />
+      </>,
     );
   } else if (reading !== "idle" && !execution.intent) {
     body =
       reading === "reading" ? (
-        <PlanningSkeleton label={copy.readingAgain} />
+        reply(<Say muted>{copy.readingAgain}</Say>)
       ) : (
-        <div className="flex flex-col items-start gap-3 border-2 border-dashed border-control bg-surface-2 p-4">
-          <p role="alert" className="text-sm font-semibold">
-            {copy.readFailed}
-          </p>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              if (!task.intentId) return;
-              setReading("reading");
-              readStoredIntent(task.intentId);
-            }}
-          >
-            {copy.readAgain}
-          </Button>
-        </div>
+        reply(
+          <>
+            <p role="alert" className="kd-alert">
+              <Icon name="warn" />
+              <span>{copy.readFailed}</span>
+            </p>
+            <Key
+              size="sm"
+              onClick={() => {
+                if (!task.intentId) return;
+                setReading("reading");
+                readStoredIntent(task.intentId);
+              }}
+            >
+              {copy.readAgain}
+            </Key>
+          </>,
+        )
       );
   } else if (execution.intent) {
+    const intent = execution.intent;
+    const phase = cardPhase({ status: execution.status, intentStatus: intent.status });
+    const reviewKey =
+      execution.status === "review" ? (
+        <Key
+          size="sm"
+          onClick={() => {
+            const box = document.querySelector<HTMLInputElement>(`#task-${CSS.escape(task.id)} section[aria-label="Review before signing"] input[type="checkbox"]`);
+            box?.scrollIntoView({ block: "center", behavior: "smooth" });
+            box?.focus({ preventScroll: true });
+          }}
+        >
+          Confirm below
+          <Icon name="chev" />
+        </Key>
+      ) : null;
     body = (
       <>
+        {reply(routeWords(intent))}
         {changing ? sourceChips(null) : null}
+        <PlanCard
+          key={`card${card.instance}`}
+          serial={serial}
+          intent={intent}
+          preview={execution.preview}
+          phase={phase}
+          stepPhases={execution.stepPhases}
+          signed={signature === "signed"}
+          print={false}
+          actions={reviewKey}
+          signingNote={execution.status === "paused" ? (execution.pauseReason ?? "Paused") : null}
+          walletFor={walletFor}
+          jam={terminal ? null : jamFor(intent, true)}
+          fileWhenSettled={watched}
+          printedAt={printedAt}
+          shakeTarget={shake}
+        />
+        {signature === "signed" && phase === "signing" ? (
+          <SystemNote icon="lock">Card sealed · quotes locked · your wallet signs each step</SystemNote>
+        ) : null}
+        {phase === "settled" ? <DoneReply intent={intent} preview={execution.preview} animate={watched} /> : null}
         {turnErrorPanel}
         {venueNote && !terminal ? (
-          <p role="status" className="border-l-4 border-[var(--kl-warning)] bg-[var(--kl-warning-bg)] px-3 py-2 text-sm font-bold text-fg">
+          <SystemNote icon="flip" role="status">
             {venueNote}
-          </p>
+          </SystemNote>
         ) : null}
-        <IntentExecutionFlow
-          execution={execution}
-          describeAccount={describeAccount}
-          walletFor={walletFor}
-          onReplan={replan}
-          showGraph={false}
-          notifyProgress
-          signingBlockedReason={terminal ? null : signingBlocked}
-          holdJourneyPrompt={Boolean(task.question)}
-          outcomeFooter={outcomeFooter}
-        />
-        <details className="border-2 border-control bg-surface" onToggle={(event) => setMapOpen(event.currentTarget.open)}>
-          <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 text-xs font-black uppercase tracking-wider">
-            <MapIcon className="h-4 w-4" aria-hidden="true" />
-            {copy.routeMap}
-          </summary>
-          {mapOpen ? (
-            <div className="overflow-x-auto p-3">
-              <IntentGraphView intent={execution.intent} phases={execution.stepPhases} phaseOf={runPhaseOf(execution)} />
-            </div>
-          ) : null}
-        </details>
+        <div className="kd-flow">
+          <IntentExecutionFlow
+            execution={execution}
+            describeAccount={describeAccount}
+            walletFor={walletFor}
+            onReplan={replan}
+            showGraph={false}
+            notifyProgress
+            signingBlockedReason={terminal ? null : signingBlocked}
+            holdJourneyPrompt={Boolean(task.question)}
+            outcomeFooter={outcomeFooter}
+          />
+          <details className="kd-memory" onToggle={(event) => setMapOpen(event.currentTarget.open)}>
+            <summary>{copy.routeMap}</summary>
+            {mapOpen ? (
+              <div className="overflow-x-auto pb-3">
+                <IntentGraphView intent={intent} phases={execution.stepPhases} phaseOf={runPhaseOf(execution)} />
+              </div>
+            ) : null}
+          </details>
+        </div>
       </>
     );
   } else if (dry) {
     const missing = missingWallets(dry.intent, actions.accounts.connected);
     body = (
       <>
+        {reply(routeWords(dry.intent))}
         {changing ? sourceChips(null) : null}
+        {cardWaits ? null : (
+          <PlanCard
+            key={`card${card.instance}`}
+            serial={serial}
+            intent={dry.intent}
+            preview={dry.preview}
+            phase="dry"
+            signed={false}
+            print={card.print}
+            actions={<PreviewKeys missing={missing} replanning={turning} {...(missing.length === 0 ? { onReview: review } : {})} reviewing={committing} reviewBlocked={signingBlocked} />}
+            jam={jamFor(dry.intent, false)}
+            printedAt={printedAt}
+            shakeTarget={shake}
+          />
+        )}
         {turnErrorPanel}
-        <PreviewTaskBody
-          intent={dry.intent}
-          preview={dry.preview}
-          missing={missing}
-          replanning={turning}
-          assumptions={dry.assumptions}
-          onAssumption={(id, option) => {
-            const alternative = dry.assumptions.find((assumption) => assumption.id === id)?.alternatives.find((entry) => entry.id === option);
-            patch({ turn: { kind: "assumption", at: Date.now(), id, option, label: alternative?.label ?? option } });
-          }}
-          {...(missing.length === 0 ? { onReview: review } : {})}
-          reviewing={committing}
-          reviewBlocked={signingBlocked}
-          journey={<Journey taskId={task.id} phase="review" intent={dry.intent} preview={dry.preview} journey={dry.journey} holdings={actions.holdings} lane={lane} onFollowUp={(text, departure) => actions.fill(text, departure ? { departure } : {})} />}
-        />
-        <RoutePanel intent={dry.intent} assumptions={dry.assumptions} />
+        {cardWaits ? null : (
+          <PreviewTaskBody
+            intent={dry.intent}
+            preview={dry.preview}
+            missing={missing}
+            replanning={turning}
+            assumptions={dry.assumptions}
+            onAssumption={(id, option) => {
+              const alternative = dry.assumptions.find((assumption) => assumption.id === id)?.alternatives.find((entry) => entry.id === option);
+              patch({ turn: { kind: "assumption", at: Date.now(), id, option, label: alternative?.label ?? option } });
+            }}
+            reviewing={committing}
+            journey={<Journey taskId={task.id} phase="review" intent={dry.intent} preview={dry.preview} journey={dry.journey} holdings={actions.holdings} lane={lane} onFollowUp={(text, departure) => actions.fill(text, departure ? { departure } : {})} />}
+          />
+        )}
+        {cardWaits ? null : <RoutePanel intent={dry.intent} assumptions={dry.assumptions} />}
       </>
     );
   } else if (task.question) {
-    // The question slot above carries the card; a refused answer explains itself here.
-    body = turnErrorPanel ?? (turning ? <PlanningSkeleton label={copy.planning} /> : null);
+    // The question turn carries the card; a refused answer explains itself here, a sent answer thinks here.
+    body = turnErrorPanel ?? (turning ? reply(null) : null);
   } else if (turning || task.status === "planning") {
-    body = <PlanningSkeleton label={plannerFor(options.departure).length === 0 ? copy.planningPreview : copy.planning} />;
+    body = reply(thinking ? null : <Say muted>{plannerFor(options.departure).length === 0 ? copy.planningPreview : copy.planning}</Say>);
   } else {
-    body = turnErrorPanel ?? <p className="text-sm font-semibold text-muted">{task.restored ? copy.sentenceForgotten : copy.planning}</p>;
+    body = turnErrorPanel ?? reply(<Say muted>{task.restored ? copy.sentenceForgotten : copy.planning}</Say>);
   }
 
   return (
     <>
-      <TaskTicket task={task} ends={ends} departureLine={line} lineAction={lineAction} />
+      {departureNote}
       {body}
     </>
   );

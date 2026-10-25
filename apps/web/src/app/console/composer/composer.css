@@ -1,0 +1,227 @@
+/*
+ * The composer as the machine's keyboard module and the departure picker (Card machine): the slab
+ * with its screen and the lime send key (desk.css draws the slab), a dip per keystroke
+ * (Composer.tsx), and the departure board as a raised module with lamps. A desk chunk stylesheet;
+ * it overrides desk.css by specificity only.
+ */
+
+/* ---------- composer ---------- */
+.kd-composer .kd-composer__box {
+  background: var(--k-screen);
+  will-change: transform;
+}
+.kd-composer .kd-send {
+  width: 56px;
+  height: 48px;
+  padding: 0;
+  border-radius: 12px;
+}
+.kd-composer .kd-send svg {
+  width: 22px;
+  height: 22px;
+}
+.kd-composer .kd-send[data-wide] {
+  width: auto;
+  padding: 0 16px;
+}
+.kd-composer-hint {
+  margin: 8px 0 0;
+  color: var(--k-ink-3);
+  font-size: 12.5px;
+}
+.kd-composer-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border: 1.5px solid var(--k-down);
+  border-radius: 12px;
+  background: var(--k-magenta-tint);
+  color: var(--k-ink);
+  font-size: 14px;
+}
+.kd-composer-error svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--k-down);
+}
+.kd-composer-notice {
+  margin: 8px 0 0;
+  color: var(--k-ink-2);
+  font-size: 13.5px;
+}
+
+/* ---------- departure board: a raised module, rows of lamps ---------- */
+.kd-picker .kd-board {
+  border: 1px solid var(--k-line-2);
+  border-radius: var(--k-r-module);
+  background: var(--k-grain), var(--k-raised);
+  color: var(--k-ink);
+  font-family: var(--k-f-ui);
+  overflow: hidden;
+}
+.kd-picker[data-mode="popover"] .kd-board {
+  box-shadow: var(--k-obj), 0 24px 48px -20px rgba(0, 0, 0, 0.35);
+}
+.kd-picker[data-mode="sheet"] .kd-board {
+  border-width: 1px 0 0;
+  border-radius: var(--k-r-module) var(--k-r-module) 0 0;
+}
+.kd-board__grab {
+  display: block;
+  width: 48px;
+  height: 5px;
+  margin: 10px auto 0;
+  border-radius: 3px;
+  background: var(--k-line-2);
+}
+.kd-board__title {
+  margin: 0;
+  color: var(--k-ink);
+  font: 650 18px/1.2 var(--k-f-display);
+  letter-spacing: -0.02em;
+}
+.kd-board__subtitle {
+  margin: 4px 0 0;
+  color: var(--k-ink-3);
+  font-size: 13px;
+}
+.kd-picker .kd-board__legend {
+  padding: 14px 16px 6px;
+  color: var(--k-ink-2);
+  font: 650 12.5px/1.2 var(--k-f-ui);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  text-shadow: var(--k-engrave);
+}
+.kd-picker .kd-board__row {
+  border-top: 1px solid var(--k-line);
+}
+.kd-picker .kd-board__row:hover {
+  background: var(--k-panel);
+}
+.kd-picker .kd-board__row[data-disabled] {
+  color: var(--k-ink-3);
+}
+.kd-picker .kd-board__row:has(input:checked) {
+  background: var(--k-lime-tint);
+  box-shadow: inset 4px 0 0 var(--k-lime);
+}
+.kd-picker .kd-board__row:has(input:focus-visible) {
+  outline: 3px solid var(--k-ink);
+  outline-offset: -3px;
+}
+.kd-picker .kd-board__radio {
+  accent-color: var(--k-ink);
+}
+.kd-picker .kd-board__name {
+  font-family: var(--k-f-ui);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.kd-picker .kd-board__sub {
+  color: var(--k-ink-3);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.kd-picker .kd-board__reason {
+  color: var(--k-down);
+}
+.kd-board__most {
+  display: block;
+  margin-top: 4px;
+  color: var(--k-ink);
+  font-weight: 600;
+}
+.kd-picker .kd-board__usd {
+  font: 500 13px var(--k-f-mono);
+  font-variant-numeric: tabular-nums;
+}
+.kd-picker .kd-board__flap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--k-ink-3);
+  font: 500 12px var(--k-f-ui);
+  letter-spacing: 0;
+}
+.kd-picker .kd-board__flap::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--k-led-off);
+}
+.kd-picker .kd-board__flap[data-status="running"] {
+  color: var(--k-ink-2);
+}
+.kd-picker .kd-board__flap[data-status="running"]::before {
+  background: var(--k-led-on);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--k-led-on) 60%, transparent);
+}
+.kd-picker .kd-board__flap[data-status="delayed"]::before {
+  background: #e0a400;
+}
+.kd-picker .kd-board__flap[data-status="no-service"],
+.kd-picker .kd-board__flap[data-status="not-offered"] {
+  color: var(--k-down);
+}
+.kd-picker .kd-board__flap[data-status="no-service"]::before,
+.kd-picker .kd-board__flap[data-status="not-offered"]::before {
+  background: var(--k-magenta);
+}
+.kd-picker .kd-board__foot {
+  border-top: 1px solid var(--k-line);
+  color: var(--k-ink-3);
+  font-family: var(--k-f-ui);
+}
+.kd-picker .kd-board__toggle {
+  border-top: 1px dashed var(--k-line-2);
+  color: var(--k-ink-2);
+  font: 600 13px var(--k-f-ui);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.kd-picker .kd-board__toggle:focus-visible {
+  outline: 3px solid var(--k-ink);
+}
+.kd-picker .kd-board__scroll {
+  scrollbar-color: var(--k-line-2) transparent;
+}
+.kd-picker .kd-bullet-auto {
+  border: 1.5px solid #121212;
+  border-radius: 6px;
+  background: var(--k-lime);
+}
+.kd-board__sheetfoot {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--k-line);
+  background: var(--k-raised);
+}
+.kd-picker::backdrop {
+  background: rgb(14 14 16 / 50%);
+}
+
+/* The From chip: a keycap with a lime tab, sentence case. */
+.kd-composer .kd-chip-from {
+  border-radius: 10px;
+}
+.kd-composer .kd-chip-from__tab {
+  font-family: var(--k-f-ui);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.kd-composer .kd-chip-from .kd-bullet-auto {
+  min-width: 0;
+  border-width: 1.5px;
+  border-radius: 6px;
+  font-size: 11.5px;
+}

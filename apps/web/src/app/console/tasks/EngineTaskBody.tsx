@@ -14,7 +14,7 @@ import { useDeskActions } from "../shell/deskContext";
 import type { TaskRecord } from "../state/deskStore";
 import { getDeskStore } from "../state/deskStore";
 import { claimSubmission, getEngine, subscribeEngines } from "./engineRegistry";
-import { TaskTicket } from "./TaskTicket";
+import { KletiaTurn, Say } from "./Conversation";
 
 const LegacyTaskBody = lazy(() => import("../legacy").then((module) => ({ default: module.LegacyTaskBody })));
 const LegacyEngineControls = lazy(() => import("../legacy").then((module) => ({ default: module.LegacyEngineControls })));
@@ -52,19 +52,19 @@ export function EngineTaskBody({ task }: { readonly task: TaskRecord }) {
 
   return (
     <>
-      <TaskTicket task={task} ends={{ from: network, to: network }} departureLine={null}>
-        <p className="mt-3 text-sm font-semibold">
+      <KletiaTurn badge={DESK_COPY.ticket.engineBadge(CHAINS[network].shortName)} at={task.restored ? undefined : task.createdAt}>
+        <Say muted>
           {why} {copy.signsOn(name)}
-        </p>
-      </TaskTicket>
+        </Say>
+      </KletiaTurn>
       <div className="kd-engine">
         {engine ? (
-          <Suspense fallback={<p className="text-sm font-semibold" role="status">{copy.loading}</p>}>
+          <Suspense fallback={<p className="kd-quiet" role="status">{copy.loading}</p>}>
             <LegacyTaskBody engine={engine} messages={messages} onPrompt={(prompt) => actions.fill(prompt, { engine: network })} />
             {consentHere ? <LegacyEngineControls engine={engine} /> : null}
           </Suspense>
         ) : (
-          <p className="text-sm font-semibold" role="status">
+          <p className="kd-quiet" role="status">
             {copy.loading}
           </p>
         )}

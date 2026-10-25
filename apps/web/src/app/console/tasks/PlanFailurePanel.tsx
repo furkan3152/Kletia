@@ -42,12 +42,12 @@ function platformErrorOf(failure: DeskPlanFailure): PlatformError {
 export function PlanFailurePanel({ failure, route, sourceChips, onRetry, onAskEngine, onHint, connect = [], onConnect }: PlanFailurePanelProps) {
   if (route.kind === "source") {
     return (
-      <div className="flex flex-col gap-3">
-        <p role="alert" className="border-l-4 border-[var(--kl-warning)] bg-[var(--kl-warning-bg)] px-3 py-2 text-sm font-bold text-fg">
+      <>
+        <p role="alert" className="kd-say-why">
           {failure.message}
         </p>
         {sourceChips}
-      </div>
+      </>
     );
   }
   if (route.kind === "unsupported") {

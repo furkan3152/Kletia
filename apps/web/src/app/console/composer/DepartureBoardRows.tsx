@@ -116,7 +116,7 @@ function Row({
       <span className="flex flex-col items-end gap-1">
         {value ? <span className="kd-board__usd">{value}</span> : null}
         <span className="kd-board__flap" data-status={option.status} aria-hidden="true">
-          {departureStatusWord(option.status).toUpperCase()}
+          {departureStatusWord(option.status)}
         </span>
       </span>
     </label>
@@ -168,7 +168,7 @@ export function DepartureBoardRows({
             <span className="block">{copy.auto}</span>
             <span id={autoDescription} className="kd-board__sub">
               {copy.autoExplained}
-              {mostFunds ? <span className="mt-1 block font-bold text-[#C6FF3A]">{mostFunds}</span> : null}
+              {mostFunds ? <span className="kd-board__most">{mostFunds}</span> : null}
             </span>
           </span>
         </span>

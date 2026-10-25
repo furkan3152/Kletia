@@ -1,0 +1,924 @@
+/*
+ * The desk conversation (Card machine): turns, the thinking block, the printed card in its tray
+ * with the route, the signing strip, the paper jam, questions with option keys, and Kletia's answer
+ * cards. A desk chunk stylesheet (never in the entry stylesheet). Every loop stops under reduced
+ * motion.
+ */
+
+/* ---------- the thread ---------- */
+.kd-thread {
+  gap: 28px;
+}
+.kd-task {
+  gap: 28px;
+}
+.kd-task-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 28px;
+}
+/* New turns scroll into view above the docked composer and under the top bar. */
+.kd-task-body > *,
+.kd-traywrap {
+  scroll-margin-top: 72px;
+  scroll-margin-bottom: 220px;
+}
+.kd-traywrap {
+  max-width: 100%;
+}
+
+/* ---------- user turn: the dark keycap bubble ---------- */
+.kd-turn-u {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.kd-bubble {
+  max-width: min(78%, 560px);
+  margin: 0;
+  padding: 13px 18px 14px;
+  border-radius: 20px 20px 6px 20px;
+  background: var(--k-ink);
+  color: var(--k-chassis);
+  font: 400 16.5px/1.5 var(--k-f-ui);
+  overflow-wrap: anywhere;
+  box-shadow: 0 3px 0 #000, inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.dark .kd-bubble {
+  box-shadow: 0 3px 0 #8f8c84, inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.kd-u-meta {
+  margin: 0;
+  padding-right: 4px;
+  color: var(--k-ink-3);
+  font-size: 12.5px;
+}
+.kd-u-meta .kd-yard {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1.5px dashed currentColor;
+  border-radius: 6px;
+}
+
+/* ---------- Kletia turn ---------- */
+.kd-turn-k {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  gap: 12px;
+}
+.kd-turn-k > * {
+  max-width: 100%;
+}
+.kd-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--k-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.kd-who-badge {
+  color: var(--k-ink-3);
+  font-weight: 500;
+}
+.kd-who-badge::before {
+  content: "· ";
+}
+.kd-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: #121212;
+  color: var(--k-lime);
+}
+.dark .kd-mark {
+  box-shadow: inset 0 0 0 1px var(--k-line-2);
+}
+.kd-mark .k-glyph {
+  width: 16px;
+  height: 16px;
+}
+.kd-say {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--k-ink);
+  font: 400 16.5px/1.65 var(--k-f-ui);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.kd-say b {
+  font-weight: 650;
+}
+.kd-say--muted {
+  color: var(--k-ink-2);
+}
+.kd-say-why {
+  margin: -4px 0 0;
+  max-width: 62ch;
+  color: var(--k-ink-3);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* ---------- system note ---------- */
+.kd-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: -8px 0 0;
+  color: var(--k-ink-3);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.kd-note > svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--k-ink-2);
+}
+.kd-note-t {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.kd-note::after {
+  content: "";
+  flex: 1 1 24px;
+  height: 1px;
+  background: var(--k-line);
+}
+.kd-note-a {
+  order: 3;
+  flex: none;
+}
+.kd-note-a button {
+  min-height: 44px;
+  color: var(--k-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.kd-note[data-tone="warn"] > svg {
+  color: var(--k-down);
+}
+
+/* ---------- thinking: three steps on a rail, folding into one line ---------- */
+.kd-work {
+  display: grid;
+  gap: 2px;
+  width: min(100%, 480px);
+  padding: 4px 0 4px 16px;
+  border-left: 2px solid var(--k-line);
+  overflow: hidden;
+}
+.kd-work-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  color: var(--k-ink-3);
+  font-size: 15px;
+  opacity: 0.45;
+}
+.kd-work-row[data-state="active"] {
+  color: var(--k-ink);
+  opacity: 1;
+}
+.kd-work-row[data-state="done"] {
+  color: var(--k-ink-2);
+  opacity: 1;
+}
+.kd-work-row[data-state="failed"] {
+  color: var(--k-ink);
+  opacity: 1;
+}
+.kd-tick {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--k-line-2);
+  border-radius: 50%;
+}
+.kd-tick svg {
+  width: 12px;
+  height: 12px;
+}
+.kd-work-row[data-state="done"] .kd-tick {
+  border-color: var(--k-ink);
+  background: var(--k-ink);
+  color: var(--k-chassis);
+}
+.kd-work-row[data-state="failed"] .kd-tick {
+  border-color: var(--k-down);
+  background: var(--k-down);
+  color: #fff;
+}
+.kd-gear {
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 50%;
+  background: conic-gradient(var(--k-ink) 0 28%, transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 5px, #000 5.5px);
+  mask: radial-gradient(circle, transparent 5px, #000 5.5px);
+  animation: kd-ratchet 0.9s steps(12) infinite;
+}
+@keyframes kd-ratchet {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.kd-wt {
+  color: var(--k-ink-3);
+  font: 500 12.5px var(--k-f-mono);
+  font-variant-numeric: tabular-nums;
+}
+.kd-work-sum {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin: 0;
+  color: var(--k-ink-3);
+  font-size: 13.5px;
+}
+.kd-work-sum svg {
+  width: 15px;
+  height: 15px;
+}
+.kd-work-sum[data-outcome="failed"] svg {
+  color: var(--k-down);
+}
+
+/* ---------- the tray and the printed card ---------- */
+.kd-cardturn {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+.kd-tray.k-tray {
+  max-width: 100%;
+}
+.kd-tray .k-eject {
+  width: 520px;
+}
+.kd-cardmove {
+  position: relative;
+  will-change: transform;
+}
+.kd-cardmove[data-jam] {
+  transform: translateY(-46%) rotate(-2.5deg);
+  transition: transform 300ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+.kd-cardmove[data-jam] .k-card {
+  pointer-events: none;
+}
+/* Jammed: half the card is still in the slot, so the tray only shows the half that came out. */
+.kd-tray:has(.kd-cardmove[data-jam]) .k-eject {
+  max-height: 320px;
+}
+/* The stamp lands on the stock under the art window, never over the route's labels. */
+.kd-tray .k-stamp {
+  top: 232px;
+  right: 16px;
+}
+.kd-tray .k-card-act {
+  flex-wrap: wrap;
+}
+.kd-card-keys {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+.kd-card-keys .k-key svg {
+  width: 16px;
+  height: 16px;
+}
+.kd-card-hint {
+  max-width: 28ch;
+  margin: 0;
+  color: var(--k-ink-3);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: right;
+}
+.kd-flip {
+  display: inline-block;
+}
+
+/* The back: legs, contracts, conditions, competing routes, sources (scrolls inside the card). */
+.kd-back {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+.kd-back-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 18px 0;
+}
+.kd-legs-back {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kd-legs-back li {
+  display: grid;
+  gap: 2px;
+}
+.kd-legs-back b {
+  font: 650 15px/1.3 var(--k-f-display);
+}
+.kd-legs-back span {
+  color: var(--k-ink-3);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.kd-back-dl {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--k-line);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.kd-back-dl dt {
+  color: var(--k-ink-3);
+  font-weight: 600;
+}
+.kd-back-dl dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- the route on the card ---------- */
+.kd-route {
+  font-family: var(--k-f-ui);
+}
+.kd-rail-bg {
+  fill: none;
+  stroke: var(--k-ink);
+  stroke-opacity: 0.1;
+  stroke-width: 12;
+  stroke-linecap: round;
+}
+.kd-rail-draw {
+  fill: none;
+  stroke: var(--k-ink);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+.kd-rail-go {
+  fill: none;
+  stroke: var(--k-lime);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+}
+.kd-rnode {
+  transform-box: view-box;
+}
+.kd-cart {
+  fill: var(--k-stock);
+  stroke: var(--k-ink);
+  stroke-width: 2;
+}
+.kd-ridge {
+  stroke: var(--k-line-2);
+  stroke-width: 3;
+  stroke-dasharray: 2 2;
+}
+.kd-stn {
+  fill: var(--k-stock);
+  stroke: var(--k-ink);
+  stroke-width: 2;
+}
+.kd-rn-ic {
+  fill: none;
+  stroke: var(--k-ink);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.kd-rn-l {
+  fill: var(--k-ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.kd-pen path {
+  fill: var(--k-ink);
+}
+.kd-pen rect {
+  fill: var(--k-lime);
+  stroke: var(--k-ink);
+  stroke-width: 2;
+}
+.kd-pen {
+  pointer-events: none;
+}
+.kd-coin circle {
+  fill: #2775ca;
+  stroke: var(--k-ink);
+  stroke-width: 2;
+}
+.kd-coin text {
+  fill: #fff;
+  font: 700 11px var(--k-f-ui);
+}
+.kd-coin[data-tone="eth"] circle {
+  fill: #627eea;
+}
+.kd-coin[data-tone="sol"] circle {
+  fill: #121212;
+}
+.kd-coin[data-tone="other"] circle {
+  fill: var(--k-ink-2);
+}
+.kd-coin[data-state="wallet"] .kd-coin-face {
+  animation: kd-coin-wait 1.2s ease-in-out infinite;
+}
+@keyframes kd-coin-wait {
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.kd-coin-face {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* ---------- the signing strip ---------- */
+.kd-csteps {
+  padding: 16px 18px 0;
+  margin-top: 6px;
+}
+.kd-csteps ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--k-ink-3);
+  font-size: 14px;
+}
+.kd-cs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.kd-bulb {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--k-line-2);
+  border-radius: 50%;
+  font: 600 11px var(--k-f-ui);
+}
+.kd-bulb svg {
+  width: 11px;
+  height: 11px;
+}
+.kd-cs[data-state="wallet"],
+.kd-cs[data-state="moving"] {
+  color: var(--k-ink);
+}
+.kd-cs[data-state="wallet"] .kd-bulb,
+.kd-cs[data-state="moving"] .kd-bulb {
+  border-color: var(--k-ink);
+  background: var(--k-ink);
+  color: var(--k-chassis);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--k-ink) 12%, transparent);
+}
+.kd-cs[data-state="done"] {
+  color: var(--k-ink-2);
+}
+.kd-cs[data-state="done"] .kd-bulb {
+  border-color: #121212;
+  background: var(--k-lime);
+  color: #121212;
+}
+.kd-cs[data-state="failed"] .kd-bulb {
+  border-color: var(--k-down);
+  background: var(--k-down);
+  color: #fff;
+}
+.kd-signbar {
+  height: 4px;
+  margin: 14px 0 0;
+  border-radius: 3px;
+  background: var(--k-well);
+  overflow: hidden;
+}
+.kd-signbar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--k-lime);
+  transition: width 600ms cubic-bezier(0.7, 0, 0.2, 1);
+}
+.kd-cs-note {
+  margin: 10px 0 0;
+  color: var(--k-ink-3);
+  font-size: 13px;
+}
+.kd-csteps .k-card-act {
+  padding: 6px 0 14px;
+}
+
+/* ---------- jam, sleeve ---------- */
+.kd-jam {
+  width: 100%;
+}
+.kd-sleeve-wrap {
+  width: 500px;
+  max-width: 100%;
+  padding-bottom: 6px;
+}
+.kd-filed-note {
+  margin: -8px 0 0;
+}
+
+/* ---------- questions: a Kletia turn with option keys ---------- */
+.kd-q {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  width: 100%;
+}
+.kd-qs {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+  width: 100%;
+}
+.kd-qs:focus {
+  outline: none;
+}
+.kd-q-count {
+  margin-right: 8px;
+  color: var(--k-ink-3);
+  font: 500 13px var(--k-f-mono);
+}
+.kd-q .k-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.kd-q .k-opt {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  padding-left: 40px;
+}
+.kd-opt-n {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 6px;
+  color: var(--k-ink-3);
+  font: 500 11.5px var(--k-f-mono);
+}
+.kd-q .k-opt[aria-pressed="true"] .kd-opt-n {
+  border-color: #2c3a08;
+  color: #2c3a08;
+}
+.kd-opt-tag {
+  margin-left: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.kd-q-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 520px);
+}
+.kd-q-text input {
+  flex: 1 1 200px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 12px;
+  background: var(--k-screen);
+  color: var(--k-ink);
+  font: 400 15px var(--k-f-ui);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+.kd-q-text input:focus {
+  outline: none;
+  border-color: var(--k-ink);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08), 0 0 0 3px color-mix(in srgb, var(--k-lime) 55%, transparent);
+}
+.kd-q-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  color: var(--k-ink-3);
+  font-size: 13px;
+}
+.kd-q-foot .k-linkbtn {
+  margin-left: auto;
+}
+.kd-qs[data-expired] .k-opt {
+  opacity: 0.45;
+}
+
+/* ---------- Kletia's answer cards, source chips, unsupported, handoff ---------- */
+.kd-answer {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  width: min(100%, 680px);
+  padding: 18px;
+  border: 1px solid var(--k-line);
+  border-radius: var(--k-r-module);
+  background: var(--k-raised);
+  color: var(--k-ink);
+  box-shadow: var(--k-obj);
+}
+.kd-answer-h {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--k-ink-2);
+  font: 650 12.5px/1.2 var(--k-f-ui);
+  text-shadow: var(--k-engrave);
+}
+.kd-answer-h::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--k-line);
+}
+.kd-answer-t {
+  margin: 0;
+  font: 650 20px/1.25 var(--k-f-display);
+  letter-spacing: -0.02em;
+}
+.kd-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kd-keys .k-key {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+.kd-hint-key {
+  font-family: var(--k-f-mono);
+  font-size: 13px;
+}
+.kd-net-dot {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.kd-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--k-down);
+  border-radius: 14px;
+  background: var(--k-magenta-tint);
+  color: var(--k-ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.kd-alert > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--k-down);
+}
+.kd-alert > span {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+.kd-alert[data-tone="warn"] {
+  border-color: var(--k-line-2);
+  background: var(--k-panel);
+}
+.kd-alert[data-tone="warn"] > svg {
+  color: var(--k-ink-2);
+}
+
+/* The review, progress and receipt under a stored card: one column, the card's width. */
+.kd-flow {
+  display: flex;
+  min-width: 0;
+  max-width: 680px;
+  flex-direction: column;
+  gap: 20px;
+}
+.kd-quiet {
+  color: var(--k-ink-3);
+  font-size: 14px;
+}
+
+/* A finished task folded to one line. */
+.kd-stub {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 1px solid var(--k-line);
+  border-radius: 14px;
+  background: var(--k-panel);
+  color: var(--k-ink);
+  font-size: 14px;
+  text-align: left;
+}
+.kd-stub:hover {
+  background: var(--k-raised);
+}
+.kd-stub-serial {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--k-lime);
+  color: #121212;
+  font: 800 12px/1.2 var(--k-f-led);
+}
+.kd-stub-t {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kd-stub-s {
+  flex: none;
+  color: var(--k-ink-3);
+  font-size: 13px;
+}
+.kd-stub svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  transition: transform 220ms cubic-bezier(0.7, 0, 0.2, 1);
+}
+.kd-stub[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+/* The task's memory ("This task, 3 turns") folded under it. */
+.kd-memory {
+  border-top: 1px solid var(--k-line);
+  padding-top: 4px;
+  color: var(--k-ink-2);
+  font-size: 13.5px;
+}
+.kd-memory summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  cursor: pointer;
+  color: var(--k-ink-3);
+}
+.kd-memory ol {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.kd-memory li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 8px;
+}
+.kd-memory li > span:first-child {
+  color: var(--k-ink-3);
+}
+
+/* ---------- phones ---------- */
+@media (max-width: 640px) {
+  .kd-bubble {
+    max-width: 88%;
+    font-size: 16px;
+  }
+  .kd-say {
+    font-size: 16px;
+  }
+  .kd-traywrap,
+  .kd-tray.k-tray {
+    width: 100%;
+    padding: 10px 10px 18px;
+    border-radius: 20px;
+  }
+  .kd-tray .k-eject {
+    width: auto;
+    max-width: none;
+  }
+  .kd-tray .k-card-art {
+    height: 150px;
+  }
+  .kd-tray .k-card-title {
+    font-size: 21px;
+  }
+  .kd-tray .k-facts {
+    font-size: 14px;
+  }
+  .kd-tray .k-facts > div {
+    flex-wrap: wrap;
+  }
+  .kd-card-keys {
+    width: 100%;
+  }
+  .kd-card-keys .k-key {
+    flex: 1 1 auto;
+  }
+  .kd-card-hint {
+    text-align: left;
+  }
+  .kd-q .k-opt {
+    flex: 1 1 100%;
+  }
+  .kd-answer {
+    padding: 14px;
+  }
+}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .kd-gear,
+  .kd-coin-face {
+    animation: none !important;
+  }
+  .kd-signbar i,
+  .kd-cardmove[data-jam],
+  .kd-stub svg {
+    transition: none;
+  }
+}
+html[data-motion="off"] .kd-gear,
+html[data-motion="off"] .kd-coin-face {
+  animation: none !important;
+}
+html[data-kl-hidden] .kd-gear,
+html[data-kl-hidden] .kd-coin-face {
+  animation-play-state: paused;
+}
+
+/* Rows inside an answer card (rates, computed sentences) and facts. */
+.kd-rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--k-line);
+}
+.kd-rate:first-child {
+  border-top: 0;
+}
+.kd-fact {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--k-line);
+  border-radius: 12px;
+  background: var(--k-stock);
+}
+.kd-fact dd {
+  overflow-wrap: anywhere;
+}

@@ -366,7 +366,7 @@ const COPY = {
     planLabel: (sentence: string) => `Plan "${sentence}" as a new task`,
     edit: "Edit first",
     editLabel: (sentence: string) => `Put "${sentence}" in the composer`,
-    modelOff: "Model help is off. Kletia's own parser reads most questions; turn model help on for this session to read the rest. Only the question is sent, with addresses masked; never your balances or history.",
+    modelOff: "Model help is off. Kletia's own parser reads most questions; turn model help on for this session to read the rest. With it on, the model provider receives the question (addresses and names masked) and, to word the answer, up to 24 facts Kletia computed (such as balances, amounts, fees and dates, with wallets named by number), never addresses or transaction lists.",
     modelOn: "Turn on model help",
     modelUnavailable: "Model help is not configured on this deployment.",
     sentenceForgotten: "This answer was not kept after the page reloaded: your wallet's data stays out of storage. Ask again for a fresh one.",

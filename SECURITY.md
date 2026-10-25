@@ -63,6 +63,7 @@ If an upstream dependency is affected through Kletia's configuration, report the
 - Codehash and deployment identity checks do not constitute a contract audit.
 - Test, build, live readiness, and funded execution evidence are separate.
 - This repository is not represented as independently audited or formally verified.
+- What Kletia stores, for how long and who else receives what: [docs/platform/data-retention.md](docs/platform/data-retention.md).
 
 ## Bug bounty
 

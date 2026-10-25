@@ -160,6 +160,7 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence, `?preview=true` for the [asset-change preview](preview.md), `?journey=true` for the [journey](journey.md), `?clarify=true` to ask [clarifying questions](clarify.md) instead of refusing) |
 | GET | `/v1/intents` | key | List intents created with the caller's key (`?owner=key_…`: an agent or publishable key below it) |
 | GET | `/v1/intents/{id}` | public | Read an intent |
+| DELETE | `/v1/intents/{id}` | public | Delete the stored intent now, with its receipts' stored disclosures and shares (204; 409 `INTENT_IN_FLIGHT` while a step is in flight). Without it the request text goes 24 hours after the intent is final and the intent 30 days after ([data-retention.md](data-retention.md)) |
 | POST | `/v1/intents/{id}/steps/{stepId}/prepare` | public | Build wallet-ready transactions for a ready step (optional body `{ "acknowledgedPreview": "sha256:…" }`; `?journey=true` adds the journey at signing time) |
 | POST | `/v1/intents/{id}/steps/{stepId}/submit` | public | Submit transaction hashes / signatures for verification |
 | POST | `/v1/intents/{id}/refresh` | public | Re-read settlement state now |
@@ -288,7 +289,7 @@ Structured alternative:
 
 `amount: "max"` on a dependent step means "the guaranteed output of the
 previous step"; on a `withdraw` it closes the whole position at the venue
-("withdraw all"). Response: `201 { "intent": IntentGraph }`. A dry run returns `200` and is not stored. Repeating a `clientReference` returns the original intent with `200` and `Idempotent-Replayed: true`.
+("withdraw all"). Response: `201 { "intent": IntentGraph, "privacy": PlatformPrivacyTrace }` (`privacy` says what was stored, for how long, how to delete it and which quote providers were asked; see [data-retention.md](data-retention.md)). A dry run returns `200` and is not stored. Repeating a `clientReference` returns the original intent with `200` and `Idempotent-Replayed: true`.
 
 Action and constraint options:
 
@@ -522,13 +523,15 @@ Response: `{ routes, best, quotedAt, unavailable }`. Each route carries `protoco
 ### Bridge auction
 
 For every cross-network `bridge` step the planner asks each venue that serves
-the route (Relay, LI.FI, deBridge DLN) for a quote in parallel, with an 8 s
-timeout per venue, and picks the winner by:
-
-1. the highest guaranteed output net of extra costs (a venue whose extra costs
-   cannot be priced is not eligible);
-2. then the shortest settlement estimate within `constraints.maxSeconds`;
-3. then the fewest transactions.
+the route (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2) for a quote in
+parallel, with a 6 s timeout per venue (ranking starts after 2.5 s once a
+complete quote is in), and picks the winner by its route score: the expected
+value delivered after gas, extra costs, time, signatures and venue risk
+(`interpretation.routes[].score`; the formula is in
+[cross-chain venues](../networks/cross-chain-venues.md#how-the-auction-picks-a-venue)).
+A quote is eligible only when it delivers the requested asset, its guaranteed
+minimum is within the slippage of its expected output, its extra costs can be
+priced and it settles within `constraints.maxSeconds`.
 
 Losing and failing quotes are recorded as `quote` evidence on the step.
 `preferProtocols` puts venues first, `avoidProtocols` never quotes them, and a
@@ -855,7 +858,9 @@ use one key per environment. `POST /v1/keys` with `"sandbox": true` issues a
   `{ id, eventId, eventType, intentId?, attempt, status: succeeded | failed | dropped, httpStatus?, durationMs?, error?, nextRetryAt?, test?, at }`.
   `error` is a class (`timeout`, `connection_failed`, `http_status`,
   `redirect`, `forbidden_address`, `queue_full`, `payload_unreadable`,
-  `deferred_too_long`); payloads and error text are never stored. Dropped
+  `deferred_too_long`); the log never stores payloads or error text (with a
+  database, a queued payload is kept encrypted in `kletia_webhook_queue` until
+  it is delivered or dropped, then cleared). Dropped
   before sending: `queue_full` (a queue bound was hit), `payload_unreadable`
   (a queued body no longer opens, for example after the platform secret
   changed) and `deferred_too_long` (the delivery could not be attempted for

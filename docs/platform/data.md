@@ -38,7 +38,26 @@ Totals then cover the known part only: `totals.complete` is `false` and
 
 ## Wallet sets
 
-`evm` and `solana` take comma-separated addresses: at most two of each.
+`evm` and `solana` take comma-separated addresses (or, in a JSON body, an
+array): at most two of each.
+
+### Addresses go in the body (POST)
+
+Every read below that names wallets also answers `POST` with the same
+parameters as a JSON body:
+
+```bash
+curl -X POST https://api.kletiaai.xyz/v1/data/portfolio \
+  -H 'content-type: application/json' \
+  -d '{ "evm": ["0x4f183e308f24c81c05303821AD025812fBFd807D"], "solana": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "lane": "production" }'
+```
+
+That holds for `portfolio`, `positions`, `history`, `export`, `transactions`,
+`transactions/:id`, `pnl`, `snapshots` and `summary`. The `GET` forms keep
+working but are **deprecated** for these reads: an address in a URL can end
+up in access logs (the host's, a proxy's, a CDN's) and in browser history,
+where a body does not. The SDK (`client.data.*`) and the Kletia web app send
+`POST`. A body read stores nothing and takes no `Idempotency-Key`.
 `lane` is `production` (default: Base, Arbitrum One, Ethereum, OP Mainnet,
 Polygon PoS, Solana) or `testnet` (Arc Testnet, Arbitrum Sepolia, Solana
 Devnet). Every address is read on every network of the lane its VM runs, so

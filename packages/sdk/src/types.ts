@@ -516,7 +516,7 @@ export type WebhookDeliveryError =
   | "queue_full"
   | "paused";
 
-/** One delivery attempt (or drop) in a webhook's log. Payloads are never stored. */
+/** One delivery attempt (or drop) in a webhook's log. The log stores no payloads (a queued one is kept encrypted until delivered or dropped). */
 export interface WebhookDelivery {
   readonly id: string;
   readonly webhookId: string;

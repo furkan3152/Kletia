@@ -12,9 +12,9 @@ The console is one desk, not a set of per-network workspaces:
 - Tools (`/app/tools`, `/app/tools/<id>`): every network's extras in one card language, each its own lazy chunk: x402 services, Basenames, address risk check, the Solana forms (Jupiter swap, send, liquid staking, lending rates) with the same pre-sign checks, Kletia's Arc contracts and lending, Allora predictions, the airdrop check, funding links and starter sentences pinned to an engine. A tool never sends anything: its sentences fill the composer with the right engine pinned.
 - Studio hand-off: Studio plans with preview accounts and never loads wallet code; "Run in the console" opens `/app?q=<sentence>&from=<departure>`, where the desk plans again with the user's own accounts.
 
-## Source layout
+## Layout
 
-- `src/main.tsx`, `src/app/router.tsx`, `src/app/routes/`: Entry (privacy egress guard first), history router and route table; every page is a lazy chunk and only wallet routes load wallet SDKs.
+- `src/main.tsx`, `src/app/router.tsx`, `src/app/routes/`: Entry (installs the privacy egress guard first; no production flow registers a value with it yet, so it blocks nothing today), history router and route table; every page is a lazy chunk and only wallet routes load wallet SDKs.
 - `src/app/pages/`: Home, Developers, Protocols (venue directory, live from `/v1/protocols`), Networks, Studio, Embed, receipts, intent links, approvals and 404.
 - `src/app/site/`: Site shell, design primitives and the intent UI (graph view, review, progress, execution flow).
 - `src/app/console/`: The desk: shell, composer and departure board, tasks, holdings, activity, tools (`tools/`, with the Solana tool host and the funding flows) and the lazily loaded network engines (`legacy/`, with the only console-specific stylesheet, `legacyConsole.css`).

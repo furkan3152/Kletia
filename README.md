@@ -227,7 +227,7 @@ flowchart LR
 ```
 
 1. Express: natural language or structured actions, plus the CAIP-10 accounts the user controls. Recipients may be addresses or ENS, Basenames and SNS names.
-2. Plan: a deterministic compiler (no model in the execution path) resolves exact network identities, picks a venue, quotes it live, chains amounts through guaranteed minimum outputs and merges bridge + swap into one cross-network swap when possible. Cross-network steps run an auction between Relay, LI.FI and deBridge DLN on guaranteed output net of fees, then time.
+2. Plan: a deterministic compiler (no model in the execution path) resolves exact network identities, picks a venue, quotes it live, chains amounts through guaranteed minimum outputs and merges bridge + swap into one cross-network swap when possible. Cross-network steps run an auction between the bridge venues that serve the route (Relay, LI.FI, deBridge DLN, Across and Circle CCTP V2), ranked by the expected value delivered after gas, fees, time, signatures and venue risk; a quote whose guaranteed minimum is outside the slippage or whose costs cannot be priced is not eligible.
 3. Sign: every value-moving transaction is signed in the user's own wallet: EIP-1193 for EVM, Wallet Standard for Solana.
 4. Prove: a step advances only when Kletia observes it on-chain from the bound account; cross-network steps settle only on a verified destination fill.
 
@@ -246,10 +246,12 @@ flowchart LR
 | Solana Devnet | Testnet | Transfers, portfolio, native SOL staking and CCTP V2 arrivals |
 
 The registry lists **65 protocols, 45 of them executable through the API**,
-plus your own contracts (EVM calls and Solana Actions). The numbers are what
-`GET /v1/protocols` returns: every registry entry that is not an own-contract
-slot, and those whose `executable` flag is set because an active adapter
-serves them. The rest are naming, data, payment, console-only,
+plus your own contracts (EVM calls and Solana Actions). The 65 are every
+registry entry that is not an own-contract slot (what `GET /v1/protocols`
+lists); the 45 are the protocols with at least one pinned route in the
+capability index (`capabilityIndex()` in `@kletia/core`). `GET /v1/protocols`
+also sets `executable` on `wrap` (native-token wrapping, used inside routes),
+so a deployment with every adapter active reports 46 there. The rest are naming, data, payment, console-only,
 [native-order](docs/platform/orders.md) entries (Jupiter Trigger and
 Recurring, CoW Protocol through `/v1/orders`) and [perps](docs/platform/perps.md)
 venues (GMX v2, Hyperliquid and Drift v2 through `/v1/perps`) and the
@@ -355,7 +357,7 @@ npm run generate:openapi  # refresh docs/platform/openapi.json and the Postman c
 ## Security model
 
 - Non-custodial: the API returns unsigned transactions; users sign every value-moving step. Kletia never holds keys.
-- Deterministic execution: model output (only with explicit consent, console only) can never choose a target, amount or success.
+- Deterministic execution: model output (off by default; on only with the person's consent in the desk or a project setting for API keys) can never choose a target, amount or success: a model reading must match the person's own words under deterministic checks, and an assistant's wording must match the facts Kletia computed. What each model provider receives is listed in [data retention](docs/platform/data-retention.md#who-else-receives-what).
 - Evidence over assertions: sender or fee payer, target, chain and status are verified on-chain; cross-network steps need a destination fill.
 - Exactness: assets resolve by network identity, approvals are exact, prepared payloads expire and are bound to their quote.
 - Fail closed: missing RPC, quote, simulation or credential disables a feature; it never becomes a mock result. Uncertain transactions are recovered, never resent.

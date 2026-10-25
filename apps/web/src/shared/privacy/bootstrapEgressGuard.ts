@@ -9,6 +9,8 @@
  *
  * Importing this module as the very first import in the entrypoint installs the
  * guard during module evaluation, ahead of the rest of the import graph.
+ * Installing is not protecting: a value is watched only once a flow calls
+ * `registerPrivateField`, and no production flow does yet.
  */
 import { installMemoryStorageFallback } from "../state/safeStorage";
 import { installEgressGuard } from "./egressGuard";

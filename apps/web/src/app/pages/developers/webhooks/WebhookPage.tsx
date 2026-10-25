@@ -221,7 +221,7 @@ function WebhookDetail({ webhookId }: { readonly webhookId: string }) {
           </PortalTabs>
           <p className={cx("text-xs", TEXT_MUTED)}>
             Newest first, the latest 50 attempts. Failed attempts are retried after 1 s, 5 s and 25 s; after the fourth the dispatcher gives up.
-            Payloads are never stored.
+            This log stores no payloads; with a database, a queued payload is kept encrypted only until it is delivered or dropped.
           </p>
         </section>
 

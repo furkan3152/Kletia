@@ -340,11 +340,11 @@ export function HeroMachine({ protocols, answering }: HeroMachineProps) {
             </span>
           </h1>
           <p className="hero-p">
-            Type what you want your money to do. Kletia compares routes across{" "}
+            Type what you want your money to do. Kletia knows{" "}
             <b>
               {NETWORK_COUNT} networks and {protocols} protocols
             </b>
-            , prints the best one as a card you can read, and <b>your wallet signs</b> every step. Nothing moves until you do.
+            , compares the routes that can carry out your request, prints the best one as a card you can read, and <b>your wallet signs</b> every step. Nothing moves until you do.
           </p>
           <div className="hero-cta">
             <span className="mag">

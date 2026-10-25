@@ -10,10 +10,17 @@
  *
  * `update(id, graph, expectedUpdatedAt)` succeeds only when the stored graph
  * still carries `expectedUpdatedAt`; otherwise it throws 409 INTENT_CONFLICT.
+ *
+ * Retention (retention.ts, docs/platform/data-retention.md): the request text
+ * is removed 24 h after an intent became final and the graph is deleted 30
+ * days after; `listForRetention` and `delete` serve the hourly sweep and
+ * DELETE /v1/intents/{id}. The memory store also forgets the oldest intents
+ * beyond its LRU bound and everything on restart.
  */
 import pg from "pg";
 import type { IntentGraph, IntentStatus, StepStatus } from "@kletia/core";
 import { PlatformError } from "../errors.js";
+import { intentRetentionStage, retentionCutoffs } from "./retentionPolicy.js";
 
 export interface IntentRecordMeta {
   readonly ownerKeyId?: string;
@@ -87,6 +94,14 @@ export interface IntentStore {
   listChangedSince?(statuses: readonly IntentStatus[], sinceIso: string, limit: number): Promise<IntentChange[]>;
   /** Claimed references among `keys` (wallet history links; optional for custom stores). */
   findReferences?(keys: readonly string[]): Promise<Map<string, { readonly intentId: string; readonly stepId: string }>>;
+  /**
+   * Retention sweep candidates (retention.ts): graphs that may be due for
+   * `stage` at `now`, oldest change first, at most `limit`. The sweep checks
+   * each one again. Optional for custom stores, which then keep everything.
+   */
+  listForRetention?(stage: "redact" | "purge", now: number, limit: number): Promise<IntentGraph[]>;
+  /** Deletes the graph (retention, DELETE /v1/intents/{id}); false when it was not stored. Claimed references stay. */
+  delete?(id: string): Promise<boolean>;
 }
 
 /** One row of `listChangedSince`. */
@@ -270,6 +285,20 @@ export class MemoryIntentStore implements IntentStore {
     }
     return counts;
   }
+
+  async listForRetention(stage: "redact" | "purge", now: number, limit: number): Promise<IntentGraph[]> {
+    return [...this.records.values()]
+      .map((record) => record.graph)
+      .filter((graph) => intentRetentionStage(graph, now) === stage)
+      .sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt))
+      .slice(0, clampLimit(limit, 1_000))
+      .map((graph) => structuredClone(graph));
+  }
+
+  async delete(id: string): Promise<boolean> {
+    this.polled.delete(id);
+    return this.records.delete(id);
+  }
 }
 
 const SCHEMA_SQL = `
@@ -300,6 +329,8 @@ CREATE TABLE IF NOT EXISTS kletia_intent_references (
 `;
 
 const ACTIVE_INTENT_STATUSES = ["executing", "settling", "indeterminate", "partially_completed", "failed"];
+/** Statuses after which nothing can change (retention.ts). */
+const FINAL_STATUSES = ["completed", "cancelled", "expired"];
 
 export class PostgresIntentStore implements IntentStore {
   readonly kind = "postgres" as const;
@@ -504,6 +535,36 @@ export class PostgresIntentStore implements IntentStore {
       [ownerKeyId, since],
     );
     return Object.fromEntries(result.rows.map((row) => [row.status, Number(row.count)]));
+  }
+
+  async listForRetention(stage: "redact" | "purge", now: number, limit: number): Promise<IntentGraph[]> {
+    const cut = retentionCutoffs(now);
+    // A stored `planned` intent expires lazily: its expiresAt is when it became final.
+    const result = stage === "purge"
+      ? await this.query<{ graph: unknown }>(
+        `SELECT graph FROM kletia_intents
+         WHERE (status = ANY($1::text[]) AND updated_at < $2)
+            OR (status = 'planned' AND graph->>'expiresAt' < $3)
+            OR updated_at < $4
+         ORDER BY updated_at ASC LIMIT $5`,
+        [FINAL_STATUSES, cut.purgeFinal, cut.purgeFinal, cut.purgeStale, clampLimit(limit, 1_000)],
+      )
+      : await this.query<{ graph: unknown }>(
+        `SELECT graph FROM kletia_intents
+         WHERE (graph->'request' ? 'text' OR graph->'interpretation' ? 'normalizedText'
+                OR jsonb_typeof(graph->'plan'->'record'->'interpretation'->'normalizedText') = 'string')
+           AND ((status = ANY($1::text[]) AND updated_at < $2)
+                OR (status = 'planned' AND graph->>'expiresAt' < $3)
+                OR updated_at < $4)
+         ORDER BY updated_at ASC LIMIT $5`,
+        [FINAL_STATUSES, cut.textFinal, cut.textFinal, cut.textStale, clampLimit(limit, 1_000)],
+      );
+    return result.rows.map((row) => PostgresIntentStore.parse(row)).filter((graph): graph is IntentGraph => graph !== null);
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const result = await this.query("DELETE FROM kletia_intents WHERE id = $1", [id]);
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

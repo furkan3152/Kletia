@@ -18,6 +18,16 @@ export function newEventId(): string {
 }
 
 export const INTENT_ID_PATTERN = /^int_[0-9a-f]{32}$/u;
+
+/**
+ * How logs name an intent: the id is a bearer capability (whoever holds it
+ * reads, prepares and deletes the intent), so logs carry the first 16 hex of
+ * the receipts' intent ref (SHA-256("kletia.intent-ref.v1:" + id)) instead.
+ * An operator who has the id can recompute it; a log reader cannot go back.
+ */
+export function intentLogRef(intentId: string): string {
+  return `iref:${createHash("sha256").update(`kletia.intent-ref.v1:${intentId}`).digest("hex").slice(0, 16)}`;
+}
 export const STEP_ID_PATTERN = /^s[1-9]\d{0,2}$/u;
 
 /** Deterministic JSON: object keys sorted, undefined dropped. */

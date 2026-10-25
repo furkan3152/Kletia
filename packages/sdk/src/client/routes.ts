@@ -39,6 +39,8 @@ const ROUTE_CLASSES: readonly { readonly method: string; readonly pattern: RegEx
   { method: "DELETE", pattern: /^\/keys\/[^/]+\/policy(?:\/pending)?$/iu, kind: "unsafe" },
   { method: "DELETE", pattern: /^\/projects\/current\/policy(?:\/pending)?$/iu, kind: "unsafe" },
   { method: "POST", pattern: /^\/policy\/validate$/iu, kind: "safe" },
+  // Data reads with the wallets in the body (no Idempotency-Key: nothing is stored).
+  { method: "POST", pattern: /^\/data\/(?:portfolio|positions|history|export|transactions(?:\/[^/]+)?|pnl|snapshots|summary)$/iu, kind: "safe" },
   { method: "POST", pattern: /^\/policy\/approvals\/[^/]+\/(?:approve|reject)$/iu, kind: "safe" },
   { method: "POST", pattern: /^\/links$/iu, kind: "idempotent" },
   { method: "PATCH", pattern: /^\/links\/[^/]+$/iu, kind: "idempotent" },
@@ -80,6 +82,8 @@ const PUBLISHABLE_ROUTES: readonly { readonly method: string; readonly pattern: 
   { method: "POST", pattern: /^\/intents\/[^/]+\/(?:refresh|cancel|stop|preview|receipt\/shares)$/iu },
   { method: "POST", pattern: /^\/intents\/[^/]+\/steps\/[^/]+\/(?:prepare|submit)$/iu },
   { method: "DELETE", pattern: /^\/intents\/[^/]+\/receipt\/(?:shares\/[^/]+|disclosures)$/iu },
+  { method: "DELETE", pattern: /^\/intents\/[^/]+$/iu },
+  { method: "POST", pattern: /^\/data\/(?:portfolio|positions|history|export|transactions(?:\/[^/]+)?|pnl|snapshots|summary)$/iu },
   { method: "GET", pattern: /^\/receipts\/(?:keys|log|log\/inclusion|log\/[^/]+|[^/]+|[^/]+\/status|[^/]+\/shares\/[^/]+)$/iu },
   { method: "GET", pattern: /^\/policy\/approvals\/[^/]+$/iu },
   { method: "POST", pattern: /^\/policy\/approvals\/[^/]+\/(?:approve|reject)$/iu },

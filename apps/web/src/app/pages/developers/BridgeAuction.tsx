@@ -16,14 +16,14 @@ const BRIDGE_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum", "ethereum", 
 
 const RULES: readonly { title: string; body: string }[] = [
   {
-    title: "Most guaranteed output",
-    body: "The highest minimum output net of extra costs wins. A venue whose extra costs cannot be priced is not eligible.",
+    title: "Most value delivered",
+    body: "The highest expected value after gas, extra costs, time, signatures and venue risk wins. The guaranteed minimum must be within your slippage, and a venue whose extra costs cannot be priced is not eligible.",
   },
   {
-    title: "Then the fastest within your limit",
-    body: "Ties go to the shortest settlement estimate within constraints.maxSeconds (default 600 s). Slower quotes cannot win.",
+    title: "Within your time limit",
+    body: "A quote slower than constraints.maxSeconds (default 600 s) is not eligible. Within the limit, time costs value: 0.002 USD a second.",
   },
-  { title: "Then the fewest transactions", body: "Fewer wallet prompts for the same outcome." },
+  { title: "Fewer signatures", body: "Each wallet prompt beyond the first costs 0.10 USD of value, so fewer prompts win when the rest is equal." },
 ];
 
 const LIMITS = [

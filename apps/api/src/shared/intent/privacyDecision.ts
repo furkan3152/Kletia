@@ -34,15 +34,15 @@ export function privacyDecisionContract(input: {
         description:
           "Allow semantic-model interpretation for this intent; transaction construction and signing remain deterministic and wallet-controlled.",
         impact:
-          "The model provider can observe the prompt and recent conversation context for this intent.",
+          "The full prompt, unmasked (amounts, addresses and names included), and the earlier turns of this conversation go to a model provider through OpenRouter, without zero-data-retention routing.",
       },
       {
         id: "allow_ai_for_session" as const,
         label: "Turn on smart parsing",
         description:
-          "Understand natural language for this wallet and network during the current workday.",
+          "Understand natural language for this wallet and network for up to 8 hours.",
         impact:
-          "For up to 8 hours, unmatched prompts may be sent to the configured model provider without asking again.",
+          "For up to 8 hours, every prompt the deterministic parser cannot read goes to the model provider the same way (unmasked, with the conversation so far) without asking again.",
       },
       {
         id: "edit_intent" as const,

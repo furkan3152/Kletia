@@ -134,7 +134,7 @@ export function sanitizeUpstreamMessage(raw: string): string {
   return raw
     .replace(/[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/giu, "<url>")
     .replace(/0x[0-9a-f]{40,}/giu, "<hex>")
-    .replace(/\b[1-9A-HJ-NP-Za-km-z]{43,}\b/gu, "<base58>")
+    .replace(/\b[1-9A-HJ-NP-Za-km-z]{32,}\b/gu, "<base58>")
     .replace(/\b(?:api[_-]?key|apikey|token|secret|key)\s*[=:]\s*\S+/giu, "<redacted>")
     .replace(/\s+/gu, " ")
     .trim()

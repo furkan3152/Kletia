@@ -71,10 +71,14 @@ The deployed Kletia API host is not assumed to be on Base MCP's hosted
 ## Privacy and logging
 
 Discovery uses POST JSON so the user's free-text search does not enter browser,
-proxy, or hosting URL logs. The prepare endpoint still URL-encodes an optional
-paid-request `body` query field for current plugin compatibility. Do not place
-secrets or private user data in any discovery term or paid-request body.
-Production infrastructure should still redact query strings from access logs.
+proxy, or hosting URL logs. The other two routes still take their inputs in
+the query string for current plugin compatibility: `GET /context` takes the
+wallet address, and `GET /x402/prepare` takes the wallet address, the target
+URL, the method, the payment cap and an optional URL-encoded paid-request
+`body`. Those values can therefore appear in browser, proxy and hosting
+access logs. Do not place secrets or private user data in any discovery term
+or paid-request body. Production infrastructure should still redact query
+strings from access logs; Kletia's own application logs do not record them.
 
 ## Validation
 

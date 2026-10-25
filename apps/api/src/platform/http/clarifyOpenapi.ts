@@ -263,8 +263,9 @@ export function clarifySchemas(): JsonObject {
         sentence: str({ maxLength: 1000, description: "The canonical sentence: it compiles to exactly the planned actions." }),
         thread: { oneOf: [ref("ClarifyThread"), ref("ThreadRef")] },
         replayed: bool({ const: true, description: "The intent already existed under this clientReference." }),
+        privacy: ref("PlatformPrivacyTrace"),
       },
-      ["status", "turn", "intent", "assumptions", "sentence", "thread"],
+      ["status", "turn", "intent", "assumptions", "sentence", "thread", "privacy"],
     ),
     PerpsHandoffInput: obj(
       {

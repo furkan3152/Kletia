@@ -13,23 +13,27 @@ interface EndpointRow {
 }
 
 const ENDPOINTS: readonly EndpointRow[] = [
-  { path: "GET /v1/data/portfolio?evm=&solana=&lane=", returns: "Holdings, positions, loans and health, totals, allocation, 24 h change and PnL estimates", access: "public · one unit per account" },
-  { path: "GET /v1/data/positions?evm=&solana=", returns: "Positions, loans and health (same read as the portfolio)", access: "public · one unit per account" },
-  { path: "GET /v1/data/history?limit=", returns: "Your key's intents, receipts and links, newest first", access: "key · one unit" },
+  { path: "POST /v1/data/portfolio { evm, solana, lane }", returns: "Holdings, positions, loans and health, totals, allocation, 24 h change and PnL estimates", access: "public · one unit per account" },
+  { path: "POST /v1/data/positions { evm, solana }", returns: "Positions, loans and health (same read as the portfolio)", access: "public · one unit per account" },
+  { path: "POST /v1/data/history { limit }", returns: "Your key's intents, receipts and links, newest first", access: "key · one unit" },
   { path: "GET /v1/data/markets/yields?network=&asset=", returns: "Supply APY of every venue, best first, with a deposit sentence", access: "public · one unit" },
   { path: "GET /v1/data/markets/prices?symbols=", returns: "USD prices with source and reading time", access: "public · one unit" },
   { path: "GET /v1/data/markets/status", returns: "Network status and route statistics", access: "public · one unit" },
-  { path: "GET /v1/data/export?dataset=&format=", returns: "Holdings, positions or history as CSV or JSON", access: "as the read" },
+  { path: "POST /v1/data/export { dataset, format, evm, solana }", returns: "Holdings, positions or history as CSV or JSON", access: "as the read" },
 ];
 
-const CURL = `# Everything two wallets hold on every production network
-curl "https://api.kletiaai.xyz/v1/data/portfolio?evm=0x4f18…807D&solana=9WzD…AWWM"
+const CURL = `# Everything two wallets hold on every production network (addresses in the body, never in the URL)
+curl -X POST https://api.kletiaai.xyz/v1/data/portfolio \\
+  -H 'content-type: application/json' \\
+  -d '{ "evm": ["0x4f18…807D"], "solana": "9WzD…AWWM" }'
 
 # USDC rates, best first
 curl "https://api.kletiaai.xyz/v1/data/markets/yields?asset=USDC"
 
 # Holdings as a CSV download
-curl -OJ "https://api.kletiaai.xyz/v1/data/export?dataset=holdings&evm=0x4f18…807D"`;
+curl -OJ -X POST https://api.kletiaai.xyz/v1/data/export \\
+  -H 'content-type: application/json' \\
+  -d '{ "dataset": "holdings", "evm": "0x4f18…807D" }'`;
 
 const SDK = `import { KletiaClient } from "@kletia/sdk";
 
@@ -76,8 +80,9 @@ export default function DataApiPage() {
           rowKey={(row) => row.path}
         />
         <p className={cx("max-w-3xl text-sm", TEXT_MUTED)}>
-          Name up to two EVM and two Solana addresses; each is read on every network of the lane. Publishable keys may call every endpoint. The data
-          budget is 240 units a minute per key and 60 per address without one.
+          Name up to two EVM and two Solana addresses; each is read on every network of the lane. Send them in a JSON body with POST: the GET forms
+          with addresses in the query still work but are deprecated, because a URL can end up in access logs. Publishable keys may call every
+          endpoint. The data budget is 240 units a minute per key and 60 per IP address without one.
         </p>
       </section>
       <section aria-labelledby="data-values" className="mt-8 grid min-w-0 gap-6 xl:grid-cols-2">

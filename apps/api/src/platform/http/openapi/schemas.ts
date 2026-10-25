@@ -9,6 +9,7 @@ import { policySchemas } from "../policies/openapi.js";
 import { linkSchemas } from "../links/openapi.js";
 import { assistantSchemas } from "../assistantOpenapi.js";
 import { dataSchemas } from "../dataOpenapi.js";
+import { privacySchemas } from "../privacyOpenapi.js";
 import { projectSchemas } from "../projects/openapi.js";
 import { accountSchemas } from "../accounts/openapi.js";
 import { automationSchemas } from "../../automation/openapi.js";
@@ -33,8 +34,9 @@ function responseSchemas(): JsonObject {
           oneOf: [ref("Journey"), { type: "null" }],
           description: "With `journey=true`: the journey built on `preview` (`journey.basis.previewDigest` equals `preview.digest`); null when it could not be built.",
         },
+        privacy: ref("PlatformPrivacyTrace"),
       },
-      ["intent"],
+      ["intent", "privacy"],
     ),
     IntentListResponse: obj({ intents: arrayOf(ref("IntentGraph")) }, ["intents"]),
     PreparedStepResponse: obj(
@@ -112,6 +114,7 @@ export function schemas(): JsonObject {
     ...agentSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
+    ...privacySchemas(),
 
     ...responseSchemas(),
   };

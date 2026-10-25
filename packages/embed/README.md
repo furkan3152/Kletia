@@ -6,9 +6,12 @@ Kletia's hosted `/embed` page in a sandboxed iframe, sizes the frame to its
 content and re-emits the visitor's progress as DOM events. No dependencies;
 each build is one file.
 
-Visitors plan and sign inside the frame with their own wallets. Your page
-never receives calldata, signatures, addresses or amounts, and cannot start a
-signature.
+Visitors plan and sign inside the frame with their own wallets. The frame
+never posts calldata, signatures, addresses or amounts to your page, and your
+page cannot start a signature. It does post the intent id
+(`kletia:intent-created`, `kletia:step-updated`, `kletia:completed`), and the
+intent id is the capability to read that intent through the API (its
+accounts, steps and amounts included): that is how your server verifies it.
 
 ## Script tag
 

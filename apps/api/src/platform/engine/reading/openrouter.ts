@@ -1,7 +1,9 @@
 /**
  * The live provider: OpenRouter chat completions with structured output. Each
  * profile pins its serving provider (`provider.only`, no fallbacks) and asks
- * no fallbacks) with zero data retention and no data collection; reasoning
+ * OpenRouter to route only to endpoints that state zero data retention (`zdr:
+ * true`) and no data collection (`data_collection: "deny"`): OpenRouter
+ * enforces the routing, the provider's policy is its own statement. Reasoning
  * is off. The key comes from OPENROUTER_API_KEY and is never logged or echoed;
  * errors carry codes only.
  */

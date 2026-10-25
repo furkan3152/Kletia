@@ -50,7 +50,7 @@ export interface IntentPrivacyTraceV1 {
   };
   readonly disclosureDiff: readonly {
     readonly phase: "planning";
-    readonly field: "natural_language_prompt";
+    readonly field: "natural_language_prompt" | "conversation_context";
     readonly newlyVisibleTo: "kletia_api" | "semantic_model_provider";
     readonly reason: string;
   }[];
@@ -157,12 +157,12 @@ export function isIntentPrivacyTrace(
   if (
     !Array.isArray(value.disclosureDiff) ||
     value.disclosureDiff.length < 1 ||
-    value.disclosureDiff.length > 2 ||
+    value.disclosureDiff.length > 3 ||
     !value.disclosureDiff.every((entry) =>
       isRecord(entry) &&
       exactKeys(entry, ["phase", "field", "newlyVisibleTo", "reason"]) &&
       entry.phase === "planning" &&
-      entry.field === "natural_language_prompt" &&
+      ["natural_language_prompt", "conversation_context"].includes(String(entry.field)) &&
       ["kletia_api", "semantic_model_provider"].includes(String(entry.newlyVisibleTo)) &&
       typeof entry.reason === "string" &&
       entry.reason.length > 0 &&

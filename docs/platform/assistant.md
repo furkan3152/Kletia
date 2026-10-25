@@ -154,13 +154,26 @@ Off by default. They need the deployment switch and consent, the same model as
   `403 CONFIRM_AUTHORITY_REQUIRED`, and `503 ASSISTANT_MODEL_NOT_CONFIGURED`
   when the switch is off).
 
-Only the question (addresses and names masked as `<wallet>`) is sent to read
-it, and only the facts' labels and printed values, the gaps and the
-assumptions to word an answer: never addresses, balance lists or histories.
+What the model provider receives, exactly:
+
+- **To read the question:** the question only, at most 300 characters, with
+  EVM and Solana addresses, `.eth` / `.sol` names and links replaced by
+  `<wallet>` and `<link>`.
+- **To word the answer:** the masked question, up to 24 facts Kletia computed
+  (each a label and a printed value, for example the label "USDC on Base"
+  with the value "$1,204.10"), up to 4 gaps
+  and up to 3 assumptions. Facts are balances, amounts, fees, prices, counts
+  and dates of the signed-in wallets; wallets appear as "EVM wallet 1" or
+  "Solana wallet 1", never as addresses. Transaction lists and hashes are not
+  sent.
+
 Calls follow the reading layer's conventions: OpenRouter with a pinned serving
-provider and no fallbacks, zero data retention, no data collection,
-structured output, a 3.5 s per-call cap under a 4 s deadline, a circuit
-breaker, 30 calls an hour per wallet or key and 300 a day per project.
+provider and no fallbacks, requested with OpenRouter's zero-data-retention
+(`zdr`) and `data_collection: "deny"` routing flags (OpenRouter routes only to
+providers that state those policies; Kletia cannot audit them), structured
+output, a 3.5 s per-call cap under a 4 s deadline, a circuit breaker, 30 calls
+an hour per wallet or key and 300 a day per project. Kletia stores neither
+the question nor the answer.
 `answer.wording` is `model` only when the worded text passed the grounding
 check; `answer.understoodBy` says whether the parser or a model read the
 question. Without a model, the deterministic path answers what it can and

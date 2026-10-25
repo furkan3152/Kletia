@@ -55,7 +55,7 @@ export interface IntentPrivacyTraceV1 {
   };
   readonly disclosureDiff: readonly {
     readonly phase: "planning";
-    readonly field: "natural_language_prompt";
+    readonly field: "natural_language_prompt" | "conversation_context";
     readonly newlyVisibleTo: "kletia_api" | "semantic_model_provider";
     readonly reason: string;
   }[];
@@ -122,7 +122,8 @@ function canonicalTracePayload(
 }
 
 /**
- * Produces an honest diagnostic receipt for the legacy `/api/intent` surface.
+ * Produces an honest diagnostic receipt for the legacy `/api/intent` surface
+ * (and only that one: Platform API v1 returns `kletia_platform_privacy_trace_v1`).
  *
  * This is deliberately not called a privacy proof: the API receives the raw
  * legacy prompt. The trace makes that fact, any semantic-provider disclosure,
@@ -138,9 +139,12 @@ export function createIntentPrivacyTrace(input: {
   readonly semanticPlanner: IntentSemanticPlannerMode;
   readonly semanticProviderRequestAttempted: boolean;
   readonly semanticModelInfluencedPlan: boolean;
+  /** Earlier conversation turns sent with the prompt to the model provider (0 when none or no request). */
+  readonly semanticContextTurns?: number;
   readonly intent?: Pick<ParsedIntent, "action">;
   readonly clarificationStored: boolean;
 }): IntentPrivacyTraceV1 {
+  const contextTurns = input.semanticProviderRequestAttempted ? Math.max(0, Math.floor(input.semanticContextTurns ?? 0)) : 0;
   const execution = executionClass(input.intent?.action);
   const withoutHash: Omit<IntentPrivacyTraceV1, "traceSha256"> = {
     schemaVersion: "kletia_intent_privacy_trace_v1",
@@ -193,10 +197,24 @@ export function createIntentPrivacyTrace(input: {
             },
           ] as const)
         : []),
+      ...(contextTurns > 0
+        ? ([
+            {
+              phase: "planning" as const,
+              field: "conversation_context" as const,
+              newlyVisibleTo: "semantic_model_provider" as const,
+              reason: `The ${contextTurns} earlier turn${contextTurns === 1 ? "" : "s"} of this short-lived conversation (your messages and Kletia's replies) went to the model provider with the prompt.`,
+            },
+          ] as const)
+        : []),
     ],
     limitations: [
       "This diagnostic hash is recomputable but unsigned; it is not an anonymity proof or an onchain attestation.",
-      "Legacy Base and Arc prompts are visible to the Kletia API even when the semantic model is disabled.",
+      "This trace covers the legacy POST /api/intent route only. Platform API v1 (POST /v1/intents) stores intents: the request text until 24 hours after the intent is final, the intent for 30 days, and returns its own trace (kletia_platform_privacy_trace_v1).",
+      "Every prompt sent to the legacy route (Base, Arbitrum One and Arc Testnet) is visible to the Kletia API even when the semantic model is disabled.",
+      ...(input.semanticProviderRequestAttempted
+        ? ["The legacy semantic planner calls OpenRouter without a pinned serving provider or zero-data-retention routing, so the retention policy of the model provider OpenRouter picks applies."]
+        : []),
       execution.actionClass === "financial_public_if_executed"
         ? "Amounts, recipients and timing become public according to the selected chain and protocol if the user signs execution."
         : "Read-only providers and public RPC endpoints may observe query metadata.",

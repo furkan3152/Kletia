@@ -27,7 +27,7 @@ import {
   validateIntentRequest,
   type IntentRequest,
 } from "@kletia/core";
-import { isPlatformError, PlatformError, platformErrorDetails, toPlatformError } from "../errors.js";
+import { isPlatformError, PlatformError, platformErrorDetails, sanitizeUpstreamMessage, toPlatformError } from "../errors.js";
 import { cctpClaimTransaction } from "./adapters/cctpV2.js";
 import { ADAPTERS, adapterForStep, configureAdapters, isContractAdapter } from "./adapters/registry.js";
 import type { ContractPreparedPayload, PlannedStepPreview, PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
@@ -71,7 +71,7 @@ import { screenIntentRequest } from "./secretScreen.js";
 import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
 import type { ExposureScopeHint } from "./policy/ruleBookGate.js";
 import { createIntentStore, type IntentRecordMeta, type IntentStore } from "./store.js";
-import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
+import { INTENT_ID_PATTERN, intentLogRef, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
 
 /** Payloads expire quickly: Solana blockhashes and provider quotes go stale. */
 export const PAYLOAD_TTL_SECONDS = 90;
@@ -968,7 +968,7 @@ async function preparedPreview(
     });
   } catch (error) {
     if (isPlatformError(error)) throw error;
-    console.warn(`[platform] preview of ${graph.id}/${step.id} failed:`, error instanceof Error ? error.message : error);
+    console.warn(`[platform] preview of ${intentLogRef(graph.id)}/${step.id} failed:`, error instanceof Error ? sanitizeUpstreamMessage(error.message) : "error");
     if (previewEnforced(graph, step)) {
       throw Object.assign(new PlatformError("SIMULATION_UNAVAILABLE", `Step ${step.id} could not be simulated right now, and it is never prepared unsimulated. Retry shortly.`, 503), {
         retryAfterSeconds: SIMULATION_RETRY_AFTER_SECONDS,
@@ -1242,7 +1242,7 @@ export async function refreshIntentPreview(intentId: string, options: RefreshPre
           const planned = await adapterForStep(step).plan(actionForStep(graph, step));
           if (planned.preview) sources.set(step.id, planned.preview);
         } catch (error) {
-          console.warn(`[platform] preview re-quote of ${intentId}/${step.id} failed:`, toPlatformError(error).message);
+          console.warn(`[platform] preview re-quote of ${intentLogRef(intentId)}/${step.id} failed:`, sanitizeUpstreamMessage(toPlatformError(error).message));
         }
       }));
       if (sources.size > 0) rememberPlannedPreviews(intentId, new Map([...plannedPreviews(intentId), ...sources]));
@@ -1298,7 +1298,7 @@ async function reconcileVerified(before: IntentGraph, after: IntentGraph): Promi
       await policyGate().afterVerification(input);
     }
   } catch (error) {
-    console.warn(`[platform] policy reconcile of ${after.id} failed:`, toPlatformError(error).message);
+    console.warn(`[platform] policy reconcile of ${intentLogRef(after.id)} failed:`, sanitizeUpstreamMessage(toPlatformError(error).message));
   }
 }
 
@@ -1704,7 +1704,7 @@ async function refreshIntentInternal(id: string, onlySteps?: readonly string[]):
           changed = true;
         }
       } catch (error) {
-        console.warn(`[platform] refresh ${id}/${step.id} deferred:`, toPlatformError(error).message);
+        console.warn(`[platform] refresh ${intentLogRef(id)}/${step.id} deferred:`, sanitizeUpstreamMessage(toPlatformError(error).message));
       }
     }
     const unlocked = unlockDependents(steps);
@@ -1760,7 +1760,7 @@ async function cancelAfterRejection(graph: IntentGraph, now: number): Promise<vo
   try {
     await commit(graph, cancelledGraph(graph, now));
   } catch (error) {
-    console.warn(`[platform] cancelling rejected intent ${graph.id} failed:`, toPlatformError(error).message);
+    console.warn(`[platform] cancelling rejected intent ${intentLogRef(graph.id)} failed:`, sanitizeUpstreamMessage(toPlatformError(error).message));
   }
 }
 
@@ -1945,7 +1945,7 @@ export function startSettlementPoller(options: SettlementPollerOptions = {}): ()
           cursor += 1;
           if (!graph) continue;
           await refreshIntent(graph.id).catch((error: unknown) => {
-            console.warn(`[platform] poll ${graph.id} failed:`, toPlatformError(error).message);
+            console.warn(`[platform] poll ${intentLogRef(graph.id)} failed:`, sanitizeUpstreamMessage(toPlatformError(error).message));
           });
           polled.push(graph.id);
         }

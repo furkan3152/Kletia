@@ -370,7 +370,65 @@ function get(operationId: string, summary: string, description: string, paramete
   return { get: { operationId, tags: TAGS, summary, description, parameters, responses: { "200": response, ...errors() }, ...extra } };
 }
 
+/** POST twins of the reads that name wallet addresses (data.ts DATA_BODY_READS), and their operation ids. */
+const BODY_READ_IDS: Readonly<Record<string, string>> = {
+  "/v1/data/portfolio": "postDataPortfolio",
+  "/v1/data/positions": "postDataPositions",
+  "/v1/data/history": "postDataHistory",
+  "/v1/data/export": "postExportData",
+  "/v1/data/transactions": "postDataTransactions",
+  "/v1/data/transactions/{id}": "postDataTransaction",
+  "/v1/data/pnl": "postDataPnl",
+  "/v1/data/snapshots": "postDataSnapshots",
+  "/v1/data/summary": "postDataSummary",
+};
+
+const URL_ADDRESS_NOTE =
+  "Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.";
+
+/** A query parameter as a JSON body property (`evm` / `solana` also take an array of addresses). */
+function bodyProperty(parameter: JsonObject): JsonObject {
+  const schema = (parameter.schema ?? {}) as JsonObject;
+  const described: JsonObject = parameter.description !== undefined ? { description: parameter.description } : {};
+  if (parameter.name === "evm" || parameter.name === "solana") {
+    return { ...described, oneOf: [schema, arrayOf(str({ maxLength: 64 }), { maxItems: 2 })] };
+  }
+  return { ...schema, ...described };
+}
+
+/** Adds the POST twin to each address-taking read and marks its GET deprecated. */
+function withBodyReads(paths: JsonObject): JsonObject {
+  const out: JsonObject = { ...paths };
+  for (const [path, operationId] of Object.entries(BODY_READ_IDS)) {
+    const item = out[path] as JsonObject | undefined;
+    const read = item?.get as JsonObject | undefined;
+    if (!item || !read) throw new Error(`No GET operation for ${path}.`);
+    const parameters = (read.parameters ?? []) as JsonObject[];
+    const query = parameters.filter((parameter) => parameter.in === "query");
+    const body = obj(Object.fromEntries(query.map((parameter) => [parameter.name as string, bodyProperty(parameter)])), [], {
+      description: "The read's parameters (the same names as the GET query), as JSON.",
+    });
+    out[path] = {
+      ...item,
+      get: { ...read, deprecated: true, description: `${read.description as string} ${URL_ADDRESS_NOTE}` },
+      post: {
+        ...read,
+        operationId,
+        summary: `${read.summary as string} (parameters in the body)`,
+        description: `${read.description as string} Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.`,
+        parameters: parameters.filter((parameter) => parameter.in !== "query"),
+        requestBody: { required: false, content: { "application/json": { schema: body } } },
+      },
+    };
+  }
+  return out;
+}
+
 export function dataPaths(): JsonObject {
+  return withBodyReads(dataGetPaths());
+}
+
+function dataGetPaths(): JsonObject {
   const csvResponse: JsonObject = {
     description: "The dataset as a download (`Content-Disposition: attachment`).",
     headers: { "X-Request-Id": REQUEST_ID_HEADER, "Content-Disposition": { schema: str() } },

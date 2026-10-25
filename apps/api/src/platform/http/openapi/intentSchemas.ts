@@ -177,10 +177,24 @@ export function intentSchemas(): JsonObject {
           constraints: ref("IntentConstraints"),
           metadata: { type: "object", maxProperties: 20, propertyNames: { maxLength: 40 }, additionalProperties: str({ maxLength: 500 }) },
           clientReference: str({ pattern: "^[A-Za-z0-9_.:-]{1,80}$", description: "Idempotency key (honoured for callers with an API key)." }),
+          textRedaction: obj(
+            {
+              alg: str({ const: "sha256-salted-v1" }),
+              digest: str({ pattern: "^[0-9a-f]{64}$", description: 'hex SHA-256(UTF8("kletia.request-text.v1:" + salt + ":" + text)).' }),
+              salt: str({ pattern: "^[A-Za-z0-9_-]{22}$" }),
+              length: int({ minimum: 0, description: "Length of the removed text in Unicode code points." }),
+              redactedAt: str({ format: "date-time" }),
+            },
+            ["alg", "digest", "salt", "length", "redactedAt"],
+            {
+              readOnly: true,
+              description: "Stored intents only, never accepted in a request: retention removed `text` (24 hours after the intent became final) and kept this digest and length instead.",
+            },
+          ),
         },
         ["accounts"],
       ),
-      anyOf: [{ required: ["text"] }, { required: ["actions"] }],
+      anyOf: [{ required: ["text"] }, { required: ["actions"] }, { required: ["textRedaction"] }],
     },
 
     AssetAmount: obj(

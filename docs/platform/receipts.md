@@ -243,6 +243,18 @@ The signed payloads (commitments only) and log leaves stay; copies already
 downloaded cannot be recalled. Before the first receipt there is nothing to
 withdraw: `409 RECEIPT_NOT_READY` (or `RECEIPT_NOT_APPLICABLE`).
 
+**Retention** ([data-retention.md](data-retention.md)). 24 hours after an
+intent is final, Kletia removes its request text and drops the stored
+`intent.request` and `intent.plan` disclosures (and `intent.outcome` when its
+title was the text) from every receipt of the intent: from then on Kletia can
+no longer disclose those groups, and a share created afterwards cannot
+include them. A receipt downloaded earlier keeps them and still verifies
+offline (the commitments in the signed payload are unchanged). 30 days after
+the intent is final, or on `DELETE /v1/intents/{id}`, the intent is deleted
+and every stored disclosure and share of its receipts go with it, as with
+the withdrawal above; a share link with no expiry ends then too. Signed
+payloads and log leaves stay.
+
 | Caller | Can read |
 |---|---|
 | Holder of the intent id | Every receipt of the intent with its disclosures, its shares; create and revoke shares |

@@ -96,7 +96,7 @@ export function intentPaths(): JsonObject {
         operationId: "quoteRoutes",
         tags: ["Quotes"],
         summary: "Best routes for one asset movement (same- or cross-network)",
-        description: "Quotes are advisory and never persisted. Routes are ranked like the planner's bridge auction (guaranteed output net of priced extra costs, then time within `maxSeconds`, then transaction count); `best` is the first eligible route.",
+        description: "Quotes are advisory and never persisted. Routes are ranked like the planner's auction, by the expected value delivered after gas, priced extra costs, time, signatures and venue risk; a route is eligible only when its guaranteed minimum is within the slippage, its costs can be priced and it settles within `maxSeconds`. `best` is the first eligible route.",
         requestBody: jsonBody("QuoteRequest"),
         responses: { "200": ok("QuoteResponse", "Routes."), ...errors("413", "415", "422", "502", "504") },
       },
@@ -197,6 +197,15 @@ export function intentPaths(): JsonObject {
         summary: "Read an intent",
         parameters: [intentIdParam],
         responses: { "200": ok("IntentResponse", "Intent."), ...errors("404") },
+      },
+      delete: {
+        operationId: "deleteIntent",
+        tags: ["Intents"],
+        summary: "Delete a stored intent",
+        description:
+          "The holder of the intent id deletes the stored intent now, with every stored disclosure and share of its receipts. Signed receipt payloads (commitments only), transparency-log leaves and transaction references stay, so receipts downloaded earlier still verify. 409 INTENT_IN_FLIGHT while a step is submitted, confirmed or settling. Without a request, the request text is removed 24 hours after the intent is final and the intent 30 days after (docs/platform/data-retention.md).",
+        parameters: [intentIdParam],
+        responses: { "204": { description: "Deleted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("404", "409") },
       },
     },
     "/v1/intents/{id}/steps/{stepId}/prepare": {

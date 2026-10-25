@@ -28,6 +28,7 @@ import { assertError, call as rawCall, OPERATOR_KEY, serve, useTestEnvironment, 
 
 useTestEnvironment();
 const { configureHealthProbe, createPlatformRouter, platformErrorHandler, PLATFORM_ROUTES } = await import("../index.js");
+const { DATA_BODY_READS } = await import("../data.js");
 const { dataAddressBudget, dataKeyBudget } = await import("../limits.js");
 
 const EVM = "0x4f183e308f24c81c05303821AD025812fBFd807D";
@@ -350,11 +351,29 @@ describe("data export", () => {
 describe("data routes", () => {
   it("are all open to publishable keys except tracking, and only history requires a key", () => {
     const routes = PLATFORM_ROUTES.filter((route) => route.path.startsWith("/data/"));
-    assert.equal(routes.length, 15);
+    assert.equal(routes.length, 24);
     const reads = routes.filter((route) => route.path !== "/data/tracking");
-    assert.ok(reads.every((route) => route.method === "get" && route.publishable === true));
+    assert.ok(reads.every((route) => route.publishable === true));
+    assert.ok(reads.filter((route) => route.method === "post").every((route) => (DATA_BODY_READS as readonly string[]).includes(route.path)), "POST only for the address-taking reads");
+    assert.equal(reads.filter((route) => route.method === "post").length, DATA_BODY_READS.length);
     // Tracking takes a desk wallet session only: no key of any kind manages it.
     assert.ok(routes.filter((route) => route.path === "/data/tracking").every((route) => route.publishable === undefined && route.auth === "public"));
-    assert.deepEqual(routes.filter((route) => route.auth === "key").map((route) => route.path), ["/data/history"]);
+    assert.deepEqual(routes.filter((route) => route.auth === "key").map((route) => route.path), ["/data/history", "/data/history"]);
+  });
+
+  it("answer POST with the parameters in a JSON body, exactly like GET, so addresses stay out of the URL", async () => {
+    const byQuery = await call<{ portfolio: import("@kletia/core").DataPortfolio }>("GET", `/data/portfolio?evm=${EVM}&solana=${SOL}`);
+    const byBody = await call<{ portfolio: import("@kletia/core").DataPortfolio }>("POST", "/data/portfolio", { body: { evm: [EVM], solana: SOL } });
+    assert.equal(byBody.status, 200, JSON.stringify(byBody.body));
+    assert.deepEqual(byBody.body.portfolio.totals, byQuery.body.portfolio.totals);
+    assert.deepEqual(byBody.body.portfolio.accounts, byQuery.body.portfolio.accounts);
+    const positions = await call<{ positions: unknown[] }>("POST", "/data/positions", { body: { evm: EVM, extras: false } });
+    assert.equal(positions.status, 200);
+    assertError(await call("POST", "/data/portfolio", { body: {} }), 400, "INVALID_REQUEST");
+    assertError(await call("POST", "/data/portfolio", { body: { evm: { nested: true } } }), 400, "INVALID_REQUEST");
+    assertError(await call("POST", "/data/portfolio", { body: { evm: [EVM, `0x${"1".repeat(40)}`, `0x${"2".repeat(40)}`] } }), 400, "INVALID_REQUEST");
+    assertError(await call("POST", "/data/history", { key: "", body: {} }), 401, "API_KEY_REQUIRED");
+    const csv = await call<string>("POST", "/data/export", { body: { dataset: "holdings", evm: EVM, solana: SOL } });
+    assert.equal(csv.status, 200);
   });
 });

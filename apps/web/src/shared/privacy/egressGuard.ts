@@ -15,6 +15,17 @@
  * - A registered, guardable value cannot leave through a wrapped surface without
  *   the operation failing and the violation being recorded.
  *
+ * Status in this app (read before citing the guard as a protection)
+ * - `bootstrapEgressGuard` installs it at boot, but no production flow calls
+ *   `registerPrivateField`: only `scripts/verifyIntentUserJourney.ts` and the
+ *   tooling gate (`tooling/verify-privacy-egress-guard.mjs`) register values.
+ *   With nothing registered it inspects outbound calls and blocks nothing, so
+ *   it protects no user value today.
+ * - It is not wired into the desk on purpose: every desk flow must send the
+ *   recipient and the amount to the Kletia API (planning) and to the wallet
+ *   (signing). Registering them there would block the product, not a leak.
+ *   It is meant for a flow whose values must never leave the browser.
+ *
  * What this does NOT guarantee
  * - It is not a sandbox. Code holding a direct reference to an unwrapped native
  *   (captured before installation, or reached via an iframe or worker realm) is

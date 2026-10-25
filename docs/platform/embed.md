@@ -8,9 +8,12 @@ did through DOM events (`kletia:ready`, `kletia:intent-planned`,
 `kletia:intent-created`, `kletia:step-updated`, `kletia:completed`,
 `kletia:question`, `kletia:error`, `kletia:resize`).
 
-The visitor plans and signs inside the frame with their own wallet. Your page
-never sees calldata, signatures, addresses or amounts, and it cannot sign or
-submit anything on the visitor's behalf.
+The visitor plans and signs inside the frame with their own wallet. The frame
+never posts calldata, signatures, addresses or amounts to your page, and your
+page cannot sign or submit anything on the visitor's behalf. It does post the
+intent id, and the intent id is the capability to read that intent through
+the API (its accounts, steps and amounts included) and to delete it: that is
+how your server verifies what happened.
 
 For React apps that want the widget in their own DOM, use
 [`@kletia/widget`](../../packages/widget/README.md) instead.

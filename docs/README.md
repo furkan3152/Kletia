@@ -45,6 +45,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Solana venues](platform/solana-venues.md): Save lending, more SPL stake pools (hSOL, dSOL, bonkSOL, bSOL), Kamino JLP / Altcoins reserves, Jupiter venue filters and Solana Pay transfer requests.
 - [Asset preview](platform/preview.md): the fare breakdown and `PREVIEW_CHANGED`.
 - [Receipts](platform/receipts.md): signed, selectively disclosed, independently verifiable receipts.
+- [Data retention and recipients](platform/data-retention.md): what Kletia stores, where and for how long, who else receives what (quote providers, RPCs, model providers), and how to delete an intent (`DELETE /v1/intents/{id}`).
 - [Policies](platform/policies.md): the Rule Book, agent keys and approvals.
 - [Sub-agents](platform/subagents.md): main agents request sub-agents inside their rule book; the owner approves with a wallet signature.
 - [Intent links](platform/links.md): shareable, bounded intents at `/go/<id>`.

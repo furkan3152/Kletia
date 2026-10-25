@@ -149,6 +149,19 @@ function contract(name: string, make: () => ReceiptStore, databaseUrl?: string):
       assert.equal(await store.share(live), null);
     });
 
+    it("drops named disclosure groups for retention and keeps the others", async () => {
+      const store = make();
+      const intentId = `int_${hex(16)}`;
+      const evidence = { salt: "AAAAAAAAAAAAAAAAAAAAAA", value: { anchors: [] } };
+      const one = receipt(intentId, 1, "d".repeat(64), { disclosures: { ...receipt(intentId, 1, "d".repeat(64)).disclosures, "steps.s1.evidence": evidence } as never });
+      assert.equal(await store.issue(one, null, null), "issued");
+      assert.equal(await store.dropDisclosureGroups(intentId, ["intent.request", "intent.plan"]), 1);
+      const kept = (await store.latest(intentId))?.disclosures;
+      assert.deepEqual(Object.keys(kept ?? {}), ["steps.s1.evidence"]);
+      assert.equal((await store.latest(intentId))?.disclosuresWithdrawnAt, null, "not a withdrawal");
+      assert.equal(await store.dropDisclosureGroups(intentId, ["intent.request"]), 0, "nothing left to drop");
+    });
+
     it("stores a receipt built before a withdrawal without its disclosures (the withdrawal is re-read under the lock)", async () => {
       const store = make();
       const intentId = `int_${hex(16)}`;

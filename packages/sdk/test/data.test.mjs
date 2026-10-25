@@ -1,5 +1,6 @@
-// client.data.*: query building, local validation (nothing sent), publishable
-// keys allowed, and exportCsv built from the JSON read with core's escaping.
+// client.data.*: request building (wallets in a POST body, never in the URL),
+// local validation (nothing sent), publishable keys allowed, and exportCsv
+// built from the JSON read with core's escaping.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { KletiaClient } from "../dist/index.js";
@@ -19,7 +20,7 @@ function recording(respond, options = {}) {
     ...options,
     fetch: async (url, init) => {
       const { pathname, searchParams } = new URL(url);
-      const call = { method: init.method, path: pathname, query: Object.fromEntries(searchParams), headers: init.headers };
+      const call = { method: init.method, path: pathname, query: Object.fromEntries(searchParams), body: typeof init.body === "string" ? JSON.parse(init.body) : undefined, headers: init.headers };
       calls.push(call);
       return respond(call);
     },
@@ -37,10 +38,12 @@ test("data.portfolio and positions send the wallet set and unwrap the portfolio"
   const { client, calls } = recording((call) => jsonResponse(call.path.endsWith("/portfolio") ? { portfolio } : { positions: [], health: [], failures: [], accounts: [], asOf: "x" }));
   const read = await client.data.portfolio({ evm: EVM, solana: [SOL], lane: "production" });
   assert.equal(read.holdings[0].symbol, "=CMD");
-  assert.deepEqual(calls[0], { method: "GET", path: "/v1/data/portfolio", query: { evm: EVM, solana: SOL, lane: "production" }, headers: calls[0].headers });
+  assert.deepEqual(calls[0], { method: "POST", path: "/v1/data/portfolio", query: {}, body: { evm: EVM, solana: SOL, lane: "production" }, headers: calls[0].headers });
+  assert.equal(calls[0].headers["idempotency-key"], undefined, "a read stores nothing, so it carries no key");
   await client.data.positions({ evm: [EVM, `0x${"1".repeat(40)}`] });
   assert.equal(calls[1].path, "/v1/data/positions");
-  assert.equal(calls[1].query.evm, `${EVM},0x${"1".repeat(40)}`);
+  assert.deepEqual(calls[1].query, {}, "no address in the URL");
+  assert.equal(calls[1].body.evm, `${EVM},0x${"1".repeat(40)}`);
 });
 
 test("data reads refuse a missing wallet, too many addresses and a comma inside one, before sending", async () => {
@@ -58,8 +61,10 @@ test("history, yields, prices and status build their queries", async () => {
   await client.data.yields({ network: "base", asset: "USDC" });
   await client.data.prices({ symbols: ["ETH", "SOL"] });
   await client.data.status();
+  assert.deepEqual(calls[0].body, { solana: SOL, limit: "20" });
+  assert.equal(calls[0].method, "POST");
   assert.deepEqual(calls.map((call) => [call.path, call.query]), [
-    ["/v1/data/history", { solana: SOL, limit: "20" }],
+    ["/v1/data/history", {}],
     ["/v1/data/markets/yields", { network: "base", asset: "USDC" }],
     ["/v1/data/markets/prices", { symbols: "ETH,SOL" }],
     ["/v1/data/markets/status", {}],
@@ -104,7 +109,8 @@ test("transactions, transaction, pnl, snapshots and summary build their queries"
   const summary = await client.data.summary({ evm: EVM });
   assert.deepEqual(summary.risks, []);
   await client.data.positions({ evm: EVM, extras: true });
-  assert.deepEqual(calls.map((call) => [call.path, call.query]), [
+  assert.ok(calls.every((call) => call.method === "POST" && Object.keys(call.query).length === 0), "wallets never travel in the URL");
+  assert.deepEqual(calls.map((call) => [call.path, call.body]), [
     ["/v1/data/transactions", { evm: EVM, kind: "swap", asset: "USDC", cursor: "abc", kletiaOnly: "true", limit: "10" }],
     ["/v1/data/transactions/base%3A0x02", { evm: EVM }],
     ["/v1/data/pnl", { solana: SOL, period: "30d" }],
@@ -131,4 +137,19 @@ test("assistant.ask posts the question and unwraps the answer", async () => {
   assert.deepEqual([calls[0].method, calls[0].path], ["POST", "/v1/assistant/ask"]);
   await assert.rejects(() => client.assistant.ask({ question: " " }), RangeError);
   assert.equal(calls.length, 1, "an empty question is refused locally");
+});
+
+test("intents.delete sends DELETE with the intent id and resolves on 204", async () => {
+  const id = `int_${"a".repeat(32)}`;
+  const calls = [];
+  const client = new KletiaClient({
+    baseUrl: "http://localhost:3001",
+    publishableKey: `kl_pub_${"a".repeat(32)}`,
+    fetch: async (url, init) => {
+      calls.push({ method: init.method, path: new URL(url).pathname });
+      return new Response(null, { status: 204, headers: { "x-request-id": "req-del" } });
+    },
+  });
+  assert.equal(await client.intents.delete(id), undefined);
+  assert.deepEqual(calls, [{ method: "DELETE", path: `/v1/intents/${id}` }]);
 });

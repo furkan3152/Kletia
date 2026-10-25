@@ -25,14 +25,19 @@ providers' APIs. Nothing was signed or sent.
 
 ## How the auction picks a venue
 
-The auction (engine core) ranks quotes by net guaranteed output:
+The auction (engine core, `auction.ts` and `routing/score.ts`) ranks quotes
+by a route score: the expected value delivered, in USD, after costs:
 
 ```
-net = minimumOutput - extraCosts (converted into the output asset)
+value = expectedOutput × (1 − measured haircut) × price
+        − gas − extraCosts − 0.002 USD × seconds − 0.10 USD × (signatures − 1)
+        − venue risk − expected non-fill cost of solver-filled legs
 ```
 
-then by fewer estimated seconds, then by fewer wallet transactions. DLN's
-fixed fee is its `extraCosts` entry. A quote is not eligible when it is slower
+(in output units when neither side can be priced). The guaranteed minimum
+decides eligibility, not the rank: it must sit within the request's slippage
+of the expected output. `constraints.routePreference: "fastest"` weighs time
+more. DLN's fixed fee is its `extraCosts` entry. A quote is not eligible when it is slower
 than `constraints.maxSeconds` (default 600 s), when its extra costs cannot be
 priced (for example DLN's fee in POL on Polygon, which has no price source), or
 when it delivers another asset. Losing quotes are recorded as `quote` evidence

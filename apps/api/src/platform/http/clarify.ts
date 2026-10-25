@@ -31,6 +31,7 @@ import {
   THREAD_LIMITS,
   THREAD_STATUSES,
   isThreadId,
+  platformPrivacyTrace,
   type ClarifyThread,
   type IntentTurnRequest,
   type IntentTurnResponse,
@@ -207,6 +208,7 @@ async function send(res: Response, response: IntentTurnResponse, flags: TurnFlag
     return;
   }
   if (flags.journey) body.journey = await journeyOf(response, flags);
+  body.privacy = platformPrivacyTrace(response.intent, { stored: !flags.dryRun });
   if (flags.dryRun) {
     res.status(200).json(body);
     return;

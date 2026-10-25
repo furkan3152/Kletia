@@ -1,6 +1,8 @@
 // Must stay the first import: it installs EgressGuardV1 over the browser's
 // outbound surfaces before any wallet SDK, transport or telemetry module can
-// capture an unwrapped native reference.
+// capture an unwrapped native reference. No production flow registers a
+// private value yet, so today it watches nothing and blocks nothing
+// (see the status note in shared/privacy/egressGuard.ts).
 import "./shared/privacy/bootstrapEgressGuard";
 
 import React from "react";

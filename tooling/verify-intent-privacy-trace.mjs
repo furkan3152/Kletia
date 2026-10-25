@@ -67,6 +67,32 @@ assert.equal(
 assert.equal(priorConsentContext.semantic.modelInfluencedCurrentPlan, true);
 assert.equal(priorConsentContext.disclosureDiff.length, 1);
 
+const withContext = createIntentPrivacyTrace({
+  ...request,
+  semanticPlanner: "ai_assisted",
+  semanticProviderRequestAttempted: true,
+  semanticModelInfluencedPlan: true,
+  semanticContextTurns: 2,
+});
+assert.deepEqual(
+  withContext.disclosureDiff.map((entry) => entry.field),
+  ["natural_language_prompt", "natural_language_prompt", "conversation_context"],
+  "Earlier turns sent to the model provider are disclosed as conversation context",
+);
+assert.ok(
+  withContext.limitations.some((line) => line.includes("zero-data-retention")),
+  "A provider request names the provider routing it ran under",
+);
+assert.equal(
+  createIntentPrivacyTrace({ ...request, semanticProviderRequestAttempted: false, semanticModelInfluencedPlan: false, semanticContextTurns: 4 }).disclosureDiff.length,
+  1,
+  "Without a provider request no context was disclosed",
+);
+assert.ok(
+  deterministic.limitations.some((line) => line.includes("POST /v1/intents") && line.includes("24 hours")),
+  "The legacy trace says it does not describe Platform API v1, which stores intents",
+);
+
 const serialized = JSON.stringify(deterministic);
 assert.equal(serialized.includes("12.5"), false);
 assert.equal(
@@ -75,5 +101,5 @@ assert.equal(
 );
 
 console.log(
-  "Intent privacy trace verified: current-request disclosure, prior consent context, hash binding and value omission.",
+  "Intent privacy trace verified: current-request disclosure, conversation context, prior consent context, scope, hash binding and value omission.",
 );

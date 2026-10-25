@@ -33,7 +33,7 @@ export const STUDIO_EXAMPLE_GROUPS: readonly StudioExampleGroup[] = [
   {
     id: "bridge",
     label: "Bridge",
-    note: "Relay, LI.FI and deBridge quote every bridge and the best guaranteed output wins. Add “via lifi” to pick the venue yourself.",
+    note: "Relay, LI.FI, deBridge, Across and CCTP quote the bridges they serve, and the most value delivered after costs wins. Add “via lifi” to pick the venue yourself.",
     examples: [
       "bridge 100 USDC from ethereum to base",
       "bridge 25 USDC from base to arbitrum via lifi",

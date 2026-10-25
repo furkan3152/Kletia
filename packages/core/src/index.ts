@@ -38,3 +38,5 @@ export * from "./predictions.js";
 export * from "./handoff.js";
 export * from "./subagents.js";
 export * from "./assistant.js";
+export * from "./retention.js";
+export * from "./privacyTrace.js";

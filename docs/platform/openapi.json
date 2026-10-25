@@ -416,7 +416,7 @@
           "Quotes"
         ],
         "summary": "Best routes for one asset movement (same- or cross-network)",
-        "description": "Quotes are advisory and never persisted. Routes are ranked like the planner's bridge auction (guaranteed output net of priced extra costs, then time within `maxSeconds`, then transaction count); `best` is the first eligible route.",
+        "description": "Quotes are advisory and never persisted. Routes are ranked like the planner's auction, by the expected value delivered after gas, priced extra costs, time, signatures and venue risk; a route is eligible only when its guaranteed minimum is within the slippage, its costs can be priced and it settles within `maxSeconds`. `best` is the first eligible route.",
         "requestBody": {
           "required": true,
           "content": {
@@ -978,6 +978,50 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteIntent",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Delete a stored intent",
+        "description": "The holder of the intent id deletes the stored intent now, with every stored disclosure and share of its receipts. Signed receipt payloads (commitments only), transparency-log leaves and transaction references stay, so receipts downloaded earlier still verify. 409 INTENT_IN_FLIGHT while a step is submitted, confirmed or settling. Without a request, the request text is removed 24 hours after the intent is final and the intent 30 days after (docs/platform/data-retention.md).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -6454,7 +6498,7 @@
           "Data"
         ],
         "summary": "Everything a wallet set holds, across every network of the lane",
-        "description": "Wallet holdings, venue positions (lending, savings, vaults, Jupiter Lend), liquid-staking tokens, Aave V3, SparkLend and Compound V3 debt with health, totals, allocation by network, asset and protocol, the 24-hour change and a PnL estimate against this API's earlier readings. Each value carries `source` and `asOf`; unknown values are null with a `reason`. Cached 15 s per wallet set. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account of the wallet set.",
+        "description": "Wallet holdings, venue positions (lending, savings, vaults, Jupiter Lend), liquid-staking tokens, Aave V3, SparkLend and Compound V3 debt with health, totals, allocation by network, asset and protocol, the 24-hour change and a PnL estimate against this API's earlier readings. Each value carries `source` and `asOf`; unknown values are null with a `reason`. Cached 15 s per wallet set. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account of the wallet set. Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "evm",
@@ -6530,6 +6574,112 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postDataPortfolio",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Everything a wallet set holds, across every network of the lane (parameters in the body)",
+        "description": "Wallet holdings, venue positions (lending, savings, vaults, Jupiter Lend), liquid-staking tokens, Aave V3, SparkLend and Compound V3 debt with health, totals, allocation by network, asset and protocol, the 24-hour change and a PnL estimate against this API's earlier readings. Each value carries `source` and `asOf`; unknown values are null with a `reason`. Cached 15 s per wallet set. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account of the wallet set. Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The portfolio.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataPortfolioResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "testnet"
+                    ],
+                    "description": "Production networks (default) or test networks; the two never mix."
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
+          }
         }
       }
     },
@@ -6540,7 +6690,7 @@
           "Data"
         ],
         "summary": "Positions, debts and lending health of a wallet set",
-        "description": "The positions part of the portfolio read (same cache). With `extras=true`: open perps positions, open native orders, the caller's automations and its agent keys' spend, each with a reason when unread. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account (two with extras).",
+        "description": "The positions part of the portfolio read (same cache). With `extras=true`: open perps positions, open native orders, the caller's automations and its agent keys' spend, each with a reason when unread. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account (two with extras). Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "evm",
@@ -6634,6 +6784,126 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postDataPositions",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Positions, debts and lending health of a wallet set (parameters in the body)",
+        "description": "The positions part of the portfolio read (same cache). With `extras=true`: open perps positions, open native orders, the caller's automations and its agent keys' spend, each with a reason when unread. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account (two with extras). Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Positions and health.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataPositions"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "testnet"
+                    ],
+                    "description": "Production networks (default) or test networks; the two never mix."
+                  },
+                  "extras": {
+                    "type": "boolean"
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
+          }
         }
       }
     },
@@ -6644,7 +6914,7 @@
           "Data"
         ],
         "summary": "On-chain transaction history of a wallet set",
-        "description": "Every transaction of every account, newest first, classified (send, receive, swap, bridge, deposit, borrow, stake, perp, order, prediction …) with legs, USD at the time (DefiLlama), fee, protocol from Kletia's registry and the Kletia intent it was a step of. EVM through Etherscan V2 (ETHERSCAN_API_KEY) or Alchemy (ALCHEMY_API_KEY); Solana through Helius (HELIUS_API_KEY) or plain RPC. Accounts without a configured provider are listed in `coverage` with the reason. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.",
+        "description": "Every transaction of every account, newest first, classified (send, receive, swap, bridge, deposit, borrow, stake, perp, order, prediction …) with legs, USD at the time (DefiLlama), fee, protocol from Kletia's registry and the Kletia intent it was a step of. EVM through Etherscan V2 (ETHERSCAN_API_KEY) or Alchemy (ALCHEMY_API_KEY); Solana through Helius (HELIUS_API_KEY) or plain RPC. Accounts without a configured provider are listed in `coverage` with the reason. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account. Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "evm",
@@ -6845,6 +7115,193 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postDataTransactions",
+        "tags": [
+          "Data"
+        ],
+        "summary": "On-chain transaction history of a wallet set (parameters in the body)",
+        "description": "Every transaction of every account, newest first, classified (send, receive, swap, bridge, deposit, borrow, stake, perp, order, prediction …) with legs, USD at the time (DefiLlama), fee, protocol from Kletia's registry and the Kletia intent it was a step of. EVM through Etherscan V2 (ETHERSCAN_API_KEY) or Alchemy (ALCHEMY_API_KEY); Solana through Helius (HELIUS_API_KEY) or plain RPC. Accounts without a configured provider are listed in `coverage` with the reason. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account. Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of transactions.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataTransactionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "testnet"
+                    ],
+                    "description": "Production networks (default) or test networks; the two never mix."
+                  },
+                  "network": {
+                    "type": "string",
+                    "enum": [
+                      "base",
+                      "arbitrum",
+                      "ethereum",
+                      "optimism",
+                      "polygon",
+                      "arc",
+                      "arbitrum-sepolia",
+                      "solana",
+                      "solana-devnet"
+                    ],
+                    "description": "One network (its lane wins over `lane`)."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "send",
+                      "receive",
+                      "swap",
+                      "bridge-out",
+                      "bridge-in",
+                      "deposit",
+                      "withdraw",
+                      "stake",
+                      "unstake",
+                      "borrow",
+                      "repay",
+                      "approve",
+                      "perp",
+                      "order",
+                      "prediction",
+                      "contract-call",
+                      "failed",
+                      "unknown"
+                    ]
+                  },
+                  "asset": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Symbol or token address / mint."
+                  },
+                  "protocol": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Protocol id or label (aave-v3, Polymarket)."
+                  },
+                  "from": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "to": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "kletiaOnly": {
+                    "type": "boolean",
+                    "description": "Only transactions that were steps of the caller's Kletia intents."
+                  },
+                  "cursor": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 50
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
+          }
         }
       }
     },
@@ -6855,7 +7312,7 @@
           "Data"
         ],
         "summary": "One transaction of a wallet set",
-        "description": "`<network>:<hash or signature>` of a transaction that involves one of the wallets. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.",
+        "description": "`<network>:<hash or signature>` of a transaction that involves one of the wallets. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account. Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "id",
@@ -6950,6 +7407,132 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postDataTransaction",
+        "tags": [
+          "Data"
+        ],
+        "summary": "One transaction of a wallet set (parameters in the body)",
+        "description": "`<network>:<hash or signature>` of a transaction that involves one of the wallets. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account. Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 140
+            }
+          },
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The transaction.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataTransactionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "testnet"
+                    ],
+                    "description": "Production networks (default) or test networks; the two never mix."
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
+          }
         }
       }
     },
@@ -6960,7 +7543,7 @@
           "Data"
         ],
         "summary": "Realized and unrealized PnL estimates by asset (FIFO)",
-        "description": "FIFO cost basis over the newest history (and a tracked set's cached transactions), valued now with the portfolio's prices. Moves between the set's own wallets, bridges, deposits, staking and loans neither acquire nor dispose. Unknown prices or older history make a part null and `totals.complete` false. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account.",
+        "description": "FIFO cost basis over the newest history (and a tracked set's cached transactions), valued now with the portfolio's prices. Moves between the set's own wallets, bridges, deposits, staking and loans neither acquire nor dispose. Unknown prices or older history make a part null and `totals.complete` false. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account. Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "evm",
@@ -7061,6 +7644,133 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postDataPnl",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Realized and unrealized PnL estimates by asset (FIFO) (parameters in the body)",
+        "description": "FIFO cost basis over the newest history (and a tracked set's cached transactions), valued now with the portfolio's prices. Moves between the set's own wallets, bridges, deposits, staking and loans neither acquire nor dispose. Unknown prices or older history make a part null and `totals.complete` false. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account. Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PnL by asset.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataPnl"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "testnet"
+                    ],
+                    "description": "Production networks (default) or test networks; the two never mix."
+                  },
+                  "period": {
+                    "type": "string",
+                    "enum": [
+                      "24h",
+                      "7d",
+                      "30d",
+                      "all"
+                    ],
+                    "default": "all"
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
+          }
         }
       }
     },
@@ -7071,7 +7781,7 @@
           "Data"
         ],
         "summary": "Value series of a tracked wallet set",
-        "description": "Hourly points for 24h and 7d, daily for 30d and all, written by the snapshot job (once an hour per tracked set, kept across restarts with a database). Untracked wallets answer an empty series with `tracked: false`. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.",
+        "description": "Hourly points for 24h and 7d, daily for 30d and all, written by the snapshot job (once an hour per tracked set, kept across restarts with a database). Untracked wallets answer an empty series with `tracked: false`. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit. Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "evm",
@@ -7172,6 +7882,133 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postDataSnapshots",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Value series of a tracked wallet set (parameters in the body)",
+        "description": "Hourly points for 24h and 7d, daily for 30d and all, written by the snapshot job (once an hour per tracked set, kept across restarts with a database). Untracked wallets answer an empty series with `tracked: false`. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit. Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The series.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSnapshotSeries"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "testnet"
+                    ],
+                    "description": "Production networks (default) or test networks; the two never mix."
+                  },
+                  "range": {
+                    "type": "string",
+                    "enum": [
+                      "24h",
+                      "7d",
+                      "30d",
+                      "all"
+                    ],
+                    "default": "30d"
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
+          }
         }
       }
     },
@@ -7182,7 +8019,7 @@
           "Data"
         ],
         "summary": "One compact object about a wallet set, for an assistant",
-        "description": "Totals, top allocation slices and positions, risk flags (low health, liquidatable, perps near liquidation, concentration, unpriced, unread), activity counts of the newest history and PnL estimates, with every source named. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account.",
+        "description": "Totals, top allocation slices and positions, risk flags (low health, liquidatable, perps near liquidation, concentration, unpriced, unread), activity counts of the newest history and PnL estimates, with every source named. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account. Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "evm",
@@ -7267,6 +8104,123 @@
           },
           "503": {
             "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postDataSummary",
+        "tags": [
+          "Data"
+        ],
+        "summary": "One compact object about a wallet set, for an assistant (parameters in the body)",
+        "description": "Totals, top allocation slices and positions, risk flags (low health, liquidatable, perps near liquidation, concentration, unpriced, unread), activity counts of the newest history and PnL estimates, with every source named. Caller: a desk wallet session (its tracked set; 404 DATA_NOT_TRACKED until tracking is on) or an API key with `evm` / `solana` (public on-chain data; Kletia links only to the key's own intents); else 401 DATA_CALLER_REQUIRED. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): two units per account. Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The summary.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "testnet"
+                    ],
+                    "description": "Production networks (default) or test networks; the two never mix."
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
           }
         }
       }
@@ -7479,7 +8433,7 @@
           "Data"
         ],
         "summary": "Kletia activity of the calling key",
-        "description": "The key's intents, the receipts issued for them and its intent links, newest first. With `evm` / `solana`, only intents planned for those wallets (links are left out). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.",
+        "description": "The key's intents, the receipts issued for them and its intent links, newest first. With `evm` / `solana`, only intents planned for those wallets (links are left out). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit. Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "evm",
@@ -7561,7 +8515,119 @@
           {
             "apiKeyHeader": []
           }
-        ]
+        ],
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postDataHistory",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Kletia activity of the calling key (parameters in the body)",
+        "description": "The key's intents, the receipts issued for them and its intent links, newest first. With `evm` / `solana`, only intents planned for those wallets (links are left out). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit. Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The timeline.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataHistory"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Newest entries to return (default 50)."
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
+          }
+        }
       }
     },
     "/v1/data/markets/yields": {
@@ -7804,7 +8870,7 @@
           "Data"
         ],
         "summary": "Export holdings, positions or history as CSV or JSON",
-        "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit); `dataset=transactions` is one page of `GET /v1/data/transactions` with the same filters and caller rules (one row per leg). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after).",
+        "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit); `dataset=transactions` is one page of `GET /v1/data/transactions` with the same filters and caller rules (one row per leg). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after). Deprecated: addresses in a URL can end up in access logs (Kletia's host, proxies, the browser history). Send the same parameters as a JSON body with POST instead.",
         "parameters": [
           {
             "name": "dataset",
@@ -8037,6 +9103,216 @@
           },
           "503": {
             "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "operationId": "postExportData",
+        "tags": [
+          "Data"
+        ],
+        "summary": "Export holdings, positions or history as CSV or JSON (parameters in the body)",
+        "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit); `dataset=transactions` is one page of `GET /v1/data/transactions` with the same filters and caller rules (one row per leg). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after). Same read as GET with the parameters in a JSON body, so wallet addresses stay out of the URL.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "A wallet session from the Kletia desk (first-party Origin): the read covers that wallet's tracked set only, and evm / solana are ignored.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dataset as a download (`Content-Disposition: attachment`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "description": "RFC 4180 CSV with a header row; unknown values are empty cells; text cells that start like a formula are prefixed with an apostrophe."
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dataset": {
+                    "type": "string",
+                    "enum": [
+                      "holdings",
+                      "positions",
+                      "history",
+                      "transactions"
+                    ],
+                    "default": "holdings"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "csv",
+                      "json"
+                    ],
+                    "default": "csv"
+                  },
+                  "evm": {
+                    "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200,
+                        "examples": [
+                          "0x4f183e308f24c81c05303821AD025812fBFd807D"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "solana": {
+                    "description": "Comma-separated Solana addresses (at most 2).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 2
+                      }
+                    ]
+                  },
+                  "lane": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "testnet"
+                    ],
+                    "description": "Production networks (default) or test networks; the two never mix."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Newest entries to return (default 50)."
+                  },
+                  "network": {
+                    "type": "string",
+                    "enum": [
+                      "base",
+                      "arbitrum",
+                      "ethereum",
+                      "optimism",
+                      "polygon",
+                      "arc",
+                      "arbitrum-sepolia",
+                      "solana",
+                      "solana-devnet"
+                    ],
+                    "description": "One network (its lane wins over `lane`)."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "send",
+                      "receive",
+                      "swap",
+                      "bridge-out",
+                      "bridge-in",
+                      "deposit",
+                      "withdraw",
+                      "stake",
+                      "unstake",
+                      "borrow",
+                      "repay",
+                      "approve",
+                      "perp",
+                      "order",
+                      "prediction",
+                      "contract-call",
+                      "failed",
+                      "unknown"
+                    ]
+                  },
+                  "asset": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Symbol or token address / mint."
+                  },
+                  "protocol": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Protocol id or label (aave-v3, Polymarket)."
+                  },
+                  "from": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "to": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "kletiaOnly": {
+                    "type": "boolean",
+                    "description": "Only transactions that were steps of the caller's Kletia intents."
+                  },
+                  "cursor": {
+                    "type": "string",
+                    "maxLength": 4000
+                  }
+                },
+                "description": "The read's parameters (the same names as the GET query), as JSON."
+              }
+            }
           }
         }
       }
@@ -16355,6 +17631,42 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9_.:-]{1,80}$",
             "description": "Idempotency key (honoured for callers with an API key)."
+          },
+          "textRedaction": {
+            "type": "object",
+            "properties": {
+              "alg": {
+                "type": "string",
+                "const": "sha256-salted-v1"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "hex SHA-256(UTF8(\"kletia.request-text.v1:\" + salt + \":\" + text))."
+              },
+              "salt": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{22}$"
+              },
+              "length": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Length of the removed text in Unicode code points."
+              },
+              "redactedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "alg",
+              "digest",
+              "salt",
+              "length",
+              "redactedAt"
+            ],
+            "readOnly": true,
+            "description": "Stored intents only, never accepted in a request: retention removed `text` (24 hours after the intent became final) and kept this digest and length instead."
           }
         },
         "required": [
@@ -16369,6 +17681,11 @@
           {
             "required": [
               "actions"
+            ]
+          },
+          {
+            "required": [
+              "textRedaction"
             ]
           }
         ]
@@ -40052,6 +41369,9 @@
             "type": "boolean",
             "const": true,
             "description": "The intent already existed under this clientReference."
+          },
+          "privacy": {
+            "$ref": "#/components/schemas/PlatformPrivacyTrace"
           }
         },
         "required": [
@@ -40060,7 +41380,8 @@
           "intent",
           "assumptions",
           "sentence",
-          "thread"
+          "thread",
+          "privacy"
         ]
       },
       "PerpsHandoffInput": {
@@ -40534,6 +41855,126 @@
           "nextCursor"
         ]
       },
+      "PlatformPrivacyTrace": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "const": "kletia_platform_privacy_trace_v1"
+          },
+          "receivedByKletia": {
+            "type": "boolean",
+            "const": true,
+            "description": "Kletia's API received the request (text or actions, accounts, constraints, metadata)."
+          },
+          "storage": {
+            "type": "object",
+            "properties": {
+              "stored": {
+                "type": "boolean",
+                "description": "False for dry runs: nothing of this request is stored."
+              },
+              "textHoursAfterFinal": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "description": "Hours the request text stays in the stored intent after it is final; null when nothing is stored or there was no text."
+              },
+              "intentDaysAfterFinal": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "description": "Days the stored intent stays after it is final; null when nothing is stored."
+              },
+              "deleteWith": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "DELETE /v1/intents/{id}",
+                  null
+                ],
+                "description": "How the holder of the intent id deletes it earlier."
+              }
+            },
+            "required": [
+              "stored",
+              "textHoursAfterFinal",
+              "intentDaysAfterFinal",
+              "deleteWith"
+            ]
+          },
+          "textInApplicationLogs": {
+            "type": "boolean",
+            "const": false,
+            "description": "The request text is never written to Kletia's application logs."
+          },
+          "modelProvider": {
+            "type": "object",
+            "properties": {
+              "sent": {
+                "type": "string",
+                "enum": [
+                  "nothing",
+                  "masked_clause"
+                ],
+                "description": "`masked_clause`: one unread clause as Kletia words, amounts and unknown words replaced, never addresses or names."
+              }
+            },
+            "required": [
+              "sent"
+            ]
+          },
+          "quoteProviders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "sawAccount": {
+                  "type": "boolean",
+                  "description": "The provider received the wallet address; it always receives the assets and amounts."
+                }
+              },
+              "required": [
+                "provider",
+                "sawAccount"
+              ]
+            },
+            "description": "Venues and bridges asked for a quote while planning."
+          },
+          "publicIfSigned": {
+            "type": "boolean",
+            "const": true,
+            "description": "Signed transactions are public on their networks: amounts, addresses and timing."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Recipients the trace does not itemize (RPC providers, name services, the Idempotency-Key store)."
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "receivedByKletia",
+          "storage",
+          "textInApplicationLogs",
+          "modelProvider",
+          "quoteProviders",
+          "publicIfSigned",
+          "notes"
+        ],
+        "description": "What this request did with the caller's data. Unsigned; a statement, not a proof. See docs/platform/data-retention.md."
+      },
       "IntentResponse": {
         "type": "object",
         "properties": {
@@ -40565,10 +42006,14 @@
               }
             ],
             "description": "With `journey=true`: the journey built on `preview` (`journey.basis.previewDigest` equals `preview.digest`); null when it could not be built."
+          },
+          "privacy": {
+            "$ref": "#/components/schemas/PlatformPrivacyTrace"
           }
         },
         "required": [
-          "intent"
+          "intent",
+          "privacy"
         ]
       },
       "IntentListResponse": {

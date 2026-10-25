@@ -134,6 +134,12 @@ export interface ReceiptStore {
   issue(receipt: StoredReceipt, expectedLatestId: string | null, queueRevision: number | null): Promise<IssueResult>;
   /** Deletes stored disclosures of every receipt of the intent and every share. Returns how many receipts it touched. */
   withdraw(intentId: string, at: string): Promise<number>;
+  /**
+   * Retention: removes these groups from the stored disclosures of every
+   * receipt of the intent (the request text is gone from the intent). Shares
+   * already created keep their ciphertext until they expire or are revoked.
+   */
+  dropDisclosureGroups(intentId: string, groups: readonly string[]): Promise<number>;
 
   enqueue(entry: { readonly intentId: string; readonly ownerKeyId: string | null; readonly reason: QueueReason; readonly notBefore: string }): Promise<void>;
   claim(now: string, limit: number, leaseMs: number): Promise<QueueEntry[]>;
@@ -255,6 +261,18 @@ export class MemoryReceiptStore implements ReceiptStore {
     if (touched > 0 && !this.withdrawals.has(intentId)) {
       this.withdrawals.set(intentId, at);
       evict(this.withdrawals, MAX_MEMORY_RECEIPTS);
+    }
+    return touched;
+  }
+
+  async dropDisclosureGroups(intentId: string, groups: readonly string[]): Promise<number> {
+    let touched = 0;
+    for (const [id, receipt] of this.receipts) {
+      if (receipt.intentId !== intentId || !receipt.disclosures) continue;
+      const kept = Object.fromEntries(Object.entries(receipt.disclosures).filter(([path]) => !groups.includes(path)));
+      if (Object.keys(kept).length === Object.keys(receipt.disclosures).length) continue;
+      this.receipts.set(id, { ...receipt, disclosures: kept });
+      touched += 1;
     }
     return touched;
   }
@@ -751,6 +769,16 @@ export class PostgresReceiptStore implements ReceiptStore {
       );
       return updated.rowCount ?? 0;
     });
+  }
+
+  async dropDisclosureGroups(intentId: string, groups: readonly string[]): Promise<number> {
+    if (groups.length === 0) return 0;
+    const result = await dbQuery(
+      RECEIPT_SCHEMA,
+      "UPDATE kletia_receipts SET disclosures = disclosures - $2::text[] WHERE intent_id = $1 AND disclosures IS NOT NULL AND disclosures ?| $2::text[]",
+      [intentId, [...groups]],
+    );
+    return result.rowCount ?? 0;
   }
 
   async enqueue(entry: { intentId: string; ownerKeyId: string | null; reason: QueueReason; notBefore: string }): Promise<void> {

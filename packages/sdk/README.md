@@ -142,6 +142,18 @@ Without either option no journey is fetched. `stop` answers 409
 `INTENT_IN_FLIGHT` (retryable, `Retry-After`) while a step is moving; never
 stop while you hold broadcast references that were not submitted.
 
+### Your data: what is kept, and deleting it
+
+`kletia.intents.delete(id)` deletes a stored intent now, with its receipts'
+stored disclosures and shares (409 `INTENT_IN_FLIGHT` while a step is
+moving). Without it, the API removes the request text 24 hours after the
+intent is final and deletes the intent 30 days after; the API's
+`POST /v1/intents` response carries `privacy`, which says so for that request
+(`intents.create` returns the intent only; `kletia.request` returns the whole
+body). The `client.data.*` reads
+send wallet addresses in a POST body, never in the URL. See
+[data retention](../../docs/platform/data-retention.md).
+
 ### Holdings
 
 ```ts

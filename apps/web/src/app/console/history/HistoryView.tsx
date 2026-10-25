@@ -25,8 +25,8 @@ import { errorText } from "./useTracking";
 
 const copy = DESK_COPY.history;
 
-const LINK =
-  "inline-flex min-h-11 items-center gap-1 text-xs font-black uppercase tracking-wider text-[var(--kl-accent-text)] underline underline-offset-4 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]";
+/** Links that act (explorer, receipt, retry): views.css. */
+const LINK = "kv-link";
 
 function TransactionItem({ tx, focused }: { readonly tx: DataTransaction; readonly focused: boolean }) {
   const row = historyRow(tx);
@@ -92,7 +92,7 @@ function TransactionItem({ tx, focused }: { readonly tx: DataTransaction; readon
           </dl>
           <div className="flex flex-wrap gap-x-4">
             <a className={LINK} href={row.explorerUrl} target="_blank" rel="noreferrer noopener">
-              {copy.explorer(row.explorerName)} <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              {copy.explorer(row.explorerName)} <ExternalLink width={14} height={14} aria-hidden="true" />
             </a>
             {row.receiptPath ? <a className={LINK} href={row.receiptPath}>{copy.receipt}</a> : null}
           </div>

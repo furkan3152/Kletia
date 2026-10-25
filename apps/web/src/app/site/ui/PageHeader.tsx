@@ -1,8 +1,10 @@
+import "./ui.css";
+
 import { ChevronLeft } from "lucide-react";
 import React, { useEffect, useRef } from "react";
 
 import { Link } from "../../routes/Link";
-import { cx, FOCUS_RING, TEXT_MUTED } from "./styles";
+import { cx, FOCUS_RING } from "./styles";
 
 export interface PageHeaderProps {
   /** The page's one H1. */
@@ -40,13 +42,13 @@ export function PageHeader({ title, eyebrow, intro, actions, meta, back, focusKe
   }, [focusKey]);
 
   return (
-    <header className={cx("flex min-w-0 flex-col gap-4 pb-8 pt-8 sm:pt-10", className)}>
+    <header className={cx("ku-head", className)}>
       {back ? (
         <Link
           to={back.to}
-          className={cx("inline-flex min-h-11 items-center gap-1 self-start text-sm font-bold underline decoration-2 underline-offset-4", FOCUS_RING)}
+          className={cx("ku-back", FOCUS_RING)}
         >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          <ChevronLeft aria-hidden="true" />
           {back.label}
         </Link>
       ) : null}
@@ -55,14 +57,14 @@ export function PageHeader({ title, eyebrow, intro, actions, meta, back, focusKe
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="min-w-0 max-w-4xl text-balance break-words font-display text-display-s font-bold outline-none md:text-display-m"
+          className="ku-h1"
         >
           {title}
         </h1>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
       {meta ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-sm">{meta}</div> : null}
-      {intro ? <div className={cx("max-w-3xl text-body-l", TEXT_MUTED)}>{intro}</div> : null}
+      {intro ? <div className="ku-intro">{intro}</div> : null}
       {children}
     </header>
   );

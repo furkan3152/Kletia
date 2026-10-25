@@ -51,6 +51,7 @@ export const PREDICT_COPY = {
   },
   ticket: {
     heading: "Ticket",
+    pick: "Open a market: its outcomes, order book and this ticket fill in here.",
     outcomeLabel: "Outcome",
     sideLabel: "Side",
     buy: "Buy",

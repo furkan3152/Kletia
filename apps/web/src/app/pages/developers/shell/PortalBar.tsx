@@ -91,7 +91,7 @@ export function PortalBar({ match, health, sectionsOpen, onOpenSections, keyMenu
   return (
     <nav
       aria-label="Developer portal"
-      className="sticky top-[75px] z-40 border-b-[3px] border-[#121212] bg-[#D6D2C8]/95 backdrop-blur-sm dark:border-[#4A4A52] dark:bg-[#0E0E10]/95"
+      className="kp-bar sticky top-[75px] z-40"
     >
       <div className="flex h-12 min-w-0 items-center gap-2 px-3 sm:px-6 md:h-[52px] lg:px-8">
         <button
@@ -99,10 +99,7 @@ export function PortalBar({ match, health, sectionsOpen, onOpenSections, keyMenu
           onClick={onOpenSections}
           aria-expanded={sectionsOpen}
           aria-haspopup="dialog"
-          className={cx(
-            "inline-flex min-h-11 shrink-0 items-center gap-2 border-[3px] border-control bg-surface px-2.5 text-xs font-black uppercase tracking-[0.08em] xl:hidden",
-            FOCUS_RING,
-          )}
+          className="k-key k-key--sm kp-sections xl:hidden"
         >
           <Menu className="h-4 w-4" aria-hidden="true" />
           Sections
@@ -137,14 +134,11 @@ export function PortalBar({ match, health, sectionsOpen, onOpenSections, keyMenu
           onClick={search.show}
           aria-haspopup="dialog"
           aria-keyshortcuts="Meta+K Control+K /"
-          className={cx(
-            "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 border-[3px] border-control bg-surface px-2.5 text-sm font-semibold lg:min-w-[15rem] lg:justify-start",
-            FOCUS_RING,
-          )}
+          className={cx("kp-search lg:min-w-[15rem] lg:justify-start", FOCUS_RING)}
         >
           <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="sr-only lg:not-sr-only lg:flex-1 lg:text-left">Search</span>
-          <kbd aria-hidden="true" className={cx("hidden border-2 border-line px-1.5 font-code text-code-s lg:inline", TEXT_MUTED)}>
+          <kbd aria-hidden="true" className="kp-kbd hidden lg:inline">
             {SHORTCUT}
           </kbd>
         </button>

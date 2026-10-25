@@ -9,7 +9,6 @@ import { Link } from "../../routes/Link";
 import { Reveal } from "../../site/motion/Reveal";
 import { useReducedMotion } from "../../site/motion/useReducedMotion";
 import { Icon } from "../../site/art/Icon";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { countProtocols, isOwnContractEntry, protocolHeadline, protocolNoun, realProtocols } from "../../site/protocolCount";
 import { CONTRIBUTING_URL, GITHUB_URL } from "../../site/siteLinks";
 import { Badge } from "../../site/ui/Badge";
@@ -29,6 +28,7 @@ import {
 } from "./protocolStats";
 import { directoryRowFilter, directoryRows, isRowSelected, knownCategoryFilters } from "./directoryFilter";
 import { applyFilters, EMPTY_FILTERS, sanitizeFilters, useProtocolFilters } from "./useProtocolFilters";
+import { Eyebrow } from "../../site/ui/Eyebrow";
 
 /** Above this many cards, filter changes skip the View Transition (too many snapshots). */
 const VT_CARD_LIMIT = 80;
@@ -321,7 +321,7 @@ export default function ProtocolsPage() {
         <div className={cx(CONTAINER, "grid gap-12 py-14 sm:py-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start lg:gap-16")}>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-4">
-              <PlatformNumber code="PRO">Protocol directory</PlatformNumber>
+              <Eyebrow>Protocol directory</Eyebrow>
               <SourceBadge live={live} loading={protocolsLoading} />
             </div>
             <h1 className="mt-6 max-w-4xl text-balance font-display text-[clamp(2.2rem,5.4vw,3.75rem)] font-bold leading-[1.02] tracking-[-0.04em]">

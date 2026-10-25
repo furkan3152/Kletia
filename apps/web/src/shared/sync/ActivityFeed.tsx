@@ -1,12 +1,8 @@
+import "./activityFeed.css";
+
 import React from "react";
 import { CHAINS, type NetworkKey } from "@kletia/core";
-import {
-  CircleCheck,
-  CircleX,
-  ExternalLink,
-  LoaderCircle,
-  ScrollText,
-} from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 import {
   useActivityStore,
@@ -28,25 +24,10 @@ export interface ActivityFeedProps {
   className?: string;
 }
 
-const STATUS_PRESENTATION: Record<
-  ActivityStatus,
-  { label: string; className: string; Icon: typeof CircleCheck }
-> = {
-  pending: {
-    label: "Pending",
-    className: "bg-[#C6FF3A] text-[#121212]",
-    Icon: LoaderCircle,
-  },
-  confirmed: {
-    label: "Confirmed",
-    className: "bg-[#14F195] text-[#121212]",
-    Icon: CircleCheck,
-  },
-  failed: {
-    label: "Failed",
-    className: "bg-[#EF4444] text-white",
-    Icon: CircleX,
-  },
+const STATUS_LABEL: Record<ActivityStatus, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  failed: "Failed",
 };
 
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -62,59 +43,33 @@ function shortReference(reference: string): string {
     : reference;
 }
 
+/** One line of the machine's log (Card machine): a status lamp, the title, network, time, reference. */
 function ActivityRow({ entry, compact }: { entry: ActivityEntry; compact: boolean }) {
-  const status = STATUS_PRESENTATION[entry.status];
   const chain = CHAINS[entry.network];
-  const StatusIcon = status.Icon;
   return (
-    <li className="rounded-[12px] border border-[var(--k-line)] bg-[var(--k-raised)] p-3 shadow-obj">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p
-            className={`truncate font-black text-[#121212] dark:text-white ${compact ? "text-xs" : "text-sm"}`}
-            title={entry.title}
-          >
-            {entry.title}
-          </p>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">
-            <span className="inline-flex items-center gap-1">
-              <span
-                aria-hidden="true"
-                className="inline-block h-2 w-2 border border-[#121212]"
-                style={{ backgroundColor: chain.color }}
-              />
-              {chain.shortName}
-            </span>
-            <time dateTime={entry.at}>{timeFormatter.format(new Date(entry.at))}</time>
-            {entry.reference ? (
-              <span className="font-mono normal-case tracking-normal">
-                {shortReference(entry.reference)}
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <span
-          className={`inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black uppercase ${status.className}`}
-        >
-          <StatusIcon
-            className={`h-3 w-3 ${entry.status === "pending" ? "animate-spin" : ""}`}
-            aria-hidden="true"
-          />
-          {status.label}
-        </span>
+    <li className="kaf-row" data-status={entry.status} data-compact={compact ? "" : undefined}>
+      <span className="kaf-lamp" aria-hidden="true" />
+      <div className="kaf-main">
+        <p className="kaf-title" title={entry.title}>
+          {entry.title}
+        </p>
+        <p className="kaf-meta">
+          <span className="kaf-net">
+            <span aria-hidden="true" className="kaf-stripe" style={{ backgroundColor: chain.color }} />
+            {chain.shortName}
+          </span>
+          <time dateTime={entry.at}>{timeFormatter.format(new Date(entry.at))}</time>
+          {entry.reference ? <span className="kaf-ref">{shortReference(entry.reference)}</span> : null}
+        </p>
+        {entry.url ? (
+          <a href={entry.url} target="_blank" rel="noopener noreferrer" className="kaf-link">
+            View on {chain.explorer.name}
+            <ExternalLink aria-hidden="true" />
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        ) : null}
       </div>
-      {entry.url ? (
-        <a
-          href={entry.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-[11px] font-black uppercase text-[#1A36B0] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F5BFF] dark:text-[#93C5FD]"
-        >
-          View on {chain.explorer.name}
-          <ExternalLink className="h-3 w-3" aria-hidden="true" />
-          <span className="sr-only"> (opens in a new tab)</span>
-        </a>
-      ) : null}
+      <span className="kaf-status">{STATUS_LABEL[entry.status]}</span>
     </li>
   );
 }
@@ -143,23 +98,13 @@ export function ActivityFeed({
   }, [entries, limit, networkKey]);
 
   return (
-    <section
-      aria-label={title}
-      className={`flex min-w-0 flex-col gap-3 ${className}`}
-    >
-      {!compact ? (
-        <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-gray-600 dark:text-slate-300">
-          <ScrollText className="h-4 w-4" aria-hidden="true" />
-          {title}
-        </h3>
-      ) : null}
+    <section aria-label={title} className={`kaf ${className}`}>
+      {!compact ? <h3 className="kaf-h">{title}</h3> : null}
       <div aria-live="polite" aria-relevant="additions text">
         {visible.length === 0 ? (
-          <p className="rounded-[14px] border-[1.5px] border-dashed border-[var(--k-line-2)] p-4 text-sm text-muted">
-            {emptyHint}
-          </p>
+          <p className="kaf-empty">{emptyHint}</p>
         ) : (
-          <ul className="flex flex-col gap-2.5">
+          <ul className="kaf-list">
             {visible.map((entry) => (
               <ActivityRow key={entry.id} entry={entry} compact={compact} />
             ))}

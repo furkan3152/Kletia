@@ -3,19 +3,24 @@
  * wallet's signature (each opens the normal review-and-sign flow as a desk
  * task), the wallet's automations with next and last run, pause, resume and
  * delete, and new automations from templates. Signs in with the same wallet
- * session as developer accounts; nothing here signs a transaction.
+ * session as developer accounts; nothing here signs a transaction. In the Card machine each
+ * automation is a printed rule card with a schedule dial (how far the current period has run),
+ * the templates are blank cards to start from.
  */
+import "./automations.css";
+
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, Pause, Play, Plus, Trash2, Wallet } from "lucide-react";
 import type { AutomationView, IntentHandoff, ValidatedAutomationDraft } from "@kletia/core";
 
 import { useAccountSession } from "../../pages/developers/keys/accountSession";
 import { isPlatformError } from "../../pages/developers/keys/accountClient";
+import { ScheduleDial } from "../../kit";
 import { Button } from "../../site/ui/Button";
-import { cx, LABEL, TEXT_MUTED } from "../../site/ui/styles";
 import { useDeskActions } from "../shell/deskContext";
 import { ViewEmpty, ViewHeader, ViewLoading, ViewNote } from "../shell/ViewParts";
-import { PANEL_TITLE, VIEW_FIELD, VIEW_PANEL } from "../shell/viewStyles";
+import { PANEL_TITLE, VIEW_FIELD, VIEW_LABEL, VIEW_PANEL } from "../shell/viewStyles";
+import { shortSerial } from "../shell/machine/machineModel";
 import { getDeskStore } from "../state/deskStore";
 import { automationPrefill } from "../handoff/handoffModel";
 import { HandoffNote } from "../handoff/HandoffNote";
@@ -25,9 +30,11 @@ import {
   AUTOMATION_COPY as copy,
   AUTOMATION_TEMPLATES,
   automationRow,
+  dialCaption,
   draftFromTemplate,
   inboxTaskTitle,
   newInboxRuns,
+  scheduleFraction,
   TEMPLATE_FIELD_LABELS,
   type AutomationTemplateId,
   type InboxRun,
@@ -118,9 +125,8 @@ export default function AutomationsView() {
   };
 
   return (
-    <section aria-labelledby="desk-automations-heading" className="flex flex-col gap-5 pb-8">
-      <ViewHeader id="desk-automations-heading" title={copy.title} />
-      <ViewNote tone="info">{copy.signatureNote}</ViewNote>
+    <section aria-labelledby="desk-automations-heading" className="kau">
+      <ViewHeader id="desk-automations-heading" title={copy.title} intro={copy.signatureNote} />
       <HandoffNote text={sentence ? `${sentence.summary}. ${session ? "Create it below to start it." : "Sign in to create it."}` : null} />
       {error ? (
         <ViewNote role="alert" tone="danger">
@@ -128,16 +134,41 @@ export default function AutomationsView() {
         </ViewNote>
       ) : null}
       {!session ? (
-        <div className={PANEL}>
-          <p className="text-sm">{copy.signIn}</p>
-          <Suspense fallback={<ViewLoading>{copy.loadingWallets}</ViewLoading>}>
-            <AccountSignIn onCancel={() => actions.openView("desk")} />
-          </Suspense>
-        </div>
+        <>
+          <div className={PANEL}>
+            <p className="kv-intro">{copy.signIn}</p>
+            <Suspense fallback={<ViewLoading>{copy.loadingWallets}</ViewLoading>}>
+              <AccountSignIn onCancel={() => actions.openView("desk")} />
+            </Suspense>
+          </div>
+          <section aria-labelledby="automation-templates-preview" className="kv-sec">
+            <div className="kv-sec-h">
+              <h3 id="automation-templates-preview">{copy.templates}</h3>
+              <p>{copy.signIn.split(".")[0]}.</p>
+            </div>
+            <ul className="kau-grid">
+              {AUTOMATION_TEMPLATES.map((entry, index) => (
+                <li key={entry.id} className="kau-card" data-blank="">
+                  <div className="kau-band">
+                    <span>{copy.templates}</span>
+                    <span className="kau-serial">#{String(index + 1).padStart(4, "0")}</span>
+                  </div>
+                  <div className="kau-body">
+                    <ScheduleDial fraction={null} label={entry.title} caption={entry.id === "dca" ? "1 week" : entry.id === "sweep-dust" || entry.id === "pay-monthly" ? "1 month" : entry.id === "price-exit" ? "price" : "rate"} />
+                    <div className="kau-text">
+                      <b>{entry.title}</b>
+                      <p>{entry.blurb}</p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
       ) : (
         <>
           <section aria-labelledby="automation-inbox" className={PANEL}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="kau-h">
               <h3 id="automation-inbox" className={PANEL_TITLE}>
                 {copy.inbox} ({inbox.length})
               </h3>
@@ -147,15 +178,16 @@ export default function AutomationsView() {
                   {copy.notify}
                 </Button>
               ) : null}
-              {notify ? <p className={cx("text-xs", TEXT_MUTED)}>{copy.notifyOn}</p> : null}
+              {notify ? <p className="kv-muted kau-small">{copy.notifyOn}</p> : null}
             </div>
             {inbox.length === 0 ? <ViewEmpty>{copy.inboxEmpty}</ViewEmpty> : null}
-            <ul className="flex flex-col gap-2">
+            <ul className="kau-inbox">
               {inbox.map((run) => (
-                <li key={run.id} className="flex flex-wrap items-center justify-between gap-2 border-t-2 border-[var(--kl-line)] pt-2">
-                  <div className="min-w-0">
-                    <p className="font-bold">{inboxTaskTitle(run)}</p>
-                    <p className={cx("text-xs", TEXT_MUTED)}>
+                <li key={run.id}>
+                  <span className="kau-lamp" aria-hidden="true" />
+                  <div className="kau-text">
+                    <b>{inboxTaskTitle(run)}</b>
+                    <p>
                       {run.automationLabel ?? ""} · {new Date(run.firedAt).toLocaleString()}
                       {run.notionalUsd ? ` · $${run.notionalUsd}` : ""}
                     </p>
@@ -168,27 +200,32 @@ export default function AutomationsView() {
               ))}
             </ul>
           </section>
-          <section aria-labelledby="automation-list" className={PANEL}>
-            <h3 id="automation-list" className={PANEL_TITLE}>
-              {copy.list}
-            </h3>
+          <section aria-labelledby="automation-list" className="kv-sec">
+            <div className="kv-sec-h">
+              <h3 id="automation-list">{copy.list}</h3>
+            </div>
             {automations.length === 0 ? <ViewEmpty>{copy.listEmpty}</ViewEmpty> : null}
-            <ul className="flex flex-col gap-3">
+            <ul className="kau-grid">
               {automations.map((view) => {
                 const row = automationRow(view, now);
+                const fraction = scheduleFraction(view, now);
                 return (
-                  <li key={row.id} className="flex flex-col gap-1 border-t-2 border-[var(--kl-line)] pt-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-bold">{row.title}</p>
-                      <span className={cx(LABEL, "border-2 border-current px-1 text-xs")}>{row.status}</span>
+                  <li key={row.id} className="kau-card" data-status={row.status}>
+                    <div className="kau-band">
+                      <span>{row.status}</span>
+                      <span className="kau-serial">#{shortSerial(row.id)}</span>
                     </div>
-                    <p className="text-sm">
-                      {row.trigger}: {row.action}
-                    </p>
-                    <p className={cx("text-xs", TEXT_MUTED)}>
-                      {[row.next, row.last, row.execution].filter(Boolean).join(" · ")}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="kau-body">
+                      <ScheduleDial fraction={fraction} label={row.next ?? row.trigger} caption={dialCaption(view.trigger)} />
+                      <div className="kau-text">
+                        <b>{row.title}</b>
+                        <p>
+                          {row.trigger}: {row.action}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="kau-meta">{[row.next, row.last, row.execution].filter(Boolean).join(" · ")}</p>
+                    <div className="kau-act">
                       {row.canPause ? (
                         <Button size="sm" variant="secondary" loading={busy === row.id} disabled={busy !== null} onClick={() => void act(row.id, () => automationApi.pause(session.token, row.id))}>
                           <Pause className="h-3.5 w-3.5" aria-hidden="true" />
@@ -213,9 +250,9 @@ export default function AutomationsView() {
           </section>
           {sentence ? (
             <section aria-labelledby="automation-sentence" className={PANEL}>
-              <h3 id="automation-sentence" className="font-display text-lg font-bold">{sentence.summary}</h3>
-              <p className={cx("text-sm", TEXT_MUTED)}>Each run waits in the inbox for your signature.</p>
-              <div className="flex flex-wrap gap-2">
+              <h3 id="automation-sentence" className={PANEL_TITLE}>{sentence.summary}</h3>
+              <p className="kv-muted kau-small">Each run waits in the inbox for your signature.</p>
+              <div className="kau-act">
                 <Button
                   loading={busy === "create"}
                   onClick={() => void act("create", async () => {
@@ -257,42 +294,42 @@ function TemplateForm({ busy, onCreate }: { readonly busy: boolean; readonly onC
       <h3 id="automation-create" className={PANEL_TITLE}>
         {copy.create}
       </h3>
-      <fieldset className="flex flex-wrap gap-2">
-        <legend className={cx(LABEL, "mb-2")}>{copy.templates}</legend>
+      <fieldset className="kau-templates">
+        <legend className={VIEW_LABEL}>{copy.templates}</legend>
         {AUTOMATION_TEMPLATES.map((entry) => (
-          <Button
+          <button
             key={entry.id}
-            size="sm"
-            variant={entry.id === templateId ? "accent" : "secondary"}
+            type="button"
+            className="k-opt"
             aria-pressed={entry.id === templateId}
             onClick={() => {
               setTemplateId(entry.id);
               setValues(entry.defaults);
             }}
           >
-            {entry.title}
-          </Button>
+            <b>{entry.title}</b>
+          </button>
         ))}
       </fieldset>
-      <p className={cx("text-sm", TEXT_MUTED)}>{template.blurb}</p>
+      <p className="kv-intro">{template.blurb}</p>
       <form
-        className="grid gap-3 sm:grid-cols-2"
+        className="kau-form"
         onSubmit={(event) => {
           event.preventDefault();
           onCreate(templateId, values);
         }}
       >
         {Object.keys(template.defaults).map((field) => (
-          <label key={field} className="flex min-w-0 flex-col gap-1">
-            <span className={LABEL}>{TEMPLATE_FIELD_LABELS[field] ?? field}</span>
+          <label key={field} className="kv-field">
+            <span className={VIEW_LABEL}>{TEMPLATE_FIELD_LABELS[field] ?? field}</span>
             <input
-              className={cx(VIEW_FIELD, "font-code")}
+              className={`${VIEW_FIELD} kv-num`}
               value={values[field] ?? ""}
               onChange={(event) => setValues({ ...values, [field]: event.target.value })}
             />
           </label>
         ))}
-        <div className="sm:col-span-2">
+        <div className="kau-submit">
           <Button type="submit" loading={busy}>
             <Plus className="h-4 w-4" aria-hidden="true" />
             {copy.create}

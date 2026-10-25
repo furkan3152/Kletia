@@ -1,0 +1,487 @@
+/*
+ * Instruments (kit/Instruments.tsx): fader, cartridges, the binder's mini card, the schedule dial
+ * and the terminal module. Values follow the prototype's trade and portfolio screens and kit.css
+ * (cartridge bay). Ships with the kit's lazy chunks, never with the entry stylesheet.
+ */
+
+/* ---------- fader ---------- */
+.k-fader {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.k-fader-l {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.k-fader-v {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--k-ink);
+}
+.k-fader-body {
+  position: relative;
+  height: 52px;
+  --k-fader-pad: 14px;
+}
+.k-fader-track {
+  position: absolute;
+  left: var(--k-fader-pad);
+  right: var(--k-fader-pad);
+  top: 13px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--k-well);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+.k-fader-track i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--at) * 100%);
+  background: var(--k-ink);
+}
+.k-fader-ticks {
+  position: absolute;
+  left: var(--k-fader-pad);
+  right: var(--k-fader-pad);
+  top: 26px;
+  height: 22px;
+}
+.k-fader-ticks span {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 5px;
+  background: var(--k-line-2);
+}
+.k-fader-ticks span b {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 500 12px var(--k-f-ui);
+  color: var(--k-ink-3);
+  white-space: nowrap;
+}
+.k-fader-cap {
+  position: absolute;
+  top: 2px;
+  left: calc(var(--k-fader-pad) + var(--at) * (100% - 2 * var(--k-fader-pad)));
+  width: 24px;
+  height: 28px;
+  margin-left: -12px;
+  border: 1.5px solid var(--k-slab-line);
+  border-radius: 7px;
+  background: var(--k-key);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 2px 0 var(--k-key-edge);
+  pointer-events: none;
+}
+.k-fader-cap::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--k-ink);
+}
+.k-fader input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 34px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.k-fader input:focus-visible ~ .k-fader-cap,
+.k-fader-body:has(input:focus-visible) .k-fader-cap {
+  outline: 3px solid var(--kl-focus, #2f5bff);
+  outline-offset: 2px;
+}
+.k-fader[data-disabled] {
+  opacity: 0.55;
+}
+
+/* ---------- cartridges ---------- */
+.k-carts-wrap {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.k-carts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+}
+.k-cart {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  min-height: 56px;
+  padding: 10px 10px 8px 13px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 9px 9px 6px 6px;
+  background: var(--k-panel);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 2px 0 var(--k-key-edge);
+  color: var(--k-ink);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 120ms var(--k-e-mech, ease), border-color 120ms, box-shadow 120ms;
+}
+.k-cart::before {
+  /* grip ridges on the cartridge top */
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 34px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 0 0 2px 2px;
+  background: repeating-linear-gradient(90deg, var(--k-line-2) 0 2px, transparent 2px 5px);
+}
+.k-cart::after {
+  /* label stripe */
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--k-cart-stripe, var(--k-line-2));
+}
+.k-cart:hover:not([aria-disabled="true"]) {
+  border-color: var(--k-ink-3);
+}
+.k-cart[aria-checked="true"] {
+  border-color: var(--k-ink);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 0 0 var(--k-key-edge);
+  transform: translateY(2px);
+  background: var(--k-stock);
+}
+.k-cart[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.k-cart:focus-visible {
+  outline: 3px solid var(--kl-focus, #2f5bff);
+  outline-offset: 2px;
+}
+.k-cart-ic {
+  grid-row: 1 / span 2;
+  width: 20px;
+  height: 20px;
+}
+.k-cart-nm {
+  min-width: 0;
+  overflow: hidden;
+  font: 650 13px/1.2 var(--k-f-ui);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.k-cart-lamp {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--k-led-off);
+}
+.k-cart[aria-checked="true"] .k-cart-lamp {
+  background: var(--k-lime);
+  box-shadow: 0 0 0 1.5px var(--k-ink);
+}
+.k-cart-rd {
+  grid-column: 2 / span 2;
+  min-width: 0;
+  overflow: hidden;
+  font: 500 12px/1.25 var(--k-f-mono);
+  color: var(--k-ink-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- mini card (binder) ---------- */
+.k-mini {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 72px auto 1fr auto;
+  min-width: 0;
+  min-height: 212px;
+  overflow: hidden;
+  border: 2px solid var(--k-slab-line);
+  border-radius: 12px;
+  background: var(--k-stock);
+  box-shadow: 3px 3px 0 var(--k-slab-shadow);
+  color: var(--k-ink);
+}
+.k-mini-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-bottom: 2px solid #121212;
+  background: var(--k-lime);
+  color: #121212;
+  font: 700 12px var(--k-f-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.k-mini-serial {
+  font: 800 12px var(--k-f-led);
+  letter-spacing: 0.04em;
+}
+.k-mini[data-void] .k-mini-top {
+  background: var(--k-panel-2);
+  color: var(--k-ink-3);
+  border-bottom-color: var(--k-line-2);
+}
+.k-mini-art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--k-line);
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--k-ink) 16%, transparent) 0.8px, transparent 1.2px) 0 0 / 6px 6px,
+    var(--k-panel);
+  overflow: hidden;
+}
+.k-mini-rail {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.k-mini-stop {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+.k-mini-stop:first-child {
+  flex: 0 0 auto;
+}
+.k-mini-line {
+  flex: 1;
+  height: 3px;
+  margin: 0 2px;
+  border-radius: 2px;
+  background: var(--k-ink);
+}
+.k-mini-node {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--k-ink);
+  border-radius: 9px;
+  background: var(--k-stock);
+}
+.k-mini-node svg {
+  width: 20px;
+  height: 20px;
+}
+.k-mini-node--blank {
+  position: relative;
+  z-index: 1;
+  margin: 0 auto;
+  border-style: dashed;
+  color: var(--k-ink-3);
+}
+.k-mini-foil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: multiply;
+}
+.k-mini[data-foil="holo"] .k-mini-foil {
+  opacity: 0.55;
+  background: linear-gradient(115deg, transparent 18%, #ffd1e8 30%, #c8f0ff 42%, #e6ffc4 54%, #ffe3b8 66%, transparent 80%);
+}
+.k-mini[data-foil="silver"] .k-mini-foil {
+  opacity: 0.5;
+  background: linear-gradient(115deg, transparent 25%, #e8e8ee 40%, #b8bcc8 52%, #f2f2f6 64%, transparent 78%);
+}
+.k-mini[data-foil="gold"] .k-mini-foil {
+  opacity: 0.5;
+  background: linear-gradient(115deg, transparent 25%, #ffe9a8 40%, #e2b84a 52%, #fff2c4 64%, transparent 78%);
+}
+.dark .k-mini-foil {
+  mix-blend-mode: screen;
+}
+.dark .k-mini[data-foil] .k-mini-foil {
+  opacity: 0.18;
+}
+.k-mini-body {
+  display: grid;
+  gap: 4px;
+  padding: 12px 10px 0;
+  min-width: 0;
+}
+.k-mini-body b {
+  overflow: hidden;
+  font: 650 15px/1.2 var(--k-f-display);
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+.k-mini-body small {
+  overflow: hidden;
+  font: 500 12px/1.35 var(--k-f-mono);
+  color: var(--k-ink-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.k-mini-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 10px 0;
+  padding: 6px 0 8px;
+  border-top: 1px dashed var(--k-line-2);
+  font: 500 12px var(--k-f-mono);
+  color: var(--k-ink-3);
+}
+.k-mini-foot span:last-child {
+  text-align: right;
+}
+.k-mini-act {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+/* ---------- schedule dial ---------- */
+.k-sdial {
+  display: inline-grid;
+  justify-items: center;
+  gap: 6px;
+  flex: none;
+}
+.k-sdial-face {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, var(--k-hi, #fff) 0, var(--k-panel) 62%);
+  box-shadow: inset 0 0 0 1px var(--k-line-2), 0 2px 0 var(--k-key-edge), var(--k-obj);
+}
+.k-sdial-face > i {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 1.5px;
+  height: 5px;
+  margin-left: -0.75px;
+  background: var(--k-line-2);
+  transform-origin: 50% 28px;
+}
+.k-sdial-arc {
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  background: conic-gradient(from -135deg, color-mix(in srgb, var(--k-lime) 70%, transparent) 0 var(--to), transparent var(--to) 360deg);
+  -webkit-mask: radial-gradient(circle, transparent 13px, #000 14px);
+  mask: radial-gradient(circle, transparent 13px, #000 14px);
+}
+.k-sdial-knob {
+  position: absolute;
+  inset: 16px;
+  border-radius: 50%;
+  background: var(--k-key);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 2px 0 var(--k-key-edge);
+}
+.k-sdial-knob b {
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  width: 4px;
+  height: 11px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--k-lime);
+  box-shadow: 0 0 0 1.5px var(--k-ink);
+}
+.k-sdial[data-idle] .k-sdial-knob b {
+  background: var(--k-led-off);
+}
+.k-sdial-cap {
+  font: 500 12px var(--k-f-mono);
+  color: var(--k-ink-3);
+  white-space: nowrap;
+}
+
+/* ---------- terminal ---------- */
+.k-term {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #000;
+  border-radius: 14px;
+  background: #121214;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--k-obj);
+  color: #e8e6df;
+}
+.k-term-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 6px 4px 12px;
+  border-bottom: 1px solid #26262b;
+  background: #1a1a1d;
+}
+.k-term-lamps {
+  display: inline-flex;
+  gap: 5px;
+}
+.k-term-lamps i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34343a;
+}
+.k-term-lamps i:first-child {
+  background: var(--k-lime);
+}
+.k-term-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font: 500 12.5px var(--k-f-mono);
+  color: #b9b6ad;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.k-term-act {
+  margin-left: auto;
+}
+.k-term-screen {
+  min-width: 0;
+  overflow-x: auto;
+  padding: 14px 16px;
+  font: 500 13px/1.6 var(--k-f-mono);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-cart {
+    transition: none;
+  }
+}

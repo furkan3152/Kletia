@@ -1,0 +1,361 @@
+/*
+ * The site's chrome in the Card machine language: a thin machine top bar
+ * (the brushed mini plate, sentence-case links with a lime bar under ink for the current page,
+ * the theme key and the lime console key) and the footer as the machine's base plate (always
+ * night: the nameplate, the "API never signs" seal, link columns, vents). Loaded with the site
+ * layout's chunk, never with the entry stylesheet.
+ */
+
+.ks-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid var(--k-line-2);
+  background: color-mix(in srgb, var(--k-chassis) 94%, transparent);
+  backdrop-filter: blur(6px);
+  transition: box-shadow 150ms, background-color 150ms;
+}
+.ks-header[data-scrolled] {
+  background: color-mix(in srgb, var(--k-chassis) 98.5%, transparent);
+  box-shadow: 0 1px 0 var(--k-hi, rgba(255, 255, 255, 0.5)) inset, 0 6px 18px -10px rgba(0, 0, 0, 0.35);
+}
+.ks-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* 74 + the 1 px rule = the 75 px every sticky bar under the header expects (portal bar, filters). */
+  height: 74px;
+}
+.ks-plate.k-miniplate {
+  height: 38px;
+  padding: 0 14px 0 12px;
+}
+.ks-plate.k-miniplate b {
+  font-size: 15px;
+}
+.ks-nav {
+  display: none;
+}
+.ks-nav ul {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ks-nav-link {
+  position: relative;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--k-ink-2);
+  font: 600 14.5px var(--k-f-ui);
+  text-decoration: none;
+  transition: color 120ms, background-color 120ms;
+}
+.ks-nav-link:hover {
+  background: var(--k-panel-2);
+  color: var(--k-ink);
+}
+.ks-nav-link[aria-current="page"] {
+  color: var(--k-ink);
+}
+.ks-nav-link[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 5px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--k-lime);
+  box-shadow: 0 0 0 1px var(--k-ink);
+}
+.ks-nav-link:focus-visible,
+.ks-mlink:focus-visible,
+.ks-flink:focus-visible {
+  outline: 3px solid var(--kl-focus, #2f5bff);
+  outline-offset: 2px;
+}
+.ks-ext {
+  width: 14px;
+  height: 14px;
+}
+.ks-compact-ic {
+  display: none;
+  width: 16px;
+  height: 16px;
+}
+.ks-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ks-header .ks-theme {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 10px;
+  background: var(--k-key);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 3px 0 var(--k-key-edge);
+  color: var(--k-ink);
+}
+.dark .ks-header .ks-theme {
+  color: var(--k-lime);
+}
+.ks-cta {
+  display: none;
+}
+.ks-menu svg {
+  width: 20px;
+  height: 20px;
+}
+.ks-mpanel {
+  border-top: 1px solid var(--k-line-2);
+  background: var(--k-chassis);
+}
+.ks-mpanel ul {
+  display: grid;
+  margin: 0;
+  padding: 12px 0 0;
+  list-style: none;
+}
+.ks-mpanel li {
+  border-bottom: 1px solid var(--k-line);
+}
+.ks-mlink {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--k-ink);
+  font: 700 24px var(--k-f-display);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+.ks-mlink svg {
+  width: 22px;
+  height: 22px;
+}
+.ks-mlink--on {
+  text-decoration: underline;
+  text-decoration-color: var(--k-lime);
+  text-decoration-thickness: 4px;
+  text-underline-offset: 6px;
+}
+.ks-mcta {
+  width: 100%;
+  margin: 20px 0 20px;
+}
+@media (min-width: 640px) {
+  .ks-cta {
+    display: inline-flex;
+  }
+}
+@media (min-width: 1024px) {
+  .ks-nav {
+    display: block;
+  }
+  .k-key.ks-menu {
+    display: none;
+  }
+}
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  .ks-compact-ic {
+    display: block;
+  }
+  .ks-compact-l {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .ks-nav-link {
+    padding: 0 9px;
+  }
+}
+
+/* ---------- loading + skip link ---------- */
+.ks-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 12px;
+  background: var(--k-raised);
+  box-shadow: var(--k-obj);
+  color: var(--k-ink-2);
+  font: 600 14px var(--k-f-ui);
+}
+.ks-loading::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--k-blue, #2f5bff);
+  animation: ks-blink 1.2s steps(1) infinite;
+}
+@keyframes ks-blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+.ks-skip {
+  padding: 12px 16px;
+  border: 2px solid #121212;
+  border-radius: 10px;
+  background: var(--k-lime);
+  color: #121212;
+  font: 700 14px var(--k-f-ui);
+}
+
+/* ---------- footer (base plate, always night) ---------- */
+.ks-footer {
+  --k-ink: #f2f0ea;
+  --k-ink-2: #c9c6bd;
+  --k-ink-3: #9a968c;
+  --k-line: #2a2a2e;
+  --k-line-2: #3a3a40;
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid #000;
+  background: var(--k-grain), #0e0e10;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--k-ink);
+}
+.ks-foot-in {
+  padding-top: 56px;
+  padding-bottom: 32px;
+}
+.ks-foot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 44px 24px;
+}
+.ks-foot-brand {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  grid-column: 1 / -1;
+  max-width: 24rem;
+}
+.ks-foot-plate.k-plate {
+  width: 236px;
+}
+.ks-foot-lede {
+  margin: 0;
+  font: 400 14px/1.6 var(--k-f-ui);
+  color: var(--k-ink-2);
+}
+.ks-foot-seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid #000;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #232327, #19191c);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 #000;
+  color: var(--k-lime);
+  font: 600 13px var(--k-f-mono);
+}
+.ks-foot-seal svg {
+  width: 16px;
+  height: 16px;
+}
+.ks-foot-h {
+  margin: 0 0 12px;
+  font: 650 12.5px var(--k-f-ui);
+  color: var(--k-ink-3);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.8);
+}
+.ks-foot-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ks-flink {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 4px;
+  color: var(--k-ink-2);
+  font: 500 14px var(--k-f-ui);
+  text-decoration: none;
+  transition: color 120ms;
+}
+.ks-flink:hover {
+  color: var(--k-lime);
+}
+.ks-flink svg {
+  width: 13px;
+  height: 13px;
+}
+.ks-footer .ks-flink:focus-visible {
+  outline-color: var(--k-lime);
+}
+.ks-flink--inline {
+  display: inline;
+  min-height: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ks-foot-base {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--k-line-2);
+  font: 400 12.5px/1.5 var(--k-f-ui);
+  color: var(--k-ink-3);
+}
+.ks-foot-base p {
+  margin: 0;
+}
+.ks-foot-vents {
+  display: none;
+}
+.ks-foot-counts {
+  font-family: var(--k-f-mono);
+}
+@media (min-width: 640px) {
+  .ks-foot-base {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .ks-foot-vents {
+    display: block;
+    flex: 0 0 90px;
+  }
+}
+@media (min-width: 1024px) {
+  .ks-foot-grid {
+    grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
+  }
+  .ks-foot-brand {
+    grid-column: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ks-header,
+  .ks-nav-link,
+  .ks-flink {
+    transition: none;
+  }
+  .ks-loading::before {
+    animation: none;
+  }
+}

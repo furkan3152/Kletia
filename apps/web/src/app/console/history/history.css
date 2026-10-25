@@ -1,8 +1,8 @@
 /*
- * The desk's History view. Colours come from the site's semantic tokens
- * (--kl-*), so light and dark follow the site theme. Loaded with the view's
- * lazy chunk, never with the entry stylesheet. Nothing here may widen the
- * page: rows wrap and long addresses break.
+ * The desk's History view (Portfolio) in the Card machine language: filters as recessed screens,
+ * transactions as hairline rows that open to their legs, a lamp per row (magenta when it failed),
+ * amounts in mono with incoming in the up colour. Loaded with the view's lazy chunk, never with the
+ * entry stylesheet. Nothing here may widen the page: rows wrap and long addresses break.
  */
 
 .khs {
@@ -10,9 +10,10 @@
 }
 
 .khs-card {
-  border: 2px solid var(--kl-control);
-  background: var(--kl-surface);
-  padding: 12px;
+  padding: 4px 16px;
+  border: 1px solid var(--k-line);
+  border-radius: 14px;
+  background: var(--k-raised);
 }
 
 /* --- Filters --------------------------------------------------------------- */
@@ -21,7 +22,12 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: end;
-  gap: 8px;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--k-line);
+  border-radius: 16px;
+  background: var(--k-raised);
+  box-shadow: var(--k-obj);
 }
 
 @media (min-width: 768px) {
@@ -34,12 +40,9 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 4px;
-  font-size: 0.75rem;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--kl-muted);
+  gap: 6px;
+  font: 500 13px var(--k-f-ui);
+  color: var(--k-ink-3);
 }
 
 .khs-check {
@@ -47,103 +50,130 @@
   min-height: 44px;
   align-items: center;
   gap: 8px;
-  font-size: 0.875rem;
-  font-weight: 700;
+  font: 550 14px var(--k-f-ui);
+  color: var(--k-ink);
 }
 
 .khs-check input {
   width: 18px;
   height: 18px;
-  accent-color: var(--kl-accent);
+  accent-color: var(--k-ink);
 }
 
 /* --- List ------------------------------------------------------------------ */
 
 .khs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
+  border-top: 1px solid var(--k-line);
 }
 
 .khs-item {
+  position: relative;
   min-width: 0;
-  border: 2px solid var(--kl-control);
-  border-left-width: 4px;
-  background: var(--kl-surface);
+  border-bottom: 1px solid var(--k-line);
 }
 
-.khs-item[data-kind="failed"] {
-  border-left-color: var(--kl-danger);
+.khs-item[data-focused="true"] {
+  background: linear-gradient(90deg, var(--k-lime-tint, #eefbc8), transparent 75%);
 }
 
 .khs-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: start;
   gap: 4px 12px;
-  min-height: 44px;
+  min-height: 56px;
+  padding: 12px 4px;
   cursor: pointer;
-  padding: 10px 12px;
   list-style: none;
+}
+
+.khs-summary::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--k-ink);
+}
+
+.khs-item[data-kind="failed"] .khs-summary::before {
+  background: var(--k-magenta, #ff3d9a);
+  box-shadow: 0 0 0 1.5px var(--k-ink);
 }
 
 .khs-summary::-webkit-details-marker {
   display: none;
 }
 
+.khs-summary:hover {
+  background: var(--k-panel-2);
+}
+
 .khs-summary:focus-visible {
-  outline: 4px solid var(--kl-focus);
+  outline: 3px solid var(--kl-focus, #2f5bff);
   outline-offset: 2px;
 }
 
 .khs-title {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 0.875rem;
+  font: 400 14px/1.4 var(--k-f-ui);
+}
+
+.khs-title .font-bold {
+  font-weight: 600;
 }
 
 .khs-legs {
   max-width: 50vw;
   text-align: right;
-  font-size: 0.8125rem;
+  font: 500 13.5px/1.45 var(--k-f-mono);
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
 .khs-legs [data-direction="in"] {
-  color: var(--kl-success);
+  color: var(--k-up);
 }
 
 .khs-badge {
-  display: inline-block;
-  margin-left: 6px;
-  border: 2px solid currentColor;
-  padding: 0 4px;
-  font-size: 0.6875rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--kl-accent-text);
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--k-lime);
+  color: #121212;
+  font: 650 12px var(--k-f-ui);
+  vertical-align: 1px;
 }
 
 .khs-badge[data-tone="danger"] {
-  color: var(--kl-danger);
+  background: var(--k-magenta, #ff3d9a);
+  color: #121212;
 }
 
 .khs-detail {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border-top: 1px solid var(--kl-line);
-  padding: 10px 12px;
-  font-size: 0.8125rem;
+  gap: 10px;
+  margin: 0 4px 14px 26px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--k-panel-2);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-size: 13.5px;
 }
 
 .khs-facts {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+  gap: 10px;
   margin: 0;
 }
 
@@ -154,11 +184,8 @@
 }
 
 .khs-facts dt {
-  font-size: 0.75rem;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--kl-muted);
+  font: 500 12.5px var(--k-f-ui);
+  color: var(--k-ink-3);
 }
 
 .khs-facts dd {

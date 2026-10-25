@@ -1,0 +1,83 @@
+/*
+ * The machine finish: the Card machine's two global rules applied to the dense portal and site
+ * pages written for the earlier transit look, without rewriting every one of their utility class
+ * lists:
+ *
+ *   1. Heavy borders become hairlines: 2-3 px ink rules turn 1 px in the line colour, hard offset
+ *      shadows become the soft object shadow, boxes get the machine's radius.
+ *   2. Uppercase mono labels become sentence case: no forced capitals, no wide tracking, 650
+ *      instead of black weight.
+ *
+ * Scoped to `.ks-finish` (the portal shell and each site page root; never the home page, the
+ * desk or the printed art), so a component written in the new language is untouched. Loaded with
+ * the site layout's chunk, never with the entry stylesheet.
+ */
+
+/* ---------- 1. hairlines ---------- */
+.ks-finish :is([class*="border-[3px]"], [class*="border-2 "], [class$="border-2"], [class*="border-[2px]"], [class*="border-[1.5px]"]) {
+  border-width: 1px;
+}
+.ks-finish [class*="border-b-[3px]"],
+.ks-finish [class*="border-b-2"] {
+  border-bottom-width: 1px;
+}
+.ks-finish [class*="border-t-[3px]"],
+.ks-finish [class*="border-t-2"] {
+  border-top-width: 1px;
+}
+.ks-finish [class*="border-y-[3px]"],
+.ks-finish [class*="border-y-2"] {
+  border-top-width: 1px;
+  border-bottom-width: 1px;
+}
+.ks-finish [class*="border-r-[3px]"] {
+  border-right-width: 1px;
+}
+.ks-finish :is([class*="border-[#121212]"], [class*="border-[#4A4A52]"], [class*="border-[#1A1A1A]"]) {
+  border-color: var(--k-line-2);
+}
+.ks-finish :is([class*="border-[#121212]/"], [class*="border-white/"]) {
+  border-color: var(--k-line);
+}
+.ks-finish :is([class*="shadow-[2px_2px"], [class*="shadow-[3px_3px"], [class*="shadow-[4px_4px"], [class*="shadow-[5px_5px"], [class*="shadow-[6px_6px"], .shadow-hard, .shadow-hard-sm, .shadow-hard-lg) {
+  box-shadow: var(--k-obj);
+}
+/* Boxes (not rows, cells or rules) take the machine's radius. */
+.ks-finish :is(div, section, article, aside, figure, form, fieldset, details, label, a, button, p, ul, ol, pre, span):is([class*="border-[3px]"], [class*="border-2 "], [class$="border-2"], [class*="border-[var(--k-line-2)]"]):not([class*="rounded"]) {
+  border-radius: 12px;
+}
+.ks-finish :is(input, select, textarea):is([class*="border-[3px]"], [class*="border-2"], [class*="border-[1.5px]"], [class*="border-control"]):not([class*="rounded"]) {
+  border-radius: 10px;
+  border-width: 1px;
+  border-color: var(--k-line-2);
+  background-color: var(--k-panel);
+}
+.ks-finish :is(input, select, textarea):is([class*="border-[3px]"], [class*="border-2"], [class*="border-[1.5px]"], [class*="border-control"]):focus-visible {
+  border-color: var(--k-ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-lime) 55%, transparent);
+  outline: none;
+}
+
+/* ---------- 2. sentence case ---------- */
+.ks-finish .uppercase {
+  text-transform: none;
+  letter-spacing: 0.005em;
+}
+.ks-finish .font-black {
+  font-weight: 650;
+}
+.ks-finish :is([class*="tracking-[0.1"], [class*="tracking-[0.2"], [class*="tracking-[0.3"], .tracking-wider, .tracking-widest) {
+  letter-spacing: 0.005em;
+}
+.ks-finish .text-label {
+  font-size: 13px;
+}
+
+/* ---------- accents: lime squares become rounded keys, ink blocks soften ---------- */
+.ks-finish [class*="bg-[#C6FF3A]"]:is([class*="border-[3px]"], [class*="border-2"]) {
+  border-color: #121212;
+  border-radius: 8px;
+}
+.ks-finish details > summary {
+  cursor: pointer;
+}

@@ -1,61 +1,69 @@
 /**
- * Shared parts of the desk's views (round 9): one heading, one panel, one
- * form field and one look for notes, empty, loading and error states, so
- * Perps, Orders, Automations, Dashboard and Activity read as one desk in
- * both themes (class recipes in viewStyles.ts). Colours come from the
- * semantic tokens only.
+ * Shared parts of the desk's views (Card machine): one heading, one note, one empty
+ * well and one loading line, so Trade, Portfolio, Automate and More read as one machine in both
+ * themes. The class recipes are in viewStyles.ts, the styles in views.css (this file loads them
+ * with the console's chunks, never with the entry stylesheet).
  */
+import "./views.css";
+
 import type { ReactNode } from "react";
 
 import { cx } from "../../site/ui/styles";
 
 export function ViewHeader({ id, title, intro, action }: { readonly id: string; readonly title: string; readonly intro?: ReactNode; readonly action?: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id={id} className="font-display text-2xl font-bold">
+    <div className="kv-head">
+      <div className="kv-head-row">
+        <h2 id={id} className="kv-h2">
           {title}
         </h2>
         {action}
       </div>
-      {intro ? <p className="max-w-prose text-sm">{intro}</p> : null}
+      {intro ? <p className="kv-intro">{intro}</p> : null}
     </div>
   );
 }
 
 export type NoteTone = "neutral" | "info" | "warning" | "danger";
 
-const NOTE_TONES: Readonly<Record<NoteTone, string>> = {
-  neutral: "border-control bg-neutral-bg",
-  info: "border-info bg-info-bg",
-  warning: "border-warning bg-warning-bg",
-  danger: "border-danger bg-danger-bg font-semibold",
-};
-
-/** A note beside the content: a rule, a warning, an error (role="alert" for errors that just happened). */
+/** A note beside the content with a lamp: a rule, a warning, an error (role="alert" for errors that just happened). */
 export function ViewNote({ tone = "neutral", role, className, children }: { readonly tone?: NoteTone; readonly role?: "alert" | "status"; readonly className?: string; readonly children: ReactNode }) {
   return (
-    <div role={role} className={cx("border-l-4 px-3 py-2 text-sm text-fg [overflow-wrap:anywhere]", NOTE_TONES[tone], className)}>
+    <div role={role} className={cx("kv-note", className)} data-tone={tone}>
       {children}
     </div>
   );
 }
 
-/** Nothing to show yet (no wallet, no rows): a dashed box, never an empty table. */
+/** Nothing to show yet (no wallet, no rows): an empty recessed well, never an empty table. */
 export function ViewEmpty({ children, action }: { readonly children: ReactNode; readonly action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-start gap-2 border-2 border-dashed border-control p-3 text-sm font-semibold">
+    <div className="kv-empty">
       <p>{children}</p>
       {action}
     </div>
   );
 }
 
-/** A read in flight. */
+/** A read in flight (a blinking lamp). */
 export function ViewLoading({ children }: { readonly children: ReactNode }) {
   return (
-    <p role="status" className="text-sm font-semibold text-muted">
+    <p role="status" className="kv-loading">
       {children}
     </p>
+  );
+}
+
+/** Label/value rows (a quote, a position): label left, mono value right; "warn" prints the value in the loss colour. */
+export function ViewFacts({ rows, live }: { readonly rows: readonly { readonly label: ReactNode; readonly value: ReactNode; readonly tone?: "warn" | undefined }[]; readonly live?: boolean }) {
+  return (
+    <dl className="kv-facts" aria-live={live ? "polite" : undefined}>
+      {rows.map((row, index) => (
+        <div key={index}>
+          <dt>{row.label}</dt>
+          <dd data-tone={row.tone}>{row.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

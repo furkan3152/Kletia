@@ -1,0 +1,365 @@
+/*
+ * The desk's views in the Card machine language: the view heading, the
+ * engraved module, fields as recessed screens, notes with a lamp, empty wells, fact rows and
+ * hairline tables. Every Trade, Portfolio, Automate and More view uses these through
+ * ViewParts.tsx and viewStyles.ts. Loaded with the console's chunks, never with the entry
+ * stylesheet. Colours come from the --k-* tokens, so both themes follow.
+ */
+
+/* ---------- heading ---------- */
+.kv-head {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.kv-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.kv-h2 {
+  margin: 0;
+  font: 720 30px/1.05 var(--k-f-display);
+  letter-spacing: -0.035em;
+  color: var(--k-ink);
+}
+.kv-intro {
+  margin: 0;
+  max-width: 62ch;
+  font: 400 14.5px/1.55 var(--k-f-ui);
+  color: var(--k-ink-2);
+}
+
+/* ---------- modules ---------- */
+.kv-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--k-line);
+  border-radius: 16px;
+  background: var(--k-raised);
+  box-shadow: var(--k-obj);
+  color: var(--k-ink);
+}
+.kv-title {
+  margin: 0;
+  font: 680 18px/1.2 var(--k-f-display);
+  letter-spacing: -0.02em;
+  color: var(--k-ink);
+}
+.kv-eng {
+  margin: 0;
+  font: 650 12.5px/1.2 var(--k-f-ui);
+  letter-spacing: 0.01em;
+  color: var(--k-ink-2);
+  text-shadow: var(--k-engrave, none);
+}
+.kv-label {
+  font: 500 13px/1.3 var(--k-f-ui);
+  color: var(--k-ink-3);
+}
+.kv-muted {
+  color: var(--k-ink-3);
+}
+.kv-num {
+  font-family: var(--k-f-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- fields ---------- */
+.kv-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 12px;
+  background: var(--k-panel);
+  color: var(--k-ink);
+  font: 500 15px var(--k-f-ui);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.kv-input::placeholder {
+  color: var(--kl-placeholder, var(--k-ink-3));
+}
+.kv-input:focus,
+.kv-input:focus-visible {
+  outline: none;
+  border-color: var(--k-ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-lime) 55%, transparent);
+}
+select.kv-input {
+  appearance: none;
+  padding-right: 38px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--k-ink-3) 50%), linear-gradient(135deg, var(--k-ink-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 19px) 50%,
+    calc(100% - 14px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.kv-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------- notes, empty, loading ---------- */
+.kv-note {
+  position: relative;
+  min-width: 0;
+  padding: 12px 14px 12px 34px;
+  border: 1px solid var(--k-line);
+  border-radius: 12px;
+  background: var(--k-panel);
+  color: var(--k-ink-2);
+  font: 400 14px/1.5 var(--k-f-ui);
+  overflow-wrap: anywhere;
+}
+.kv-note::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 18px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--k-led-off, #b9b4a8);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--k-ink) 25%, transparent);
+}
+.kv-note[data-tone="info"]::before {
+  background: var(--k-blue, #2f5bff);
+}
+.kv-note[data-tone="warning"] {
+  background: color-mix(in srgb, var(--kl-warning, #b45309) 7%, var(--k-panel));
+  border-color: color-mix(in srgb, var(--kl-warning, #b45309) 35%, var(--k-line));
+}
+.kv-note[data-tone="warning"]::before {
+  background: #ffb020;
+  box-shadow: 0 0 0 1.5px var(--k-ink);
+}
+.kv-note[data-tone="danger"] {
+  background: var(--k-magenta-tint, #ffe0ef);
+  border-color: color-mix(in srgb, var(--k-magenta, #ff3d9a) 55%, var(--k-line));
+  color: var(--k-ink);
+  font-weight: 560;
+}
+.kv-note[data-tone="danger"]::before {
+  background: var(--k-magenta, #ff3d9a);
+  box-shadow: 0 0 0 1.5px var(--k-ink), 0 0 8px var(--k-magenta, #ff3d9a);
+}
+.kv-note ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.kv-note li + li {
+  margin-top: 4px;
+}
+.kv-note h3,
+.kv-note h4 {
+  margin: 0 0 4px;
+  font: 650 13.5px var(--k-f-ui);
+  color: var(--k-ink);
+}
+.kv-note a {
+  color: var(--k-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.kv-empty {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1.5px dashed var(--k-line-2);
+  border-radius: 14px;
+  background: var(--k-grain), var(--k-panel-2);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+  color: var(--k-ink-2);
+  font: 500 14px/1.5 var(--k-f-ui);
+}
+.kv-empty p {
+  margin: 0;
+}
+
+.kv-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--k-ink-3);
+  font: 500 14px var(--k-f-ui);
+}
+.kv-loading::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--k-blue, #2f5bff);
+  animation: kv-blink 1.2s steps(1) infinite;
+}
+@keyframes kv-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* ---------- facts (label left, mono value right) ---------- */
+.kv-facts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+.kv-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--k-line);
+  font-size: 14px;
+}
+.kv-facts > div:last-child {
+  border-bottom: 0;
+}
+.kv-facts dt {
+  color: var(--k-ink-3);
+}
+.kv-facts dd {
+  margin: 0;
+  font: 550 14px var(--k-f-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--k-ink);
+  overflow-wrap: anywhere;
+}
+.kv-facts dd[data-tone="warn"] {
+  color: var(--k-down);
+}
+
+/* ---------- tables ---------- */
+.kv-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.kv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.kv-table th,
+.kv-table td {
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid var(--k-line);
+  text-align: left;
+  vertical-align: middle;
+}
+.kv-table thead th {
+  padding-top: 0;
+  padding-bottom: 8px;
+  font: 500 12.5px var(--k-f-ui);
+  color: var(--k-ink-3);
+}
+.kv-table tbody th {
+  font-weight: 600;
+}
+.kv-table .kv-r {
+  text-align: right;
+}
+
+/* ---------- section rule with an engraved label ---------- */
+.kv-sec {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+.kv-sec-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.kv-sec-h h3 {
+  margin: 0;
+  font: 680 18px/1.2 var(--k-f-display);
+  letter-spacing: -0.02em;
+}
+.kv-sec-h p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--k-ink-3);
+}
+
+/* Links that act (Retry, Move here, explorer): ink, underlined, 44 px tall. */
+.kv-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--k-ink);
+  font: 600 13.5px var(--k-f-ui);
+  text-decoration: underline;
+  text-decoration-color: var(--k-line-2);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.kv-link:hover {
+  text-decoration-color: var(--k-ink);
+}
+.kv-link:focus-visible {
+  outline: 3px solid var(--kl-focus, #2f5bff);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kv-loading::before {
+    animation: none;
+  }
+}
+@media (max-width: 760px) {
+  .kv-h2 {
+    font-size: 26px;
+  }
+  .kv-panel {
+    padding: 16px;
+  }
+}
+
+/* Disclosure inside a view (every number, why this venue, not read). */
+.kv-more {
+  font-size: 13.5px;
+  color: var(--k-ink-2);
+}
+.kv-more > summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--k-ink);
+}
+.kv-more ul {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 4px;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}

@@ -1,7 +1,9 @@
+import "./ui.css";
+
 import React from "react";
 
 import { useSpotlight } from "../motion/useSpotlight";
-import { cx, HARD_SHADOW, INK_BORDER, LIFT, SPOTLIGHT, SURFACE } from "./styles";
+import { cx, LIFT, SPOTLIGHT, SURFACE } from "./styles";
 
 export type CardTone = "surface" | "muted" | "yellow" | "blue" | "ink" | "solana";
 
@@ -36,7 +38,7 @@ export interface CardProps extends React.HTMLAttributes<HTMLElement> {
   readonly padded?: boolean;
 }
 
-/** Bordered surface with a hard offset shadow. */
+/** A raised module (Card machine): hairline, radius 16, the object shadow. */
 export function Card({
   as: Element = "div",
   tone = "surface",
@@ -58,9 +60,7 @@ export function Card({
     style: spotStyle,
   } = useSpotlight<HTMLElement>({ color: spotlightColor ?? SPOT_COLORS[tone] });
   const classes = cx(
-    "relative",
-    INK_BORDER,
-    HARD_SHADOW,
+    "relative ku-card",
     TONES[tone],
     padded && "p-5 sm:p-6",
     interactive && LIFT,

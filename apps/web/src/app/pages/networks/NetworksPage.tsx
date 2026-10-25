@@ -10,7 +10,6 @@ import { Link } from "../../routes/Link";
 import { formatBoardClock, lineFor } from "../../site/art";
 import { DepartureBoard } from "../../site/art/DepartureBoard";
 import { LineBullet } from "../../site/art/LineBullet";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { formatUtcTime } from "../../site/format/utcTime";
 import { Reveal } from "../../site/motion/Reveal";
 import { useInView } from "../../site/motion/useInView";
@@ -27,6 +26,7 @@ import { boardData } from "./boardRows";
 import { statusHeadline, type StatusTone } from "./statusHeadline";
 import { formatMs, formatUptime, healthChanges } from "./useHealthHistory";
 import { VenuesByNetwork } from "./VenuesByNetwork";
+import { Eyebrow } from "../../site/ui/Eyebrow";
 
 const ACTION_ORDER = ["swap", "bridge", "transfer", "stake", "unstake", "deposit", "withdraw", "borrow", "repay", "claim", "read"];
 const REFRESH_SECONDS = 30;
@@ -362,7 +362,7 @@ export default function NetworksPage() {
         <div className={cx(CONTAINER, "py-14 sm:py-20")}>
           <div className="grid gap-x-16 gap-y-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-end">
             <div className="min-w-0">
-              <PlatformNumber code="NET">Networks and status</PlatformNumber>
+              <Eyebrow>Networks and status</Eyebrow>
               <h1
                 className="mt-6 flex items-start gap-4 text-balance font-display text-[clamp(2.5rem,6vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]"
                 data-tone={headline.tone}

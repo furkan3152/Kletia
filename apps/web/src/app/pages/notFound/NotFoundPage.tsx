@@ -1,10 +1,9 @@
 import { useRoute } from "../../routes/useRoute";
-import { EndOfLine } from "../../site/art/EndOfLine";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { ButtonLink } from "../../site/ui/Button";
 import { CONTAINER, cx, TEXT_MUTED } from "../../site/ui/styles";
+import { Eyebrow, NoServiceScene } from "../../site/ui/Eyebrow";
 
-/** 404: the line ends at a buffer stop on Platform 404. The heading says what happened; the scene is decorative. */
+/** 404: the machine jams on an address it has no card for. The heading says what happened; the scene is decorative. */
 export default function NotFoundPage() {
   const { location } = useRoute();
   return (
@@ -16,18 +15,18 @@ export default function NotFoundPage() {
         )}
       >
         <div className="min-w-0">
-          <PlatformNumber code="404">No service</PlatformNumber>
+          <Eyebrow>No service</Eyebrow>
           <h1 className="mt-5 text-balance font-display text-[clamp(2.6rem,6.4vw,4.6rem)] font-bold leading-[0.98] tracking-[-0.045em]">
-            This line ends here.
+            No card for this address.
           </h1>
           <p className={cx("mt-6 max-w-xl text-lg leading-relaxed", TEXT_MUTED)}>
             Nothing runs to{" "}
-            <code className="break-all border-2 border-[#121212] bg-[#FBFAF6] px-1.5 py-0.5 font-code text-base text-[#121212] dark:border-[#4A4A52] dark:bg-[#19191C] dark:text-white">
+            <code className="break-all rounded-key border border-[var(--k-line-2)] px-1.5 py-0.5 font-code text-base">
               {location.pathname}
             </code>
-            . The link may be old, or the page moved. These platforms are open:
+            . The link may be old, or the page moved. These pages are open:
           </p>
-          <nav aria-label="Open platforms" className="mt-9 flex flex-wrap gap-3">
+          <nav aria-label="Open pages" className="mt-9 flex flex-wrap gap-3">
             <ButtonLink to="/" size="lg">
               Home
             </ButtonLink>
@@ -43,7 +42,7 @@ export default function NotFoundPage() {
           </nav>
         </div>
         <div className="min-w-0">
-          <EndOfLine />
+          <NoServiceScene code="404" />
         </div>
       </div>
     </div>

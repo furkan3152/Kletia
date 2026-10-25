@@ -8,10 +8,10 @@
  * reachable as engine tasks.
  */
 import { RefreshCw } from "lucide-react";
+import type React from "react";
 import { CHAINS, NETWORK_KEYS, type NetworkKey } from "@kletia/core";
 
-import { LineBullet } from "../../site/art/LineBullet";
-import { LINES } from "../../site/art/tokens";
+import { Icon, networkIcon } from "../../kit";
 import { DESK_COPY } from "../content/copy";
 import { LEGACY_NETWORKS, type Lane } from "../state/deskModel";
 import { formatUsd, holdingLabels, laneTotals, mostFunded, type HoldingsSnapshot } from "../state/holdings";
@@ -32,8 +32,8 @@ export interface HoldingsPanelProps {
   readonly asView?: boolean;
 }
 
-const LINK =
-  "inline-flex min-h-11 items-center text-xs font-black uppercase tracking-wider text-[var(--kl-accent-text)] underline underline-offset-4 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]";
+/** Links that act (Start here, Fund, scans): views.css. */
+const LINK = "kv-link";
 
 function laneNetworks(lane: Lane): NetworkKey[] {
   return NETWORK_KEYS.filter((key) => (CHAINS[key].lane === "testnet" ? "testnet" : "production") === lane);
@@ -60,27 +60,21 @@ export function HoldingsPanel({ lane, snapshot, loading, failed, perAccount, onR
   };
 
   return (
-    <section aria-label={copy.asideLabel} className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <Heading className={asView ? "font-display text-2xl font-bold" : "text-xs font-black uppercase tracking-[0.16em] text-muted"}>{copy.title}</Heading>
+    <section aria-label={copy.asideLabel} className="khd">
+      <div className="khd-h">
+        <Heading className={asView ? "kv-h2" : "kv-eng"}>{copy.title}</Heading>
         {connected ? (
-          <button
-            type="button"
-            onClick={onRefresh}
-            aria-label={copy.refresh}
-            disabled={loading}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 border-2 border-control bg-surface px-2 text-xs font-bold text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] disabled:opacity-60"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin motion-reduce:animate-none" : ""}`} aria-hidden="true" />
+          <button type="button" onClick={onRefresh} aria-label={copy.refresh} disabled={loading} className="k-key k-key--sm">
+            <RefreshCw className={loading ? "kdb-spin" : undefined} aria-hidden="true" />
             {snapshot ? <span>{clockOf(snapshot.observedAt)}</span> : null}
           </button>
         ) : null}
       </div>
       {!connected ? (
-        <p className="border-2 border-dashed border-control p-3 text-sm font-semibold">{copy.connect}</p>
+        <p className="kv-empty">{copy.connect}</p>
       ) : (
         <>
-          <p className="text-sm font-bold" aria-live="polite">
+          <p className="khd-total" aria-live="polite">
             {loading && !snapshot
               ? copy.loading
               : failed && !snapshot
@@ -91,47 +85,49 @@ export function HoldingsPanel({ lane, snapshot, loading, failed, perAccount, onR
                     : `${copy.laneTotal(DESK_COPY.departure.groupProduction, formatUsd(totals.totalUsd) ?? "$0.00")}${totals.unpriced ? ` · ${copy.unpriced(totals.unpriced)}` : ""}`
                   : ""}
           </p>
-          {perAccount ? <p className="text-xs text-muted">{copy.perAccount}</p> : null}
-          <ul className="flex flex-col gap-2">
+          {perAccount ? <p className="kv-muted khd-small">{copy.perAccount}</p> : null}
+          <ul className="khd-rack">
             {laneNetworks(lane).map((network) => {
               const entry = snapshot?.byNetwork[network] ?? null;
               const labels = holdingLabels(entry);
               const usd = entry && lane === "production" ? formatUsd(entry.totalUsd > 0 ? entry.totalUsd : null) : null;
               const needsWallet = CHAINS[network].namespace === "solana" ? !actions.accounts.connected.solana : !actions.accounts.connected.evm;
               return (
-                <li key={network} className="border-2 border-control bg-surface p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-2 text-sm font-bold">
-                      <LineBullet line={LINES[network]} decorative />
-                      <span className="truncate">{CHAINS[network].name}</span>
-                    </span>
-                    <span className="shrink-0 font-code text-sm font-bold">{entry ? (usd ?? (labels.length ? "" : copy.empty)) : ""}</span>
+                <li key={network} className="khd-cart" style={{ "--khd-stripe": CHAINS[network].color } as React.CSSProperties} data-empty={!entry || (!usd && labels.length === 0) ? "" : undefined}>
+                  <span className="khd-ic" aria-hidden="true">
+                    <Icon name={networkIcon(network)} />
+                  </span>
+                  <div className="khd-body">
+                    <div className="khd-row">
+                      <span className="khd-name">{CHAINS[network].name}</span>
+                      <span className="khd-usd kv-num">{entry ? (usd ?? (labels.length ? "" : copy.empty)) : ""}</span>
+                    </div>
+                    {needsWallet ? (
+                      <p className="khd-small kv-muted">{CHAINS[network].namespace === "solana" ? DESK_COPY.departure.walletHintSolana : DESK_COPY.departure.walletHintEvm}</p>
+                    ) : entry ? (
+                      <>
+                        {labels.length ? <p className="khd-labels kv-num">{labels.join(" · ")}{entry.unpriced ? ` · ${copy.unpriced(entry.unpriced)}` : ""}</p> : null}
+                        {entry.stale ? <p className="khd-small khd-stale">{copy.notUpdated(clockOf(entry.observedAt))}</p> : null}
+                        <div className="khd-act">
+                          <button type="button" className={LINK} aria-label={copy.startHereLabel(CHAINS[network].name)} onClick={() => actions.setDeparture(network)}>
+                            {copy.startHere}
+                          </button>
+                          <button type="button" className={LINK} onClick={() => fund(network)}>
+                            {network === "base" ? copy.fundCoinbase : network === "arc" ? copy.fundFaucet : copy.fund}
+                          </button>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
-                  {needsWallet ? (
-                    <p className="mt-1 text-xs text-muted">{CHAINS[network].namespace === "solana" ? DESK_COPY.departure.walletHintSolana : DESK_COPY.departure.walletHintEvm}</p>
-                  ) : entry ? (
-                    <>
-                      {labels.length ? <p className="mt-1 break-words font-code text-xs">{labels.join(" · ")}{entry.unpriced ? ` · ${copy.unpriced(entry.unpriced)}` : ""}</p> : null}
-                      {entry.stale ? <p className="mt-1 text-xs font-bold text-[var(--kl-warning)]">{copy.notUpdated(clockOf(entry.observedAt))}</p> : null}
-                      <div className="mt-1 flex flex-wrap gap-x-4">
-                        <button type="button" className={LINK} aria-label={copy.startHereLabel(CHAINS[network].name)} onClick={() => actions.setDeparture(network)}>
-                          {copy.startHere}
-                        </button>
-                        <button type="button" className={LINK} onClick={() => fund(network)}>
-                          {network === "base" ? copy.fundCoinbase : network === "arc" ? copy.fundFaucet : copy.fund}
-                        </button>
-                      </div>
-                    </>
-                  ) : null}
                 </li>
               );
             })}
           </ul>
-          <div className="flex flex-col gap-1">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-muted">{copy.verifiedScans}</p>
-            <div className="flex flex-wrap gap-x-4">
+          <div className="khd-scans">
+            <p className="kv-eng">{copy.verifiedScans}</p>
+            <div className="khd-act">
               {LEGACY_NETWORKS.map((network) => (
-                <button key={network} type="button" className={LINK} onClick={() => actions.startEngineTask(copy.scanPrompt[network], network, "tool")}>
+                <button key={network} type="button" className="k-key k-key--sm" onClick={() => actions.startEngineTask(copy.scanPrompt[network], network, "tool")}>
                   {CHAINS[network].shortName}
                 </button>
               ))}

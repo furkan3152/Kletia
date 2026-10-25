@@ -68,6 +68,28 @@ export function leverageCap(venues: readonly PerpsVenue[], markets: readonly Per
   return Math.max(1, Math.min(PERPS_LIMITS.defaultMaxLeverage, ...(caps.length > 0 ? [Math.max(...caps)] : [1])));
 }
 
+/** Labelled detents for the leverage fader: 1x, round steps under the cap and the cap itself (at most five). */
+export function leverageDetents(cap: number): number[] {
+  const top = Math.max(1, Math.floor(cap));
+  if (top === 1) return [1];
+  // Round steps at least 15 % of the travel away from 1x, the cap and each other, so labels never collide.
+  const at = (value: number) => (value - 1) / (top - 1);
+  const marks = [1];
+  for (const value of [2, 3, 5, 10, 20, 25, 50]) {
+    if (value >= top || at(value) > 0.85 || at(value) - at(marks[marks.length - 1]!) < 0.15) continue;
+    marks.push(value);
+  }
+  marks.push(top);
+  while (marks.length > 5) marks.splice(1, 1);
+  return marks;
+}
+
+/** How far the price can move against a position before liquidation, as a fraction of entry (null: no price-based liquidation). */
+export function liquidationMove(entry: number, liquidation: number | null): number | null {
+  if (liquidation === null || !(entry > 0) || !(liquidation > 0)) return null;
+  return Math.abs(entry - liquidation) / entry;
+}
+
 /** What keeps the ticket from quoting (empty: it can quote). The API checks the same and more. */
 export function ticketProblems(ticket: PerpsTicket, venues: readonly PerpsVenue[], markets: readonly PerpsMarket[]): string[] {
   const problems: string[] = [];

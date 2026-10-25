@@ -3,10 +3,10 @@ import { Fragment, type ReactNode } from "react";
 
 // CHANGELOG.md is read when the site is built: the release notes ship as text in this page's chunk.
 import changelogSource from "../../../../../../CHANGELOG.md?raw";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { GITHUB_URL } from "../../site/siteLinks";
 import { CONTAINER, cx, FOCUS_RING, TEXT_MUTED } from "../../site/ui/styles";
 import { parseChangelog, releaseNavLabel, type ChangelogBlock, type ChangelogRelease, type Inline } from "./changelogModel";
+import { Eyebrow } from "../../site/ui/Eyebrow";
 
 const CHANGELOG = parseChangelog(changelogSource);
 const SOURCE_URL = `${GITHUB_URL}/blob/main/CHANGELOG.md`;
@@ -103,7 +103,7 @@ export default function ChangelogPage() {
     <>
       <header className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "py-14 sm:py-20")}>
-          <PlatformNumber code="LOG">Release notes</PlatformNumber>
+          <Eyebrow>Release notes</Eyebrow>
           <h1 className="mt-6 font-display text-[clamp(2.5rem,6vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]">Changelog</h1>
           <div className="mt-6 flex max-w-3xl flex-col gap-3 text-lg">
             <Blocks blocks={CHANGELOG.intro} />

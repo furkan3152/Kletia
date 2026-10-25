@@ -8,9 +8,7 @@ import { LazyBoundary } from "../../../shared/components/LazyBoundary";
 import { toPlatformError, type PlatformError } from "../../../shared/platform/kletiaClient";
 import { LINK_PATH_PATTERN } from "../../routes/routeTable";
 import { useRoute } from "../../routes/useRoute";
-import { EndOfLine } from "../../site/art/EndOfLine";
 import { LinkTicket } from "../../site/art/LinkTicket";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { Stamp } from "../../site/art/Stamp";
 import { lineFor } from "../../site/art/tokens";
 import { FareTable } from "../../site/intent/FareTable";
@@ -40,6 +38,7 @@ import { useLinkQuote, useLinkView } from "./useLinkFlow";
 import { buildJourney, type LinkView } from "@kletia/core";
 import { indicativeFacts } from "../../site/art/journeyFormat";
 import { JourneyPanel } from "../../site/intent/JourneyPanel";
+import { Eyebrow, NoServiceScene } from "../../site/ui/Eyebrow";
 
 const loadSignPanel = () => import("./LinkSignPanel");
 const LinkSignPanel = React.lazy(loadSignPanel);
@@ -64,7 +63,7 @@ function Gone({ title, body }: { readonly title: string; readonly body: string }
           </nav>
         </div>
         <div className="min-w-0">
-          <EndOfLine platform="GO" />
+          <NoServiceScene code="GO" />
         </div>
       </div>
     </div>
@@ -74,7 +73,7 @@ function Gone({ title, body }: { readonly title: string; readonly body: string }
 function SectionHead({ n, eyebrow, title, intro, id }: { readonly n: number; readonly eyebrow: string; readonly title: string; readonly intro?: React.ReactNode; readonly id: string }) {
   return (
     <header className="mb-6 max-w-3xl">
-      <PlatformNumber n={n}>{eyebrow}</PlatformNumber>
+      <Eyebrow>{`${String(n).padStart(2, "0")} · ${eyebrow}`}</Eyebrow>
       <h2 id={id} className="mt-4 text-balance font-display text-[1.75rem] font-bold leading-[1.1] tracking-[-0.025em] sm:text-[2.1rem]">
         {title}
       </h2>
@@ -200,7 +199,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
       <div className={PAPER} style={{ "--kla-table": "var(--kla-paper)" } as React.CSSProperties}>
         <div className={cx(CONTAINER, "grid gap-10 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start")}>
           <div className="min-w-0">
-            <PlatformNumber code="GO">Intent link</PlatformNumber>
+            <Eyebrow>Intent link</Eyebrow>
             <h1 className="mt-5 text-balance font-display text-[clamp(2rem,4.6vw,3.3rem)] font-bold leading-[1.04] tracking-[-0.035em] [overflow-wrap:anywhere]">
               {view.title}
             </h1>

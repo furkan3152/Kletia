@@ -1,0 +1,289 @@
+/*
+ * Predict in the Card machine language: market search with category
+ * chips, market rows with the leading odds, outcome keys with a probability bar, the order
+ * book's depth, and the Polymarket wallet as a cartridge. Loaded with the Predict chunk.
+ */
+.kp-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.kp-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kp-cats .k-chip[aria-pressed="true"] {
+  border-color: var(--k-ink);
+  background: var(--k-lime);
+  color: #121212;
+}
+.kp-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.kp-markets {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kp-market {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--k-line);
+  background: none;
+  color: var(--k-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.kp-market:hover {
+  background: var(--k-panel-2);
+}
+.kp-market[aria-current="true"] {
+  background: linear-gradient(90deg, var(--k-lime-tint, #eefbc8), transparent 70%);
+}
+.kp-market:focus-visible,
+.kp-outcome:focus-visible {
+  outline: 3px solid var(--kl-focus, #2f5bff);
+  outline-offset: 2px;
+}
+.kp-market-t {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.kp-market-t b {
+  font: 600 14.5px/1.35 var(--k-f-ui);
+  overflow-wrap: anywhere;
+}
+.kp-market-t small,
+.kp-market-p small {
+  font-size: 12.5px;
+  color: var(--k-ink-3);
+}
+.kp-market-p {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.kp-market-p .kv-num {
+  font-size: 18px;
+  font-weight: 600;
+}
+.kp-q {
+  font-size: 26px;
+  overflow-wrap: anywhere;
+}
+.kp-outcomes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kp-outcome {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 12px;
+  background: var(--k-key);
+  box-shadow: inset 0 1px 0 var(--k-hi), 0 3px 0 var(--k-key-edge);
+  color: var(--k-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 60ms, box-shadow 60ms;
+}
+.kp-outcome[aria-pressed="true"] {
+  border-color: var(--k-ink);
+  background: var(--k-lime);
+  color: #121212;
+  box-shadow: 0 1px 0 var(--k-lime-edge);
+  transform: translateY(2px);
+}
+.kp-outcome-l {
+  font: 600 14px var(--k-f-ui);
+  overflow-wrap: anywhere;
+}
+.kp-outcome-p {
+  font-size: 20px;
+  font-weight: 600;
+}
+.kp-outcome-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  overflow: hidden;
+}
+.kp-outcome-bar i {
+  display: block;
+  height: 100%;
+  background: currentColor;
+}
+.kp-book {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.kp-depth {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.kp-depth p {
+  margin: 0;
+}
+.kp-depth ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kp-depth li {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px;
+  font: 500 13px var(--k-f-mono);
+}
+.kp-depth li > span:not(.kp-depth-bar) {
+  position: relative;
+}
+.kp-depth-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  opacity: 0.22;
+}
+.kp-depth li[data-tone="bid"] .kp-depth-bar {
+  background: var(--k-up);
+}
+.kp-depth li[data-tone="ask"] .kp-depth-bar {
+  background: var(--k-down);
+}
+.kp-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ---------- the Polymarket wallet as a cartridge ---------- */
+.kp-wallet {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px 18px 16px;
+  border: 1px solid var(--k-line-2);
+  border-radius: 8px 8px 16px 16px;
+  background: var(--k-raised);
+  box-shadow: inset 0 1px 0 var(--k-hi), var(--k-obj);
+  color: var(--k-ink);
+}
+.kp-wallet::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 48px;
+  height: 4px;
+  margin-left: -24px;
+  background: repeating-linear-gradient(90deg, var(--k-line-2) 0 2px, transparent 2px 5px);
+}
+.kp-wallet-h {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.kp-wallet-av {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: repeating-linear-gradient(135deg, var(--k-lime) 0 6px, var(--k-ink) 6px 8px);
+}
+.kp-wallet-av[data-off] {
+  background: repeating-linear-gradient(135deg, var(--k-panel-2) 0 6px, var(--k-line-2) 6px 8px);
+}
+.kp-wallet-h h3 {
+  margin: 0;
+  font: 650 14.5px var(--k-f-ui);
+}
+.kp-wallet-h p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--k-ink-3);
+}
+.kp-wallet-lamp {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--k-led-off);
+}
+.kp-wallet-lamp[data-on] {
+  background: var(--k-lime);
+  box-shadow: 0 0 0 1.5px var(--k-ink);
+}
+.kp-wallet-slot {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--k-panel-2);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  font-size: 13.5px;
+}
+.kp-wallet-slot b {
+  overflow-wrap: anywhere;
+}
+.kp-wallet-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.kp-wallet-addr {
+  font: 500 12px var(--k-f-mono);
+  color: var(--k-ink-3);
+  overflow-wrap: anywhere;
+}
+.kp-moves {
+  display: grid;
+  gap: 10px;
+}
+.kp-moves-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+@media (max-width: 520px) {
+  .kp-book {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .kp-search {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kp-outcome {
+    transition: none;
+  }
+}

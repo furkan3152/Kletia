@@ -8,9 +8,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, type CSSPrope
 
 import { LazyBoundary } from "../../../shared/components/LazyBoundary";
 import { useRoute } from "../../routes/useRoute";
-import { EndOfLine } from "../../site/art/EndOfLine";
 import { LineBullet } from "../../site/art/LineBullet";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { Stamp } from "../../site/art/Stamp";
 import { TicketFields, TicketHead, TicketShell } from "../../site/art/TicketShell";
 import { lineFor } from "../../site/art/tokens";
@@ -35,6 +33,7 @@ import {
 } from "./approveModel";
 import { ApprovedStamp, RejectedStamp } from "./approveStamps";
 import { useApproval, type DigestCheck } from "./useApproval";
+import { Eyebrow, NoServiceScene } from "../../site/ui/Eyebrow";
 
 const loadDesk = () => import("./ApproveSignPanel");
 const ApproveSignPanel = React.lazy(loadDesk);
@@ -46,7 +45,7 @@ function NoService({ title, body }: { readonly title: string; readonly body: str
     <div className={PAPER}>
       <div className={cx(CONTAINER, "grid min-h-[60vh] items-center gap-10 py-16 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]")}>
         <div className="min-w-0">
-          <PlatformNumber code="AP">Approval gate · no service</PlatformNumber>
+          <Eyebrow>Approval gate · no service</Eyebrow>
           <h1 className="mt-5 text-balance font-display text-[clamp(2.2rem,5.6vw,3.8rem)] font-bold leading-[1.02] tracking-[-0.04em]">{title}</h1>
           <p className={cx("mt-6 max-w-xl text-lg leading-relaxed", TEXT_MUTED)}>{body}</p>
           <nav aria-label="Open platforms" className="mt-8 flex flex-wrap gap-3">
@@ -59,7 +58,7 @@ function NoService({ title, body }: { readonly title: string; readonly body: str
           </nav>
         </div>
         <div className="min-w-0">
-          <EndOfLine platform="AP" />
+          <NoServiceScene code="AP" />
         </div>
       </div>
     </div>
@@ -330,7 +329,7 @@ function Gate({ id }: { readonly id: string }) {
       <div className={PAPER}>
         <div className={cx(CONTAINER, "grid gap-10 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start")}>
           <div className="min-w-0">
-            <PlatformNumber code="AP">Approval gate</PlatformNumber>
+            <Eyebrow>Approval gate</Eyebrow>
             <h1 ref={headingRef} tabIndex={-1} className="mt-5 scroll-mt-24 text-balance font-display text-[clamp(2rem,4.4vw,3.2rem)] font-bold leading-[1.05] tracking-[-0.035em] focus:outline-none">
               {heading}
             </h1>
@@ -356,7 +355,7 @@ function Gate({ id }: { readonly id: string }) {
       <section aria-labelledby="kl-gate-decide" className="py-12 sm:py-16">
         <div className={cx(CONTAINER, "grid gap-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]")}>
           <div className="min-w-0">
-            <PlatformNumber n={2}>Decide</PlatformNumber>
+            <Eyebrow>Decide</Eyebrow>
             <h2 id="kl-gate-decide" className="mt-4 font-display text-[1.75rem] font-bold leading-[1.1] tracking-[-0.025em] sm:text-[2.1rem]">
               {gate.open ? "Approve or reject with the named wallet" : "A decision is final"}
             </h2>

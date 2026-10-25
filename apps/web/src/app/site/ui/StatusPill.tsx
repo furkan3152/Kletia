@@ -1,3 +1,5 @@
+import "./ui.css";
+
 import React from "react";
 
 import { cx } from "./styles";
@@ -53,7 +55,7 @@ export function StatusPill({ tone, children, glyph, title, className }: StatusPi
     <span
       title={title}
       className={cx(
-        "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap border-2 border-current px-2 py-0.5 text-label uppercase leading-5",
+        "ku-pill",
         TONES[tone],
         className,
       )}

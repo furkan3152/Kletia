@@ -1,10 +1,10 @@
 import { ArrowRight } from "lucide-react";
 
 import { Link } from "../../routes/Link";
-import { PlatformNumber } from "../../site/art/Ornaments";
 import { ButtonLink } from "../../site/ui/Button";
 import { CONTAINER, cx, FOCUS_RING, TEXT_MUTED } from "../../site/ui/styles";
 import { HELP_SECTIONS, type HelpSection } from "./helpContent";
+import { Eyebrow } from "../../site/ui/Eyebrow";
 
 const LINK = cx("inline-flex min-h-11 items-center gap-1.5 font-semibold underline decoration-2 underline-offset-2 hover:text-accent-text", FOCUS_RING);
 
@@ -58,7 +58,7 @@ export default function HelpPage() {
     <>
       <header className="kla-grain border-b-[3px] border-[#121212] dark:border-[#4A4A52]">
         <div className={cx(CONTAINER, "py-14 sm:py-20")}>
-          <PlatformNumber code="HLP">Help</PlatformNumber>
+          <Eyebrow>Help</Eyebrow>
           <h1 className="mt-6 font-display text-[clamp(2.5rem,6vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]">Using Kletia</h1>
           <p className={cx("mt-6 max-w-3xl text-lg leading-relaxed", TEXT_MUTED)}>
             You write what you want to do with your money in one sentence. Kletia plans it across networks and shows you the plan; your own

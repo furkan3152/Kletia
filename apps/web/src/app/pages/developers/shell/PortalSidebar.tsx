@@ -4,7 +4,7 @@ import { PLATFORM_ORIGIN } from "../../../../shared/platform/kletiaClient";
 import { Link } from "../../../routes/Link";
 import { Icon } from "../../../site/art/Icon";
 import { API_DOC_URL, GITHUB_URL } from "../../../site/siteLinks";
-import { cx, FOCUS_RING, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
+import { cx, FOCUS_RING, TEXT_MUTED } from "../../../site/ui/styles";
 import { portalKeyKind, useSessionKey } from "../keys/sessionKey";
 import { PORTAL_GROUPS, PORTAL_PAGES, type PortalGroup, type PortalPageDef, type PortalPageId } from "./portalRoutes";
 
@@ -46,7 +46,7 @@ export function PortalSidebar({ current, variant = "column", className }: Portal
         const labelId = `portal-group-${variant}-${group.id}`;
         return (
           <div key={group.id} className="flex min-w-0 flex-col gap-1.5" data-portal-group={group.id}>
-            <p id={labelId} className={cx(LABEL, "px-4", TEXT_MUTED)}>
+            <p id={labelId} className="kp-group">
               {group.label}
             </p>
             <ul aria-labelledby={labelId} className="flex flex-col gap-1">
@@ -59,15 +59,7 @@ export function PortalSidebar({ current, variant = "column", className }: Portal
                       aria-current={active ? "page" : undefined}
                       onMouseEnter={() => warm(page)}
                       onFocus={() => warm(page)}
-                      className={cx(
-                        "-ml-[3px] flex items-center justify-between gap-2 border-l-[3px] px-4 text-[15px] font-bold transition-colors",
-                        item,
-                        active
-                          ? "border-[#2F5BFF] bg-surface text-accent-text dark:border-[#C6FF3A] dark:text-[#C6FF3A]"
-                          : "border-transparent text-fg hover:border-control hover:bg-surface",
-                        FOCUS_RING,
-                        "focus-visible:-outline-offset-2",
-                      )}
+                      className={cx("kp-link", item, FOCUS_RING, "focus-visible:-outline-offset-2")}
                     >
                       <span className="min-w-0 truncate">{page.label}</span>
                       {page.needsKey && !keyed ? (
@@ -81,7 +73,7 @@ export function PortalSidebar({ current, variant = "column", className }: Portal
           </div>
         );
       })}
-      <ul className="mx-4 flex flex-col gap-1 border-t-2 border-dashed border-[#121212]/25 pt-4 dark:border-white/15">
+      <ul className="kp-foot-links">
         {FOOTER_LINKS.map((link) => (
           <li key={link.label}>
             {link.external ? (
@@ -125,11 +117,7 @@ export function PortalRail({ current, onOpenGroup }: { readonly current: PortalP
             title={group.label}
             aria-label={`${group.label}: open the portal sections`}
             aria-current={active ? "true" : undefined}
-            className={cx(
-              "relative flex h-11 w-11 items-center justify-center border-[3px] transition-colors",
-              active ? "border-control bg-[#C6FF3A] text-[#121212]" : "border-transparent text-fg hover:border-control",
-              FOCUS_RING,
-            )}
+            className={cx("kp-railkey", FOCUS_RING)}
           >
             <Icon name={group.icon} size={24} plate={!active} />
           </button>

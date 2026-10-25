@@ -1,0 +1,176 @@
+/*
+ * Automate in the Card machine language: automations as printed rule cards
+ * (a band with the status and serial, a schedule dial, the rule, next and last run, keys), the
+ * inbox as a log with lamps, templates as option keys. Loaded with the Automations chunk.
+ */
+.kau {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 28px;
+  padding-bottom: 32px;
+}
+.kau-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.kau-small {
+  margin: 0;
+  font-size: 12.5px;
+}
+.kau-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kau-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: 14px;
+  overflow: hidden;
+  border: 2px solid var(--k-slab-line);
+  border-radius: 14px;
+  background: var(--k-stock);
+  box-shadow: 4px 4px 0 var(--k-slab-shadow);
+  color: var(--k-ink);
+}
+.kau-card[data-blank] {
+  border-style: dashed;
+  border-color: var(--k-line-2);
+  background: var(--k-raised);
+  box-shadow: none;
+}
+.kau-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 26px;
+  padding: 0 12px;
+  border-bottom: 2px solid #121212;
+  background: var(--k-lime);
+  color: #121212;
+  font: 700 12px var(--k-f-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.kau-card[data-status="paused"] .kau-band,
+.kau-card[data-status="ended"] .kau-band,
+.kau-card[data-blank] .kau-band {
+  border-bottom-color: var(--k-line-2);
+  background: var(--k-panel-2);
+  color: var(--k-ink-3);
+}
+.kau-card[data-status="failed"] .kau-band,
+.kau-card[data-status="error"] .kau-band {
+  background: var(--k-magenta, #ff3d9a);
+}
+.kau-serial {
+  font: 800 12px var(--k-f-led);
+  letter-spacing: 0.04em;
+}
+.kau-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 4px 14px 0;
+}
+.kau-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.kau-text b {
+  font: 650 16px/1.25 var(--k-f-display);
+  overflow-wrap: anywhere;
+}
+.kau-text p {
+  margin: 0;
+  font: 400 13.5px/1.45 var(--k-f-ui);
+  color: var(--k-ink-2);
+  overflow-wrap: anywhere;
+}
+.kau-meta {
+  margin: 0 14px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--k-line-2);
+  font: 500 12px/1.5 var(--k-f-mono);
+  color: var(--k-ink-3);
+}
+.kau-act {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 14px;
+}
+.kau-inbox {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kau-inbox li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--k-line);
+}
+.kau-lamp {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--k-blue, #2f5bff);
+  animation: kau-blink 1.2s steps(1) infinite;
+}
+@keyframes kau-blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+.kau-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.kau-templates legend {
+  margin-bottom: 8px;
+}
+.kau-templates .k-opt {
+  min-height: 44px;
+}
+.kau-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.kau-submit {
+  grid-column: 1 / -1;
+}
+@media (max-width: 520px) {
+  .kau-inbox li {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+  .kau-inbox li > :last-child {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kau-lamp {
+    animation: none;
+  }
+}

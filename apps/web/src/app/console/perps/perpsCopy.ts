@@ -61,6 +61,32 @@ const COPY = {
     choiceCost: (venue: string, cost: string) => `${venue}: ${cost} in fees, a day of funding and price impact`,
     sizeAt: (size: string, leverage: string) => `${size} at ${leverage}x`,
     notEligible: (venue: string, reason: string) => `${venue}: ${reason}`,
+    /** The one computed risk sentence under the quote. */
+    riskSentence: (symbol: string, side: string, percent: string, price: string, collateral: string) =>
+      `If ${symbol} ${side === "short" ? "rises" : "falls"} ${percent}% to ${price}, this position closes and you lose the ${collateral} USDC.`,
+    riskNoLiquidation: (collateral: string) => `No liquidation by price alone here. Fees and funding still cost you, up to the ${collateral} USDC.`,
+    venueBestDetail: "lowest total cost",
+    venueBestNow: (venue: string) => `now ${venue}`,
+    venueMax: (leverage: string) => `up to ${leverage}x`,
+    venueReadOnly: "read-only",
+    moreNumbers: "Every number of this quote",
+    sizeHint: (size: string) => `Position size ${size}`,
+  },
+  tape: {
+    label: (symbol: string, venue: string) => `${symbol} mark price on ${venue}, as read by this browser`,
+    caption: (seconds: string, since: string) => `Mark price read every ${seconds} s since ${since} by this browser. Kletia keeps no candle history, so the line starts when Trade opened.`,
+    waiting: "The line starts with the next read of the mark price.",
+    empty: "No mark price for this market yet.",
+    mark: (price: string) => `Mark ${price}`,
+    entry: (price: string) => `Entry ${price}`,
+    liquidation: (price: string) => `Liq ${price}`,
+    venueLine: (venue: string, funding: string, openInterest: string) => `${venue} · long funding ${funding} /h · open interest ${openInterest}`,
+    pickLabel: "Market",
+  },
+  lists: {
+    label: "Positions and markets",
+    positions: (count: string) => `Positions ${count}`,
+    markets: "Markets",
   },
   steps: {
     heading: "Sign in your wallet",

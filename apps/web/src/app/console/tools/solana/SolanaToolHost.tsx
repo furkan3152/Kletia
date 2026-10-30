@@ -4,7 +4,7 @@
  * refreshes when a confirmed transaction invalidates it), without its tab
  * strip or chrome. The forms keep their own execution: useSolanaExecution's
  * pre-sign checks (v0 message, fee payer, sole signer, size, cluster) run
- * before the wallet is asked, exactly as before.
+ * before the wallet is asked.
  */
 import type { ReactNode } from "react";
 import { formatAccountId, sameAccount } from "@kletia/core";

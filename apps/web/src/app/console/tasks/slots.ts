@@ -1,8 +1,8 @@
 /**
  * Slots the journey ledger and the clarify engine fill inside each desk
- * task. The desk owns placement, data and lifecycle; the other packages
- * own what renders, and register one component per slot. The defaults
- * render nothing, so the desk ships on its own.
+ * task. The desk owns placement, data and lifecycle; the slot components
+ * own what renders (`registerSlots.ts` registers one per slot). The
+ * defaults render nothing, so the desk works without them.
  *
  * Placement: Journey `review` between the ticket and the review, `live`
  * between the ticket and the gate and progress, `after` with the outcome.
@@ -79,7 +79,7 @@ export interface DeskSlots {
   readonly Question: ComponentType<QuestionSlotProps>;
 }
 
-/** Renders nothing: the desk ships before the journey ledger and clarify engine do. */
+/** Renders nothing until a journey component is registered. */
 function EmptyJourney(): null {
   return null;
 }
@@ -111,7 +111,7 @@ export function getDeskSlots(): DeskSlots {
   return slots;
 }
 
-/** For `useSyncExternalStore`: re-render when a package registers its slot after the desk mounted. */
+/** For `useSyncExternalStore`: re-render when a slot is registered after the desk mounted. */
 export function subscribeDeskSlots(listener: () => void): () => void {
   listeners.add(listener);
   return () => {

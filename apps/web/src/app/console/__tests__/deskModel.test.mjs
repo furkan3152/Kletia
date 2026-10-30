@@ -1,5 +1,5 @@
-// The desk's pure model, with the six tests of its first prototype, plus the board, accounts, departure line and
-// composer rules. Run with
+// The desk's pure model: departure options, routing, the board, accounts, the departure line and the composer
+// rules. Run with
 //   node --test apps/web/src/app/console/__tests__/*.test.mjs
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -29,7 +29,7 @@ import { parsePortfolio } from "../state/holdings.ts";
 const EVM = "0x4f183e308f24c81c05303821AD025812fBFd807D";
 const SOL = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 
-// --- The prototype's six tests (unchanged assertions) ----------------------
+// --- Departure, accounts and routing --------------------------------------
 
 test("the departure picker offers Auto plus all nine registry networks", () => {
   const options = departureOptions();

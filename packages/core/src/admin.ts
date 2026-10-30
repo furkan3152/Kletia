@@ -686,8 +686,8 @@ export interface AdminConfirmation { readonly message: string; readonly signatur
 /**
  * Step-up actions: every state-changing admin route except logout needs a
  * fresh confirmation signed by the session's wallet (single-use nonce, 5 min).
- * `network-profile.update` and `deployment.status` hash their own payloads
- * (unchanged); every other action hashes `adminRoutePayload`.
+ * `network-profile.update` and `deployment.status` hash their own payloads;
+ * every other action hashes `adminRoutePayload`.
  */
 export const ADMIN_CONFIRM_ACTIONS = [
   "network-profile.update", "deployment.status",

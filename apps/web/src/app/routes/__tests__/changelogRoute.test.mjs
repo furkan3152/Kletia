@@ -1,5 +1,5 @@
-// /changelog (owner request): a site route written by write-route-pages, listed in the sitemap and linked from the
-// footer, rendering CHANGELOG.md newest first with an anchor per release; and there is no pricing page. Run with
+// /changelog: a site route written by write-route-pages, listed in the sitemap and linked from the footer,
+// rendering CHANGELOG.md newest first with an anchor per release; and there is no pricing page. Run with
 //   node --test apps/web/src/app/routes/__tests__/changelogRoute.test.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

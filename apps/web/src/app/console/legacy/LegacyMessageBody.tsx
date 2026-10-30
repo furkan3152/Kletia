@@ -7,7 +7,7 @@
  * Execute button, and the terminal log.
  *
  * Every disabled check compares the message with the engine's network and
- * the wallet's chain exactly as before. `inlinePortfolio` prints a verified
+ * the wallet's chain. `inlinePortfolio` prints a verified
  * portfolio scan in the message (the desk has no portfolio drawer).
  */
 import "./legacyConsole.css";

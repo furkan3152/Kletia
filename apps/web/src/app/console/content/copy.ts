@@ -11,7 +11,7 @@ import { countWord, NETWORK_COUNT } from "../../site/networkCount.ts";
 
 const COPY = {
   page: {
-    /** Unchanged, so every "Open the console" link still fits. */
+    /** Matches every "Open the console" link. */
     title: "Kletia Console",
     description: "Plan and sign intents on all nine Kletia networks from one sentence, with your own wallets.",
   },

@@ -60,7 +60,11 @@ works and its USD value reads as unknown).
 
 ## Not added, and why
 
-| Requested | Decision |
+Uniswap V3 and Aave V3 already run on all five networks, and PancakeSwap V3
+on Base, Arbitrum and Ethereum (PancakeSwap has no V3 deployment on OP
+Mainnet or Polygon PoS).
+
+| Venue | Reason |
 |---|---|
 | Uniswap V4 | Skipped: Universal Router command encoding (V4_SWAP actions, settle / take) is not verified here. |
 | Curve on OP Mainnet, Polygon PoS, Base | No Curve pool between registry assets holds real liquidity there (Curve API, 2026-10-23); none pinned. |

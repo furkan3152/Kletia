@@ -319,7 +319,7 @@
   .hm .base-word { font-size: 31vw; }
 }
 
-/* ---------- skip link, live lamps, large keys ---------- */
+/* ---------- anchors, story pin, segmented keys, bay ---------- */
 .hm section[id], .hm .anchor { scroll-margin-top: 84px; }
 .hm .anchor { display: block; position: relative; top: -150px; }
 

@@ -1,4 +1,4 @@
-/** The registered slot components (journey ledger, questions); re-renders when a package registers late. */
+/** The registered slot components (journey ledger, questions); re-renders when one registers late. */
 import { useSyncExternalStore } from "react";
 
 import { getDeskSlots, subscribeDeskSlots, type DeskSlots } from "../tasks/slots";

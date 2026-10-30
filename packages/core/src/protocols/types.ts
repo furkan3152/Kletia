@@ -239,7 +239,6 @@ export type VenueContractRole =
   | "liquidity-leg"
   /** Native staking: default vote accounts (the user may name another active one). */
   | "vote-account"
-  // ---- round 9
   /** EVM restaking: the oracle that prices the token (Kelp LRTOracle, Renzo `renzoOracle()`). */
   | "rate-oracle";
 

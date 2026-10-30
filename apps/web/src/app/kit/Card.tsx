@@ -16,7 +16,8 @@
  *       latch={sealed ? "SEALED" : null} stamp={settled ? "Settled" : null} />
  *   </CardTray>
  *
- * Package 2 owns the choreography (print, plot, latch, stamp, file); this file is the shell.
+ * The desk's PlanCard (console/tasks) owns the choreography (print, plot, latch, stamp, file);
+ * this file is the shell.
  */
 import "./kit.css";
 

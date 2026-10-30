@@ -11,7 +11,7 @@ import { knownSymbol } from "../catalog.js";
 import { ADDR, REFUSAL_EXAMPLES } from "./shapes.js";
 import { parseAmountText } from "./clauses.js";
 
-/* ------------------------------------------------ questions (A.2, A14) */
+/* ----------------------------------------------------------- questions */
 
 /** "what's the best yield for my usdc", "best yield for 200 usdc on arbitrum": a yield question about one holding. */
 const YIELD_QUESTION = /^(?:(?:what(?:'s|s| is)|which is|where(?:'s| is))\s+)?(?:the\s+)?(?:best|highest|top)\s+(?:yield|apy|rate|interest(?:\s+rate)?)\s+(?:for|on)\s+(?<object>(?:my\s+)?(?:\$?\d[\d,]*(?:\.\d+)?\s+)?[a-z][a-z0-9.]{1,15}(?:\s+(?:on|in)\s+[a-z][a-z -]{1,24})?)$/iu;

@@ -2,7 +2,7 @@
  * The desk's pure model: departure options, accounts per lane, submission
  * routing, where a plan starts and ends, and the composer's checks.
  * Registry-driven: nothing here is hard-coded per network. Pure, so node
- * --test loads it (ported from the prototype `deskModel.mjs`).
+ * --test loads it.
  */
 import {
   assistantRouteOf,

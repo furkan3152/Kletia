@@ -175,7 +175,7 @@ export interface EvmActionOutput {
    * rebasing tokens): simulation and landing accept a Transfer-log amount
    * that differs from the balance delta (or the declared event) by at most
    * `REBASING_TOLERANCE_UNITS` base units either way and count the smaller
-   * amount. Part of `definitionHash`. Absent (or false): exact equality, as before.
+   * amount. Part of `definitionHash`. Absent (or false): exact equality.
    */
   readonly rebasing?: boolean;
 }

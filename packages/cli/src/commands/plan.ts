@@ -150,7 +150,7 @@ export const plan: Command = {
     const contextFields = { accounts, ...(Object.keys(constraints).length > 0 ? { constraints } : {}) };
 
     if (strict) {
-      // Today's behaviour: one strict request, no questions.
+      // --no-clarify: one strict request, no questions.
       const request = { text: text as string, ...contextFields };
       const options = { ...(save ? {} : { dryRun: true }), ...signalOption(context) };
       let intent: IntentGraph;

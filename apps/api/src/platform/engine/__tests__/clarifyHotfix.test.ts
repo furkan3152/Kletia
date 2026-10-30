@@ -200,7 +200,7 @@ describe("a dependent step on another network than the previous output", () => {
   });
 });
 
-/* ------------------------------------------------ symbols (A10, D9) */
+/* ----------------------------------------------------- symbols (D9) */
 
 describe("a symbol is never corrected on a chip", () => {
   it("stETH on Ethereum asks ASSET_LOOKALIKE about wstETH with no suggestion", () => {

@@ -436,7 +436,7 @@ describe("binding after a payment and with several outputs", () => {
   });
 });
 
-/* -------------------------------------------- questions (A1, A14) */
+/* ------------------------------------------------------ questions */
 
 describe("questions and commands", () => {
   for (const text of ["swap 0.01 eth to usdc on base?", "can you swap 1 sol to usdc?", "could you bridge 20 usdc from base to arbitrum?", "send 5 usdc to vitalik.eth on base??"]) {

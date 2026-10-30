@@ -12,7 +12,7 @@ The console is one desk, not a set of per-network workspaces:
 - Tools (`/app/tools`, `/app/tools/<id>`): every network's extras in one card language, each its own lazy chunk: x402 services, Basenames, address risk check, the Solana forms (Jupiter swap, send, liquid staking, lending rates) with the same pre-sign checks, Kletia's Arc contracts and lending, Allora predictions, the airdrop check, funding links and starter sentences pinned to an engine. A tool never sends anything: its sentences fill the composer with the right engine pinned.
 - Studio hand-off: Studio plans with preview accounts and never loads wallet code; "Run in the console" opens `/app?q=<sentence>&from=<departure>`, where the desk plans again with the user's own accounts.
 
-## Layout
+## Source layout
 
 - `src/main.tsx`, `src/app/router.tsx`, `src/app/routes/`: Entry (installs the privacy egress guard first; no production flow registers a value with it yet, so it blocks nothing today), history router and route table; every page is a lazy chunk and only wallet routes load wallet SDKs.
 - `src/app/pages/`: Home, Developers, Protocols (venue directory, live from `/v1/protocols`), Networks, Studio, Embed, receipts, intent links, approvals and 404.
@@ -62,7 +62,7 @@ npm run dev:web        # from the root, or `npm run dev` here
 
 ## Scripts
 
-| Command | Description |
+| Command | What it does |
 |---------|-------------|
 | `npm run dev` | Start the Vite development server. |
 | `npm run build` | Compile TypeScript, build the production bundle, enforce the entry bundle budget and run the route-chunk check (`scripts/check-route-chunks.mjs`: no site route reaches wallet code except through the `/go`, `/approve` and `/embed` signing panels; the desk loads its engines and tools lazily). |
@@ -74,6 +74,10 @@ npm run dev:web        # from the root, or `npm run dev` here
 ## Environment
 
 [`.env.example`](.env.example) lists every value.
+
+- `VITE_*` variables end up in the browser bundle, so they are public. Never put private keys or API secrets in them.
+- `VITE_ARBITRUM_MVP_ENABLED`: `true` (and matched by API attestation) enables the Arbitrum routes.
+- `VITE_BACKEND_URL`: the Kletia API origin serving `/api` and `/v1`.
 
 ## Deployment
 

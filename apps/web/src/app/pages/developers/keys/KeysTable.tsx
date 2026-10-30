@@ -28,7 +28,7 @@ interface Row {
  * The keys of the project: name (indented under its parent, "In this
  * tab" for the key in memory), kind and depth, status, masked secret,
  * created, last used and lane, with Rotate, Revoke and the key's rule
- * book. Rotate and Revoke confirm inline under the table, as before;
+ * book. Rotate and Revoke confirm inline under the table;
  * the API decides what the loaded key may manage.
  */
 export function KeysTable({ keys, now, onChanged }: { readonly keys: readonly ApiKeySummary[]; readonly now: number; readonly onChanged: () => void }) {

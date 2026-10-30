@@ -95,7 +95,7 @@ export interface ClarifyView {
   readonly announcement: string;
 }
 
-/** Questions shown in one card (clarify R12). */
+/** Questions shown in one card. */
 export const CLARIFY_CARD_MAX_QUESTIONS = 2;
 /** Assumption chips per plan (corpus invariant). */
 export const ASSUMPTION_CHIPS_MAX = 3;

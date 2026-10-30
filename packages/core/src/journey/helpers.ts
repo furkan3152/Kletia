@@ -55,9 +55,9 @@ export const KIND_RANK = new Map<ConsequenceKind, number>(CONSEQUENCE_KINDS.map(
 export const PAYLOAD_TTL_SECONDS = 90;
 /** Unresolved settlement goes to manual review after this long (engine poller). */
 export const MANUAL_REVIEW_SECONDS = 3 * 60 * 60;
-/** Overhead of a Relay gas top-up on top of the delivered amount (live A8). */
+/** Overhead of a Relay gas top-up on top of the delivered amount (measured on a live top-up). */
 export const TOPUP_OVERHEAD_USD = 0.02;
-/** Relayer fee of the $1 gas leg into SOL (live A10). */
+/** Relayer fee of the $1 gas leg into SOL (measured on a live leg). */
 export const GAS_LEG_COST_USD = 0.03;
 const ONE_E18 = 10n ** 18n;
 export const EXPLORER_REFERENCE = /^(0x[0-9a-fA-F]{64}|[1-9A-HJ-NP-Za-km-z]{64,88})$/u;

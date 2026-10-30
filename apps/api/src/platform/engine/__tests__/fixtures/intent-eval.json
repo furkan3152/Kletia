@@ -3559,7 +3559,7 @@
     "P:^swap@base 60\\.2 USDC->ETH"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3571,7 +3571,7 @@
     "P:^bridge@arbitrum->base 0\\.0095 ETH"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3583,7 +3583,7 @@
     "C:^transfer@solana 0\\.625 SOL to 9WzD"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3595,7 +3595,7 @@
     "A:amount:AMOUNT_MISSING"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "Clarify corpus B02: a swap of \"my SOL\" with no number asks how much (only stake, deposit and withdraw read a possessive as all of it)."
   },
@@ -3608,7 +3608,7 @@
     "P:^withdraw@base max USDC \\[aave-v3"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3620,7 +3620,7 @@
     "A:from:INPUT_ASSET_MISSING"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "No position at the venue: the token is asked, never guessed."
   },
@@ -3633,7 +3633,7 @@
     "P:^deposit@base 120\\.4 USDC \\[aave-v3"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3645,7 +3645,7 @@
     "A:amount:AMOUNT_MISSING"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "USDC on two networks: a possessive never picks the scope by itself."
   },
@@ -3658,7 +3658,7 @@
     "P:^stake@solana 2\\.4\\d* SOL->JitoSOL"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3670,7 +3670,7 @@
     "P:^transfer@base 50 USDC to 0x1111111111111111111111111111111111111111$"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3682,7 +3682,7 @@
     "P:^transfer@base 20 USDC to vitalik\\.eth$"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3694,7 +3694,7 @@
     "A:recipient"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "A label is a note, never the recipient."
   },
@@ -3708,7 +3708,7 @@
     "P:^swap@base 1 ETH->USDC"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "A label that names a network is not a label: never dropped."
   },
@@ -3721,7 +3721,7 @@
     "P:^bridge@base->arbitrum 20 USDC"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3733,7 +3733,7 @@
     "P:^bridge@\\w+->solana 5 USDC"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3745,7 +3745,7 @@
     "A:(to|from|amount)"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3757,7 +3757,7 @@
     "P:^swap@solana 0\\.75 SOL->USDC$"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3770,7 +3770,7 @@
     "A:."
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "An earn never drops the wanted token."
   },
@@ -3784,7 +3784,7 @@
     "A:amount"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3796,7 +3796,7 @@
     "H:^perps:open long ETH 100 USDC 5x$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3808,7 +3808,7 @@
     "R:PERPS_VENUE_DISABLED"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3820,7 +3820,7 @@
     "H:^perps:open short BTC \\$500 50 USDC 10x @hyperliquid$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3832,7 +3832,7 @@
     "H:^perps:close long ETH$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3844,7 +3844,7 @@
     "H:^perps:decrease short SOL \\$100$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3856,7 +3856,7 @@
     "H:^perps:open long ETH 100 USDC 5x$"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "noisy"
    ]
   },
@@ -3869,7 +3869,7 @@
     "H:^perps:open long BTC 200 USDC 3x @gmx-v2$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3881,7 +3881,7 @@
     "A:^handoff\\.collateral:AMOUNT_MISSING$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3893,7 +3893,7 @@
     "A:^handoff\\.leverage:LEVERAGE_MISSING$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3905,7 +3905,7 @@
     "A:^handoff\\.side:SIDE_MISSING$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3917,7 +3917,7 @@
     "R:PERPS_LEVERAGE_TOO_HIGH"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3929,7 +3929,7 @@
     "R:PERPS_MARKET_UNSUPPORTED"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -3942,7 +3942,7 @@
     "A:^handoff\\.collateral:AMOUNT_MISSING$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ],
    "then": [
     {
@@ -3965,7 +3965,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "lookalike"
    ]
   },
@@ -3978,7 +3978,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "adversarial"
    ]
   },
@@ -3991,7 +3991,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "adversarial"
    ]
   },
@@ -4004,7 +4004,7 @@
     "R:PERPS_MARKET_UNSUPPORTED"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4016,7 +4016,7 @@
     "R"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4028,7 +4028,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "adversarial"
    ]
   },
@@ -4041,7 +4041,7 @@
     "H:^perps:open short SOL 25 USDC 4x @hyperliquid$"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "noisy"
    ]
   },
@@ -4054,7 +4054,7 @@
     "H:^order:limit sell 1 WETH for USDC at 4000 on base \\[cow-protocol\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4066,7 +4066,7 @@
     "H:^order:dca sell 500 USDC for SOL every day x10 on solana \\[jupiter-recurring\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4078,7 +4078,7 @@
     "H:^order:limit buy 1000 JUP with USDC at 0\\.8 on solana \\[jupiter-trigger\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4090,7 +4090,7 @@
     "H:^order:dca sell 500 USDC for SOL every day x5 on solana \\[jupiter-recurring\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4102,7 +4102,7 @@
     "H:^order:cancel jupiter-trigger:solana:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4114,7 +4114,7 @@
     "R"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4126,7 +4126,7 @@
     "H:^order:dca sell 1000 USDC for SOL every week x4 on solana \\[jupiter-recurring\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4138,7 +4138,7 @@
     "H:^order:dca sell 500 USDC for ETH every day x10 on base \\[cow-protocol\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4150,7 +4150,7 @@
     "A:^handoff\\.network:NETWORK_AMBIGUOUS$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4162,7 +4162,7 @@
     "H:^order:limit sell 2 SOL for USDC at 200 on solana \\[jupiter-trigger\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4174,7 +4174,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "lookalike"
    ]
   },
@@ -4187,7 +4187,7 @@
     "H:^order:limit sell 1 SOL for USDC at 150 on solana \\[jupiter-trigger\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4199,7 +4199,7 @@
     "H:^order:limit buy 1000 JUP with USDC at 0\\.8 on solana \\[jupiter-trigger\\]$"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "noisy"
    ]
   },
@@ -4212,7 +4212,7 @@
     "R:ORDER_UNSUPPORTED"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4224,7 +4224,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "adversarial"
    ]
   },
@@ -4237,7 +4237,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "adversarial"
    ]
   },
@@ -4251,7 +4251,7 @@
     "A:^handoff\\.network:NETWORK_AMBIGUOUS$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ],
    "then": [
     {
@@ -4271,7 +4271,7 @@
     "H:^automation:every 1 week mon max - => swap 50 USDC to ETH on base$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4283,7 +4283,7 @@
     "H:^automation:price SOL@solana below 120 => sell half of my SOL for USDC on solana$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4295,7 +4295,7 @@
     "H:^automation:every 1 month \\w+ max - => send 100 USDC to vitalik\\.eth on base$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4307,7 +4307,7 @@
     "A:^handoff\\.action:TRANSFER_NETWORK$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4319,7 +4319,7 @@
     "A:^handoff\\.amount:AMOUNT_MISSING$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4332,7 +4332,7 @@
     "A:^handoff\\.amount:AMOUNT_MISSING$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ],
    "then": [
     {
@@ -4350,7 +4350,7 @@
     "A:^handoff\\.confirm:INTERPRETATION_CONFIRM$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4363,7 +4363,7 @@
     "A:^handoff\\.confirm:INTERPRETATION_CONFIRM$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ],
    "then": [
     {
@@ -4380,7 +4380,7 @@
     "H:^automation:every 1 day \\w+ max - => swap 10 USDC to SOL on solana$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4392,7 +4392,7 @@
     "H:^order:limit sell 2 SOL for USDC at 200 on solana \\[jupiter-trigger\\]$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4404,7 +4404,7 @@
     "H:^automation:price SOL@solana above 200 => swap 1 SOL to USDC on solana$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4416,7 +4416,7 @@
     "A:^handoff\\.network:NETWORK_AMBIGUOUS$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4428,7 +4428,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "adversarial"
    ]
   },
@@ -4441,7 +4441,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "adversarial"
    ]
   },
@@ -4454,7 +4454,7 @@
     "H:^automation:every 1 week mon max - => swap 50 USDC to ETH on base$"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "noisy"
    ]
   },
@@ -4467,7 +4467,7 @@
     "H:^automation:balance USDC@base above 100 => deposit 50 USDC into aave on base$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4479,7 +4479,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "handoff",
     "lookalike"
    ]
   },
@@ -4492,7 +4492,7 @@
     "H:^automation:every 1 week mon max - => swap 50 USDC to ETH on base$"
    ],
    "tags": [
-    "round9"
+    "handoff"
    ]
   },
   {
@@ -4504,7 +4504,7 @@
     "P:^deposit@ethereum 100 USDS \\[sky\\]$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4516,7 +4516,7 @@
     "P:^deposit@ethereum 100 DAI \\[sky:sdai\\]$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4528,7 +4528,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "venues",
     "lookalike"
    ]
   },
@@ -4541,7 +4541,7 @@
     "P:^deposit@ethereum 100 USDe \\[ethena\\]$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4553,7 +4553,7 @@
     "R:INTENT_UNSUPPORTED"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4565,7 +4565,7 @@
     "P:^deposit@solana 10 USDC \\[save\\]$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4577,7 +4577,7 @@
     "P:^withdraw@solana 10 USDC \\[save\\]$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4589,7 +4589,7 @@
     "P:^deposit@solana 10 USDC \\[kamino:jlp-usdc\\]$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4601,7 +4601,7 @@
     "P:^deposit@solana 10 USDC \\[kamino\\]$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4613,7 +4613,7 @@
     "P:^stake@solana 1 SOL->bSOL \\{blazestake\\}$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4625,7 +4625,7 @@
     "P:^stake@solana 1 SOL->hSOL \\{sanctum-hsol\\}$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4637,7 +4637,7 @@
     "P:^stake@solana 2 SOL->bonkSOL \\{sanctum-bonksol\\}$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4649,7 +4649,7 @@
     "P:^swap@solana 1 SOL->USDC \\[jupiter\\] \\{dexes:phoenix\\}$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4661,7 +4661,7 @@
     "P:^swap@solana 1 SOL->USDC \\[jupiter\\] \\{avoid:raydium,orca\\}$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4673,7 +4673,7 @@
     "R"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4685,7 +4685,7 @@
     "P:^transfer@solana 5 USDC to 5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1 \\[solana-pay\\]$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4697,7 +4697,7 @@
     "R"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4709,7 +4709,7 @@
     "A:^actions\\[0\\]\\.amount:AMOUNT_MISSING$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ]
   },
   {
@@ -4722,7 +4722,7 @@
     "A:^actions\\[0\\]\\.amount:AMOUNT_MISSING$"
    ],
    "tags": [
-    "round9"
+    "venues"
    ],
    "then": [
     {
@@ -4742,7 +4742,7 @@
     "P:^stake@solana 1 SOL->bSOL \\{blazestake\\}$"
    ],
    "tags": [
-    "round9",
+    "venues",
     "noisy"
    ]
   },
@@ -4755,7 +4755,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "venues",
     "adversarial"
    ]
   },
@@ -4768,7 +4768,7 @@
     "R"
    ],
    "tags": [
-    "round9",
+    "venues",
     "adversarial"
    ]
   },
@@ -5094,7 +5094,7 @@
     "H:^predictions:buy Yes \\$20 #666861$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5106,7 +5106,7 @@
     "H:^predictions:buy No \\$50 #666861$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5118,7 +5118,7 @@
     "H:^predictions:buy No \\$10 #666861$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5130,7 +5130,7 @@
     "H:^predictions:buy Yes \\$25 #\\d+$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5142,7 +5142,7 @@
     "A:^handoff\\.marketId:MARKET_AMBIGUOUS$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5154,7 +5154,7 @@
     "A:^handoff\\.outcome:OUTCOME_MISSING$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5166,7 +5166,7 @@
     "A:^handoff\\.amountUsd:AMOUNT_MISSING$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5178,7 +5178,7 @@
     "H:^predictions:search \"trump out as president\"$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5190,7 +5190,7 @@
     "H:^predictions:search \"a US recession in 2026\"$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5202,7 +5202,7 @@
     "H:^predictions:search \"fed cutting rates in december\"$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5214,7 +5214,7 @@
     "H:^predictions:sell \"trump\"$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5226,7 +5226,7 @@
     "H:^predictions:sell No \"trump out as president before 2027\"$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5238,7 +5238,7 @@
     "H:^predictions:sell 50 Yes \"trump out as president before 2027\"$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5251,7 +5251,7 @@
     "A:^handoff\\.marketId:MARKET_AMBIGUOUS$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ],
    "then": [
     {
@@ -5271,7 +5271,7 @@
     "R:PREDICTION_STAKE_TOO_HIGH"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5283,7 +5283,7 @@
     "R:INTENT_UNSUPPORTED"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5295,7 +5295,7 @@
     "R:INTENT_UNSUPPORTED"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5308,7 +5308,7 @@
     "R"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5321,7 +5321,7 @@
     "R"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5333,7 +5333,7 @@
     "R"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5345,7 +5345,7 @@
     "A:^handoff\\.marketId:MARKET_AMBIGUOUS$"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5357,7 +5357,7 @@
     "R:INTENT_UNSUPPORTED"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   },
   {
@@ -5369,7 +5369,7 @@
     "R"
    ],
    "tags": [
-    "round10"
+    "predictions"
    ]
   }
  ]

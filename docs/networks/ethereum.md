@@ -68,3 +68,6 @@ address from those tables and never take one from a provider at runtime.
 
 The 2026-10-15 registry update added PancakeSwap V3 and Curve 3pool swaps; Aave V3 USDT, wstETH and cbBTC reserves; the Compound V3 wstETH comet; Morpho Steakhouse USDC, USDT and ETH (v1.0 factory `0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101`); Stader ETHx, Mantle mETH and Frax sfrxETH staking; and USDT, DAI, USDS, cbETH, ETHx, mETH and sfrxETH asset rows (Ethereum USDT resets a non-zero allowance before approving). The cell-by-cell table, its offline and live gates and the on-chain evidence are in [protocol coverage](protocol-coverage.md).
 
+## Venues added on 2026-10-23
+
+The 2026-10-23 registry update added the Compound V3 USDT and USDS comets, four Morpho vaults (Spark Blue Chip USDT, Steakhouse Prime USDT, sky.money USDS Flagship, Gauntlet WETH Prime), Sky Savings (sUSDS and sDAI), Ethena sUSDe deposits, Kelp rsETH and Renzo ezETH restaking, and the USDe, rsETH and ezETH asset rows: see [EVM protocols](../platform/evm-protocols.md).

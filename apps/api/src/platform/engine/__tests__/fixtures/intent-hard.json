@@ -1958,7 +1958,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@polygon 3 POL to alice\\.eth(?: \\[[^\\]]+\\])?$"
    ],
    "why": "The receiving network of a payment to a plain .eth name or a raw 0x address is the person's to say; Kletia asks it (TRANSFER_NETWORK) unless it was said or the recipient implies it."
@@ -2578,7 +2578,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@base 0\\.1 ETH->USDC \\[kletia-router-v2\\]$",
     "P:^swap@base 0\\.1 ETH->USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
@@ -2707,7 +2707,7 @@
     ],
     "note": "All of the Base ETH (less the gas reserve) as SOL on Solana; a convert's possessive may ask the amount (clarify corpus B02)."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:bridge@base->solana (?:(?:0\\.99\\d*|1)) ETH->SOL(?: \\[[^\\]]+\\])?|swap@base (?:(?:0\\.99\\d*|1)) ETH->(?:USDC|USDT|USDT0|DAI|PYUSD)(?: \\[[^\\]]+\\])? \\| bridge@base->solana max (?:USDC|USDT|USDT0|DAI|PYUSD)(?: \\[[^\\]]+\\])? \\| swap@solana max (?:USDC|USDT|USDT0|DAI|PYUSD)->SOL(?: \\[[^\\]]+\\])?)$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -3420,7 +3420,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@solana->base 90 USDC(?: \\[[^\\]]+\\])? \\| deposit@base max USDC \\[aave-v3(?::[^\\]]+)?\\]$"
    ],
    "why": "\"my X\" with no amount means all of it only for a stake, deposit or withdraw of X on its own network; a conversion, crossing or exposure goal asks the amount."
@@ -3532,7 +3532,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:swap@optimism 60 USDT->USDC(?: \\[[^\\]]+\\])? \\| bridge@optimism->base max USDC(?: \\[[^\\]]+\\])?|bridge@optimism->base 60 USDT->USDC(?: \\[[^\\]]+\\])?)$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -4107,7 +4107,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:bridge@base->solana 25 USDC->SOL(?: \\[[^\\]]+\\])?|bridge@base->solana 25 USDC(?: \\[[^\\]]+\\])? \\| swap@solana max USDC->SOL(?: \\[[^\\]]+\\])?)$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -4344,7 +4344,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:bridge@(?:base|ethereum)->solana 0\\.1 ETH->SOL(?: \\[[^\\]]+\\])?|swap@(?:base|ethereum) 0\\.1 ETH->(?:USDC|USDT|USDT0|DAI|PYUSD)(?: \\[[^\\]]+\\])? \\| bridge@(?:base|ethereum)->solana max (?:USDC|USDT|USDT0|DAI|PYUSD)(?: \\[[^\\]]+\\])? \\| swap@solana max (?:USDC|USDT|USDT0|DAI|PYUSD)->SOL(?: \\[[^\\]]+\\])?)$",
     "A:actions\\[\\d+\\]\\.(?:network):"
    ],
@@ -4390,7 +4390,7 @@
     ],
     "note": "ETH is not listed on Solana; a faithful plan to the unlisted symbol goes to the planner's verified-token check (by design)."
    },
-   "u2Accept": [
+   "priorAccept": [
     "A:[\\w\\[\\].]+:",
     "R",
     "P:^swap@solana 20 USDC->(?:eth|ETH)(?: \\[[^\\]]+\\])?$"
@@ -4599,7 +4599,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])? \\| bridge@solana->(?:base|arbitrum|ethereum|optimism|polygon) max USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:network|toNetwork|recipient):"
    ],
@@ -4936,7 +4936,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 10 USDC to alice\\.eth(?: \\[[^\\]]+\\])? \\| transfer@base 10 USDC to bob\\.base\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -5418,7 +5418,7 @@
     ],
     "note": "'the rest' is the swap output less the 10 deposited, never the whole USDC balance."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])? \\| deposit@solana 10 USDC \\[kamino(?::[^\\]]+)?\\] \\| transfer@solana max USDC to carol\\.sns(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -6132,7 +6132,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^deposit@[\\w-]+ [\\d.]+ (?:USDC|USDT|USDT0|DAI|PYUSD) \\[[^\\]]+\\](?: \\| deposit@[\\w-]+ [\\d.]+ (?:USDC|USDT|USDT0|DAI|PYUSD) \\[[^\\]]+\\])*$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -6170,7 +6170,7 @@
     ],
     "note": "Polygon has USDC but no POL: a swap on Polygon cannot pay its own gas."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@(?:base|arbitrum|solana)->polygon [\\d.]+ (?:ETH|USDC|SOL)->POL$",
     "A:actions\\[\\d+\\]\\.(?:amount|from|network|to):"
    ],
@@ -6202,7 +6202,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:->POL",
     "A:[\\w\\[\\].]+:"
    ],
@@ -6234,7 +6234,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana (?:800|max) USDC(?:->(?:SOL|JitoSOL|mSOL|JupSOL))?(?: \\| (?:swap|stake)@solana max (?:USDC|SOL)(?:->(?:SOL|JitoSOL|mSOL|JupSOL))?(?: \\{[^}]+\\})?)*$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -6268,7 +6268,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:swap@[\\w-]+ [^|]+|bridge@[\\w-]+->base [^|]+)(?: \\| (?:swap@[\\w-]+ [^|]+|bridge@[\\w-]+->base [^|]+))*$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -6346,7 +6346,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@(?:base|arbitrum) 50 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:network):"
    ],
@@ -6383,7 +6383,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:swap@solana [\\d.]+ USDC->SOL|bridge@base->solana [\\d.]+ (?:USDC|ETH)->SOL)$",
     "A:actions\\[\\d+\\]\\.(?:amount|from|network):"
    ],
@@ -6417,7 +6417,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?=.*withdraw@base max USDC \\[aave-v3)(?=.*withdraw@base max USDC \\[morpho)(?=.*withdraw@arbitrum max USDC \\[compound-v3)(?=.*withdraw@solana max USDC \\[kamino)withdraw@[^|]+(?: \\| withdraw@[^|]+){3}$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -6570,7 +6570,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^deposit@arbitrum 200 USDC \\[[^\\]]+\\]$",
     "A:actions\\[\\d+\\]\\.(?:protocol|venue):"
    ],
@@ -6646,7 +6646,7 @@
     ],
     "note": "The destination (Arbitrum) is named: only the amount or the source is open."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:bridge@[\\w-]+->arbitrum [\\d.]+ \\w+(?:->ETH)?|swap@arbitrum [\\d.]+ USDC->ETH)$",
     "A:actions\\[\\d+\\]\\.(?:amount|from|network):"
    ],
@@ -6713,7 +6713,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana (?:5\\.9\\d*|6) SOL->USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -6747,7 +6747,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@base [\\d.]+ (?:ETH|WETH)->(?:USDC|USDT|DAI)(?: \\| swap@base [\\d.]+ (?:ETH|WETH)->(?:USDC|USDT|DAI))*$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -6819,7 +6819,7 @@
     ],
     "note": "Arbitrum holds 250: bridging 50 (or the full 300) from Base meets the target."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@(?:base|solana)->arbitrum (?:(?:50|300)) USDC(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount|network):"
    ],
@@ -7175,7 +7175,7 @@
     ],
     "note": "Stables: 300 USDC + 50 DAI on Base, 150 USDC + 25 USDT on Solana, 40 USDT on OP; moving only the Base USDC drops most of them."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?=.*bridge@base->arbitrum 300 USDC)(?=.*bridge@solana->arbitrum 150 USDC)(?:swap@[\\w-]+ [^|]+|bridge@[\\w-]+->arbitrum [^|]+)(?: \\| (?:swap@[\\w-]+ [^|]+|bridge@[\\w-]+->arbitrum [^|]+))*$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -7229,7 +7229,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:swap@solana [^|]+|bridge@solana->base [^|]+)(?: \\| (?:swap@solana [^|]+|bridge@solana->base [^|]+))*$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -7272,7 +7272,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@(?:base|arbitrum)->optimism 100 USDC(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:network):"
    ],
@@ -7416,7 +7416,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@base 0\\.2 WETH->ETH(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -7686,7 +7686,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?=.*withdraw@base max USDC \\[aave-v3)(?=.*withdraw@base max USDC \\[morpho)withdraw@base [^|]+ \\| withdraw@base [^|]+$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -7852,7 +7852,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?=.*bridge@arbitrum->base 250 USDC)(?=.*bridge@solana->base 90 USDC)bridge@[^|]+ \\| bridge@[^|]+$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -7921,7 +7921,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?=.*withdraw@base max USDC \\[aave-v3)(?=.*withdraw@base max USDC \\[morpho)(?=.*withdraw@arbitrum max USDC \\[compound-v3)(?=.*withdraw@solana max USDC \\[kamino)withdraw@[^|]+(?: \\| withdraw@[^|]+){3}$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -8173,7 +8173,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@(?:base|arbitrum) 50 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:network):"
    ],
@@ -8271,7 +8271,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@(?:base|ethereum) 0\\.05 ETH to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:network):"
    ],
@@ -8342,7 +8342,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@arbitrum 10 USDC to bob\\.base\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:recipient):"
    ],
@@ -8445,7 +8445,7 @@
      "^transfer@solana 100 USDC to carol\\.sns$"
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana 100 USDC to carol\\.sns(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount|network):"
    ],
@@ -8482,7 +8482,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana 25 USDC to carol\\.sns(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A payment across networks delivers the stated amount (the input sized up) or asks DELIVERY_AMOUNT until exact delivery ships; the input may exceed the stated amount."
@@ -8633,7 +8633,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@(?:base|arbitrum) 10 USDC to 0x1111111111111111111111111111111111111111(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:network):"
    ],
@@ -8731,7 +8731,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana 20 USDC to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -8951,7 +8951,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@(?:base|arbitrum) 10 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:",
     "R"
@@ -9001,7 +9001,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@(?:base|arbitrum) 10 USDC to alice\\.eth(?: \\[[^\\]]+\\])? \\| transfer@base 10 USDC to bob\\.base\\.eth(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -9057,7 +9057,7 @@
     ],
     "note": "15 each; 30 each is a wrong amount."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 15 USDC to alice\\.eth(?: \\[[^\\]]+\\])? \\| transfer@base 15 USDC to bob\\.base\\.eth(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:",
     "R"
@@ -9110,7 +9110,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@(?:base|arbitrum) 10 USDC to alice\\.eth(?: \\[[^\\]]+\\])? \\| transfer@solana 0\\.5 SOL to carol\\.sns(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:network):"
    ],
@@ -9155,7 +9155,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@solana->(?:base|arbitrum|ethereum|optimism|polygon) 5 USDC to vitalik\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:network|toNetwork):"
    ],
@@ -9301,7 +9301,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 20 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$"
    ],
    "why": "The \"Not part of the plan\" tail rule is withdrawn; a clause with unread words (\"and tell her it's for pizza\") is refused."
@@ -9376,7 +9376,7 @@
      "^transfer@arbitrum 300 USDC to alice\\.eth$"
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->arbitrum 300 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount|network):"
    ],
@@ -9453,7 +9453,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana 5 USDC to carol\\.sns(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -9611,7 +9611,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base [\\d.]+ (?:ETH|USDC|WETH) to alice\\.eth(?: \\| transfer@base [\\d.]+ (?:ETH|USDC|WETH) to alice\\.eth)*$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -10294,7 +10294,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 2 SOL->USDC(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -10711,7 +10711,7 @@
     ],
     "note": "'1.000' is one thousand in Turkish and most European locales and 1 in US usage: the reading must be asked (as '1,5' is), never silently taken as 1."
    },
-   "u2Accept": [
+   "priorAccept": [
     "A:actions\\[\\d+\\]\\.(?:amount):(?:AMOUNT_FORMAT_AMBIGUOUS)",
     "P:^bridge@base->arbitrum 1000 USDC(?: \\[[^\\]]+\\])?$"
    ],
@@ -10775,7 +10775,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 15 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "P:^transfer@base 10 USDC to alice\\.eth(?: \\[[^\\]]+\\])? \\| transfer@base 5 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
@@ -11002,7 +11002,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@solana 0\\.5 SOL to carol\\.sns(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount):(?:AMOUNT_FORMAT_AMBIGUOUS)"
    ],
@@ -11308,7 +11308,7 @@
     ],
     "note": "1/2 SOL is 0.5 SOL (not half the balance)."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@solana 0\\.5 SOL to carol\\.sns(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -11514,7 +11514,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 1000 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$"
    ],
    "why": "An amount paid to someone else that Kletia derived (a unit or multiplier, a fraction, a split) is a one-click confirm \"Read as ...\"."
@@ -11747,7 +11747,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A clause with \"?\" or a polite opener is never ready; it is refused or planned as a one-click confirm of the solved plan."
@@ -11783,7 +11783,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->arbitrum 20 USDC(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A clause with \"?\" or a polite opener is never ready; it is refused or planned as a one-click confirm of the solved plan."
@@ -12046,7 +12046,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A clause with \"?\" or a polite opener is never ready; it is refused or planned as a one-click confirm of the solved plan."
@@ -12082,7 +12082,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 5 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A clause with \"?\" or a polite opener is never ready; it is refused or planned as a one-click confirm of the solved plan."
@@ -12151,7 +12151,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana 10 USDC(?: \\[[^\\]]+\\])?$",
     "R",
     "A:[\\w\\[\\].]+:"
@@ -12347,7 +12347,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@(?:base|arbitrum) 50 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "R",
     "A:[\\w\\[\\].]+:"
@@ -13528,7 +13528,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^stake@solana 3 SOL->JitoSOL \\{jito\\}$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -13859,7 +13859,7 @@
     ],
     "note": "2 SOL is a wrong amount."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 3 SOL->USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -13902,7 +13902,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 0\\.5 SOL->USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -14235,7 +14235,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 1 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "R",
     "A:[\\w\\[\\].]+:"
@@ -14282,7 +14282,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->arbitrum 10 USDC to 0x2222222222222222222222222222222222222222(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:",
     "R"
@@ -14482,7 +14482,7 @@
     ],
     "note": "A plan is acceptable only if it keeps Kletia's own slippage cap; it is scored on shape here."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])?$",
     "R",
     "A:[\\w\\[\\].]+:"
@@ -14553,7 +14553,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->arbitrum 50 USDC(?: \\[[^\\]]+\\])?$",
     "R",
     "A:[\\w\\[\\].]+:"
@@ -14674,7 +14674,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 2 SOL->USDC(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -14717,7 +14717,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->arbitrum 50 USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -14760,7 +14760,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@base 0\\.1 ETH->USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -14805,7 +14805,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 50 USDC->SOL(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:",
     "R"
@@ -14878,7 +14878,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 20 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:",
     "R"
@@ -14928,7 +14928,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->arbitrum 100 USDC(?: \\[[^\\]]+\\])? \\| deposit@arbitrum max USDC \\[aave-v3(?::[^\\]]+)?\\]$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -14998,7 +14998,7 @@
     ],
     "note": "'2' reads as 'to'; never 2 USDC of anything."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15068,7 +15068,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 0\\.1 ETH to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15206,7 +15206,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])? \\| bridge@solana->base max USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15281,7 +15281,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 2 SOL->USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15351,7 +15351,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@arbitrum->base 25 USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15394,7 +15394,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@arbitrum 0\\.05 ETH->USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15438,7 +15438,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@solana 0\\.5 SOL to carol\\.sns(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15481,7 +15481,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:from):"
    ],
@@ -15524,7 +15524,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@base 100 USDC->ETH(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15846,7 +15846,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^swap@base 0\\.1 ETH->USDC(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A clause with \"?\" or a polite opener is never ready; it is refused or planned as a one-click confirm of the solved plan. \"can you pls ...\" opens with a polite command."
@@ -15889,7 +15889,7 @@
     ],
     "note": "Never 2 or 230 USDC."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@arbitrum->base 30 USDC(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -15932,7 +15932,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@base 5 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:[\\w\\[\\].]+:"
    ],
@@ -16276,7 +16276,7 @@
     ],
     "note": "departure.ts design: a network the sentence names wins over sourceNetwork (warning, funds read where named)."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@arbitrum->base 100 USDC(?: \\[[^\\]]+\\])? \\| deposit@base max USDC \\[aave-v3(?::[^\\]]+)?\\]$",
     "P:^deposit@base 100 USDC \\[aave-v3(?::[^\\]]+)?\\]$"
    ],
@@ -16349,7 +16349,7 @@
     ],
     "note": "departure.ts design: a network the sentence names wins over sourceNetwork (warning, funds read where named)."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:bridge@solana->base 50 USDC(?: \\[[^\\]]+\\])? \\| swap@base max USDC->ETH(?: \\[[^\\]]+\\])?|bridge@solana->base 50 USDC->ETH(?: \\[[^\\]]+\\])?)$",
     "P:^swap@base 50 USDC->ETH(?: \\[[^\\]]+\\])?$"
    ],
@@ -16389,7 +16389,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana 20 USDC to carol\\.sns(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A payment across networks delivers the stated amount (the input sized up) or asks DELIVERY_AMOUNT until exact delivery ships; the input may exceed the stated amount."
@@ -16557,7 +16557,7 @@
     ],
     "note": "departure.ts design: a network the sentence names wins over sourceNetwork (warning, funds read where named)."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@optimism->base 50 USDC(?: \\[[^\\]]+\\])? \\| deposit@base max USDC \\[moonwell(?::[^\\]]+)?\\]$",
     "P:^deposit@base 50 USDC \\[moonwell(?::[^\\]]+)?\\]$"
    ],
@@ -16656,7 +16656,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^(?:bridge@solana->base 90 USDC(?: \\[[^\\]]+\\])? \\| swap@base max USDC->ETH(?: \\[[^\\]]+\\])?|bridge@solana->base 90 USDC->ETH(?: \\[[^\\]]+\\])?)$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -16785,7 +16785,7 @@
     ],
     "note": "Solana holds 90 USDC; Base holds 800."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana 100 USDC(?: \\[[^\\]]+\\])? \\| deposit@solana max USDC \\[kamino(?::[^\\]]+)?\\]$",
     "A:actions\\[\\d+\\]\\.(?:amount|network):"
    ],
@@ -16830,7 +16830,7 @@
     ],
     "note": "Arbitrum holds 0.05 ETH: asking about the amount is right."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@arbitrum->base 0\\.1 ETH to alice\\.eth(?: \\[[^\\]]+\\])?$",
     "A:actions\\[\\d+\\]\\.(?:amount):"
    ],
@@ -16881,7 +16881,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@(?:base|arbitrum)->polygon 30 USDC(?: \\[[^\\]]+\\])? \\| deposit@polygon max USDC \\[morpho(?::[^\\]]+)?\\]$",
     "A:actions\\[\\d+\\]\\.(?:amount|network):"
    ],
@@ -17045,7 +17045,7 @@
     ],
     "note": "OP Mainnet holds no USDC; Base and Arbitrum do."
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@(?:base|arbitrum)->optimism 20 USDC(?: \\[[^\\]]+\\])? \\| deposit@optimism max USDC \\[compound-v3(?::[^\\]]+)?\\]$",
     "A:actions\\[\\d+\\]\\.(?:amount|network):"
    ],
@@ -17149,7 +17149,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@polygon->solana 50 USDC to carol\\.sns(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A payment across networks delivers the stated amount (the input sized up) or asks DELIVERY_AMOUNT until exact delivery ships; the input may exceed the stated amount."
@@ -17185,7 +17185,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^bridge@base->solana 10 USDC to carol\\.sns(?: \\[[^\\]]+\\])?$"
    ],
    "why": "A payment across networks delivers the stated amount (the input sized up) or asks DELIVERY_AMOUNT until exact delivery ships; the input may exceed the stated amount."
@@ -17342,7 +17342,7 @@
     ],
     "note": "Polygon holds no USDC: never an unfunded bridge. departure.ts design: a network the sentence names wins over sourceNetwork (warning, funds read where named)."
    },
-   "u2Accept": [
+   "priorAccept": [
     "A:[\\w\\[\\].]+:",
     "R",
     "P:^deposit@base 50 USDC \\[aave-v3(?::[^\\]]+)?\\]$"
@@ -17542,7 +17542,7 @@
      }
     ]
    },
-   "u2Accept": [
+   "priorAccept": [
     "P:^transfer@arbitrum 25 USDC to alice\\.eth(?: \\[[^\\]]+\\])?$"
    ],
    "why": "The receiving network of a payment to a plain .eth name or a raw 0x address is the person's to say; Kletia asks it (TRANSFER_NETWORK) unless it was said or the recipient implies it."

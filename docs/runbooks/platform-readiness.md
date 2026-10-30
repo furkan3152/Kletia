@@ -39,7 +39,7 @@ operator hash cannot authorize a deployment. Historical balances stay visible
 and explicit legacy exits keep their original targets. See
 [activation and boundaries](../networks/arc-defi-v2-readiness.md).
 
-## Validation
+## Test results
 
 `npm run verify` passed with PostgreSQL enabled:
 

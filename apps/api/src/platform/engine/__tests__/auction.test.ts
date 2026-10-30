@@ -26,7 +26,7 @@ async function planError(input: unknown): Promise<PlatformError> {
   assert.fail("planning succeeded but should have failed");
 }
 
-/** The research snapshot (25 USDC Base -> Arbitrum): Relay fast, LI.FI best raw minimum but 18 min, DLN with a 0.001 ETH fixed fee. */
+/** Quotes observed for 25 USDC Base -> Arbitrum: Relay fast, LI.FI best raw minimum but 18 min, DLN with a 0.001 ETH fixed fee. */
 function snapshot(): void {
   venueScripts.relay = { minimumBps: 9_940, seconds: 1, transactions: 2, quoteId: `0x${"11".repeat(32)}` };
   venueScripts.lifi = { minimumBps: 9_975, seconds: 1_080, quoteId: `0x${"22".repeat(32)}` };

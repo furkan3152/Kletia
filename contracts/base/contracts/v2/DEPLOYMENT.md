@@ -135,9 +135,8 @@ authorize Pancake V3, Aerodrome, Slipstream or a generic V3 router.
    adapter: constructor identity, pair/pool existence, exact-input execution,
    fee behavior, codehash and allowance reset.
 5. Close the recorded contract and application release review. An external
-   audit may be commissioned separately, but this runbook does not invent one
-   as a deployment prerequisite or claim that internal tests prove “zero
-   vulnerabilities”.
+   audit can be commissioned separately; it is not a deployment prerequisite,
+   and internal tests do not prove “zero vulnerabilities”.
 6. Exercise Governance Safe execution, guardian pause/disable, nonce invalidation, exact
    approvals, ERC-1271, treasury acceptance and emergency procedures against a
    pinned local fork of the deployed Base Mainnet topology. Do not deploy this

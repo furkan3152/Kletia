@@ -14,12 +14,13 @@ All notable changes are recorded in this file. The format follows [Keep a Change
 - Added separate Arc Swap/Staking/Lending V2 contracts fixing missing slippage/deadline guards, retroactive APR changes and stale oracle handling. Existing deployed sources/manifests are unchanged. New exposure requires separately deployed, compiled-source-pinned V2 runtimes; legacy exits remain explicit.
 - Added 81 local Base/Arc contract tests, Chromium desktop/mobile journeys, PostgreSQL-backed CI and an Arc runtime-pin drift gate.
 
+### Bring your own contract, previews, receipts, Rule Book and links
 
-Round 4 and 5: bring your own contract, and the features that make Kletia
-more than a router. Nothing here signs or holds funds, and none of it has had an
-external audit.
+Bring your own contract, plus the features that make Kletia more than a
+router. Nothing here signs or holds funds, and none of it has had an external
+audit.
 
-### Added
+#### Added
 
 - Bring your own contract: register an EVM contract (ABI bindings, forbidden selectors, code-hash and proxy-implementation pins) or a Solana Action. Every call is simulated before it is handed out, verified from events, and shown with the fixed "Not audited by Kletia" notice and an acknowledgement gate ([guide](docs/platform/contracts.md)).
 - Asset preview ("fare breakdown"): per-network, per-account asset changes with honest labels (simulated, assumed funds, venue minimum, quoted, estimated), fees in USD and gas-on-arrival warnings. Prepare refuses a payload that is worse than the preview the user approved (`PREVIEW_CHANGED`) ([guide](docs/platform/preview.md)).
@@ -29,22 +30,24 @@ external audit.
 - SDK, CLI, MCP, widget and embed support for all of the above, including integrator-created intents and sessions in the embed frame.
 - Developer portal panels for contracts, Rule Book, links and receipts; the Interchange art system (route maps, tickets, stamps, departure boards) across the site.
 
-### Security
+#### Security
 
 - Dropping `confirm.approvers.keys` (which lets every project key approve) is a loosening and waits out the amendment delay.
 - Pausing and resuming a pending link keeps its remaining activation delay; a rotated-out key secret cannot create or change links.
 - Withdrawing receipt disclosures during an issuance is no longer undone, and the public EAS envelope carries only the day the payload already makes public.
 - The receipt page rebuilds the link in its copied CLI command from checked parts, never from the address bar.
 
-### Changed
+#### Changed
 
 - The console badge reads Kletia instead of OMNI; the public site counts supported protocols; custom registrations stay in the integrator project.
 
-Round 3: more networks and venues behind the same intent engine, and the
+### More networks, bridges and integrator tooling
+
+More networks and venues behind the same intent engine, and the
 infrastructure surfaces integrators asked for. Every new address was read back
 on-chain on 2026-10-09; nothing in this release signs or holds funds.
 
-### Added
+#### Added
 
 - Networks: Ethereum (`eip155:1`), OP Mainnet (`eip155:10`) and Polygon PoS (`eip155:137`) in the chain and asset registries, with chain-id-attested RPCs (`ETHEREUM_RPC_URL`, `OPTIMISM_RPC_URL`, `POLYGON_RPC_URL`, keyless public fallbacks) and per-network health.
 - Bridge auction: Relay, LI.FI (Across, Polymer CCTP) and deBridge DLN quote every cross-network step in parallel; the winner has the highest guaranteed output net of priced extra costs, then the shortest time within `constraints.maxSeconds` (default 600 s), then the fewest transactions. Losing quotes are recorded as evidence and `POST /v1/quotes` ranks routes the same way (`eligible`, `netMinimumOutput`, `extraCosts`). "via lifi / debridge / relay" names one venue.
@@ -59,14 +62,14 @@ on-chain on 2026-10-09; nothing in this release signs or holds funds.
 - Container images: `.github/workflows/images.yml` pushes `ghcr.io/<owner>/kletia-api` and `kletia-web` on every push to `main` and every `v*` tag, with SLSA provenance (`mode=max`) and an SPDX SBOM, then checks the attestations and smoke-tests the pushed image. Actions are pinned to full commit SHAs.
 - `npm run bump:packages -- <version>` moves all five packages, the apps' dependencies, the SDK and CLI version constants, the portal's embed version and the documented CDN URLs to one version and syncs the lockfile.
 
-### Security
+#### Security
 
 - Venue contracts, programs, vaults and markets come only from the pinned registry (`VENUE_CONTRACTS`, `YIELD_VENUES`); provider calldata is decoded and every target, spender, token, amount, recipient and fee is checked against it before a payload is returned. Venue state that disagrees with the registry is refused with `422 VENUE_UNVERIFIED`.
 - Lending outcomes are proven from the venue's own events and token movements bound to the prepared payload (`SUPPLY_REPAID_DEBT`, `VENUE_REJECTED` and `OUTCOME_NOT_PROVEN` fail a step). Moonwell WETH markets must report their pinned WETH unwrapper.
 - deBridge DLN's fixed fee must equal the on-chain value, an extra cost above the planned one fails prepare with `QUOTE_MOVED`, and an unfilled DLN order's cancel right goes to the user's own destination account whenever the intent names one.
 - Rotated-out key secrets cannot manage keys (`403 KEY_SECRET_ROTATED`); stored idempotent responses that contain secrets are encrypted with `KLETIA_PLATFORM_SECRET`.
 
-### Changed
+#### Changed
 
 - Relay uses its v3 status and request endpoints and is restricted to its pinned contracts per network.
 - MCP and CLI treat the user's own address on another network of the same VM (a bridge's default recipient) as their own when listing external recipients.
@@ -76,7 +79,7 @@ on-chain on 2026-10-09; nothing in this release signs or holds funds.
 - `npm run verify` also runs the `/embed` bridge tests (`npm run test:web`) and the OpenAPI drift check.
 - Docker: both Dockerfiles copy every workspace manifest before `npm ci`; the web image builds only the packages it imports; the API image sets `PORT=10000` (the port it exposes) and a `/health` `HEALTHCHECK`. Docker Compose can run the published images (`KLETIA_API_IMAGE`, `KLETIA_WEB_IMAGE`, `docker compose up --no-build`).
 
-### Fixed
+#### Fixed
 
 - Basenames resolution reads the resolver the Base registry names for each name, so names moved to the new resolver resolve again.
 - The API image listened on 3001 while exposing 10000; it now listens on the exposed port unless `PORT` is set.

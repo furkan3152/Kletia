@@ -212,7 +212,7 @@ test("request validation bounds maxSeconds and venue params", () => {
   assert.equal(validateIntentRequest({ actions: [{ ...call, entry: undefined }], accounts }).ok, false);
 });
 
-/* ------------------------------------------------------------- round 6 */
+/* ---------------------------------------------- venues pinned 2026-10-14 */
 
 const ROUND6_PROTOCOLS = [
   "velodrome", "sparklend", "spark-savings", "fluid", "yearn-v3", "lido", "rocket-pool", "etherfi", "raydium", "orca", "meteora", "chainlink", "pyth",

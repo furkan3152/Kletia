@@ -62,7 +62,7 @@ npm run dev:web        # from the root, or `npm run dev` here
 
 ## Scripts
 
-| Command | Description |
+| Command | What it does |
 |---------|-------------|
 | `npm run dev` | Start the Vite development server. |
 | `npm run build` | Compile TypeScript, build the production bundle, enforce the entry bundle budget and run the route-chunk check (`scripts/check-route-chunks.mjs`: no site route reaches wallet code except through the `/go`, `/approve` and `/embed` signing panels; the desk loads its engines and tools lazily). |
@@ -74,6 +74,10 @@ npm run dev:web        # from the root, or `npm run dev` here
 ## Environment
 
 [`.env.example`](.env.example) lists every value.
+
+- `VITE_*` variables end up in the browser bundle, so they are public. Never put private keys or API secrets in them.
+- `VITE_ARBITRUM_MVP_ENABLED`: `true` (and matched by API attestation) enables the Arbitrum routes.
+- `VITE_BACKEND_URL`: the Kletia API origin serving `/api` and `/v1`.
 
 ## Deployment
 

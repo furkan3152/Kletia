@@ -3550,7 +3550,7 @@
     "P:^swap@base 60\\.2 USDC->ETH"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3562,7 +3562,7 @@
     "P:^bridge@arbitrum->base 0\\.0095 ETH"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3574,7 +3574,7 @@
     "P:^transfer@solana 0\\.625 SOL to 9WzD"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3586,7 +3586,7 @@
     "A:amount:AMOUNT_MISSING"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "Clarify corpus B02: a swap of \"my SOL\" with no number asks how much (only stake, deposit and withdraw read a possessive as all of it)."
   },
@@ -3599,7 +3599,7 @@
     "P:^withdraw@base max USDC \\[aave-v3"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3611,7 +3611,7 @@
     "A:from:INPUT_ASSET_MISSING"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "No position at the venue: the token is asked, never guessed."
   },
@@ -3624,7 +3624,7 @@
     "P:^deposit@base 120\\.4 USDC \\[aave-v3"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3636,7 +3636,7 @@
     "A:amount:AMOUNT_MISSING"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "USDC on two networks: a possessive never picks the scope by itself."
   },
@@ -3649,7 +3649,7 @@
     "P:^stake@solana 2\\.4\\d* SOL->JitoSOL"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3661,7 +3661,7 @@
     "P:^transfer@base 50 USDC to 0x1111111111111111111111111111111111111111$"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3673,7 +3673,7 @@
     "P:^transfer@base 20 USDC to vitalik\\.eth$"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3685,7 +3685,7 @@
     "A:recipient"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "A label is a note, never the recipient."
   },
@@ -3699,7 +3699,7 @@
     "P:^swap@base 1 ETH->USDC"
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "A label that names a network is not a label: never dropped."
   },
@@ -3712,7 +3712,7 @@
     "P:^bridge@base->arbitrum 20 USDC"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3724,7 +3724,7 @@
     "P:^bridge@\\w+->solana 5 USDC"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3736,7 +3736,7 @@
     "A:(to|from|amount)"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3748,7 +3748,7 @@
     "P:^swap@solana 0\\.75 SOL->USDC$"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   },
   {
@@ -3761,7 +3761,7 @@
     "A:."
    ],
    "tags": [
-    "round8"
+    "extended"
    ],
    "why": "An earn never drops the wanted token."
   },
@@ -3775,7 +3775,7 @@
     "A:amount"
    ],
    "tags": [
-    "round8"
+    "extended"
    ]
   }
  ]

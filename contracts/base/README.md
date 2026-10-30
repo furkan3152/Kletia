@@ -1,6 +1,8 @@
 # Kletia contracts for Base Mainnet (@kletia/contracts-base)
 
-The Base-only Solidity workspace for Kletia's intent-native settlement architecture. This package maintains the Kletia routers, typed protocol adapters (like Uniswap V2/V3), Safe-governed token launch mechanisms (KletiaLaunchFactoryV2), and x402 micropayment implementations. 
+Solidity workspace for Kletia's contracts on Base: the intent routers, typed
+protocol adapters (Uniswap V2/V3 and others), the Safe-governed token launch
+factory (KletiaLaunchFactoryV2) and the x402 payment contracts.
 
 ## Layout
 
@@ -20,7 +22,7 @@ npm run compile
 
 ## Scripts
 
-| Command | Description |
+| Command | What it does |
 |---------|-------------|
 | `npm run compile` | Compile with the pinned Solidity 0.8.24 and 0.8.20 profiles. |
 | `npm test` | Run the router settlement, launch factory and typed adapter tests on the in-memory Hardhat network. |
@@ -34,9 +36,13 @@ npm run compile
 - Safe owner keys stay in the ignored package-local `.env` used for deployments.
 - `BASESCAN_API_KEY`: only needed to submit self-attribution to BaseScan.
 
-## Deployment
+## Deployments
 
-Contracts in this workspace target **Base Mainnet (Chain ID 8453)** and are governed by a 2-of-2 Safe multisig. Most active sources compile with Solidity 0.8.24/Cancun; the x402 Factory and Gateway retain their exact Solidity 0.8.20/Paris deployment profile. Active public identities and canonical contract addresses are maintained in [`deployments/base-mainnet-v2.json`](deployments/base-mainnet-v2.json).
+These contracts target Base Mainnet (chain ID 8453) and are governed by a
+2-of-2 Safe. Most sources compile with Solidity 0.8.24/Cancun; the x402 Factory
+and Gateway keep their exact 0.8.20/Paris deployment profile. Active addresses
+and identities are in
+[`deployments/base-mainnet-v2.json`](deployments/base-mainnet-v2.json).
 
 Deployment and codehash evidence establish exact observed identity, not an independent security audit. Legacy sources remain for provenance and are not silent runtime fallbacks.
 

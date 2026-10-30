@@ -366,6 +366,15 @@ npm run generate:openapi  # refresh docs/platform/openapi.json and the Postman c
 
 Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
+### Known limits
+
+- No external security audit yet. The Solana DEX account layouts, the vault families and the liquid staking adapters have had a short internal review, not a full adversarial pass.
+- Fill attribution for cross-network steps is a documented trust assumption. Jupiter prices can be stale for thin tokens; the Rule Book then fails closed with `POLICY_PRICE_UNAVAILABLE`. Solana v1 transactions are refused in Solana Actions, the deBridge check and the SDK policy guard.
+- Project domains are re-checked about once a day, so a website that stops listing a project keeps its badge until the next check.
+- The event stream replays from a per-process buffer (500 events, 10 minutes). With several API instances, a reconnect can land on another instance's buffer.
+- The live intent eval depends on wallet balances: run it with a funded read-only preview wallet, or compare results by class.
+- The per-network guides in `docs/networks/` do not cover every venue added since they were written; `GET /v1/protocols` is the complete list. The SparkLend and Yearn V3 pins have read-back evidence ([`evm-lending-additions.json`](docs/networks/evidence/evm-lending-additions.json)) but no guide page yet.
+
 ## Public deployments
 
 - Base Intent Router V2, LaunchFactory V2 and attestation registry: [`contracts/base/deployments/base-mainnet-v2.json`](contracts/base/deployments/base-mainnet-v2.json)

@@ -6,7 +6,8 @@
  * catalogue status and the thread unchanged; the commit turn replays by
  * clientReference; Idempotency-Key on remembered dry-run turns; expectedRev
  * and If-Match; owner scoping; secrets store nothing; the public tier cannot
- * remember. Offline: stub adapters and stub holdings (support.useClarifyWallet).
+ * remember. Offline: stub adapters and stub holdings
+ * (support.useClarifyWallet).
  *
  *   cd apps/api && node --import tsx --test src/platform/http/__tests__/clarify.test.ts
  */

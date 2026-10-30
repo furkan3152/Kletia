@@ -71,8 +71,8 @@ partner page cannot load them). It prints one line per probe and exits 1 when
 any fails. `--skip <probe>` leaves one out, `--timeout <ms>` bounds each
 request (default 90 s, longer than a cold start), `--json` prints the report as
 JSON. The `Public smoke` workflow (`.github/workflows/public-smoke.yml`) is
-scheduled hourly and can be run on demand (GitHub delays scheduled runs on
-busy days, so runs can be hours apart); a stale or broken hosted deployment
+scheduled daily and can be run on demand (GitHub can delay scheduled runs on
+busy days); a stale or broken hosted deployment
 shows up as a failing run. It fails until the operator steps below are done;
 that is intended.
 

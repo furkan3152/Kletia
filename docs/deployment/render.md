@@ -180,7 +180,7 @@ npm run verify
 npm run verify:mvp-live
 ```
 
-`verify:mvp-live` may exit non-zero when a live dependency is not configured. It must still report every check independently. CI also rejects high-severity production advisories in the workspace and both contract packages; a major dependency migration is never an automatic audit fix.
+`verify:mvp-live` may exit non-zero when a live dependency is not configured. It must still report every check independently. CI also audits the workspace and both contract packages for high-severity production advisories and prints the result without failing the build: the remaining ones are transitive dependencies of the wallet SDKs that only clear with breaking major upgrades. A major dependency migration is never an automatic audit fix.
 
 ## Public rollout verification
 

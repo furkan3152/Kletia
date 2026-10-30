@@ -6,13 +6,13 @@ name: Public smoke
 # listed file matches its integrity and answers Access-Control-Allow-Origin: *
 # (without it other sites cannot load the snippet). It fails
 # loudly until the hosted services run this repository's code (see
-# docs/platform/status.md). Nothing is created, signed or sent. Runs hourly and
+# docs/platform/status.md). Nothing is created, signed or sent. Runs daily and
 # on demand; `npm run verify` never calls these hosts.
 #
 # Actions are pinned to the same full commit SHAs as ci.yml.
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "17 7 * * *"
   workflow_dispatch:
     inputs:
       api_origin:

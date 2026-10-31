@@ -259,7 +259,7 @@ export async function prepareBaseX402BuyerChallenge(input: {
     if (matches.length !== 1) {
       throw new BaseX402IntentError(
         "X402_BUYER_WALLET_URL_AMBIGUOUS",
-        `x402 ${parameter} girdisi tekil olarak belirtilmelidir.`,
+        `The x402 ${parameter} parameter must be given exactly once.`,
       );
     }
     const supplied = matches[0]?.[1];

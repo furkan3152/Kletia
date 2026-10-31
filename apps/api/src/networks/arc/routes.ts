@@ -201,7 +201,7 @@ router.get(
     if (!amount) {
       throw new ControlledRouteError(
         "AMOUNT_REQUIRED",
-        "amount parametresi gerekli.",
+        "The amount parameter is required.",
         400,
       );
     }

@@ -253,7 +253,7 @@ export function validatePaymasterRequest(body: unknown): JsonRpcRequest {
     throw new PaymasterRequestError(
       400,
       -32600,
-      "Tek bir JSON-RPC istek nesnesi gereklidir.",
+      "A single JSON-RPC request object is required.",
     );
   }
 

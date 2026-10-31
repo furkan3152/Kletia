@@ -849,7 +849,7 @@ router.post("/session", async (req, res) => {
     ) {
       throw new BaseX402BuyerRouteError(
         "X402_BUYER_BASE_CONTEXT_REQUIRED",
-        "x402 buyer oturumu network=base ve chainId=8453 gerektirir.",
+        "An x402 buyer session requires network=base and chainId=8453.",
       );
     }
     if (

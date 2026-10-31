@@ -268,7 +268,7 @@ export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
       recipient,
       traceId: correlationId,
     };
-    expectedOutput = `${recipient} adresine ${amount} ${token}`;
+    expectedOutput = `${amount} ${token} to ${recipient}`;
   } else if (action === "appkit_bridge") {
     const token = normalizedToken(intent.tokenIn || "USDC", "tokenIn");
     if (token !== "USDC") {

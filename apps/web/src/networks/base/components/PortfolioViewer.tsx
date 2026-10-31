@@ -418,7 +418,7 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
               </h4>
               <div className="flex justify-between py-1">
                 <span className="text-gray-800 dark:text-slate-300 font-bold">
-                  Kilitli Miktar:
+                  Locked amount:
                 </span>
                 <span className="text-[#121212] dark:text-white font-black">
                   {data.defiPositions.aerodrome.lockedAmount}

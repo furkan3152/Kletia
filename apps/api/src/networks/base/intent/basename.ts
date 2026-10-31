@@ -51,7 +51,7 @@ export async function handleBaseName(
   intent: ParsedIntent,
   userAddress: string,
 ) {
-  if (!intent.tokenIn) throw new Error("🚨 Base Name belirtilmedi.");
+  if (!intent.tokenIn) throw new Error("🚨 Base name not specified.");
   const name = intent.tokenIn
     .trim()
     .toLowerCase()

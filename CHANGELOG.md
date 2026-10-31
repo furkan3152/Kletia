@@ -2,6 +2,8 @@
 
 All notable changes are recorded in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version labels follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Entries describe implementation and evidence boundaries; they do not imply an audit or funded lifecycle unless stated explicitly.
 
+The repository is at 2.0.0 (the root `package.json`) and the `@kletia/*` packages are at 0.1.0. Work merged to `main` after 2.0.0 has not been cut as a new version yet, so it is grouped by development round, each dated by when it landed: Round 6 and Round 7 are complete, and Round 8 is in progress under Unreleased. The rounds become version numbers when the next release is tagged.
+
 ## [Unreleased]
 
 Round 8: a wallet-gated admin panel for operators, and fixes found on the
@@ -64,7 +66,8 @@ on-chain action in the browser.
 - Relay quotes whose EVM calls together carry more native value than the step amount are refused (each call was only checked alone).
 - The prompt secret screen (API and web) also refuses Solana keypairs: a 64-byte base58 secret key or the Solana CLI's JSON byte array.
 - The MCP `create_signing_link` tool screens its text for secrets before putting it in the Studio link's query string.
-## Round 7
+
+## [Round 7] - 2026-10-15
 
 Round 7: an intent engine that solves goals from what you hold, and ten more
 executable protocols. The registry now lists 49 protocols, 38 of them
@@ -86,7 +89,7 @@ has had an external audit.
 - Clarify no longer replaces a named staking provider (Stader, Mantle, Frax, native) with Lido.
 - Native SOL staking sent the rent account size as a string on a running API.
 
-## Round 6
+## [Round 6] - 2026-10-14
 
 Round 6: one desk for nine networks, a journey that says where the money is
 after every step, clarifying questions instead of refusals, new
@@ -267,5 +270,4 @@ behind the app, a public API, an SDK and an embeddable widget.
 - Browser privacy egress controls, prompt-secret filtering, durable replay stores, and fail-closed provider readiness.
 - Base production owner, guardian, and treasury roles separated across Safe accounts.
 
-[Unreleased]: https://github.com/furkan3152/Kletia/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/furkan3152/Kletia/releases/tag/v1.0.0
+[Unreleased]: https://github.com/furkan3152/Kletia/commits/main

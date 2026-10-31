@@ -70,13 +70,17 @@ always signed in the user's own wallet.
 | [MCP server](docs/platform/mcp.md) | `/v1/mcp`: read-only tools (`get_quote`, `plan_intent`, `get_portfolio`, …) for AI agents, with a Studio hand-off link so the user signs. |
 | [Self-hosting](docs/deployment/self-hosting.md) | Docker Compose with PostgreSQL, and API and web images on GHCR with provenance and an SBOM. |
 
-The npm packages are released together from a `packages-v*` tag
-([release workflow](.github/workflows/release-packages.yml)), which also
-attaches their `npm pack` tarballs to the GitHub release. Until the first
-release is on npm, install those tarballs, load the SDK as one ES module file
-from `https://kletiaai.xyz/sdk/kletia-sdk-<version>.js` (SHA-384 in
-`/sdk/manifest.json`), or use them from this workspace (`npm ci` builds them).
-See [Install without npm](docs/platform/quickstart.md#install-without-npm).
+> [!NOTE]
+> The `@kletia/*` packages are **not on the npm registry yet**, and no
+> `packages-v*` release has been cut, so `npm install @kletia/sdk` and npm CDN
+> URLs do not work today. Build and pack them from this repository (shown
+> below), or download the SDK as one ES module file from
+> `https://kletiaai.xyz/sdk/kletia-sdk-<version>.js` (SHA-384 in
+> `/sdk/manifest.json`). See
+> [Install without npm](docs/platform/quickstart.md#install-without-npm).
+> The [release workflow](.github/workflows/release-packages.yml) publishes all
+> five packages together from a `packages-v*` tag and attaches their tarballs
+> to the GitHub release; after that, the plain `npm install` lines work.
 
 ### REST
 
@@ -92,6 +96,13 @@ rate limit and unlocks listing, webhooks and usage; keep it on your server.
 ### SDK
 
 ```bash
+# Build and pack the packages from a checkout (npm ci also builds all five)
+git clone https://github.com/furkan3152/Kletia.git
+cd Kletia && npm ci
+npm pack -w @kletia/core -w @kletia/sdk
+cd ../your-app && npm install ../Kletia/kletia-core-*.tgz ../Kletia/kletia-sdk-*.tgz
+
+# Once the packages are published to npm
 npm install @kletia/sdk
 ```
 
@@ -130,6 +141,9 @@ export const POST = createWebhookHandler({
 
 ### React widget and hooks
 
+Pack `@kletia/widget` the same way (`npm pack -w @kletia/core -w @kletia/sdk -w @kletia/widget`)
+and install the three tarballs next to `react`.
+
 ```tsx
 import { KletiaIntentWidget } from "@kletia/widget";
 
@@ -143,10 +157,12 @@ import { KletiaIntentWidget } from "@kletia/widget";
 
 No framework and no build step: one script (pin the version and add its
 [Subresource Integrity hash](docs/platform/embed.md#quick-start)) and one element.
+The script is served by the Kletia origin at a versioned path (it is not on
+npm CDNs until the package is published).
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@kletia/embed@0.1.0/dist/kletia-embed.min.js"
+  src="https://kletiaai.xyz/sdk/embed/0.1.0/kletia-embed.min.js"
   integrity="sha384-…"
   crossorigin="anonymous"
 ></script>
@@ -167,13 +183,25 @@ statuses and heights, never calldata, addresses or amounts. A plain
 `<iframe src="https://kletiaai.xyz/embed">` still works; see the
 [embed guide](docs/platform/embed.md).
 
+The integrity check needs the hosted site to send
+`Access-Control-Allow-Origin` on `/sdk/*`. The live site does not send it yet
+(the [public smoke check](.github/workflows/public-smoke.yml) tracks this), so
+until it does, serve a copy of the file from your own origin (compare its hash
+with `/sdk/embed/manifest.json`, and add `origin="https://kletiaai.xyz"` to the
+element) or use the plain iframe.
+
 ### CLI
 
+Until `@kletia/cli` is on npm, run it from the root of a checkout (`npm ci` builds it):
+
 ```bash
-npx @kletia/cli quote 25 USDC --from base --to solana
-npx @kletia/cli plan "bridge 25 USDC from base to solana then swap half to JitoSOL" \
+alias kletia="node $PWD/packages/cli/dist/bin.js"
+kletia quote 25 USDC --from base --to solana
+kletia plan "bridge 25 USDC from base to solana then swap half to JitoSOL" \
   --account base:0xYourEvmAddress --account solana:YourSolanaAddress
 ```
+
+Once it is published, `npx @kletia/cli …` runs the same commands.
 
 ### MCP for agents
 

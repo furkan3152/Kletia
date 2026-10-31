@@ -3,6 +3,18 @@
 The Kletia intent specification. Zero runtime dependencies; runs in Node 20+,
 browsers and edge runtimes.
 
+Not on the npm registry yet. Until the first `packages-v*` release, build
+and pack it from a checkout of this repository (`npm ci` builds all five
+packages):
+
+```bash
+git clone https://github.com/furkan3152/Kletia.git
+cd Kletia && npm ci && npm pack -w @kletia/core
+cd ../your-app && npm install ../Kletia/kletia-*.tgz
+```
+
+Once published:
+
 ```bash
 npm install @kletia/core
 ```

@@ -143,16 +143,16 @@ Details, limits and errors: [projects.md](projects.md).
 ## Server: plan with your key
 
 1. Install the SDK (Node 18.17 or later). The `@kletia` packages are not on
-   the npm registry yet, so install them from the GitHub release
+   the npm registry yet and no GitHub release has been cut, so build and pack
+   them from a checkout of this repository
    ([Install without npm](#install-without-npm) has the other ways):
 
    ```bash
+   git clone https://github.com/furkan3152/Kletia.git
+   (cd Kletia && npm ci && npm pack -w @kletia/core -w @kletia/sdk)   # npm ci also builds the packages
    mkdir kletia-quickstart && cd kletia-quickstart
    npm init -y && npm pkg set type=module
-   V=0.1.0
-   npm install \
-     https://github.com/furkan3152/Kletia/releases/download/packages-v$V/kletia-core-$V.tgz \
-     https://github.com/furkan3152/Kletia/releases/download/packages-v$V/kletia-sdk-$V.tgz
+   npm install ../Kletia/kletia-core-*.tgz ../Kletia/kletia-sdk-*.tgz
    ```
 
    Once the packages are published, `npm install @kletia/sdk` does the same.
@@ -232,13 +232,28 @@ execute in their own wallets with `executeIntent`.
 
 ### Install without npm
 
-Until the `@kletia` packages are on the npm registry, two ways work without
+Until the `@kletia` packages are on the npm registry, these ways work without
 it:
 
-- **Release tarballs.** Every `packages-v<version>` release on
-  [GitHub](https://github.com/furkan3152/Kletia/releases) carries the
-  `npm pack` tarballs of core, sdk, widget, embed and cli, and a
-  `SHA256SUMS` file. Install core first, since the others depend on it:
+- **Tarballs from a checkout (works today).** `npm ci` in a clone of this
+  repository builds all five packages; `npm pack` turns them into tarballs
+  that install like registry packages. Install core with the others, since
+  they depend on it:
+
+  ```bash
+  git clone https://github.com/furkan3152/Kletia.git && cd Kletia && npm ci
+  npm pack -w @kletia/core -w @kletia/sdk -w @kletia/widget -w @kletia/embed -w @kletia/cli
+  cd ../your-app
+  npm install ../Kletia/kletia-core-*.tgz ../Kletia/kletia-sdk-*.tgz   # the SDK
+  ```
+
+  Or run the CLI straight from the checkout: `node packages/cli/dist/bin.js`.
+
+- **Release tarballs (from the first release on).** Each `packages-v<version>`
+  release on [GitHub](https://github.com/furkan3152/Kletia/releases) will
+  carry the same `npm pack` tarballs of core, sdk, widget, embed and cli, and
+  a `SHA256SUMS` file. No release has been published yet. Install core first,
+  since the others depend on it:
 
   ```bash
   V=0.1.0
@@ -249,10 +264,13 @@ it:
   ```
 
 - **One ES module file from the site.** `https://kletiaai.xyz/sdk/kletia-sdk-<version>.js`
-  is the whole SDK (core included) as one file, served with
+  is the whole SDK (core included) as one file, configured to be served with
   `Access-Control-Allow-Origin: *`; `https://kletiaai.xyz/sdk/manifest.json`
-  names the current version and its SHA-384 `integrity`. In a page, pin it
-  with an import map so the browser checks the hash:
+  names the current version and its SHA-384 `integrity`. The live site does
+  not send that CORS header yet, so a page on another origin cannot import
+  it directly until it does; download the file and serve it yourself, or use
+  the Node path below. In a page, pin it with an import map so the browser
+  checks the hash:
 
   ```html
   <script type="importmap">
@@ -295,7 +313,8 @@ it:
    key (needs a developer key in `KLETIA_API_KEY` and the CLI):
 
    ```bash
-   npm install -g @kletia/cli
+   # Until @kletia/cli is on npm: run it from a checkout (see Install without npm)
+   alias kletia="node /path/to/Kletia/packages/cli/dist/bin.js"
    kletia keys create-agent --parent key_… --name research-bot --template payments-agent \
      --account base:0xTreasury --recipient base:0xVendor --approver-wallet base:0xYou \
      --expires 7d --secret-file ./agent-key.txt

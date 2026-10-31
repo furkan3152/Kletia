@@ -7,19 +7,21 @@ publish intent links, stream events and verify webhooks. Depends only on
 [`@kletia/core`](../core/README.md) (`viem` is an optional extra for EAS
 envelopes).
 
-```bash
-npm install @kletia/sdk
-```
-
 The packages are released together from a `packages-v*` tag of this
 repository (core, sdk, widget, embed and cli, same version, published to npm
-with provenance). Before a version is on npm, install the release's packages
-from a checkout of that tag:
+with provenance). No version is on npm yet, so build and pack them from a
+checkout (`npm ci` builds all five packages):
 
 ```bash
-git clone --branch packages-v<version> https://github.com/furkan3152/Kletia.git
+git clone https://github.com/furkan3152/Kletia.git
 cd Kletia && npm ci && npm pack -w @kletia/core -w @kletia/sdk
 cd ../your-app && npm install ../Kletia/kletia-core-*.tgz ../Kletia/kletia-sdk-*.tgz
+```
+
+Once a release is on npm:
+
+```bash
+npm install @kletia/sdk
 ```
 
 ## Plan an intent

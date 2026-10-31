@@ -40,7 +40,17 @@ The script defines the element and exposes `window.KletiaEmbed`. Once
 published, the same file is on npm CDNs too
 (`https://cdn.jsdelivr.net/npm/@kletia/embed@<version>/dist/kletia-embed.min.js`).
 
+The integrity check needs `Access-Control-Allow-Origin` on `/sdk/*`, which
+the repository configures but the live site does not send yet. Until it
+does, serve a copy of the file from your own origin (compare its hash with
+`/sdk/embed/manifest.json`, and add `origin="https://kletiaai.xyz"` to the
+element) or use a plain iframe of `/embed`.
+
 ## npm
+
+Not on the npm registry yet: build and pack it from a checkout of this
+repository (`npm ci && npm pack -w @kletia/embed`) and install the tarball.
+Once published:
 
 ```bash
 npm install @kletia/embed

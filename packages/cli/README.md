@@ -9,18 +9,21 @@ and intent links, and register your own contracts. Built on
 The CLI never prepares, signs or submits a transaction and never holds funds.
 Execution happens in your users' wallets (SDK, widget or Studio).
 
+Node 20 or newer. The CLI is not on the npm registry yet, so run it from a
+checkout of this repository (`npm ci` builds it):
+
 ```bash
-npx @kletia/cli networks
-npx @kletia/cli quote 25 USDC --from base --to solana
-npx @kletia/cli plan "bridge 25 USDC from base to solana then swap half to JitoSOL" \
+git clone https://github.com/furkan3152/Kletia.git && cd Kletia && npm ci
+alias kletia="node $PWD/packages/cli/dist/bin.js"
+kletia networks
+kletia quote 25 USDC --from base --to solana
+kletia plan "bridge 25 USDC from base to solana then swap half to JitoSOL" \
   --account base:0xYourEvmAddress --account solana:YourSolanaAddress
 ```
 
-Install it globally with `npm install -g @kletia/cli` to get the `kletia`
-command. Node 20 or newer. The packages are released together from a
-`packages-v*` tag of this repository; before a version is on npm, run it
-from a checkout of that tag: `npm ci`, then `node packages/cli/dist/bin.js`
-(for example as `alias kletia="node $PWD/packages/cli/dist/bin.js"`).
+The packages are released together from a `packages-v*` tag of this
+repository. Once a release is on npm, `npx @kletia/cli …` runs the same
+commands and `npm install -g @kletia/cli` installs the `kletia` command.
 
 ## Configuration
 

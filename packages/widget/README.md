@@ -5,6 +5,18 @@ outcome, review the planned step graph, and execute it with their own EVM and
 Solana wallets. Styles are scoped (`kw-` classes) and injected once; no CSS
 import is needed.
 
+Not on the npm registry yet. Until the first `packages-v*` release, build
+and pack it from a checkout of this repository (`npm ci` builds all five
+packages):
+
+```bash
+git clone https://github.com/furkan3152/Kletia.git
+cd Kletia && npm ci && npm pack -w @kletia/core -w @kletia/sdk -w @kletia/widget
+cd ../your-app && npm install ../Kletia/kletia-*.tgz
+```
+
+Once published:
+
 ```bash
 npm install @kletia/widget @kletia/sdk
 ```

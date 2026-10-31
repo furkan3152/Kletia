@@ -81,11 +81,12 @@ from a Kletia origin, the script also makes that origin the element's default
 `origin`, so a page using a self-hosted or local Kletia needs no `origin`
 attribute. Once the npm package is published, the same file is also on npm
 CDNs (`https://cdn.jsdelivr.net/npm/@kletia/embed@<version>/dist/kletia-embed.min.js`);
-from there the default origin is `https://kletiaai.xyz`. The script defines `<kletia-intent>` and exposes
+from there the default origin is `https://kletiaai.xyz`. The integrity check needs `Access-Control-Allow-Origin` on `/sdk/*`, which the repository configures but the live site does not send yet. Until it does, serve a copy of the file from your own origin (compare its hash with `/sdk/embed/manifest.json`, and add `origin="https://kletiaai.xyz"` to the element) or use a plain iframe of `/embed`. The script defines `<kletia-intent>` and exposes
 `window.KletiaEmbed` (`mountKletiaIntent`, `defineKletiaIntent`,
 `buildEmbedUrl`, `EMBED_VERSION`).
 
-With npm:
+With npm (not published yet; until then, `npm pack -w @kletia/embed` in a
+checkout of this repository makes the tarball to install):
 
 ```bash
 npm install @kletia/embed

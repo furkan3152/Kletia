@@ -6,7 +6,7 @@ wallet is connected.
 
 ```bash
 cd examples/react-vite
-npm install
+npm install            # before the npm release, see ../README.md for the tarball install
 npm run dev            # http://127.0.0.1:5180
 ```
 

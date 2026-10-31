@@ -5,7 +5,7 @@ executes through the server's proxy; it never holds a key.
 
 ```bash
 cd examples/node-server
-npm install
+npm install            # before the npm release, see ../README.md for the tarball install
 cp .env.example .env    # fill in KLETIA_API_KEY and KLETIA_WEBHOOK_SECRET
 node --env-file=.env server.mjs        # http://localhost:3000
 ```

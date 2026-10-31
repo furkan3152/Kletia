@@ -6,7 +6,7 @@ operate yourself); `contract.base.json` is the ERC-4626 vault shape on Base.
 
 ```bash
 cd examples/own-contract
-npm install
+npm install            # before the npm release, see ../README.md for the tarball install
 export KLETIA_API_KEY=kl_dev_…        # a sandbox key: kletia keys create acme --sandbox
 node register.mjs contract.arbitrum-sepolia.json --account 0xYourWallet
 CONTRACT_ID=ct_… node session-server.mjs   # http://localhost:3001

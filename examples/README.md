@@ -1,9 +1,24 @@
 # Examples
 
 Small apps that use Kletia the way an integrator would. They live outside the
-npm workspaces: each installs the published packages (`@kletia/widget`,
+npm workspaces: each installs the `@kletia` packages (`@kletia/widget`,
 `@kletia/sdk`, `@kletia/embed`) like any other project, except html-embed,
 which loads the embed script from the Kletia origin and installs nothing.
+
+The `@kletia` packages are not on the npm registry yet, so a plain
+`npm install` in an example fails today. Until the first release, pack them
+from this checkout and install the tarballs first (this rewrites the
+example's `package.json` to point at them, so do it in a copy or revert it
+afterwards):
+
+```bash
+npm ci                                                     # repository root; builds the packages
+npm pack --pack-destination /tmp/kletia-packs -w @kletia/core -w @kletia/sdk -w @kletia/widget
+cd examples/react-vite                                     # or node-server, own-contract
+npm install /tmp/kletia-packs/kletia-core-*.tgz /tmp/kletia-packs/kletia-sdk-*.tgz /tmp/kletia-packs/kletia-widget-*.tgz
+```
+
+node-server and own-contract only need the core and sdk tarballs.
 
 | Example | What it shows |
 |---|---|

@@ -30,6 +30,7 @@ coverage/
 target/
 **/test_snapshots/
 *.tsbuildinfo
+*.tgz
 
 # Framework and tooling caches
 .cache/

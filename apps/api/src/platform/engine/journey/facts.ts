@@ -55,7 +55,7 @@ const MAX_VENUES = 6;
 const MAX_ALLOWANCES = 4;
 /** One exit transaction (approve + bridge deposit), before headroom. */
 const EXIT_GAS = 130_000n;
-/** USD of the gas leg into a destination's gas asset (owner request: $1). */
+/** USD of the gas leg into a destination's gas asset ($1). */
 const GAS_LEG_USD = 1;
 
 export interface FactOptions {

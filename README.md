@@ -403,6 +403,16 @@ Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 - The live intent eval depends on wallet balances: run it with a funded read-only preview wallet, or compare results by class.
 - The per-network guides in `docs/networks/` do not cover every venue added since they were written; `GET /v1/protocols` is the complete list. The SparkLend and Yearn V3 pins have read-back evidence ([`evm-lending-additions.json`](docs/networks/evidence/evm-lending-additions.json)) but no guide page yet.
 
+## Ecosystem
+
+Kletia is the **Interchange** of a small family of products: its intent engine is the central station, and the products built from it are lines. See [kletiaai.xyz/network](https://kletiaai.xyz/network) and [docs/ecosystem.md](docs/ecosystem.md).
+
+| Line | Product | What it is | Status |
+|---|---|---|---|
+| The Interchange | **Kletia** | Intent infrastructure for EVM and Solana (this repository). | Live |
+| Summit Line | **Elyia** | The intent, trading and portfolio deck for Elysium, HyperEVM and HyperCore; its policy layer is the Rule Book, its guide Ely the goat. It ported Kletia's engine concepts. | Testnet, in development (not public yet) |
+| Coast Line | **Lykia** | Policy-bound agents and stablecoin routing on Arc Network; its policy layer is the Fence, agents carry ERC-8004 Tags, its guide is Lyko the shepherd dog. It built on that lineage for Arc. | Live on Arc mainnet: [app](https://lykia-akdogan1.vercel.app), [repository](https://github.com/furkan3152/Lykia) |
+
 ## Public deployments
 
 - Base Intent Router V2, LaunchFactory V2 and attestation registry: [`contracts/base/deployments/base-mainnet-v2.json`](contracts/base/deployments/base-mainnet-v2.json)
@@ -413,7 +423,7 @@ The app runs at [kletiaai.xyz](https://kletiaai.xyz) and the API at [api.kletiaa
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md) or the [quickstart](docs/platform/quickstart.md), and check [status and versioning](docs/platform/status.md) before you rely on the hosted API. Then: [journey](docs/platform/journey.md), [clarifying questions](docs/platform/clarify.md), [projects and publishable keys](docs/platform/projects.md), [theming](docs/platform/theming.md), [client generation](docs/platform/codegen.md), [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [error catalog](docs/platform/errors.md), [MCP server](docs/platform/mcp.md), [embed web component](docs/platform/embed.md), [OpenAPI document](docs/platform/openapi.json) and [API collections](docs/platform/collections/README.md), [cross-chain venues](docs/networks/cross-chain-venues.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md), [Vercel](docs/deployment/vercel.md) and [self-hosted](docs/deployment/self-hosting.md) deployment.
+Start with the [documentation index](docs/README.md) or the [quickstart](docs/platform/quickstart.md), and check [status and versioning](docs/platform/status.md) before you rely on the hosted API. Then: [journey](docs/platform/journey.md), [clarifying questions](docs/platform/clarify.md), [projects and publishable keys](docs/platform/projects.md), [theming](docs/platform/theming.md), [client generation](docs/platform/codegen.md), [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [error catalog](docs/platform/errors.md), [MCP server](docs/platform/mcp.md), [embed web component](docs/platform/embed.md), [OpenAPI document](docs/platform/openapi.json) and [API collections](docs/platform/collections/README.md), [cross-chain venues](docs/networks/cross-chain-venues.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md), [Vercel](docs/deployment/vercel.md) and [self-hosted](docs/deployment/self-hosting.md) deployment, and [the ecosystem](docs/ecosystem.md).
 
 ## Contributing and license
 

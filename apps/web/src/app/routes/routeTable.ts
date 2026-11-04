@@ -34,6 +34,9 @@ export type RouteId =
   | "home"
   | "developers"
   | "networks"
+  | "network"
+  | "networkElyia"
+  | "networkLykia"
   | "protocols"
   | "studio"
   | "embed"
@@ -124,6 +127,33 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     description:
       "A departure board of RPC status for every network Kletia plans on, what the planner accepts on each one and the venues it can call there.",
     load: () => import("../pages/networks/NetworksPage"),
+  },
+  network: {
+    id: "network",
+    path: "/network",
+    kind: "site",
+    title: "The network: Kletia, Elyia and Lykia",
+    description:
+      "Kletia is the Interchange: its intent engine is the central station, and Elyia (Summit Line) and Lykia (Coast Line) are the lines built from it. Board, line map and tickets.",
+    load: () => import("../pages/network/NetworkPage"),
+  },
+  networkElyia: {
+    id: "networkElyia",
+    path: "/network/elyia",
+    kind: "site",
+    title: "Elyia, the Summit Line: the Kletia network",
+    description:
+      "Elyia is the intent, trading and portfolio deck for Elysium, HyperEVM and HyperCore, built on Kletia's engine concepts. Testnet first, with a Rule Book and Ely the goat.",
+    load: () => import("../pages/network/ElyiaPage"),
+  },
+  networkLykia: {
+    id: "networkLykia",
+    path: "/network/lykia",
+    kind: "site",
+    title: "Lykia, the Coast Line: the Kletia network",
+    description:
+      "Lykia runs policy-bound agents and stablecoin routing on Arc mainnet: every step checked against the Fence, agents with ERC-8004 Tags, and Lyko the shepherd dog.",
+    load: () => import("../pages/network/LykiaPage"),
   },
   protocols: {
     id: "protocols",
@@ -243,6 +273,9 @@ const EXACT: Readonly<Record<string, RouteId>> = Object.freeze({
   "/": "home",
   "/developers": "developers",
   "/networks": "networks",
+  "/network": "network",
+  "/network/elyia": "networkElyia",
+  "/network/lykia": "networkLykia",
   "/protocols": "protocols",
   "/studio": "studio",
   "/embed": "embed",

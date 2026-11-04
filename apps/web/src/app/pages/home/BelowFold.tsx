@@ -8,6 +8,7 @@ import { Coverage } from "./Coverage";
 import { FeatureBinder } from "./FeatureBinder";
 import { CtaSlab, HomeFaq, TrustPlates } from "./HomeEnd";
 import type { HomeLive } from "./homeLive";
+import { NetworkSection } from "./NetworkSection";
 import { StoryTrack } from "./StoryTrack";
 
 export { BasePlate } from "./HomeEnd";
@@ -26,6 +27,7 @@ export function BelowFold({ live, protocols, counted }: BelowFoldProps) {
       <Coverage live={live} protocols={protocols} />
       <FeatureBinder />
       <BackPanel />
+      <NetworkSection live={live} />
       <TrustPlates />
       <HomeFaq protocols={counted.protocols} ownContracts={counted.ownContracts} />
       <CtaSlab />

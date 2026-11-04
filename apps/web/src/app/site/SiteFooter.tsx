@@ -29,6 +29,7 @@ const COLUMNS: readonly { title: string; links: readonly FooterLink[] }[] = [
       { label: "Intent Studio", to: "/studio" },
       { label: "Protocols", to: "/protocols" },
       { label: "Networks and status", to: "/networks" },
+      { label: "The network", to: "/network" },
       { label: "How it works", to: "/#how-it-works" },
       { label: "Security model", to: "/#security" },
       { label: "FAQ", to: "/#faq" },

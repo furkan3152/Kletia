@@ -171,6 +171,21 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://kletiaai.xyz/network</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kletiaai.xyz/network/elyia</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://kletiaai.xyz/network/lykia</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://kletiaai.xyz/protocols</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

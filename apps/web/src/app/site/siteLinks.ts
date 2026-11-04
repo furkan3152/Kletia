@@ -21,5 +21,6 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   { label: "Protocols", to: "/protocols" },
   { label: "Networks", to: "/networks" },
   { label: "Studio", to: "/studio" },
+  { label: "Network", to: "/network" },
   { label: "GitHub", to: GITHUB_URL, external: true, compact: true },
 ];

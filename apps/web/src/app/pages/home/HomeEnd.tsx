@@ -57,7 +57,7 @@ export function TrustPlates() {
         <div className="sec-h">
           <div>
             <div className="sec-k">
-              <span className="led">05</span>
+              <span className="led">06</span>
               <span className="silk">Trust</span>
             </div>
             <h2 className="sec-t" id="trust-heading">
@@ -123,7 +123,7 @@ export function HomeFaq({ protocols, ownContracts }: { readonly protocols: numbe
       <div className="wrap faq">
         <div>
           <div className="sec-k">
-            <span className="led">06</span>
+            <span className="led">07</span>
             <span className="silk">FAQ</span>
           </div>
           <h2 className="faq-t" id="faq-heading">
@@ -247,7 +247,7 @@ export function CtaSlab() {
 const COLUMNS: readonly { readonly title: string; readonly links: readonly { readonly label: string; readonly to: string; readonly external?: boolean }[] }[] = [
   { title: "Desk", links: [{ label: "Open the desk", to: "/app" }, { label: "Trade", to: "/app/perps" }, { label: "Portfolio", to: "/app/dashboard" }, { label: "Automate", to: "/app/automations" }, { label: "Studio", to: "/studio" }] },
   { title: "Developers", links: [{ label: "Portal", to: "/developers" }, { label: "REST API", to: "/developers/api" }, { label: "Agents and MCP", to: "/developers/agents" }, { label: "Webhooks", to: "/developers/webhooks" }, { label: "Widget", to: "/developers/embed" }] },
-  { title: "Coverage", links: [{ label: "Networks", to: "/networks" }, { label: "Protocols", to: "/protocols" }, { label: "Changelog", to: "/changelog" }, { label: "Help", to: "/help" }, { label: "Privacy & data", to: "/privacy" }] },
+  { title: "Coverage", links: [{ label: "Networks", to: "/networks" }, { label: "The network", to: "/network" }, { label: "Protocols", to: "/protocols" }, { label: "Changelog", to: "/changelog" }, { label: "Help", to: "/help" }, { label: "Privacy & data", to: "/privacy" }] },
   { title: "Open", links: [{ label: "GitHub", to: GITHUB_URL, external: true }, { label: "Security", to: SECURITY_POLICY_URL, external: true }, { label: "License", to: LICENSE_URL, external: true }] },
 ];
 

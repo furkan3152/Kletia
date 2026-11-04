@@ -18,6 +18,7 @@ import arbitrumSepoliaRoutes from "../networks/arbitrum-sepolia/routes.js";
 import solanaRoutes from "../networks/solana/routes.js";
 import releaseRoutes from "../release/routes.js";
 import healthRoutes from "./routes/health.js";
+import networkRoutes from "./routes/network.js";
 import onrampRoutes from "./routes/onramp.js";
 import {
   requireArcNetwork,
@@ -84,6 +85,8 @@ app.use("/api/base-mcp", requireBaseNetwork, baseMcpRoutes);
 
 // /health, /api/health, /api/health/{network}, /api/networks, /api/capabilities
 app.use(healthRoutes);
+// GET /api/network/lykia (cached relay of Lykia's public status for /network)
+app.use(networkRoutes);
 // POST /api/intent, POST /api/intent/revalidate-recipient
 app.use(intentRoutes);
 // POST /api/onramp-token

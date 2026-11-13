@@ -10,6 +10,7 @@ import {
   walletConnectWallet,
 } from "@rainbow-me/rainbowkit/wallets";
 import "@rainbow-me/rainbowkit/styles.css";
+import { kletiaWallet, registerKletiaSolanaWallet } from "@kletia-wallet/connector";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fallback, http } from "viem";
 import { arbitrumSepolia } from "viem/chains";
@@ -38,6 +39,8 @@ const connectors = connectorsForWallets(
       wallets: [
         injectedWallet,
         baseWallet,
+        // Kletia Wallet: the ESP32 cold wallet over Web Bluetooth (signs on the device).
+        kletiaWallet,
         ...(walletConnectProjectId ? [walletConnectWallet] : []),
       ],
     },
@@ -47,6 +50,9 @@ const connectors = connectorsForWallets(
     projectId: walletConnectProjectId ?? "",
   },
 );
+
+// The same device for Solana, through Wallet Standard discovery.
+registerKletiaSolanaWallet();
 
 const uniqueRpcUrls = (...urls: Array<string | undefined>) => [
   ...new Set(urls.filter((url): url is string => Boolean(url))),
